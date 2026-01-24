@@ -1,0 +1,57 @@
+[
+    {
+        "nome": "sla",
+        "tamanho": 2.0,
+        "forca": 5.0,
+        "mana": 5.0,
+        "nome_arma": "escudo",
+        "cor_r": 200,
+        "cor_g": 50,
+        "cor_b": 50,
+        "classe": "Guerreiro (Passiva)"
+    },
+    {
+        "nome": "pinto",
+        "tamanho": 1.2,
+        "forca": 3.0,
+        "mana": 20.0,
+        "nome_arma": "teste",
+        "cor_r": 50,
+        "cor_g": 50,
+        "cor_b": 50,
+        "classe": "Guerreiro (Passiva)"
+    },
+    {
+        "nome": "Robert",
+        "tamanho": 1.76,
+        "forca": 7.0,
+        "mana": 20.0,
+        "nome_arma": "LancaRobert",
+        "cor_r": 0,
+        "cor_g": 0,
+        "cor_b": 0,
+        "classe": "Mago (Mana)"
+    },
+    {
+        "nome": "sthep",
+        "tamanho": 1.61,
+        "forca": 4.0,
+        "mana": 69.0,
+        "nome_arma": "lancinhadasthe",
+        "cor_r": 50,
+        "cor_g": 50,
+        "cor_b": 50,
+        "classe": "Guerreiro (Passiva)"
+    },
+    {
+        "nome": "cunha",
+        "tamanho": 1.78,
+        "forca": 9.0,
+        "mana": 100.0,
+        "nome_arma": "arminhaducunha",
+        "cor_r": 250,
+        "cor_g": 0,
+        "cor_b": 250,
+        "classe": "Guerreiro (Passiva)"
+    }
+]
