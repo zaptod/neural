@@ -94,13 +94,26 @@ class Simulador:
 
         if self.hit_stop_timer > 0: self.hit_stop_timer -= dt; return
 
-        # Coleta projéteis
+        # === COLETA OBJETOS DOS LUTADORES ===
         for p in [self.p1, self.p2]:
+            # Projéteis
             if p.buffer_projeteis:
                 self.projeteis.extend(p.buffer_projeteis)
                 p.buffer_projeteis = []
+            # Áreas
+            if hasattr(p, 'buffer_areas') and p.buffer_areas:
+                if not hasattr(self, 'areas'):
+                    self.areas = []
+                self.areas.extend(p.buffer_areas)
+                p.buffer_areas = []
+            # Beams
+            if hasattr(p, 'buffer_beams') and p.buffer_beams:
+                if not hasattr(self, 'beams'):
+                    self.beams = []
+                self.beams.extend(p.buffer_beams)
+                p.buffer_beams = []
 
-        # Atualiza Projéteis
+        # === ATUALIZA PROJÉTEIS ===
         for proj in self.projeteis:
             proj.atualizar(dt)
             alvo = self.p2 if proj.dono == self.p1 else self.p1
@@ -109,13 +122,74 @@ class Simulador:
             if dist < (alvo.raio_fisico + 0.3) and proj.ativo:
                 proj.ativo = False
                 self.shockwaves.append(Shockwave(proj.x * PPM, proj.y * PPM, proj.cor))
-                if alvo.tomar_dano(proj.dano, dx/(dist or 1), dy/(dist or 1)):
+                
+                # Aplica dano com efeito
+                dano_final = proj.dono.get_dano_modificado(proj.dano) if hasattr(proj.dono, 'get_dano_modificado') else proj.dano
+                tipo_efeito = proj.tipo_efeito if hasattr(proj, 'tipo_efeito') else "NORMAL"
+                
+                if alvo.tomar_dano(dano_final, dx/(dist or 1), dy/(dist or 1), tipo_efeito):
                     self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                     self.ativar_slow_motion(); self.vencedor = proj.dono.dados.nome
                 else:
-                    self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(proj.dano), BRANCO))
+                    # Cor do texto baseado no efeito
+                    cor_txt = self._get_cor_efeito(tipo_efeito)
+                    self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano_final), cor_txt))
+                    
+                    # Partículas baseadas no efeito
+                    self._spawn_particulas_efeito(alvo.pos[0]*PPM, alvo.pos[1]*PPM, tipo_efeito)
+                
+                # Efeito DRENAR recupera vida do atacante
+                if tipo_efeito == "DRENAR":
+                    proj.dono.vida = min(proj.dono.vida_max, proj.dono.vida + dano_final * 0.15)
+                    self.textos.append(FloatingText(proj.dono.pos[0]*PPM, proj.dono.pos[1]*PPM - 30, f"+{int(dano_final*0.15)}", (100, 255, 150), 16))
 
         self.projeteis = [p for p in self.projeteis if p.ativo]
+
+        # === ATUALIZA ÁREAS ===
+        if hasattr(self, 'areas'):
+            for area in self.areas:
+                area.atualizar(dt)
+                if area.ativo:
+                    # Verifica colisão com alvos
+                    for alvo in [self.p1, self.p2]:
+                        if alvo == area.dono or alvo in area.alvos_atingidos:
+                            continue
+                        dx = alvo.pos[0] - area.x
+                        dy = alvo.pos[1] - area.y
+                        dist = math.hypot(dx, dy)
+                        if dist < area.raio_atual + alvo.raio_fisico:
+                            area.alvos_atingidos.add(alvo)
+                            dano = area.dono.get_dano_modificado(area.dano) if hasattr(area.dono, 'get_dano_modificado') else area.dano
+                            if alvo.tomar_dano(dano, dx/(dist or 1), dy/(dist or 1), area.tipo_efeito):
+                                self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
+                                self.ativar_slow_motion()
+                                self.vencedor = area.dono.dados.nome
+                            else:
+                                cor_txt = self._get_cor_efeito(area.tipo_efeito)
+                                self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), cor_txt))
+            self.areas = [a for a in self.areas if a.ativo]
+
+        # === ATUALIZA BEAMS ===
+        if hasattr(self, 'beams'):
+            for beam in self.beams:
+                beam.atualizar(dt)
+                if beam.ativo and not beam.hit_aplicado:
+                    alvo = self.p2 if beam.dono == self.p1 else self.p1
+                    # Verifica se beam cruza com alvo
+                    if self._beam_colide_alvo(beam, alvo):
+                        beam.hit_aplicado = True
+                        dano = beam.dono.get_dano_modificado(beam.dano) if hasattr(beam.dono, 'get_dano_modificado') else beam.dano
+                        dx = alvo.pos[0] - beam.dono.pos[0]
+                        dy = alvo.pos[1] - beam.dono.pos[1]
+                        dist = math.hypot(dx, dy) or 1
+                        if alvo.tomar_dano(dano, dx/dist, dy/dist, beam.tipo_efeito):
+                            self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
+                            self.ativar_slow_motion()
+                            self.vencedor = beam.dono.dados.nome
+                        else:
+                            self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), (255, 255, 100)))
+                            self.cam.aplicar_shake(8.0, 0.1)
+            self.beams = [b for b in self.beams if b.ativo]
 
         if not self.vencedor:
             self.p1.update(dt, self.p2); self.p2.update(dt, self.p1)
@@ -132,6 +206,53 @@ class Simulador:
                     self.decals.append(Decal(p.x, p.y, p.tamanho * 2, SANGUE_ESCURO))
                 self.particulas.remove(p)
         if len(self.decals) > 100: self.decals.pop(0)
+
+    def _get_cor_efeito(self, efeito):
+        """Retorna cor do texto baseado no tipo de efeito"""
+        cores = {
+            "NORMAL": BRANCO,
+            "FOGO": (255, 100, 0),
+            "QUEIMAR": (255, 150, 50),
+            "GELO": (150, 220, 255),
+            "CONGELAR": (100, 200, 255),
+            "VENENO": (100, 255, 100),
+            "SANGRAMENTO": (180, 0, 30),
+            "RAIO": (255, 255, 100),
+            "ATORDOAR": (255, 255, 150),
+            "TREVAS": (150, 0, 200),
+            "DRENAR": (80, 0, 120),
+            "EMPURRAO": (200, 200, 255),
+            "EXPLOSAO": (255, 200, 50),
+        }
+        return cores.get(efeito, BRANCO)
+    
+    def _spawn_particulas_efeito(self, x, y, efeito):
+        """Spawna partículas específicas do efeito"""
+        cores_part = {
+            "QUEIMAR": (255, 100, 0),
+            "CONGELAR": (150, 220, 255),
+            "VENENO": (100, 255, 100),
+            "SANGRAMENTO": VERMELHO_SANGUE,
+            "ATORDOAR": (255, 255, 100),
+            "DRENAR": (80, 0, 120),
+            "EXPLOSAO": (255, 200, 50),
+        }
+        cor = cores_part.get(efeito)
+        if cor:
+            for _ in range(8):
+                vx = random.uniform(-8, 8)
+                vy = random.uniform(-8, 8)
+                self.particulas.append(Particula(x, y, cor, vx, vy, random.randint(3, 6), 0.5))
+    
+    def _beam_colide_alvo(self, beam, alvo):
+        """Verifica se um beam colide com um alvo"""
+        # Usa colisão linha-círculo
+        from physics import colisao_linha_circulo
+        pt1 = (beam.x1 * PPM, beam.y1 * PPM)
+        pt2 = (beam.x2 * PPM, beam.y2 * PPM)
+        centro = (alvo.pos[0] * PPM, alvo.pos[1] * PPM)
+        raio = alvo.raio_fisico * PPM
+        return colisao_linha_circulo(pt1, pt2, centro, raio)
 
     def atualizar_rastros(self):
         for p in [self.p1, self.p2]:
@@ -225,8 +346,12 @@ class Simulador:
         if acertou:
             vx = defensor.pos[0] - atacante.pos[0]; vy = defensor.pos[1] - atacante.pos[1]
             mag = math.hypot(vx, vy) or 1
-            dano = arma.dano * (atacante.dados.forca / 2.0)
-            if defensor.tomar_dano(dano, vx/mag, vy/mag):
+            
+            # Usa o novo sistema de dano modificado
+            dano_base = arma.dano * (atacante.dados.forca / 2.0)
+            dano = atacante.get_dano_modificado(dano_base) if hasattr(atacante, 'get_dano_modificado') else dano_base
+            
+            if defensor.tomar_dano(dano, vx/mag, vy/mag, "NORMAL"):
                 self.spawn_particulas(dx, dy, vx/mag, vy/mag, VERMELHO_SANGUE, 50)
                 self.cam.aplicar_shake(30.0, 0.4); self.hit_stop_timer = 0.3
                 self.textos.append(FloatingText(dx*PPM, dy*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
@@ -251,6 +376,38 @@ class Simulador:
         self.tela.fill(COR_FUNDO)
         self.desenhar_grid()
         for d in self.decals: d.draw(self.tela, self.cam)
+        
+        # === DESENHA ÁREAS ===
+        if hasattr(self, 'areas'):
+            for area in self.areas:
+                if area.ativo:
+                    ax, ay = self.cam.converter(area.x * PPM, area.y * PPM)
+                    ar = self.cam.converter_tam(area.raio_atual * PPM)
+                    if ar > 0:
+                        s = pygame.Surface((ar*2, ar*2), pygame.SRCALPHA)
+                        cor_com_alpha = (*area.cor, min(255, area.alpha // 2))
+                        pygame.draw.circle(s, cor_com_alpha, (ar, ar), ar)
+                        self.tela.blit(s, (ax - ar, ay - ar))
+                        # Borda
+                        pygame.draw.circle(self.tela, area.cor, (ax, ay), ar, 2)
+        
+        # === DESENHA BEAMS ===
+        if hasattr(self, 'beams'):
+            for beam in self.beams:
+                if beam.ativo:
+                    # Desenha segmentos zigzag
+                    pts_screen = []
+                    for bx, by in beam.segments:
+                        sx, sy = self.cam.converter(bx * PPM, by * PPM)
+                        pts_screen.append((sx, sy))
+                    if len(pts_screen) >= 2:
+                        # Glow externo
+                        pygame.draw.lines(self.tela, (255, 255, 255), False, pts_screen, beam.largura + 4)
+                        # Beam principal
+                        pygame.draw.lines(self.tela, beam.cor, False, pts_screen, beam.largura)
+                        # Core brilhante
+                        pygame.draw.lines(self.tela, BRANCO, False, pts_screen, max(1, beam.largura // 2))
+        
         for p in self.particulas:
             sx, sy = self.cam.converter(p.x, p.y); tam = self.cam.converter_tam(p.tamanho)
             pygame.draw.rect(self.tela, p.cor, (sx, sy, tam, tam))
@@ -258,7 +415,18 @@ class Simulador:
         lutadores.sort(key=lambda p: 0 if p.morto else 1)
         for l in lutadores: self.desenhar_lutador(l)
         
+        # === DESENHA PROJÉTEIS COM TRAIL ===
         for proj in self.projeteis:
+            # Trail
+            if hasattr(proj, 'trail') and len(proj.trail) > 1:
+                for i in range(1, len(proj.trail)):
+                    alpha = int(255 * (i / len(proj.trail)) * 0.5)
+                    p1 = self.cam.converter(proj.trail[i-1][0] * PPM, proj.trail[i-1][1] * PPM)
+                    p2 = self.cam.converter(proj.trail[i][0] * PPM, proj.trail[i][1] * PPM)
+                    # Trail colorido
+                    pygame.draw.line(self.tela, proj.cor, p1, p2, max(1, int(proj.raio * PPM * self.cam.zoom * 0.5)))
+            
+            # Projétil principal
             px, py = self.cam.converter(proj.x * PPM, proj.y * PPM)
             pr = self.cam.converter_tam(proj.raio * PPM)
             pygame.draw.circle(self.tela, proj.cor, (px, py), pr)
