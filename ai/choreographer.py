@@ -1,0 +1,298 @@
+"""
+=============================================================================
+NEURAL FIGHTS - Sistema de Coreografia v5.0
+=============================================================================
+Coordenador de Coreografia de Combate.
+Gerencia interações entre IAs para criar momentos cinematográficos.
+=============================================================================
+"""
+
+import random
+import math
+
+
+class CombatChoreographer:
+    """
+    Coordenador de Coreografia de Combate.
+    Gerencia interações entre IAs para criar momentos cinematográficos.
+    """
+    
+    _instance = None
+    
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = CombatChoreographer()
+        return cls._instance
+    
+    @classmethod
+    def reset(cls):
+        cls._instance = None
+    
+    def __init__(self):
+        # Estado do confronto
+        self.momento_atual = "NEUTRO"
+        self.timer_momento = 0.0
+        self.duracao_momento = 0.0
+        
+        # Participantes
+        self.lutador1 = None
+        self.lutador2 = None
+        
+        # Histórico de momentos
+        self.momentos_recentes = []
+        self.cooldown_momentos = {}
+        
+        # Intensidade da luta (0.0 a 1.0)
+        self.intensidade = 0.0
+        self.climax_atingido = False
+        
+        # Contadores de ação
+        self.trocas_seguidas = 0
+        self.tempo_sem_hit = 0.0
+        self.ultimo_agressor = None
+        
+        # Sincronização
+        self.sync_action = None
+        self.sync_timer = 0.0
+    
+    def registrar_lutadores(self, l1, l2):
+        """Registra os dois lutadores"""
+        self.lutador1 = l1
+        self.lutador2 = l2
+    
+    def update(self, dt):
+        """Atualiza o sistema de coreografia"""
+        if not self.lutador1 or not self.lutador2:
+            return
+        
+        # Atualiza timers
+        self.timer_momento -= dt
+        self.sync_timer -= dt
+        self.tempo_sem_hit += dt
+        
+        # Decay de cooldowns
+        for k in list(self.cooldown_momentos.keys()):
+            self.cooldown_momentos[k] -= dt
+            if self.cooldown_momentos[k] <= 0:
+                del self.cooldown_momentos[k]
+        
+        # Calcula intensidade
+        self._calcular_intensidade()
+        
+        # Termina momento atual
+        if self.timer_momento <= 0 and self.momento_atual != "NEUTRO":
+            self._finalizar_momento()
+        
+        # Detecta oportunidades de momento
+        if self.momento_atual == "NEUTRO":
+            self._detectar_momento()
+    
+    def _calcular_intensidade(self):
+        """Calcula intensidade atual da luta"""
+        l1, l2 = self.lutador1, self.lutador2
+        
+        # HP médio (mais intenso quando ambos baixos)
+        hp1_pct = l1.vida / l1.vida_max
+        hp2_pct = l2.vida / l2.vida_max
+        hp_fator = 1.0 - ((hp1_pct + hp2_pct) / 2)
+        
+        # Diferença de HP (mais intenso quando próximo)
+        hp_diff = abs(hp1_pct - hp2_pct)
+        equilibrio_fator = 1.0 - hp_diff
+        
+        # Ação recente
+        acao_fator = min(1.0, self.trocas_seguidas / 5.0)
+        
+        # Tempo (builds up)
+        if hasattr(l1, 'ai') and l1.ai:
+            tempo_fator = min(1.0, l1.ai.tempo_combate / 60.0)
+        else:
+            tempo_fator = 0.5
+        
+        # Combina fatores
+        self.intensidade = (hp_fator * 0.3 + equilibrio_fator * 0.25 + 
+                           acao_fator * 0.25 + tempo_fator * 0.2)
+        
+        # Clímax quando ambos < 25% HP
+        if hp1_pct < 0.25 and hp2_pct < 0.25:
+            self.climax_atingido = True
+            self.intensidade = min(1.0, self.intensidade + 0.3)
+    
+    def _detectar_momento(self):
+        """Detecta oportunidade para momento cinematográfico"""
+        l1, l2 = self.lutador1, self.lutador2
+        distancia = math.sqrt((l1.pos[0] - l2.pos[0])**2 + (l1.pos[1] - l2.pos[1])**2)
+        
+        hp1_pct = l1.vida / l1.vida_max
+        hp2_pct = l2.vida / l2.vida_max
+        
+        # === CLASH (Colisão de ataques) ===
+        if self._pode_momento("CLASH"):
+            ambos_atacando = getattr(l1, 'atacando', False) and getattr(l2, 'atacando', False)
+            if ambos_atacando and distancia < 3.0:
+                self._iniciar_momento("CLASH", 0.8)
+                return
+        
+        # === STANDOFF (Confronto visual) ===
+        if self._pode_momento("STANDOFF"):
+            if 4.0 < distancia < 7.0 and self.tempo_sem_hit > 3.0:
+                if self.intensidade > 0.4 or random.random() < 0.02:
+                    self._iniciar_momento("STANDOFF", random.uniform(1.5, 3.0))
+                    return
+        
+        # === FACE_OFF (Ambos param e se encaram) ===
+        if self._pode_momento("FACE_OFF"):
+            if hp1_pct < 0.5 and hp2_pct < 0.5 and self.intensidade > 0.5:
+                if 3.0 < distancia < 6.0 and random.random() < 0.03:
+                    self._iniciar_momento("FACE_OFF", random.uniform(2.0, 4.0))
+                    return
+        
+        # === CLIMAX_CHARGE (Ambos preparam ataque final) ===
+        if self._pode_momento("CLIMAX_CHARGE"):
+            if self.climax_atingido and self.intensidade > 0.7:
+                if random.random() < 0.05:
+                    self._iniciar_momento("CLIMAX_CHARGE", random.uniform(2.0, 3.5))
+                    return
+        
+        # === PURSUIT (Perseguição cinematográfica) ===
+        if self._pode_momento("PURSUIT"):
+            if distancia > 8.0 and self.tempo_sem_hit > 2.0:
+                # Detecta quem está fugindo
+                if hp1_pct < hp2_pct * 0.7 or hp2_pct < hp1_pct * 0.7:
+                    if random.random() < 0.04:
+                        self._iniciar_momento("PURSUIT", random.uniform(2.0, 4.0))
+                        return
+        
+        # === EXCHANGE (Troca rápida de golpes) ===
+        if self._pode_momento("EXCHANGE"):
+            if distancia < 3.0 and self.trocas_seguidas >= 3:
+                if random.random() < 0.1:
+                    self._iniciar_momento("EXCHANGE", random.uniform(1.5, 2.5))
+                    return
+        
+        # === BREATHER (Pausa para respirar) ===
+        if self._pode_momento("BREATHER"):
+            if self.trocas_seguidas >= 5 and distancia > 4.0:
+                if random.random() < 0.06:
+                    self._iniciar_momento("BREATHER", random.uniform(1.0, 2.0))
+                    return
+        
+        # === CIRCLE_DANCE (Circulam um ao outro) ===
+        if self._pode_momento("CIRCLE_DANCE"):
+            if 3.0 < distancia < 6.0 and self.intensidade > 0.3:
+                if random.random() < 0.025:
+                    self._iniciar_momento("CIRCLE_DANCE", random.uniform(2.0, 4.0))
+                    return
+        
+        # === FINAL_SHOWDOWN (Momento final) ===
+        if self._pode_momento("FINAL_SHOWDOWN"):
+            if (hp1_pct < 0.15 or hp2_pct < 0.15) and self.climax_atingido:
+                if random.random() < 0.08:
+                    self._iniciar_momento("FINAL_SHOWDOWN", random.uniform(2.5, 4.0))
+                    return
+    
+    def _pode_momento(self, tipo):
+        """Verifica se pode iniciar este tipo de momento"""
+        return tipo not in self.cooldown_momentos
+    
+    def _iniciar_momento(self, tipo, duracao):
+        """Inicia um momento cinematográfico"""
+        self.momento_atual = tipo
+        self.duracao_momento = duracao
+        self.timer_momento = duracao
+        self.momentos_recentes.append(tipo)
+        
+        # Mantém histórico limitado
+        if len(self.momentos_recentes) > 10:
+            self.momentos_recentes.pop(0)
+        
+        # Notifica as IAs
+        self._notificar_momento_iniciado(tipo)
+    
+    def _finalizar_momento(self):
+        """Finaliza o momento atual"""
+        tipo_anterior = self.momento_atual
+        self.momento_atual = "NEUTRO"
+        
+        # Cooldown baseado no tipo
+        cooldowns = {
+            "CLASH": 5.0,
+            "STANDOFF": 8.0,
+            "FACE_OFF": 12.0,
+            "CLIMAX_CHARGE": 15.0,
+            "PURSUIT": 6.0,
+            "EXCHANGE": 4.0,
+            "BREATHER": 10.0,
+            "CIRCLE_DANCE": 7.0,
+            "FINAL_SHOWDOWN": 20.0,
+        }
+        self.cooldown_momentos[tipo_anterior] = cooldowns.get(tipo_anterior, 5.0)
+        
+        # Notifica as IAs
+        self._notificar_momento_finalizado(tipo_anterior)
+    
+    def _notificar_momento_iniciado(self, tipo):
+        """Notifica IAs sobre momento iniciado"""
+        for l in [self.lutador1, self.lutador2]:
+            if hasattr(l, 'ai') and l.ai:
+                l.ai.on_momento_cinematografico(tipo, True, self.duracao_momento)
+    
+    def _notificar_momento_finalizado(self, tipo):
+        """Notifica IAs sobre momento finalizado"""
+        for l in [self.lutador1, self.lutador2]:
+            if hasattr(l, 'ai') and l.ai:
+                l.ai.on_momento_cinematografico(tipo, False, 0)
+    
+    def registrar_hit(self, atacante, defensor):
+        """Registra quando um hit acontece"""
+        self.tempo_sem_hit = 0.0
+        self.trocas_seguidas += 1
+        
+        # Notifica IAs
+        if hasattr(atacante, 'ai') and atacante.ai:
+            atacante.ai.on_hit_dado()
+        if hasattr(defensor, 'ai') and defensor.ai:
+            defensor.ai.on_hit_recebido_de(atacante)
+        
+        self.ultimo_agressor = atacante
+    
+    def get_acao_sincronizada(self, lutador):
+        """Retorna ação sincronizada para o lutador (se houver)"""
+        if self.momento_atual == "NEUTRO":
+            return None
+        
+        outro = self.lutador2 if lutador == self.lutador1 else self.lutador1
+        
+        # Ações baseadas no momento
+        if self.momento_atual == "STANDOFF":
+            return "CIRCULAR_LENTO"
+        elif self.momento_atual == "FACE_OFF":
+            return "ENCARAR"
+        elif self.momento_atual == "CLIMAX_CHARGE":
+            return "PREPARAR_ATAQUE"
+        elif self.momento_atual == "PURSUIT":
+            if lutador == self.ultimo_agressor:
+                return "PERSEGUIR"
+            else:
+                return "FUGIR_DRAMATICO"
+        elif self.momento_atual == "EXCHANGE":
+            return "TROCAR_GOLPES"
+        elif self.momento_atual == "BREATHER":
+            return "RECUPERAR"
+        elif self.momento_atual == "CIRCLE_DANCE":
+            return "CIRCULAR_SINCRONIZADO"
+        elif self.momento_atual == "CLASH":
+            return "CLASH"
+        elif self.momento_atual == "FINAL_SHOWDOWN":
+            return "ATAQUE_FINAL"
+        
+        return None
+    
+    def get_intensidade(self):
+        """Retorna intensidade atual"""
+        return self.intensidade
+    
+    def get_momento(self):
+        """Retorna momento atual"""
+        return self.momento_atual
