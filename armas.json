@@ -1052,5 +1052,75 @@
         "durabilidade_max": 100.0,
         "habilidade": "Prisão de Gelo",
         "custo_mana": 22.0
+    },
+    {
+        "nome": "cu preto",
+        "tipo": "Orbital",
+        "dano": 25.0,
+        "peso": 5.0,
+        "raridade": "Mítico",
+        "comp_cabo": 0.0,
+        "comp_lamina": 0.0,
+        "largura": 28.0,
+        "distancia": 52.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "quantidade": 1,
+        "tamanho_arco": 0.0,
+        "forca_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "quantidade_orbitais": 6,
+        "tamanho": 28.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 200,
+        "g": 200,
+        "b": 200,
+        "estilo": "Defensivo (Escudo)",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Lança de Fogo",
+                "custo": 12.0
+            },
+            {
+                "nome": "Troca de Almas",
+                "custo": 40.0
+            },
+            {
+                "nome": "Velocidade Arcana",
+                "custo": 15.0
+            },
+            {
+                "nome": "Execução",
+                "custo": 50.0
+            }
+        ],
+        "encantamentos": [
+            "Vampirismo",
+            "Velocidade",
+            "Sagrado",
+            "Trevas",
+            "Veneno"
+        ],
+        "passiva": {
+            "nome": "Apocalíptica",
+            "efeito": "aoe_damage",
+            "valor": 30,
+            "descricao": "Ataques causam 30% do dano em área"
+        },
+        "critico": 0.0,
+        "velocidade_ataque": 1.0,
+        "afinidade_elemento": null,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Lança de Fogo",
+        "custo_mana": 12.0
     }
 ]

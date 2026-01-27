@@ -3694,5 +3694,16 @@
         "cor_g": 250,
         "cor_b": 170,
         "classe": "Monge (Chi)"
+    },
+    {
+        "nome": "cu pretildo",
+        "tamanho": 2.5,
+        "forca": 10.0,
+        "mana": 10.0,
+        "nome_arma": "cu preto",
+        "cor_r": 220,
+        "cor_g": 180,
+        "cor_b": 50,
+        "classe": "Necromante (Trevas)"
     }
 ]
