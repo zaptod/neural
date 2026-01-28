@@ -1,19 +1,19 @@
 """
 =============================================================================
-NEURAL FIGHTS - Personalidades da IA
+NEURAL FIGHTS - Personalidades da IA v8.0 HUMAN EDITION
 =============================================================================
 Sistema de personalidade procedural com CENTENAS de combinações:
-- 50+ Traços de personalidade
+- 60+ Traços de personalidade (incluindo novos traços humanos)
 - 25+ Arquétipos de combate  
 - 15+ Estilos de luta
-- 20+ Quirks (comportamentos únicos)
-- 10+ Filosofias de combate
+- 25+ Quirks (comportamentos únicos)
+- 12+ Filosofias de combate
 - Sistema de humor dinâmico
 =============================================================================
 """
 
 # =============================================================================
-# TRAÇOS DE PERSONALIDADE (50+)
+# TRAÇOS DE PERSONALIDADE (60+)
 # =============================================================================
 
 TRACOS_AGRESSIVIDADE = [
@@ -27,6 +27,8 @@ TRACOS_AGRESSIVIDADE = [
     "IMPLACAVEL",      # Nunca recua voluntariamente
     "FURIOSO",         # Raiva constante
     "BRUTAL",          # Prefere golpes pesados
+    "PRESSAO_CONSTANTE", # Mantém pressão sempre (NOVO v8.0)
+    "FINALIZADOR_NATO",  # Sabe quando dar o golpe final (NOVO v8.0)
 ]
 
 TRACOS_DEFENSIVO = [
@@ -40,6 +42,8 @@ TRACOS_DEFENSIVO = [
     "PARANOICO",       # Sempre esperando ataque
     "MEDROSO",         # Medo constante
     "PRUDENTE",        # Calcula riscos
+    "LEITURA_PERFEITA",  # Lê movimentos do oponente (NOVO v8.0)
+    "TIMING_PRECISO",    # Timing de desvio perfeito (NOVO v8.0)
 ]
 
 TRACOS_MOBILIDADE = [
@@ -53,6 +57,8 @@ TRACOS_MOBILIDADE = [
     "DESLIZANTE",      # Move suavemente
     "TELEGRAFICO",     # Movimentos previsíveis
     "CAOTICO",         # Direções aleatórias
+    "ESPACAMENTO_MESTRE", # Controla distância perfeitamente (NOVO v8.0)
+    "MICRO_AJUSTES",     # Pequenos ajustes constantes (NOVO v8.0)
 ]
 
 TRACOS_SKILLS = [
@@ -66,6 +72,7 @@ TRACOS_SKILLS = [
     "AREA_DENIAL",     # Controla espaço
     "DEBUFFER",        # Foca em status
     "SUPPORT",         # Buffs próprios
+    "SETUP_ARTIST",    # Prepara armadilhas e setups (NOVO v8.0)
 ]
 
 TRACOS_MENTAL = [
@@ -79,6 +86,8 @@ TRACOS_MENTAL = [
     "TEIMOSO",         # Mantém estratégia
     "CRIATIVO",        # Tenta coisas novas
     "METODICO",        # Padrões repetitivos
+    "CLUTCH_PLAYER",   # Melhor sob pressão (NOVO v8.0)
+    "TILTER",          # Fica pior quando perde (NOVO v8.0)
 ]
 
 TRACOS_ESPECIAIS = [
@@ -92,6 +101,9 @@ TRACOS_ESPECIAIS = [
     "HONORAVEL",       # Luta "justo"
     "COVARDE_TATICO",  # Foge estrategicamente
     "ULTIMO_SUSPIRO",  # Burst final quando morrendo
+    "MOMENTUM_RIDER",  # Melhor quando ganhando (NOVO v8.0)
+    "UNDERDOG",        # Melhor quando perdendo (NOVO v8.0)
+    "BAITER_NATO",     # Mestre em fintas (NOVO v8.0)
 ]
 
 # Todos os traços combinados
@@ -390,11 +402,62 @@ QUIRKS = {
         "trigger": "sempre",
         "efeito": "perfect_timing",
     },
+    # === NOVOS QUIRKS v8.0 (Comportamento Humano) ===
+    "ADAPTACAO_RAPIDA": {
+        "descricao": "Aprende padrões do oponente rapidamente",
+        "trigger": "sempre",
+        "efeito": "leitura_melhorada",
+    },
+    "CLUTCH_MASTER": {
+        "descricao": "Extremamente perigoso quando em desvantagem",
+        "trigger": "hp_baixo",
+        "efeito": "buff_geral_critico",
+    },
+    "TILT_REVERSAL": {
+        "descricao": "Usa frustração como combustível",
+        "trigger": "frustrado",
+        "efeito": "raiva_para_poder",
+    },
+    "MOMENTUM_SURFER": {
+        "descricao": "Aproveita momentum positivo ao máximo",
+        "trigger": "ganhando",
+        "efeito": "buff_agressividade",
+    },
+    "MIND_GAMES": {
+        "descricao": "Mestre em jogos mentais e fintas",
+        "trigger": "combate_medio",
+        "efeito": "baiting_melhorado",
+    },
+    "RESET_MASTER": {
+        "descricao": "Sabe quando recuar e resetar a situação",
+        "trigger": "pressao_alta",
+        "efeito": "escape_melhorado",
+    },
+    "WHIFF_PUNISHER": {
+        "descricao": "Pune ataques errados do oponente",
+        "trigger": "oponente_whiff",
+        "efeito": "contra_ataque_rapido",
+    },
+    "SPACE_CONTROL": {
+        "descricao": "Controla o espaço de luta perfeitamente",
+        "trigger": "sempre",
+        "efeito": "posicionamento_ideal",
+    },
+    "FRAME_PERFECT": {
+        "descricao": "Timing de ações quase perfeito",
+        "trigger": "sempre",
+        "efeito": "timing_melhorado",
+    },
+    "OPTION_SELECT": {
+        "descricao": "Escolhe a melhor opção baseado na reação do oponente",
+        "trigger": "pre_acao",
+        "efeito": "decisao_adaptativa",
+    },
 }
 
 
 # =============================================================================
-# FILOSOFIAS DE COMBATE (10+)
+# FILOSOFIAS DE COMBATE (12+)
 # =============================================================================
 
 FILOSOFIAS = {
@@ -457,6 +520,17 @@ FILOSOFIAS = {
         "objetivo": "Mudar conforme necessário",
         "preferencia_acao": ["COMBATE", "MATAR", "FLANQUEAR"],
         "mod_agressividade": 0.1,
+    },
+    # === NOVAS FILOSOFIAS v8.0 ===
+    "LEITURA": {
+        "objetivo": "Ler e punir o oponente",
+        "preferencia_acao": ["CONTRA_ATAQUE", "CIRCULAR", "COMBATE"],
+        "mod_agressividade": 0.05,
+    },
+    "MOMENTUM": {
+        "objetivo": "Construir e manter momentum",
+        "preferencia_acao": ["PRESSIONAR", "MATAR", "APROXIMAR"],
+        "mod_agressividade": 0.25,
     },
 }
 

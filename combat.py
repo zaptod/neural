@@ -434,7 +434,7 @@ class DotEffect:
     def __init__(self, tipo, alvo, dano_por_tick, duracao, cor):
         self.tipo = tipo
         self.alvo = alvo
-        self.dano_por_tick = dano_por_tick
+        self.dano_por_tick = dano_por_tick * 0.5  # Reduzido em 50%
         self.duracao = duracao
         self.vida = duracao
         self.cor = cor

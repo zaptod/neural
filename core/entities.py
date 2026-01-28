@@ -21,6 +21,7 @@ class Lutador:
         from core.skills import get_skill_data
         from models import get_class_data
         from combat import DotEffect
+        from audio import AudioManager
         
         self.dados = dados_char
         self.pos = [pos_x, pos_y]
@@ -178,7 +179,7 @@ class Lutador:
 
     def _calcular_vida_max(self):
         """Calcula vida máxima com modificadores"""
-        base = 100.0 + (self.dados.resistencia * 10)
+        base = 200.0 + (self.dados.resistencia * 15)  # Dobrado a vida base
         return base * self.class_data.get("mod_vida", 1.0)
     
     def _calcular_mana_max(self):
@@ -210,11 +211,11 @@ class Lutador:
         
         critico_chance = self.arma_critico
         if "Assassino" in self.classe_nome:
-            critico_chance += 0.25
+            critico_chance += 0.20  # Reduzido de 0.25
         
         is_critico = random.random() < critico_chance
         if is_critico:
-            dano *= 2.0
+            dano *= 1.5  # Reduzido de 2.0
         
         for enc_nome in self.arma_encantamentos:
             if enc_nome in ENCANTAMENTOS:
@@ -256,6 +257,7 @@ class Lutador:
     def usar_skill_arma(self, skill_idx=None):
         """Usa a skill equipada na arma"""
         from combat import Projetil, AreaEffect, Beam, Buff
+        from audio import AudioManager
         
         if skill_idx is not None and skill_idx < len(self.skills_arma):
             skill_info = self.skills_arma[skill_idx]
@@ -300,6 +302,11 @@ class Lutador:
         spawn_y = self.pos[1] + math.sin(rad) * 0.6
         
         if tipo == "PROJETIL":
+            # === ÁUDIO v10.0 - SOM DE CAST DE PROJÉTIL ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("PROJETIL", nome_skill, self.pos[0], phase="cast")
+            
             multi = data.get("multi_shot", 1)
             if multi > 1:
                 spread = 30
@@ -316,10 +323,20 @@ class Lutador:
                 self.vel[1] -= math.sin(rad) * 5.0
         
         elif tipo == "AREA":
+            # === ÁUDIO v10.0 - SOM DE ÁREA ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("AREA", nome_skill, self.pos[0], phase="cast")
+            
             area = AreaEffect(nome_skill, self.pos[0], self.pos[1], self)
             self.buffer_areas.append(area)
         
         elif tipo == "DASH":
+            # === ÁUDIO v10.0 - SOM DE DASH ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("DASH", nome_skill, self.pos[0], phase="cast")
+            
             dist = data.get("distancia", 4.0)
             dano = data.get("dano", 0)
             
@@ -345,6 +362,11 @@ class Lutador:
                 self.invencivel_timer = 0.3
         
         elif tipo == "BUFF":
+            # === ÁUDIO v10.0 - SOM DE BUFF ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("BUFF", nome_skill, self.pos[0], phase="cast")
+            
             if data.get("cura"):
                 self.vida = min(self.vida_max, self.vida + data["cura"])
             
@@ -352,6 +374,11 @@ class Lutador:
             self.buffs_ativos.append(buff)
         
         elif tipo == "BEAM":
+            # === ÁUDIO v10.0 - SOM DE BEAM ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("BEAM", nome_skill, self.pos[0], phase="cast")
+            
             alcance = data.get("alcance", 8.0)
             end_x = self.pos[0] + math.cos(rad) * alcance
             end_y = self.pos[1] + math.sin(rad) * alcance
@@ -364,6 +391,7 @@ class Lutador:
     def usar_skill_classe(self, skill_nome):
         """Usa uma skill de classe específica"""
         from combat import Projetil, AreaEffect, Beam, Buff
+        from audio import AudioManager
         
         skill_info = None
         for sk in self.skills_classe:
@@ -397,6 +425,11 @@ class Lutador:
         spawn_y = self.pos[1] + math.sin(rad) * 0.6
         
         if tipo == "PROJETIL":
+            # === ÁUDIO v10.0 - SOM DE SKILL DE CLASSE ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("PROJETIL", skill_nome, self.pos[0], phase="cast")
+            
             multi = data.get("multi_shot", 1)
             if multi > 1:
                 spread = 30
@@ -409,10 +442,20 @@ class Lutador:
                 self.buffer_projeteis.append(p)
         
         elif tipo == "AREA":
+            # === ÁUDIO v10.0 - SOM DE SKILL DE CLASSE ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("AREA", skill_nome, self.pos[0], phase="cast")
+            
             area = AreaEffect(skill_nome, self.pos[0], self.pos[1], self)
             self.buffer_areas.append(area)
         
         elif tipo == "DASH":
+            # === ÁUDIO v10.0 - SOM DE SKILL DE CLASSE ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("DASH", skill_nome, self.pos[0], phase="cast")
+            
             dist = data.get("distancia", 4.0)
             dano = data.get("dano", 0)
             
@@ -436,6 +479,11 @@ class Lutador:
                 self.invencivel_timer = 0.3
         
         elif tipo == "BUFF":
+            # === ÁUDIO v10.0 - SOM DE SKILL DE CLASSE ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("BUFF", skill_nome, self.pos[0], phase="cast")
+            
             if data.get("cura"):
                 self.vida = min(self.vida_max, self.vida + data["cura"])
             
@@ -443,6 +491,11 @@ class Lutador:
             self.buffs_ativos.append(buff)
         
         elif tipo == "BEAM":
+            # === ÁUDIO v10.0 - SOM DE SKILL DE CLASSE ===
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("BEAM", skill_nome, self.pos[0], phase="cast")
+            
             alcance = data.get("alcance", 8.0)
             end_x = self.pos[0] + math.cos(rad) * alcance
             end_y = self.pos[1] + math.sin(rad) * alcance
@@ -561,7 +614,7 @@ class Lutador:
         self.pos[1] += self.vel[1] * vel_mult * dt
 
     def executar_movimento(self, dt, distancia):
-        """Executa movimento baseado na ação da IA"""
+        """Executa movimento baseado na ação da IA - v8.0 com comportamento humano"""
         acao = self.brain.acao_atual
         acc = 45.0 * self.mod_velocidade
         if self.modo_adrenalina:
@@ -569,6 +622,17 @@ class Lutador:
         
         for buff in self.buffs_ativos:
             acc *= buff.buff_velocidade
+        
+        # v8.0: Aplica variação humana na aceleração
+        if hasattr(self.brain, 'ritmo_combate'):
+            acc *= self.brain.ritmo_combate
+        
+        # v8.0: Momentum afeta velocidade
+        if hasattr(self.brain, 'momentum'):
+            if self.brain.momentum > 0.3:
+                acc *= 1.0 + self.brain.momentum * 0.15
+            elif self.brain.momentum < -0.3:
+                acc *= 1.0 + self.brain.momentum * 0.1  # Diminui menos quando perdendo
         
         mx, my = 0, 0
         rad = math.radians(self.angulo_olhar)
@@ -583,13 +647,21 @@ class Lutador:
             mx *= mult
             my *= mult
             
+            # v8.0: Micro-ajustes durante ataques para parecer mais humano
+            if hasattr(self.brain, 'micro_ajustes'):
+                mx += random.uniform(-0.05, 0.05)
+                my += random.uniform(-0.05, 0.05)
+            
         elif acao == "COMBATE":
             mx = math.cos(rad) * 0.6
             my = math.sin(rad) * 0.6
-            if random.random() < 0.3:
+            # v8.0: Mais variação no combate
+            chance_strafe = 0.35 if "ESPACAMENTO_MESTRE" in self.brain.tracos else 0.3
+            if random.random() < chance_strafe:
                 strafe_rad = math.radians(self.angulo_olhar + (90 * self.brain.dir_circular))
-                mx += math.cos(strafe_rad) * 0.3
-                my += math.sin(strafe_rad) * 0.3
+                strafe_mult = random.uniform(0.25, 0.4)
+                mx += math.cos(strafe_rad) * strafe_mult
+                my += math.sin(strafe_rad) * strafe_mult
                 
         elif acao in ["RECUAR", "FUGIR"]:
             mx = -math.cos(rad)
@@ -597,27 +669,62 @@ class Lutador:
             if acao == "FUGIR":
                 mx *= 1.3
                 my *= 1.3
+            # v8.0: Desvio diagonal ao fugir para parecer mais esperto
+            if random.random() < 0.3:
+                lateral = random.choice([-1, 1]) * self.brain.dir_circular
+                rad_lat = math.radians(self.angulo_olhar + (30 * lateral))
+                mx += math.cos(rad_lat) * 0.3
+                my += math.sin(rad_lat) * 0.3
+        
+        elif acao == "DESVIO":
+            # v8.0: Nova ação de desvio mais dinâmica
+            rad_lat = math.radians(self.angulo_olhar + (90 * self.brain.dir_circular))
+            mx = math.cos(rad_lat) * 1.2
+            my = math.sin(rad_lat) * 1.2
+            # Adiciona um pouco de recuo
+            mx -= math.cos(rad) * 0.3
+            my -= math.sin(rad) * 0.3
                 
         elif acao == "CIRCULAR":
             rad_lat = math.radians(self.angulo_olhar + (90 * self.brain.dir_circular))
             mx = math.cos(rad_lat) * 0.85
             my = math.sin(rad_lat) * 0.85
-            mx += math.cos(rad) * 0.25
-            my += math.sin(rad) * 0.25
+            # v8.0: Ajuste de distância enquanto circula
+            if distancia < 2.5:
+                mx -= math.cos(rad) * 0.3  # Afasta um pouco
+                my -= math.sin(rad) * 0.3
+            elif distancia > 4.0:
+                mx += math.cos(rad) * 0.2  # Aproxima um pouco
+                my += math.sin(rad) * 0.2
+            else:
+                mx += math.cos(rad) * 0.25
+                my += math.sin(rad) * 0.25
             
         elif acao == "FLANQUEAR":
-            rad_f = math.radians(self.angulo_olhar + (50 * self.brain.dir_circular))
+            # v8.0: Flanqueio mais dinâmico
+            angulo_flank = 50 + random.uniform(-10, 10)  # Variação humana
+            rad_f = math.radians(self.angulo_olhar + (angulo_flank * self.brain.dir_circular))
             mx = math.cos(rad_f)
             my = math.sin(rad_f)
             
         elif acao == "APROXIMAR_LENTO":
             mx = math.cos(rad) * 0.55
             my = math.sin(rad) * 0.55
+            # v8.0: Pequenos movimentos laterais ao aproximar
+            if random.random() < 0.2:
+                rad_lat = math.radians(self.angulo_olhar + (90 * random.choice([-1, 1])))
+                mx += math.cos(rad_lat) * 0.15
+                my += math.sin(rad_lat) * 0.15
             
         elif acao == "POKE":
-            if random.random() < 0.5:
+            # v8.0: Poke mais inteligente
+            if random.random() < 0.6:
                 mx = math.cos(rad) * 0.8
                 my = math.sin(rad) * 0.8
+            else:
+                # Recua depois do poke
+                mx = -math.cos(rad) * 0.4
+                my = -math.sin(rad) * 0.4
                 
         elif acao == "BLOQUEAR":
             if random.random() < 0.4 and distancia > 2.5:
@@ -628,6 +735,16 @@ class Lutador:
         elif acao == "ATAQUE_AEREO":
             mx = math.cos(rad) * 0.8
             my = math.sin(rad) * 0.8
+        
+        # v8.0: Nova ação - pressionar continuamente
+        elif acao == "PRESSIONAR_CONTINUO":
+            mx = math.cos(rad) * 1.1
+            my = math.sin(rad) * 1.1
+            # Pequenos ajustes laterais
+            if random.random() < 0.25:
+                rad_lat = math.radians(self.angulo_olhar + (30 * self.brain.dir_circular))
+                mx += math.cos(rad_lat) * 0.2
+                my += math.sin(rad_lat) * 0.2
             
         # Sistema de pulos
         if "SALTADOR" in self.brain.tracos and self.z == 0:
@@ -646,6 +763,7 @@ class Lutador:
             if random.random() < chance:
                 self.vel_z = random.uniform(9.0, 12.0)
         
+        # v8.0: Pulo ofensivo mais inteligente
         ofensivos = ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO", "CONTRA_ATAQUE"]
         if acao in ofensivos and 3.5 < distancia < 7.0 and self.z == 0:
             chance = 0.025
@@ -930,13 +1048,13 @@ class Lutador:
         from combat import DotEffect
         
         if efeito == "VENENO":
-            dot = DotEffect("VENENO", self, 3.0, 4.0, (100, 255, 100))
+            dot = DotEffect("VENENO", self, 1.5, 4.0, (100, 255, 100))  # Reduzido de 3.0
             self.dots_ativos.append(dot)
         elif efeito == "SANGRAMENTO":
-            dot = DotEffect("SANGRAMENTO", self, 4.0, 3.0, (180, 0, 30))
+            dot = DotEffect("SANGRAMENTO", self, 2.0, 3.0, (180, 0, 30))  # Reduzido de 4.0
             self.dots_ativos.append(dot)
         elif efeito == "QUEIMAR":
-            dot = DotEffect("QUEIMAR", self, 5.0, 2.0, (255, 100, 0))
+            dot = DotEffect("QUEIMAR", self, 2.5, 2.0, (255, 100, 0))  # Reduzido de 5.0
             self.dots_ativos.append(dot)
         elif efeito == "CONGELAR":
             self.slow_timer = 2.0

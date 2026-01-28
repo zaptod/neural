@@ -19,7 +19,7 @@ SKILL_DB = {
     # =========================================================================
     "Bola de Fogo": {
         "tipo": "PROJETIL",
-        "dano": 35.0,
+        "dano": 18.0,
         "velocidade": 11.0,
         "raio": 0.5,
         "vida": 2.0,
@@ -31,7 +31,7 @@ SKILL_DB = {
     },
     "Meteoro": {
         "tipo": "PROJETIL",
-        "dano": 60.0,
+        "dano": 30.0,
         "velocidade": 8.0,
         "raio": 0.8,
         "vida": 2.5,
@@ -43,7 +43,7 @@ SKILL_DB = {
     },
     "Lança de Fogo": {
         "tipo": "PROJETIL",
-        "dano": 20.0,
+        "dano": 10.0,
         "velocidade": 25.0,
         "raio": 0.25,
         "vida": 1.0,
@@ -55,7 +55,7 @@ SKILL_DB = {
     },
     "Explosão Nova": {
         "tipo": "AREA",
-        "dano": 45.0,
+        "dano": 22.0,
         "raio_area": 3.0,
         "cor": (255, 200, 50),
         "custo": 35.0,
@@ -69,7 +69,7 @@ SKILL_DB = {
     # =========================================================================
     "Estilhaço de Gelo": {
         "tipo": "PROJETIL",
-        "dano": 15.0,
+        "dano": 8.0,
         "velocidade": 18.0,
         "raio": 0.3,
         "vida": 1.8,
@@ -81,7 +81,7 @@ SKILL_DB = {
     },
     "Lança de Gelo": {
         "tipo": "PROJETIL",
-        "dano": 28.0,
+        "dano": 14.0,
         "velocidade": 22.0,
         "raio": 0.35,
         "vida": 1.5,
@@ -93,7 +93,7 @@ SKILL_DB = {
     },
     "Nevasca": {
         "tipo": "AREA",
-        "dano": 8.0,
+        "dano": 4.0,
         "raio_area": 4.0,
         "cor": (200, 230, 255),
         "custo": 30.0,
@@ -104,7 +104,7 @@ SKILL_DB = {
     },
     "Prisão de Gelo": {
         "tipo": "PROJETIL",
-        "dano": 5.0,
+        "dano": 3.0,
         "velocidade": 15.0,
         "raio": 0.4,
         "vida": 2.0,
@@ -120,7 +120,7 @@ SKILL_DB = {
     # =========================================================================
     "Relâmpago": {
         "tipo": "BEAM",
-        "dano": 22.0,
+        "dano": 11.0,
         "alcance": 8.0,
         "cor": (255, 255, 100),
         "custo": 15.0,
@@ -130,7 +130,7 @@ SKILL_DB = {
     },
     "Corrente Elétrica": {
         "tipo": "PROJETIL",
-        "dano": 12.0,
+        "dano": 6.0,
         "velocidade": 30.0,
         "raio": 0.2,
         "vida": 0.8,
@@ -142,7 +142,7 @@ SKILL_DB = {
     },
     "Tempestade": {
         "tipo": "AREA",
-        "dano": 40.0,
+        "dano": 20.0,
         "raio_area": 5.0,
         "cor": (200, 200, 255),
         "custo": 45.0,
@@ -166,7 +166,7 @@ SKILL_DB = {
     # =========================================================================
     "Esfera Sombria": {
         "tipo": "PROJETIL",
-        "dano": 18.0,
+        "dano": 9.0,
         "velocidade": 12.0,
         "raio": 0.45,
         "vida": 2.5,
@@ -178,7 +178,7 @@ SKILL_DB = {
     },
     "Lâmina de Sangue": {
         "tipo": "PROJETIL",
-        "dano": 25.0,
+        "dano": 12.0,
         "velocidade": 16.0,
         "raio": 0.4,
         "vida": 0.6,
@@ -190,7 +190,7 @@ SKILL_DB = {
     },
     "Maldição": {
         "tipo": "PROJETIL",
-        "dano": 8.0,
+        "dano": 4.0,
         "velocidade": 10.0,
         "raio": 0.5,
         "vida": 3.0,
@@ -198,13 +198,13 @@ SKILL_DB = {
         "custo": 20.0,
         "cooldown": 10.0,
         "efeito": "VENENO",
-        "dot_dano": 5.0,
+        "dot_dano": 2.5,
         "dot_duracao": 5.0,
         "descricao": "Maldição que causa dano ao longo do tempo"
     },
     "Explosão Necrótica": {
         "tipo": "AREA",
-        "dano": 30.0,
+        "dano": 15.0,
         "raio_area": 2.5,
         "cor": (60, 0, 80),
         "custo": 28.0,
@@ -218,7 +218,7 @@ SKILL_DB = {
     # =========================================================================
     "Dardo Venenoso": {
         "tipo": "PROJETIL",
-        "dano": 5.0,
+        "dano": 3.0,
         "velocidade": 22.0,
         "raio": 0.15,
         "vida": 1.5,
@@ -230,7 +230,7 @@ SKILL_DB = {
     },
     "Nuvem Tóxica": {
         "tipo": "AREA",
-        "dano": 5.0,
+        "dano": 2.5,
         "raio_area": 3.5,
         "cor": (150, 200, 50),
         "custo": 25.0,
@@ -241,7 +241,7 @@ SKILL_DB = {
     },
     "Espinhos": {
         "tipo": "PROJETIL",
-        "dano": 12.0,
+        "dano": 6.0,
         "velocidade": 20.0,
         "raio": 0.2,
         "vida": 1.2,
@@ -269,7 +269,7 @@ SKILL_DB = {
     # =========================================================================
     "Impacto Sônico": {
         "tipo": "PROJETIL",
-        "dano": 18.0,
+        "dano": 9.0,
         "velocidade": 20.0,
         "raio": 0.6,
         "vida": 0.35,
@@ -281,7 +281,7 @@ SKILL_DB = {
     },
     "Avanço Brutal": {
         "tipo": "DASH",
-        "dano": 25.0,
+        "dano": 12.0,
         "distancia": 4.0,
         "cor": (255, 100, 100),
         "custo": 15.0,
@@ -291,7 +291,7 @@ SKILL_DB = {
     },
     "Fúria Giratória": {
         "tipo": "AREA",
-        "dano": 20.0,
+        "dano": 10.0,
         "raio_area": 2.0,
         "cor": (200, 150, 150),
         "custo": 18.0,
@@ -318,7 +318,7 @@ SKILL_DB = {
         "custo": 20.0,
         "cooldown": 12.0,
         "duracao": 5.0,
-        "escudo": 30.0,
+        "escudo": 40.0,
         "descricao": "Cria um escudo absorvente"
     },
     "Cura Menor": {
@@ -326,7 +326,7 @@ SKILL_DB = {
         "cor": (100, 255, 150),
         "custo": 25.0,
         "cooldown": 15.0,
-        "cura": 25.0,
+        "cura": 35.0,
         "descricao": "Recupera vida instantaneamente"
     },
     "Reflexo Espelhado": {
@@ -353,7 +353,7 @@ SKILL_DB = {
     # =========================================================================
     "Disparo de Mana": {
         "tipo": "PROJETIL",
-        "dano": 10.0,
+        "dano": 5.0,
         "velocidade": 14.0,
         "raio": 0.3,
         "vida": 2.5,
@@ -369,8 +369,8 @@ SKILL_DB = {
         "custo": 35.0,
         "cooldown": 25.0,
         "duracao": 10.0,
-        "summon_vida": 50.0,
-        "summon_dano": 8.0,
+        "summon_vida": 75.0,
+        "summon_dano": 4.0,
         "descricao": "Invoca um espírito aliado"
     },
     "Troca de Almas": {
@@ -384,7 +384,7 @@ SKILL_DB = {
     },
     "Execução": {
         "tipo": "PROJETIL",
-        "dano": 100.0,
+        "dano": 50.0,
         "velocidade": 8.0,
         "raio": 0.3,
         "vida": 1.5,

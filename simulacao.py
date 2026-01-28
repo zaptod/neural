@@ -14,6 +14,7 @@ from hitbox import sistema_hitbox, verificar_hit, get_debug_visual, atualizar_de
 from ai import CombatChoreographer  # Sistema de Coreografia v5.0
 from core.game_feel import GameFeelManager, HitStopManager  # Sistema de Game Feel v8.0
 from arena import Arena, ARENAS, get_arena, set_arena  # v9.0 Sistema de Arena
+from audio import AudioManager  # v10.0 Sistema de Áudio
 
 class Simulador:
     def __init__(self):
@@ -58,11 +59,14 @@ class Simulador:
         # === SISTEMA DE ARENA v9.0 ===
         self.arena = None
         
+        # === SISTEMA DE ÁUDIO v10.0 ===
+        self.audio = None
+        
         self.recarregar_tudo()
 
     def recarregar_tudo(self):
         try:
-            self.p1, self.p2 = self.carregar_luta_dados()
+            self.p1, self.p2, self.cenario = self.carregar_luta_dados()
             self.particulas = []; self.decals = []; self.textos = []; self.shockwaves = []; self.projeteis = []
             # Reset novos efeitos v7.0
             self.impact_flashes = []; self.magic_clashes = []; self.block_effects = []
@@ -96,7 +100,8 @@ class Simulador:
             self.attack_anims.set_ppm(PPM)
             
             # === INICIALIZA ARENA v9.0 ===
-            self.arena = set_arena("Arena")  # Arena padrão 30x20 metros
+            cenario_nome = getattr(self, 'cenario', 'Arena') or 'Arena'
+            self.arena = set_arena(cenario_nome)
             
             # Configura câmera para conhecer os limites da arena
             self.cam.set_arena_bounds(
@@ -116,6 +121,10 @@ class Simulador:
             
             # Rastreamento de estados anteriores para detectar mudanças
             self._prev_z = {self.p1: 0, self.p2: 0}
+            
+            # === INICIALIZA SISTEMA DE ÁUDIO v10.0 ===
+            AudioManager.reset()
+            self.audio = AudioManager.get_instance()
             self._prev_stagger = {self.p1: False, self.p2: False}
             self._prev_dash = {self.p1: 0, self.p2: 0}
                 
@@ -127,7 +136,7 @@ class Simulador:
     def carregar_luta_dados(self):
         try:
             with open("match_config.json", "r", encoding="utf-8") as f: config = json.load(f)
-        except: return None, None 
+        except: return None, None, "Arena"
         todos = database.carregar_personagens()
         armas = database.carregar_armas()
         def montar(nome):
@@ -136,7 +145,8 @@ class Simulador:
             return p
         l1 = Lutador(montar(config["p1_nome"]), 5.0, 8.0)
         l2 = Lutador(montar(config["p2_nome"]), 19.0, 8.0)
-        return l1, l2
+        cenario = config.get("cenario", "Arena")
+        return l1, l2, cenario
 
     def processar_inputs(self):
         for event in pygame.event.get():
@@ -258,6 +268,17 @@ class Simulador:
             if colidiu and proj.ativo:
                 proj.ativo = False
                 
+                # === ÁUDIO v10.0 - SOM DE IMPACTO DE PROJÉTIL ===
+                if self.audio:
+                    # Determina tipo de projétil para som adequado
+                    if hasattr(proj, 'tipo'):
+                        tipo_proj = proj.tipo  # "faca", "flecha", "shuriken"
+                    else:
+                        tipo_proj = "energy"  # Projétil de skill
+                    
+                    listener_x = self.cam.x / PPM
+                    self.audio.play_skill("PROJETIL", tipo_proj, proj.x, listener_x, phase="impact")
+                
                 # === EFEITOS DE IMPACTO MELHORADOS v7.0 ===
                 cor_impacto = proj.cor if hasattr(proj, 'cor') else BRANCO
                 self.impact_flashes.append(ImpactFlash(proj.x * PPM, proj.y * PPM, cor_impacto, 1.2, "magic"))
@@ -310,6 +331,12 @@ class Simulador:
                         alvo = self.p2 if orbe.dono == self.p1 else self.p1
                         if orbe.colidir(alvo):
                             orbe.ativo = False
+                            
+                            # === ÁUDIO v10.0 - SOM DE ORBE MÁGICO ===
+                            if self.audio:
+                                listener_x = self.cam.x / PPM
+                                self.audio.play_skill("PROJETIL", "orbe_magico", orbe.x, listener_x, phase="impact")
+                            
                             # Shockwave mágico
                             self.shockwaves.append(Shockwave(orbe.x * PPM, orbe.y * PPM, orbe.cor, tamanho=1.5))
                             
@@ -345,6 +372,13 @@ class Simulador:
                         dist = math.hypot(dx, dy)
                         if dist < area.raio_atual + alvo.raio_fisico:
                             area.alvos_atingidos.add(alvo)
+                            
+                            # === ÁUDIO v10.0 - SOM DE ÁREA ===
+                            if self.audio:
+                                listener_x = self.cam.x / PPM
+                                skill_name = getattr(area, 'nome_skill', '')
+                                self.audio.play_skill("AREA", skill_name, area.x, listener_x, phase="impact")
+                            
                             dano = area.dono.get_dano_modificado(area.dano) if hasattr(area.dono, 'get_dano_modificado') else area.dano
                             if alvo.tomar_dano(dano, dx/(dist or 1), dy/(dist or 1), area.tipo_efeito):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
@@ -364,6 +398,13 @@ class Simulador:
                     # Verifica se beam cruza com alvo
                     if self._beam_colide_alvo(beam, alvo):
                         beam.hit_aplicado = True
+                        
+                        # === ÁUDIO v10.0 - SOM DE BEAM ===
+                        if self.audio:
+                            listener_x = self.cam.x / PPM
+                            skill_name = getattr(beam, 'nome_skill', '')
+                            self.audio.play_skill("BEAM", skill_name, beam.dono.pos[0], listener_x, phase="impact")
+                        
                         dano = beam.dono.get_dano_modificado(beam.dano) if hasattr(beam.dono, 'get_dano_modificado') else beam.dano
                         dx = alvo.pos[0] - beam.dono.pos[0]
                         dy = alvo.pos[1] - beam.dono.pos[1]
@@ -430,6 +471,12 @@ class Simulador:
         velocidade = math.hypot(lutador.vel[0], lutador.vel[1])
         if velocidade < 3:
             return
+        
+        # === ÁUDIO v10.0 - SOM DE COLISÃO COM PAREDE ===
+        if self.audio:
+            listener_x = self.cam.x / PPM
+            volume = min(1.0, velocidade / 15) * 0.6
+            self.audio.play_special("wall_hit", volume=volume)
         
         # Intensidade baseada na velocidade
         intensidade = min(1.0, velocidade / 15)
@@ -737,6 +784,11 @@ class Simulador:
     
     def _efeito_bloqueio(self, proj, bloqueador, pos_escudo):
         """Efeito visual de bloqueio"""
+        # === ÁUDIO v10.0 - SOM DE BLOQUEIO ===
+        if self.audio:
+            listener_x = self.cam.x / PPM
+            self.audio.play_special("shield_block", volume=0.7)
+        
         # Direção do impacto
         ang = math.atan2(proj.y * PPM - pos_escudo[1], proj.x * PPM - pos_escudo[0])
         
@@ -961,6 +1013,12 @@ class Simulador:
             vy = defensor.pos[1] - atacante.pos[1]
             mag = math.hypot(vx, vy) or 1
             
+            # === ÁUDIO v10.0 - SOM DE ATAQUE ===
+            tipo_ataque = arma.tipo if arma else "SOCO"
+            if self.audio:
+                listener_x = self.cam.x / PPM
+                self.audio.play_attack(tipo_ataque, atacante.pos[0], listener_x)
+            
             # Usa o novo sistema de dano modificado
             dano_base = arma.dano * (atacante.dados.forca / 2.0)
             dano, is_critico = atacante.calcular_dano_ataque(dano_base) if hasattr(atacante, 'calcular_dano_ataque') else (dano_base, False)
@@ -1071,6 +1129,10 @@ class Simulador:
                         self.cam.zoom_punch(impact_result['zoom_punch'], 0.15)
             
             if defensor.tomar_dano(dano, kb_x, kb_y, "NORMAL"):
+                # === ÁUDIO v10.0 - SOM DE MORTE ===
+                if self.audio:
+                    self.audio.play_special("ko", volume=1.0)
+                
                 # === MORTE - EFEITOS MÁXIMOS ===
                 self.spawn_particulas(dx, dy, vx/mag, vy/mag, VERMELHO_SANGUE, 50)
                 
@@ -1092,6 +1154,12 @@ class Simulador:
                 self.vencedor = atacante.dados.nome
                 return True
             else:
+                # === ÁUDIO v10.0 - SOM DE IMPACTO ===
+                if self.audio:
+                    listener_x = self.cam.x / PPM
+                    is_counter = resultado_hit and resultado_hit.get("counter_hit", False)
+                    self.audio.play_impact(dano, defensor.pos[0], listener_x, is_critico, is_counter)
+                
                 # === HIT NORMAL - EFEITOS PROPORCIONAIS AO DANO E FORÇA ===
                 # Knockback visual proporcional ao dano
                 if dano > 8 or forca_atacante > 12:

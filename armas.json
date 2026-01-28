@@ -2,7 +2,7 @@
     {
         "nome": "Espada Comum",
         "tipo": "Reta",
-        "dano": 5.0,
+        "dano": 2.5,
         "peso": 3.0,
         "raridade": "Comum",
         "comp_cabo": 15.0,
@@ -35,7 +35,7 @@
         ],
         "encantamentos": [],
         "passiva": null,
-        "critico": 5.0,
+        "critico": 3.0,
         "velocidade_ataque": 1.0,
         "afinidade_elemento": null,
         "durabilidade": 100.0,
@@ -46,7 +46,7 @@
     {
         "nome": "Lança do Cavaleiro",
         "tipo": "Reta",
-        "dano": 8.0,
+        "dano": 4.0,
         "peso": 4.0,
         "raridade": "Incomum",
         "comp_cabo": 30.0,
@@ -80,7 +80,7 @@
         ],
         "encantamentos": [],
         "passiva": null,
-        "critico": 8.0,
+        "critico": 4.8,
         "velocidade_ataque": 0.9,
         "afinidade_elemento": null,
         "durabilidade": 114.99999999999999,
@@ -91,7 +91,7 @@
     {
         "nome": "Espada Flamejante",
         "tipo": "Reta",
-        "dano": 12.0,
+        "dano": 6.0,
         "peso": 4.0,
         "raridade": "Raro",
         "comp_cabo": 18.0,
@@ -131,7 +131,7 @@
             "descricao": "5% chance de queimadura",
             "tier": "minor"
         },
-        "critico": 12.0,
+        "critico": 7.2,
         "velocidade_ataque": 1.05,
         "afinidade_elemento": null,
         "durabilidade": 130.0,
@@ -142,7 +142,7 @@
     {
         "nome": "Adagas Gêmeas",
         "tipo": "Dupla",
-        "dano": 6.0,
+        "dano": 3.0,
         "peso": 2.0,
         "raridade": "Comum",
         "comp_cabo": 8.0,
@@ -175,7 +175,7 @@
         ],
         "encantamentos": [],
         "passiva": null,
-        "critico": 10.0,
+        "critico": 6.0,
         "velocidade_ataque": 1.3,
         "afinidade_elemento": null,
         "durabilidade": 80.0,
@@ -186,7 +186,7 @@
     {
         "nome": "Lâminas do Assassino",
         "tipo": "Dupla",
-        "dano": 15.0,
+        "dano": 7.5,
         "peso": 2.5,
         "raridade": "Épico",
         "comp_cabo": 10.0,
@@ -228,7 +228,7 @@
             "descricao": "+50% dano pelas costas",
             "tier": "major"
         },
-        "critico": 25.0,
+        "critico": 15.0,
         "velocidade_ataque": 1.4,
         "afinidade_elemento": null,
         "durabilidade": 100.0,
@@ -239,7 +239,7 @@
     {
         "nome": "Chicote de Couro",
         "tipo": "Corrente",
-        "dano": 4.0,
+        "dano": 2.0,
         "peso": 1.5,
         "raridade": "Comum",
         "comp_cabo": 10.0,
@@ -272,7 +272,7 @@
         ],
         "encantamentos": [],
         "passiva": null,
-        "critico": 5.0,
+        "critico": 3.0,
         "velocidade_ataque": 0.8,
         "afinidade_elemento": null,
         "durabilidade": 90.0,
@@ -283,7 +283,7 @@
     {
         "nome": "Kusarigama das Sombras",
         "tipo": "Corrente",
-        "dano": 18.0,
+        "dano": 9.0,
         "peso": 3.0,
         "raridade": "Lendário",
         "comp_cabo": 15.0,
@@ -327,7 +327,7 @@
             "descricao": "Recupera 10% do dano como vida",
             "tier": "unique"
         },
-        "critico": 20.0,
+        "critico": 12.0,
         "velocidade_ataque": 1.1,
         "afinidade_elemento": null,
         "durabilidade": 200.0,
@@ -338,7 +338,7 @@
     {
         "nome": "Facas de Arremesso",
         "tipo": "Arremesso",
-        "dano": 7.0,
+        "dano": 3.5,
         "peso": 0.5,
         "raridade": "Incomum",
         "comp_cabo": 5.0,
@@ -371,7 +371,7 @@
         ],
         "encantamentos": [],
         "passiva": null,
-        "critico": 15.0,
+        "critico": 9.0,
         "velocidade_ataque": 1.2,
         "afinidade_elemento": null,
         "durabilidade": 60.0,
@@ -382,7 +382,7 @@
     {
         "nome": "Chakrams de Gelo",
         "tipo": "Arremesso",
-        "dano": 14.0,
+        "dano": 7.0,
         "peso": 1.0,
         "raridade": "Raro",
         "comp_cabo": 5.0,
@@ -422,7 +422,7 @@
             "descricao": "20% chance de lentidão",
             "tier": "minor"
         },
-        "critico": 18.0,
+        "critico": 10.8,
         "velocidade_ataque": 1.15,
         "afinidade_elemento": null,
         "durabilidade": 80.0,
@@ -433,7 +433,7 @@
     {
         "nome": "Arco Curto",
         "tipo": "Arco",
-        "dano": 8.0,
+        "dano": 4.0,
         "peso": 2.0,
         "raridade": "Comum",
         "comp_cabo": 10.0,
@@ -466,7 +466,7 @@
         ],
         "encantamentos": [],
         "passiva": null,
-        "critico": 12.0,
+        "critico": 7.2,
         "velocidade_ataque": 0.9,
         "afinidade_elemento": null,
         "durabilidade": 100.0,
@@ -477,7 +477,7 @@
     {
         "nome": "Arco Élfico Ancestral",
         "tipo": "Arco",
-        "dano": 22.0,
+        "dano": 11.0,
         "peso": 2.5,
         "raridade": "Épico",
         "comp_cabo": 12.0,
@@ -519,7 +519,7 @@
             "descricao": "+25% precisão em longas distâncias",
             "tier": "major"
         },
-        "critico": 25.0,
+        "critico": 15.0,
         "velocidade_ataque": 1.1,
         "afinidade_elemento": null,
         "durabilidade": 150.0,
@@ -530,7 +530,7 @@
     {
         "nome": "Escudo de Madeira",
         "tipo": "Orbital",
-        "dano": 2.0,
+        "dano": 1.0,
         "peso": 4.0,
         "raridade": "Comum",
         "comp_cabo": 1.0,
@@ -574,7 +574,7 @@
     {
         "nome": "Orbes Arcanos",
         "tipo": "Orbital",
-        "dano": 10.0,
+        "dano": 5.0,
         "peso": 1.0,
         "raridade": "Raro",
         "comp_cabo": 1.0,
@@ -614,7 +614,7 @@
             "descricao": "Orbes giram mais rápido ao atacar",
             "tier": "minor"
         },
-        "critico": 15.0,
+        "critico": 9.0,
         "velocidade_ataque": 1.2,
         "afinidade_elemento": null,
         "durabilidade": 80.0,
@@ -625,7 +625,7 @@
     {
         "nome": "Escudo do Paladino",
         "tipo": "Orbital",
-        "dano": 8.0,
+        "dano": 4.0,
         "peso": 6.0,
         "raridade": "Épico",
         "comp_cabo": 1.0,
@@ -667,7 +667,7 @@
             "descricao": "Reduz 15% do dano recebido",
             "tier": "major"
         },
-        "critico": 5.0,
+        "critico": 3.0,
         "velocidade_ataque": 0.8,
         "afinidade_elemento": null,
         "durabilidade": 150.0,
@@ -678,7 +678,7 @@
     {
         "nome": "Grimório Básico",
         "tipo": "Mágica",
-        "dano": 6.0,
+        "dano": 3.0,
         "peso": 1.0,
         "raridade": "Incomum",
         "comp_cabo": 5.0,
@@ -711,7 +711,7 @@
         ],
         "encantamentos": [],
         "passiva": null,
-        "critico": 10.0,
+        "critico": 6.0,
         "velocidade_ataque": 1.0,
         "afinidade_elemento": null,
         "durabilidade": 50.0,
@@ -722,7 +722,7 @@
     {
         "nome": "Lâminas Espectrais do Vazio",
         "tipo": "Mágica",
-        "dano": 25.0,
+        "dano": 12.5,
         "peso": 0.5,
         "raridade": "Lendário",
         "comp_cabo": 5.0,
@@ -766,7 +766,7 @@
             "descricao": "Ignora 30% da defesa inimiga",
             "tier": "unique"
         },
-        "critico": 22.0,
+        "critico": 13.2,
         "velocidade_ataque": 1.3,
         "afinidade_elemento": null,
         "durabilidade": 120.0,
@@ -777,7 +777,7 @@
     {
         "nome": "Bastão Transformável",
         "tipo": "Transformável",
-        "dano": 9.0,
+        "dano": 4.5,
         "peso": 3.0,
         "raridade": "Raro",
         "comp_cabo": 40.0,
@@ -815,7 +815,7 @@
             "descricao": "Bônus de dano após transformar",
             "tier": "minor"
         },
-        "critico": 12.0,
+        "critico": 7.2,
         "velocidade_ataque": 1.0,
         "afinidade_elemento": null,
         "durabilidade": 130.0,
@@ -826,7 +826,7 @@
     {
         "nome": "Excalibur Verdadeira",
         "tipo": "Transformável",
-        "dano": 35.0,
+        "dano": 17.5,
         "peso": 4.0,
         "raridade": "Mítico",
         "comp_cabo": 25.0,
@@ -872,7 +872,7 @@
             "descricao": "Dano aumenta conforme vida perdida",
             "tier": "mythic"
         },
-        "critico": 30.0,
+        "critico": 18.0,
         "velocidade_ataque": 1.3,
         "afinidade_elemento": null,
         "durabilidade": 300.0,
@@ -883,7 +883,7 @@
     {
         "nome": "Foice da Morte",
         "tipo": "Corrente",
-        "dano": 40.0,
+        "dano": 20.0,
         "peso": 5.0,
         "raridade": "Mítico",
         "comp_cabo": 20.0,
@@ -929,7 +929,7 @@
             "descricao": "Executa inimigos abaixo de 15% de vida",
             "tier": "mythic"
         },
-        "critico": 35.0,
+        "critico": 21.0,
         "velocidade_ataque": 0.9000000000000001,
         "afinidade_elemento": null,
         "durabilidade": 300.0,
@@ -940,7 +940,7 @@
     {
         "nome": "Constelação de Shuriken",
         "tipo": "Arremesso",
-        "dano": 30.0,
+        "dano": 15.0,
         "peso": 0.8,
         "raridade": "Mítico",
         "comp_cabo": 5.0,
@@ -986,7 +986,7 @@
             "descricao": "Shurikens retornam e podem acertar novamente",
             "tier": "mythic"
         },
-        "critico": 40.0,
+        "critico": 24.0,
         "velocidade_ataque": 1.5,
         "afinidade_elemento": null,
         "durabilidade": 300.0,
@@ -997,7 +997,7 @@
     {
         "nome": "corrente pinto duro",
         "tipo": "Corrente",
-        "dano": 18.0,
+        "dano": 9.0,
         "peso": 5.0,
         "raridade": "Raro",
         "comp_cabo": 0.0,
@@ -1056,7 +1056,7 @@
     {
         "nome": "cu preto",
         "tipo": "Orbital",
-        "dano": 25.0,
+        "dano": 12.5,
         "peso": 5.0,
         "raridade": "Mítico",
         "comp_cabo": 0.0,

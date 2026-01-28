@@ -1,8 +1,16 @@
 """
 =============================================================================
-NEURAL FIGHTS - Sistema de IA v7.0 IMPACT EDITION
+NEURAL FIGHTS - Sistema de IA v8.0 HUMAN EDITION
 =============================================================================
 Módulo de Inteligência Artificial modularizado.
+Sistema de comportamento humano realista com:
+- Antecipação e leitura do oponente
+- Desvios inteligentes com timing humano
+- Baiting e fintas
+- Janelas de oportunidade
+- Momentum e pressão psicológica
+- Combos e follow-ups
+=============================================================================
 """
 
 from ai.choreographer import CombatChoreographer
