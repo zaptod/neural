@@ -9,10 +9,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models import Personagem, Arma
 
-# Caminhos dos arquivos de dados
-DATA_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Caminhos dos arquivos de dados - agora dentro de data/
+DATA_DIR = os.path.dirname(os.path.abspath(__file__))
 ARQUIVO_CHARS = os.path.join(DATA_DIR, "personagens.json")
 ARQUIVO_ARMAS = os.path.join(DATA_DIR, "armas.json")
+ARQUIVO_MATCH = os.path.join(DATA_DIR, "match_config.json")
 
 def carregar_json(arquivo):
     if not os.path.exists(arquivo): return []

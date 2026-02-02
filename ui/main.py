@@ -1,12 +1,18 @@
 # main.py
 import tkinter as tk
 from tkinter import messagebox
-import database
+import sys
+import os
+
+# Adiciona o diretório pai ao path para imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from data import database
 
 # --- IMPORTANDO AS TELAS (VIEWS) ---
-from view_armas import TelaArmas
-from view_chars import TelaPersonagens
-from view_luta import TelaLuta
+from ui.view_armas import TelaArmas
+from ui.view_chars import TelaPersonagens
+from ui.view_luta import TelaLuta
 
 # Configurações Visuais Globais
 COR_FUNDO = "#2C3E50"

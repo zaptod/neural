@@ -1,6 +1,6 @@
 """
 =============================================================================
-NEURAL FIGHTS - Sistema de IA v8.0 HUMAN EDITION
+NEURAL FIGHTS - Sistema de IA v9.0 SPATIAL AWARENESS EDITION
 =============================================================================
 Módulo de Inteligência Artificial modularizado.
 Sistema de comportamento humano realista com:
@@ -10,6 +10,7 @@ Sistema de comportamento humano realista com:
 - Janelas de oportunidade
 - Momentum e pressão psicológica
 - Combos e follow-ups
+- Consciência espacial (paredes, obstáculos)
 =============================================================================
 """
 
@@ -20,6 +21,11 @@ from ai.personalities import (
     TRACOS_SKILLS, TRACOS_MENTAL, TRACOS_ESPECIAIS,
     ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES
 )
+
+# Novos módulos v9.0
+from ai.spatial import SpatialAwarenessSystem
+from ai.emotions import EmotionSystem
+from ai.combat_tactics import CombatTacticsSystem
 
 __all__ = [
     'CombatChoreographer',
@@ -36,4 +42,8 @@ __all__ = [
     'QUIRKS',
     'FILOSOFIAS',
     'HUMORES',
+    # Novos sistemas
+    'SpatialAwarenessSystem',
+    'EmotionSystem',
+    'CombatTacticsSystem',
 ]

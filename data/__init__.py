@@ -14,7 +14,11 @@ from data.database import (
     ARQUIVO_ARMAS,
 )
 
+# Re-exporta o módulo database inteiro para compatibilidade
+from data import database
+
 __all__ = [
+    'database',
     'carregar_json',
     'salvar_json',
     'carregar_armas',

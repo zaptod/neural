@@ -2,7 +2,7 @@
 import math
 import random
 from config import *
-from skills import get_skill_data
+from core.skills import get_skill_data
 
 
 class ArmaProjetil:

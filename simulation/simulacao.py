@@ -2,19 +2,25 @@ import pygame
 import json
 import math
 import random
-import database
-from config import *
+import sys
+import os
+
+# Adiciona o diretório pai ao path para imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from data import database
+from utils.config import *
 from effects import (Particula, FloatingText, Decal, Shockwave, Câmera, EncantamentoEffect,
                      ImpactFlash, MagicClash, BlockEffect, DashTrail, HitSpark,
                      MovementAnimationManager, MovementType,  # v8.0 Movement Animations
                      AttackAnimationManager, calcular_knockback_com_forca, get_impact_tier)  # v8.0 Attack Animations
-from entities import Lutador
-from physics import colisao_linha_circulo, intersect_line_circle, colisao_linha_linha, normalizar_angulo
-from hitbox import sistema_hitbox, verificar_hit, get_debug_visual, atualizar_debug, DEBUG_VISUAL
+from effects.audio import AudioManager  # v10.0 Sistema de Áudio
+from core.entities import Lutador
+from core.physics import colisao_linha_circulo, intersect_line_circle, colisao_linha_linha, normalizar_angulo
+from core.hitbox import sistema_hitbox, verificar_hit, get_debug_visual, atualizar_debug, DEBUG_VISUAL
+from core.arena import Arena, ARENAS, get_arena, set_arena  # v9.0 Sistema de Arena
 from ai import CombatChoreographer  # Sistema de Coreografia v5.0
 from core.game_feel import GameFeelManager, HitStopManager  # Sistema de Game Feel v8.0
-from arena import Arena, ARENAS, get_arena, set_arena  # v9.0 Sistema de Arena
-from audio import AudioManager  # v10.0 Sistema de Áudio
 
 class Simulador:
     def __init__(self):

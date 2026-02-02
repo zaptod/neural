@@ -68,6 +68,13 @@ from .weapon_animations import (
     get_weapon_animation_manager,
 )
 
+# v10.0 - Audio movido para effects
+from .audio import (
+    GerenciadorAudio,
+    SomArma,
+    SOM_CONFIGS,
+)
+
 __all__ = [
     # Partículas
     'Particula',
@@ -115,4 +122,8 @@ __all__ = [
     'Easing',
     'WEAPON_PROFILES',
     'get_weapon_animation_manager',
+    # Audio v10.0
+    'GerenciadorAudio',
+    'SomArma',
+    'SOM_CONFIGS',
 ]
