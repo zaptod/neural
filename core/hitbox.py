@@ -1,17 +1,118 @@
-# hitbox.py - Sistema de Hitbox Modular com Debug
+# hitbox.py - Sistema de Hitbox Modular com Debug v2.0
 """
 Sistema centralizado de detecção de colisão para combate.
 Inclui logging extensivo para debug.
+v2.0 - Integração com WeaponAnalysis para hitboxes mais precisas
 """
 
 import math
-from dataclasses import dataclass
-from typing import Optional, Tuple, List
-from config import PPM
+from dataclasses import dataclass, field
+from typing import Optional, Tuple, List, Dict
+from utils.config import PPM
 
 # === CONFIGURAÇÃO DE DEBUG ===
 DEBUG_HITBOX = False  # Ativar/desativar prints de debug (MUITO VERBOSO)
 DEBUG_VISUAL = True  # Mostrar hitboxes visuais no jogo
+
+
+# === PERFIS DE HITBOX POR TIPO DE ARMA v2.0 ===
+# Define características específicas de hitbox para cada tipo
+HITBOX_PROFILES = {
+    "Reta": {
+        "shape": "arc",           # Durante ataque usa arco
+        "idle_shape": "line",     # Fora de ataque usa linha
+        "base_arc": 90,           # Arco base de ataque em graus
+        "attack_arc_mult": 1.2,   # Multiplicador de arco durante ataque
+        "range_mult": 2.0,        # Multiplicador de alcance (x raio_char)
+        "min_range_ratio": 0.3,   # Ratio mínimo do alcance (para zona morta)
+        "hit_window_start": 0.2,  # Quando começa a janela de hit (% da animação)
+        "hit_window_end": 0.85,   # Quando termina
+        "sweet_spot_start": 0.6,  # Zona de dano máximo início
+        "sweet_spot_end": 1.0,    # Zona de dano máximo fim (% do alcance)
+    },
+    "Dupla": {
+        "shape": "dual_arc",
+        "idle_shape": "dual_line",
+        "base_arc": 60,
+        "attack_arc_mult": 1.5,
+        "range_mult": 1.5,
+        "min_range_ratio": 0.1,
+        "hit_window_start": 0.15,
+        "hit_window_end": 0.75,
+        "sweet_spot_start": 0.4,
+        "sweet_spot_end": 1.0,
+        "offset_angles": [-25, 25],  # Ângulos das lâminas duplas
+    },
+    "Corrente": {
+        "shape": "sweep_arc",
+        "idle_shape": "arc",
+        "base_arc": 180,
+        "attack_arc_mult": 1.1,
+        "range_mult": 4.0,
+        "min_range_ratio": 0.25,    # Zona morta maior
+        "hit_window_start": 0.1,
+        "hit_window_end": 0.9,
+        "sweet_spot_start": 0.7,
+        "sweet_spot_end": 1.0,
+        "has_dead_zone": True,      # Não acerta muito perto
+    },
+    "Arremesso": {
+        "shape": "projectile_cone",
+        "idle_shape": "point",
+        "base_arc": 30,
+        "attack_arc_mult": 2.0,     # Spread quando joga múltiplos
+        "range_mult": 5.0,
+        "min_range_ratio": 0.5,
+        "hit_window_start": 0.0,
+        "hit_window_end": 1.0,
+        "is_projectile": True,
+    },
+    "Arco": {
+        "shape": "line",
+        "idle_shape": "point",
+        "base_arc": 15,
+        "attack_arc_mult": 1.0,
+        "range_mult": 8.0,
+        "min_range_ratio": 0.3,
+        "hit_window_start": 0.3,
+        "hit_window_end": 0.6,
+        "is_projectile": True,
+    },
+    "Mágica": {
+        "shape": "area",
+        "idle_shape": "aura",
+        "base_arc": 120,
+        "attack_arc_mult": 1.0,
+        "range_mult": 2.5,
+        "min_range_ratio": 0.0,     # Sem zona morta
+        "hit_window_start": 0.2,
+        "hit_window_end": 0.8,
+        "is_area": True,
+    },
+    "Orbital": {
+        "shape": "circle",
+        "idle_shape": "circle",
+        "base_arc": 360,
+        "attack_arc_mult": 1.0,
+        "range_mult": 1.5,
+        "min_range_ratio": 0.0,
+        "hit_window_start": 0.0,
+        "hit_window_end": 1.0,
+        "always_active": True,
+    },
+    "Transformável": {
+        "shape": "arc",
+        "idle_shape": "line",
+        "base_arc": 100,
+        "attack_arc_mult": 1.15,
+        "range_mult": 2.5,
+        "min_range_ratio": 0.15,
+        "hit_window_start": 0.2,
+        "hit_window_end": 0.8,
+        "sweet_spot_start": 0.5,
+        "sweet_spot_end": 1.0,
+    },
+}
 
 def debug_log(msg: str, categoria: str = "INFO"):
     """Log de debug condicional"""
@@ -19,9 +120,24 @@ def debug_log(msg: str, categoria: str = "INFO"):
         print(f"[HITBOX:{categoria}] {msg}")
 
 
+def get_hitbox_profile(tipo: str) -> Dict:
+    """Retorna o perfil de hitbox para um tipo de arma"""
+    # Tenta match exato primeiro
+    if tipo in HITBOX_PROFILES:
+        return HITBOX_PROFILES[tipo]
+    
+    # Tenta match parcial
+    for key in HITBOX_PROFILES:
+        if key in tipo:
+            return HITBOX_PROFILES[key]
+    
+    # Fallback para Reta
+    return HITBOX_PROFILES["Reta"]
+
+
 @dataclass
 class HitboxInfo:
-    """Informações de uma hitbox para debug"""
+    """Informações de uma hitbox para debug e colisão v2.0"""
     tipo: str
     centro: Tuple[float, float]  # Em pixels
     alcance: float  # Em pixels
@@ -30,10 +146,70 @@ class HitboxInfo:
     pontos: List[Tuple[float, float]] = None  # Pontos da linha (para armas de lâmina)
     ativo: bool = False
     
+    # Novos campos v2.0
+    alcance_minimo: float = 0.0      # Zona morta
+    sweet_spot_min: float = 0.0      # Início do sweet spot
+    sweet_spot_max: float = 0.0      # Fim do sweet spot
+    forma: str = "arc"               # Forma da hitbox
+    dano_mult: float = 1.0           # Multiplicador de dano na posição
+    profile: Dict = field(default_factory=dict)  # Perfil completo
+    
     def __str__(self):
         if self.pontos:
             return f"Hitbox[{self.tipo}] linha=({self.pontos[0]}) -> ({self.pontos[1]}) alcance={self.alcance:.1f}px"
         return f"Hitbox[{self.tipo}] centro={self.centro} alcance={self.alcance:.1f}px ang={self.angulo:.1f}° larg={self.largura_angular:.1f}°"
+    
+    def get_damage_at_distance(self, dist: float) -> float:
+        """Calcula multiplicador de dano baseado na distância (sweet spot)"""
+        if dist < self.alcance_minimo:
+            return 0.3  # Na zona morta
+        
+        # Calcula posição relativa no alcance
+        alcance_efetivo = self.alcance - self.alcance_minimo
+        if alcance_efetivo <= 0:
+            return 1.0
+        
+        pos_relativa = (dist - self.alcance_minimo) / alcance_efetivo
+        
+        # Verifica se está no sweet spot
+        if self.sweet_spot_min <= pos_relativa <= self.sweet_spot_max:
+            return 1.2  # Dano aumentado no sweet spot
+        
+        return 1.0  # Dano normal
+    
+    def is_in_hitbox(self, pos: Tuple[float, float], raio_alvo: float = 0) -> Tuple[bool, float]:
+        """
+        Verifica se uma posição está dentro da hitbox.
+        Retorna (está_dentro, multiplicador_dano)
+        """
+        cx, cy = self.centro
+        px, py = pos
+        
+        dist = math.hypot(px - cx, py - cy)
+        
+        # Verifica alcance
+        alcance_efetivo = self.alcance + raio_alvo
+        if dist > alcance_efetivo:
+            return False, 0.0
+        
+        if dist < self.alcance_minimo - raio_alvo:
+            return False, 0.0
+        
+        # Verifica ângulo
+        ang_para_pos = math.degrees(math.atan2(py - cy, px - cx))
+        diff_ang = ang_para_pos - self.angulo
+        while diff_ang > 180:
+            diff_ang -= 360
+        while diff_ang < -180:
+            diff_ang += 360
+        
+        if abs(diff_ang) > self.largura_angular / 2:
+            return False, 0.0
+        
+        # Calcula multiplicador de dano
+        dano_mult = self.get_damage_at_distance(dist)
+        
+        return True, dano_mult
 
 
 class SistemaHitbox:
@@ -108,10 +284,11 @@ class SistemaHitbox:
     
     def _calcular_hitbox_lamina(self, lutador, arma, cx, cy, rad, fator, raio_char) -> HitboxInfo:
         """
-        Calcula hitbox para armas de lâmina.
-        NOVO: Durante ataque, usa hitbox de ARCO para cobrir toda a área de varredura.
+        Calcula hitbox para armas de lâmina v2.0.
+        Usa perfis de hitbox para características precisas por tipo.
         """
         tipo = arma.tipo
+        profile = get_hitbox_profile(tipo)
         
         # Determina comprimento do cabo e lâmina
         if "Transformável" in tipo:
@@ -127,16 +304,9 @@ class SistemaHitbox:
             cabo = arma.comp_cabo
             lamina = arma.comp_lamina
         
-        # === LÓGICA DE ESCALA ===
+        # === LÓGICA DE ESCALA COM PERFIL ===
         tam_base = cabo + lamina
-        
-        # Fatores por tipo de arma
-        if "Dupla" in tipo:
-            fator_arma = 1.5
-        elif "Transformável" in tipo:
-            fator_arma = 2.5
-        else:
-            fator_arma = 2.0
+        fator_arma = profile["range_mult"]
         
         # Alcance alvo em pixels
         alcance_alvo = raio_char * fator_arma
@@ -146,30 +316,27 @@ class SistemaHitbox:
         lamina_px = lamina * escala
         alcance_total = cabo_px + lamina_px
         
+        # Calcula zona morta e sweet spot baseado no perfil
+        alcance_minimo = alcance_total * profile["min_range_ratio"]
+        sweet_spot_start = profile.get("sweet_spot_start", 0.6)
+        sweet_spot_end = profile.get("sweet_spot_end", 1.0)
+        
         # === DURANTE ATAQUE: USA ARCO DE VARREDURA ===
-        # O arco cobre toda a área que a animação percorre
         if lutador.atacando:
             # Pega o perfil de animação para saber o arco total
             try:
                 from effects.weapon_animations import WEAPON_PROFILES
-                profile = WEAPON_PROFILES.get(tipo, WEAPON_PROFILES.get("Reta"))
-                
-                # O arco de ataque vai de -anticipation_angle até +attack_angle
-                # Simplificamos para um arco centrado no angulo_olhar
-                arco_total = abs(profile.anticipation_angle) + abs(profile.attack_angle)
-                
-                # Usa o ângulo de olhar como centro (direção do ataque)
+                anim_profile = WEAPON_PROFILES.get(tipo, WEAPON_PROFILES.get("Reta"))
+                arco_total = abs(anim_profile.anticipation_angle) + abs(anim_profile.attack_angle)
                 angulo_centro = lutador.angulo_olhar
-                
             except ImportError:
-                arco_total = 120  # Default se não conseguir importar
+                arco_total = profile["base_arc"]
                 angulo_centro = math.degrees(rad)
             
-            # Largura angular: arco de ataque + margem para o tamanho do alvo
-            # Mínimo de 90 graus para garantir cobertura
-            largura_angular = max(90, arco_total * 0.8)
+            # Largura angular: arco de ataque * multiplicador do perfil
+            largura_angular = max(profile["base_arc"], arco_total * profile["attack_arc_mult"])
             
-            debug_log(f"  Lâmina ATAQUE: arco_total={arco_total:.1f}° largura={largura_angular:.1f}° centro={angulo_centro:.1f}°", "CALC")
+            debug_log(f"  Lâmina ATAQUE v2: arco={arco_total:.1f}° largura={largura_angular:.1f}° centro={angulo_centro:.1f}°", "CALC")
             
             return HitboxInfo(
                 tipo=tipo,
@@ -177,8 +344,13 @@ class SistemaHitbox:
                 alcance=alcance_total,
                 angulo=angulo_centro,
                 largura_angular=largura_angular,
-                pontos=None,  # Usa arco, não linha
-                ativo=True
+                pontos=None,
+                ativo=True,
+                alcance_minimo=alcance_minimo,
+                sweet_spot_min=sweet_spot_start,
+                sweet_spot_max=sweet_spot_end,
+                forma=profile["shape"],
+                profile=profile
             )
         
         # === FORA DE ATAQUE: USA LINHA (para debug visual) ===
@@ -196,53 +368,57 @@ class SistemaHitbox:
             angulo=math.degrees(rad),
             largura_angular=30.0,
             pontos=[(x1, y1), (x2, y2)],
-            ativo=False
+            ativo=False,
+            alcance_minimo=alcance_minimo,
+            sweet_spot_min=sweet_spot_start,
+            sweet_spot_max=sweet_spot_end,
+            forma=profile["idle_shape"],
+            profile=profile
         )
     
     def _calcular_hitbox_corrente(self, lutador, arma, cx, cy, rad, fator, raio_char) -> HitboxInfo:
         """
-        Calcula hitbox para armas de corrente (mangual, kusarigama, chicote).
+        Calcula hitbox para armas de corrente v2.0.
         A hitbox segue a posição da BOLA na ponta da corrente.
-        Durante o ataque, a corrente varre um arco, então a hitbox tem uma margem angular.
+        Usa perfis de hitbox para características precisas.
         """
+        tipo = arma.tipo
+        profile = get_hitbox_profile("Corrente")
+        
         # Pega valores específicos de corrente
         comp_corrente = getattr(arma, 'comp_corrente', 100)
         comp_ponta = getattr(arma, 'comp_ponta', 20)
         largura_ponta = getattr(arma, 'largura_ponta', 10)
         
-        # Correntes são mais longas: 4x o raio do personagem (igual ao visual)
-        fator_arma = 4.0
+        # Usa multiplicador do perfil
+        fator_arma = profile["range_mult"]
         alcance_alvo = raio_char * fator_arma
         
         # Escala baseada no comp_corrente
         escala = alcance_alvo / max(comp_corrente, 1)
         alcance_px = comp_corrente * escala
         
-        # A bola está no ângulo atual da arma (rad = angulo_arma_visual em radianos)
-        # O ângulo já vem de lutador.angulo_arma_visual que é atualizado pela animação
+        # Zona morta - correntes não acertam muito perto
+        alcance_minimo = alcance_px * profile["min_range_ratio"]
+        
+        # A bola está no ângulo atual da arma
         angulo_bola = math.degrees(rad)
         
-        # Largura angular da hitbox - durante ataque a corrente varre um arco maior
-        # Quanto maior a bola, maior a hitbox angular
+        # Largura angular da hitbox
         tamanho_bola = max(largura_ponta * escala, raio_char * 0.2)
-        # Converte tamanho da bola em graus (quanto maior a distância, menor o ângulo)
         largura_base = math.degrees(2 * math.atan2(tamanho_bola, alcance_px))
         
         # Durante ataque, a corrente varre um arco muito maior
-        # O novo sistema de animação usa 200° de arco para correntes
         if lutador.atacando:
-            # Durante ataque: hitbox cobre o arco do swing
-            # Usa o ângulo de olhar como referência central
-            angulo_bola = lutador.angulo_olhar  # Centro do swing
-            largura_angular = 120  # Cobertura generosa do arco de ataque
+            angulo_bola = lutador.angulo_olhar
+            largura_angular = profile["base_arc"] * profile["attack_arc_mult"]
         else:
-            # Fora de ataque: hitbox menor centrada na bola
             largura_angular = max(largura_base + 30, 45)
         
-        debug_log(f"  Corrente: comp_corrente={comp_corrente} escala={escala:.3f}", "CALC")
-        debug_log(f"  Corrente: alcance_px={alcance_px:.1f} ang_bola={angulo_bola:.1f}° largura={largura_angular:.1f}° atacando={lutador.atacando}", "CALC")
+        debug_log(f"  Corrente v2: comp={comp_corrente} alcance={alcance_px:.1f} zona_morta={alcance_minimo:.1f}", "CALC")
+        debug_log(f"  Corrente v2: ang={angulo_bola:.1f}° largura={largura_angular:.1f}° atacando={lutador.atacando}", "CALC")
         
-        # Gera pontos do arco para visualização (arco menor, centrado na bola)
+        # Gera pontos do arco para visualização
         pontos_arco = []
         num_segmentos = 6
         ang_inicio = angulo_bola - largura_angular / 2
@@ -254,18 +430,19 @@ class SistemaHitbox:
             py = cy + math.sin(ang) * alcance_px
             pontos_arco.append((px, py))
         
-        # Adiciona o ponto da bola (centro do arco) como referência
-        bola_x = cx + math.cos(rad) * alcance_px
-        bola_y = cy + math.sin(rad) * alcance_px
-        
         return HitboxInfo(
             tipo="Corrente",
             centro=(cx, cy),
             alcance=alcance_px,
             angulo=angulo_bola,
             largura_angular=largura_angular,
-            pontos=pontos_arco,  # Pontos do arco para debug visual
-            ativo=lutador.atacando
+            pontos=pontos_arco,
+            ativo=lutador.atacando,
+            alcance_minimo=alcance_minimo,
+            sweet_spot_min=profile.get("sweet_spot_start", 0.7),
+            sweet_spot_max=profile.get("sweet_spot_end", 1.0),
+            forma=profile["shape"] if lutador.atacando else profile["idle_shape"],
+            profile=profile
         )
     
     def _calcular_hitbox_ranged(self, lutador, arma, cx, cy, rad, fator, raio_char) -> HitboxInfo:

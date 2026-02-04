@@ -133,6 +133,9 @@ class Simulador:
             self.audio = AudioManager.get_instance()
             self._prev_stagger = {self.p1: False, self.p2: False}
             self._prev_dash = {self.p1: 0, self.p2: 0}
+            
+            # Som de início de arena/luta
+            self.audio.play_special("arena_start", 0.8)
                 
         except Exception as e: 
             import traceback
@@ -437,6 +440,10 @@ class Simulador:
                 p1_colidiu = self.arena.aplicar_limites(self.p1, dt)
                 p2_colidiu = self.arena.aplicar_limites(self.p2, dt)
                 
+                # Debug
+                if p1_colidiu or p2_colidiu:
+                    print(f"[COLLISION] P1={p1_colidiu} P2={p2_colidiu}")
+                
                 # Efeitos visuais de colisão com parede
                 if p1_colidiu:
                     self._criar_efeito_colisao_parede(self.p1)
@@ -473,19 +480,34 @@ class Simulador:
 
     def _criar_efeito_colisao_parede(self, lutador):
         """Cria efeitos visuais quando lutador colide com parede da arena"""
-        # Só cria efeito se a velocidade for significativa
-        velocidade = math.hypot(lutador.vel[0], lutador.vel[1])
-        if velocidade < 3:
+        # Pega a velocidade antes de verificar - usa colisões recentes da arena
+        # que guardam a intensidade real do impacto
+        intensidade_colisao = 0.0  # Começa em 0
+        if self.arena and self.arena.colisoes_recentes:
+            for col in self.arena.colisoes_recentes:
+                if len(col) >= 3:
+                    intensidade_colisao = max(intensidade_colisao, col[2])
+        
+        # Só cria efeito se a colisão foi em ALTA VELOCIDADE (intensidade > 8)
+        if intensidade_colisao < 8:
             return
         
-        # === ÁUDIO v10.0 - SOM DE COLISÃO COM PAREDE ===
+        # === ÁUDIO v10.0 - SOM DE COLISÃO COM PAREDE (APENAS IMPACTOS FORTES) ===
         if self.audio:
-            listener_x = self.cam.x / PPM
-            volume = min(1.0, velocidade / 15) * 0.6
-            self.audio.play_special("wall_hit", volume=volume)
+            # Volume varia de 0.4 (impacto médio) a 1.0 (impacto muito forte)
+            # intensidade 8 = volume 0.4, intensidade 20+ = volume 1.0
+            volume = 0.4 + (intensidade_colisao - 8) * 0.05
+            volume = max(0.4, min(1.0, volume))
+            
+            # Usa som pesado para impactos muito fortes
+            if intensidade_colisao > 15:
+                self.audio.play("wall_impact_heavy", volume=volume)
+            else:
+                self.audio.play("wall_impact_light", volume=volume)
+            print(f"[AUDIO] Wall hit! intensidade={intensidade_colisao:.1f}, volume={volume:.2f}")
         
         # Intensidade baseada na velocidade
-        intensidade = min(1.0, velocidade / 15)
+        intensidade = min(1.0, intensidade_colisao / 15)
         
         # Partículas de poeira/impacto
         x_px = lutador.pos[0] * PPM
@@ -555,7 +577,7 @@ class Simulador:
     def _beam_colide_alvo(self, beam, alvo):
         """Verifica se um beam colide com um alvo"""
         # Usa colisão linha-círculo
-        from physics import colisao_linha_circulo
+        from core.physics import colisao_linha_circulo
         pt1 = (beam.x1 * PPM, beam.y1 * PPM)
         pt2 = (beam.x2 * PPM, beam.y2 * PPM)
         centro = (alvo.pos[0] * PPM, alvo.pos[1] * PPM)
@@ -588,15 +610,23 @@ class Simulador:
             z_atual = getattr(lutador, 'z', 0)
             z_anterior = self._prev_z.get(lutador, 0)
             
+            # Posição X para sons posicionais
+            pos_x = lutador.pos[0]
+            listener_x = (self.p1.pos[0] + self.p2.pos[0]) / 2  # Centro entre lutadores
+            
             # === ATERRISSAGEM ===
             if z_anterior > 0.5 and z_atual <= 0.1:
                 # Calcula intensidade baseada na velocidade de queda
                 vel_queda = abs(getattr(lutador, 'vel_z', 0))
                 self.movement_anims.criar_landing_effect(lutador, vel_queda + 5)
+                # Som de aterrissagem
+                self.audio.play_movement("land", pos_x, listener_x)
             
             # === PULO ===
             elif z_atual > 0.5 and z_anterior <= 0.1:
                 self.movement_anims.criar_jump_effect(lutador)
+                # Som de pulo
+                self.audio.play_movement("jump", pos_x, listener_x)
             
             # === DASH ===
             dash_atual = getattr(lutador, 'dash_timer', 0)
@@ -616,6 +646,8 @@ class Simulador:
                     tipo = MovementType.DASH_FORWARD
                 
                 self.movement_anims.criar_dash_effect(lutador, direcao, tipo)
+                # Som de dash
+                self.audio.play_skill("DASH", "", pos_x, listener_x, phase="cast")
             
             # === RECUPERAÇÃO DE STAGGER ===
             stagger_atual = getattr(lutador, 'stun_timer', 0) > 0
@@ -711,6 +743,10 @@ class Simulador:
         # Texto de CLASH
         self.textos.append(FloatingText(mx * PPM, my * PPM - 40, "CLASH!", AMARELO_FAISCA, 35))
         
+        # SOM DE CLASH
+        listener_x = (self.p1.pos[0] + self.p2.pos[0]) / 2
+        self.audio.play_positional("clash_magic", mx, listener_x, volume=1.0)
+        
         # Camera shake e hit stop dramáticos
         self.cam.aplicar_shake(25.0, 0.25)
         self.hit_stop_timer = 0.15
@@ -778,7 +814,7 @@ class Simulador:
                 # Verifica se arma intercepta projétil
                 linha_arma = alvo.get_pos_ponteira_arma()
                 if linha_arma:
-                    from physics import colisao_linha_circulo
+                    from core.physics import colisao_linha_circulo
                     if colisao_linha_circulo(linha_arma[0], linha_arma[1], 
                                             (proj.x * PPM, proj.y * PPM), 
                                             proj.raio * PPM + 5):
@@ -1214,6 +1250,8 @@ class Simulador:
 
     def ativar_slow_motion(self):
         self.time_scale = 0.2; self.slow_mo_timer = 2.0
+        # Som de slow motion
+        self.audio.play_special("slowmo_start", 0.6)
 
     def desenhar(self):
         self.tela.fill(COR_FUNDO)
@@ -1639,7 +1677,7 @@ class Simulador:
             x2, y2, a2 = trail[i + 1]
             
             # Converte para tela (coordenadas mundo -> pixels)
-            from config import PPM
+            from utils.config import PPM
             p1 = self.cam.converter(x1 * PPM, y1 * PPM)
             p2 = self.cam.converter(x2 * PPM, y2 * PPM)
             
@@ -2139,12 +2177,19 @@ class Simulador:
         self.tela.blit(msg, (LARGURA//2 - msg.get_width()//2, ALTURA//2 + 20))
 
     def run(self):
+        self._slow_mo_ended = False  # Flag para tocar som de vitória uma vez
         while self.rodando:
             try:
                 raw_dt = self.clock.tick(FPS) / 1000.0
                 if self.slow_mo_timer > 0:
                     self.slow_mo_timer -= raw_dt
-                    if self.slow_mo_timer <= 0: self.time_scale = 1.0
+                    if self.slow_mo_timer <= 0:
+                        self.time_scale = 1.0
+                        # Som de fim do slow-mo e vitória
+                        if not self._slow_mo_ended and self.vencedor:
+                            self.audio.play_special("slowmo_end", 0.5)
+                            self.audio.play_special("arena_victory", 1.0)
+                            self._slow_mo_ended = True
                 dt = raw_dt * self.time_scale
                 self.processar_inputs(); self.update(dt); self.desenhar(); pygame.display.flip()
             except Exception as e:

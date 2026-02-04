@@ -1,7 +1,7 @@
 # combat.py
 import math
 import random
-from config import *
+from utils.config import *
 from core.skills import get_skill_data
 
 

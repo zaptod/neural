@@ -34,7 +34,7 @@ from core.hitbox import (
 )
 
 # v10.0 - Arena movida para core
-from core.arena import ArenaObstaculos
+from core.arena import Arena
 
 __all__ = [
     # Physics
@@ -64,5 +64,5 @@ __all__ = [
     'HitboxInfo', 'SistemaHitbox',
     'sistema_hitbox', 'verificar_hit', 'get_debug_visual', 'atualizar_debug',
     # Arena
-    'ArenaObstaculos',
+    'Arena',
 ]

@@ -1,19 +1,24 @@
 """
 =============================================================================
-NEURAL FIGHTS - Personalidades da IA v8.0 HUMAN EDITION
+NEURAL FIGHTS - Personalidades da IA v10.0 ENHANCED EDITION
 =============================================================================
 Sistema de personalidade procedural com CENTENAS de combinações:
-- 60+ Traços de personalidade (incluindo novos traços humanos)
+- 70+ Traços de personalidade (incluindo novos traços espaciais)
 - 25+ Arquétipos de combate  
 - 15+ Estilos de luta
-- 25+ Quirks (comportamentos únicos)
-- 12+ Filosofias de combate
+- 30+ Quirks (comportamentos únicos)
+- 14+ Filosofias de combate
 - Sistema de humor dinâmico
+
+NOVIDADES v10.0:
+- Traços que afetam consciência espacial
+- Quirks de posicionamento
+- Filosofias de controle de espaço
 =============================================================================
 """
 
 # =============================================================================
-# TRAÇOS DE PERSONALIDADE (60+)
+# TRAÇOS DE PERSONALIDADE (70+)
 # =============================================================================
 
 TRACOS_AGRESSIVIDADE = [
@@ -27,8 +32,9 @@ TRACOS_AGRESSIVIDADE = [
     "IMPLACAVEL",      # Nunca recua voluntariamente
     "FURIOSO",         # Raiva constante
     "BRUTAL",          # Prefere golpes pesados
-    "PRESSAO_CONSTANTE", # Mantém pressão sempre (NOVO v8.0)
-    "FINALIZADOR_NATO",  # Sabe quando dar o golpe final (NOVO v8.0)
+    "PRESSAO_CONSTANTE", # Mantém pressão sempre
+    "FINALIZADOR_NATO",  # Sabe quando dar o golpe final
+    "ENCURRALADOR",    # NOVO: Especialista em encurralar oponentes
 ]
 
 TRACOS_DEFENSIVO = [
@@ -42,8 +48,9 @@ TRACOS_DEFENSIVO = [
     "PARANOICO",       # Sempre esperando ataque
     "MEDROSO",         # Medo constante
     "PRUDENTE",        # Calcula riscos
-    "LEITURA_PERFEITA",  # Lê movimentos do oponente (NOVO v8.0)
-    "TIMING_PRECISO",    # Timing de desvio perfeito (NOVO v8.0)
+    "LEITURA_PERFEITA",  # Lê movimentos do oponente
+    "TIMING_PRECISO",    # Timing de desvio perfeito
+    "COBERTURA_MESTRE",  # NOVO: Usa obstáculos para proteção
 ]
 
 TRACOS_MOBILIDADE = [
@@ -57,8 +64,10 @@ TRACOS_MOBILIDADE = [
     "DESLIZANTE",      # Move suavemente
     "TELEGRAFICO",     # Movimentos previsíveis
     "CAOTICO",         # Direções aleatórias
-    "ESPACAMENTO_MESTRE", # Controla distância perfeitamente (NOVO v8.0)
-    "MICRO_AJUSTES",     # Pequenos ajustes constantes (NOVO v8.0)
+    "ESPACAMENTO_MESTRE", # Controla distância perfeitamente
+    "MICRO_AJUSTES",     # Pequenos ajustes constantes
+    "NAVEGADOR",       # NOVO: Navega bem entre obstáculos
+    "ARENA_MASTER",    # NOVO: Usa toda a arena estrategicamente
 ]
 
 TRACOS_SKILLS = [
@@ -72,7 +81,8 @@ TRACOS_SKILLS = [
     "AREA_DENIAL",     # Controla espaço
     "DEBUFFER",        # Foca em status
     "SUPPORT",         # Buffs próprios
-    "SETUP_ARTIST",    # Prepara armadilhas e setups (NOVO v8.0)
+    "SETUP_ARTIST",    # Prepara armadilhas e setups
+    "ZONE_CONTROLLER", # NOVO: Controla zonas da arena com skills
 ]
 
 TRACOS_MENTAL = [
@@ -86,8 +96,9 @@ TRACOS_MENTAL = [
     "TEIMOSO",         # Mantém estratégia
     "CRIATIVO",        # Tenta coisas novas
     "METODICO",        # Padrões repetitivos
-    "CLUTCH_PLAYER",   # Melhor sob pressão (NOVO v8.0)
-    "TILTER",          # Fica pior quando perde (NOVO v8.0)
+    "CLUTCH_PLAYER",   # Melhor sob pressão
+    "TILTER",          # Fica pior quando perde
+    "AWARENESS_ALTO",  # NOVO: Alta consciência do ambiente
 ]
 
 TRACOS_ESPECIAIS = [
@@ -101,9 +112,11 @@ TRACOS_ESPECIAIS = [
     "HONORAVEL",       # Luta "justo"
     "COVARDE_TATICO",  # Foge estrategicamente
     "ULTIMO_SUSPIRO",  # Burst final quando morrendo
-    "MOMENTUM_RIDER",  # Melhor quando ganhando (NOVO v8.0)
-    "UNDERDOG",        # Melhor quando perdendo (NOVO v8.0)
-    "BAITER_NATO",     # Mestre em fintas (NOVO v8.0)
+    "MOMENTUM_RIDER",  # Melhor quando ganhando
+    "UNDERDOG",        # Melhor quando perdendo
+    "BAITER_NATO",     # Mestre em fintas
+    "WALL_FIGHTER",    # NOVO: Luta bem perto de paredes
+    "PILLAR_DANCER",   # NOVO: Usa pilares/obstáculos como parceiro de dança
 ]
 
 # Todos os traços combinados

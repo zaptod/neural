@@ -1,60 +1,5 @@
 [
     {
-        "nome": "Thor",
-        "tamanho": 1.9,
-        "forca": 7.0,
-        "mana": 4.0,
-        "nome_arma": "Espada Comum",
-        "cor_r": 160,
-        "cor_g": 60,
-        "cor_b": 30,
-        "classe": "Guerreiro (Força Bruta)"
-    },
-    {
-        "nome": "Ares",
-        "tamanho": 1.92,
-        "forca": 7.0,
-        "mana": 4.0,
-        "nome_arma": "Lança do Cavaleiro",
-        "cor_r": 200,
-        "cor_g": 100,
-        "cor_b": 50,
-        "classe": "Guerreiro (Força Bruta)"
-    },
-    {
-        "nome": "Kratos",
-        "tamanho": 1.85,
-        "forca": 9.0,
-        "mana": 5.0,
-        "nome_arma": "Espada Flamejante",
-        "cor_r": 160,
-        "cor_g": 60,
-        "cor_b": 30,
-        "classe": "Guerreiro (Força Bruta)"
-    },
-    {
-        "nome": "Conan",
-        "tamanho": 1.86,
-        "forca": 8.0,
-        "mana": 3.0,
-        "nome_arma": "Adagas Gêmeas",
-        "cor_r": 220,
-        "cor_g": 120,
-        "cor_b": 60,
-        "classe": "Guerreiro (Força Bruta)"
-    },
-    {
-        "nome": "Spartacus",
-        "tamanho": 1.88,
-        "forca": 8.0,
-        "mana": 3.0,
-        "nome_arma": "Lâminas do Assassino",
-        "cor_r": 200,
-        "cor_g": 100,
-        "cor_b": 50,
-        "classe": "Guerreiro (Força Bruta)"
-    },
-    {
         "nome": "Magnus",
         "tamanho": 1.87,
         "forca": 9.0,
@@ -110,17 +55,6 @@
         "classe": "Guerreiro (Força Bruta)"
     },
     {
-        "nome": "Atlas",
-        "tamanho": 1.74,
-        "forca": 9.0,
-        "mana": 5.0,
-        "nome_arma": "Arco Élfico Ancestral",
-        "cor_r": 220,
-        "cor_g": 120,
-        "cor_b": 60,
-        "classe": "Guerreiro (Força Bruta)"
-    },
-    {
         "nome": "Hector",
         "tamanho": 1.91,
         "forca": 7.0,
@@ -173,17 +107,6 @@
         "cor_r": 220,
         "cor_g": 120,
         "cor_b": 60,
-        "classe": "Guerreiro (Força Bruta)"
-    },
-    {
-        "nome": "Goliath",
-        "tamanho": 1.94,
-        "forca": 10.0,
-        "mana": 5.0,
-        "nome_arma": "Bastão Transformável",
-        "cor_r": 200,
-        "cor_g": 100,
-        "cor_b": 50,
         "classe": "Guerreiro (Força Bruta)"
     },
     {

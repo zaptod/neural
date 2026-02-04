@@ -6,7 +6,7 @@ Sistema expandido com múltiplos mapas temáticos.
 
 import math
 import pygame
-from config import PPM, LARGURA, ALTURA
+from utils.config import PPM, LARGURA, ALTURA
 from dataclasses import dataclass, field
 from typing import Tuple, List, Optional
 
@@ -90,10 +90,11 @@ ARENAS = {
         descricao="Arena circular majestosa",
         icone="🏛️",
         obstaculos=[
-            Obstaculo("pilar", 10.0, 17.5, 1.5, 1.5, (140, 120, 90)),
-            Obstaculo("pilar", 25.0, 17.5, 1.5, 1.5, (140, 120, 90)),
-            Obstaculo("pilar", 17.5, 10.0, 1.5, 1.5, (140, 120, 90)),
-            Obstaculo("pilar", 17.5, 25.0, 1.5, 1.5, (140, 120, 90)),
+            # Pilares mais próximos do centro para serem visíveis
+            Obstaculo("pilar", 13.0, 17.5, 1.5, 1.5, (140, 120, 90)),
+            Obstaculo("pilar", 22.0, 17.5, 1.5, 1.5, (140, 120, 90)),
+            Obstaculo("pilar", 17.5, 13.0, 1.5, 1.5, (140, 120, 90)),
+            Obstaculo("pilar", 17.5, 22.0, 1.5, 1.5, (140, 120, 90)),
         ],
     ),
     
@@ -182,8 +183,8 @@ ARENAS = {
             Obstaculo("pilar", 22.0, 7.0, 1.5, 1.5, (90, 80, 70)),
             Obstaculo("pilar", 8.0, 15.0, 1.5, 1.5, (90, 80, 70)),
             Obstaculo("pilar", 22.0, 15.0, 1.5, 1.5, (90, 80, 70)),
-            # Trono no fundo
-            Obstaculo("trono", 15.0, 3.0, 3.0, 2.0, (150, 120, 50)),
+            # Trono no fundo (made larger and brighter for better visibility)
+            Obstaculo("trono", 15.0, 3.5, 4.0, 3.0, (180, 140, 60)),
             # Tapete (não sólido)
             Obstaculo("tapete", 15.0, 11.0, 6.0, 12.0, (120, 30, 30), solido=False),
         ],
@@ -831,19 +832,30 @@ class Arena:
         """Desenha os obstáculos da arena"""
         for obs in self.obstaculos:
             cx, cy = camera.converter(obs.x * PPM, obs.y * PPM)
-            half_w = camera.converter_tam(obs.largura * PPM / 2)
-            half_h = camera.converter_tam(obs.altura * PPM / 2)
+            cx, cy = int(cx), int(cy)  # Ensure integers
+            half_w = int(camera.converter_tam(obs.largura * PPM / 2))
+            half_h = int(camera.converter_tam(obs.altura * PPM / 2))
             
             if half_w < 1 or half_h < 1:
                 continue
             
             rect = pygame.Rect(cx - half_w, cy - half_h, half_w * 2, half_h * 2)
-            
-            # Cor base
             cor = obs.cor
             
             # Desenho especial baseado no tipo
-            if obs.tipo in ["lava", "fogo"]:
+            if obs.tipo in ["pilar", "pilar_quebrado"]:
+                # Pilar cilíndrico
+                pygame.draw.ellipse(surface, cor, rect)
+                # Sombra superior
+                cor_clara = tuple(min(255, c + 30) for c in cor)
+                top_rect = pygame.Rect(int(cx - half_w * 0.8), int(cy - half_h * 0.9), int(half_w * 1.6), int(half_h * 0.6))
+                pygame.draw.ellipse(surface, cor_clara, top_rect)
+                # Se quebrado, adiciona rachadura
+                if obs.tipo == "pilar_quebrado":
+                    pygame.draw.line(surface, (40, 40, 40), (int(cx - half_w * 0.3), int(cy - half_h)), 
+                                   (int(cx + half_w * 0.2), int(cy + half_h * 0.5)), 2)
+            
+            elif obs.tipo in ["lava", "fogo"]:
                 # Efeito pulsante para fogo/lava
                 import time
                 pulse = int(abs(math.sin(time.time() * 3)) * 50)
@@ -873,23 +885,11 @@ class Arena:
             
             elif obs.tipo in ["arvore", "palmeira"]:
                 # Tronco
-                tronco_rect = pygame.Rect(cx - half_w * 0.3, cy - half_h * 0.5, half_w * 0.6, half_h * 1.5)
+                tronco_rect = pygame.Rect(int(cx - half_w * 0.3), int(cy - half_h * 0.5), int(half_w * 0.6), int(half_h * 1.5))
                 pygame.draw.rect(surface, cor, tronco_rect)
                 # Copa
                 copa_cor = (30, 80, 30) if obs.tipo == "arvore" else (50, 120, 40)
                 pygame.draw.circle(surface, copa_cor, (cx, int(cy - half_h * 0.3)), int(half_w * 1.2))
-            
-            elif obs.tipo in ["pilar", "pilar_quebrado"]:
-                # Pilar cilíndrico
-                pygame.draw.ellipse(surface, cor, rect)
-                # Sombra superior
-                cor_clara = tuple(min(255, c + 30) for c in cor)
-                top_rect = pygame.Rect(cx - half_w * 0.8, cy - half_h * 0.9, half_w * 1.6, half_h * 0.6)
-                pygame.draw.ellipse(surface, cor_clara, top_rect)
-                # Se quebrado, adiciona rachadura
-                if obs.tipo == "pilar_quebrado":
-                    pygame.draw.line(surface, (40, 40, 40), (cx - half_w * 0.3, cy - half_h), 
-                                   (cx + half_w * 0.2, cy + half_h * 0.5), 2)
             
             elif obs.tipo == "tapete":
                 # Tapete decorativo (não sólido)
@@ -898,13 +898,37 @@ class Arena:
                 pygame.draw.rect(surface, (180, 150, 50), rect, 3)
             
             elif obs.tipo == "trono":
-                # Trono especial
-                cor_ouro = (180, 150, 50)
+                # Trono especial - enhanced visibility
+                cor_ouro = (255, 215, 0)  # Gold
+                cor_veludo = (100, 20, 40)  # Dark red velvet
+                
+                # Base do trono (assento)
                 pygame.draw.rect(surface, cor, rect)
-                # Encosto
-                encosto_rect = pygame.Rect(cx - half_w * 0.6, cy - half_h * 1.5, half_w * 1.2, half_h * 0.8)
-                pygame.draw.rect(surface, cor_ouro, encosto_rect)
-                pygame.draw.rect(surface, (255, 215, 0), encosto_rect, 2)
+                # Borda do assento
+                pygame.draw.rect(surface, cor_ouro, rect, 3)
+                
+                # Encosto alto (backrest)
+                encosto_h = int(half_h * 1.8)
+                encosto_w = int(half_w * 1.4)
+                encosto_rect = pygame.Rect(cx - encosto_w // 2, cy - half_h - encosto_h, encosto_w, encosto_h)
+                pygame.draw.rect(surface, cor, encosto_rect)
+                pygame.draw.rect(surface, cor_ouro, encosto_rect, 3)
+                
+                # Almofada do assento (veludo)
+                almofada = pygame.Rect(cx - half_w + 4, cy - half_h + 4, half_w * 2 - 8, half_h * 2 - 8)
+                pygame.draw.rect(surface, cor_veludo, almofada)
+                
+                # Detalhes dourados no encosto
+                deco_y = cy - half_h - encosto_h // 2
+                pygame.draw.circle(surface, cor_ouro, (cx, int(deco_y)), max(4, int(half_w * 0.3)))
+                
+                # Apoios de braço
+                arm_w = int(half_w * 0.3)
+                arm_h = int(half_h * 0.6)
+                # Esquerdo
+                pygame.draw.rect(surface, cor, pygame.Rect(cx - half_w - arm_w, cy - arm_h // 2, arm_w, arm_h))
+                # Direito
+                pygame.draw.rect(surface, cor, pygame.Rect(cx + half_w, cy - arm_h // 2, arm_w, arm_h))
             
             elif obs.tipo in ["gelo"]:
                 # Gelo semi-transparente
@@ -949,17 +973,17 @@ class Arena:
         cor_borda = self.config.cor_borda
         
         if self.config.formato == "circular":
-            # Borda circular
+            # Borda circular - só desenha o ANEL da parede, não o interior
             cx, cy = camera.converter(self.centro_x * PPM, self.centro_y * PPM)
             raio_ext = camera.converter_tam((self.raio + esp) * PPM)
             raio_int = camera.converter_tam(self.raio * PPM)
             
             if raio_ext > 0:
-                # Anel da parede
-                pygame.draw.circle(surface, cor, (cx, cy), raio_ext)
-                pygame.draw.circle(surface, self.config.cor_chao, (cx, cy), raio_int)
+                # Desenha apenas o anel da parede (borda externa)
+                espessura_parede = max(2, raio_ext - raio_int)
+                pygame.draw.circle(surface, cor, (cx, cy), raio_ext, int(espessura_parede))
                 
-                # Borda interna
+                # Borda interna decorativa
                 pygame.draw.circle(surface, cor_borda, (cx, cy), raio_int, max(2, camera.converter_tam(3)))
         
         elif self.config.formato == "octogono":

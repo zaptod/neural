@@ -1,11 +1,19 @@
 """
 =============================================================================
-NEURAL FIGHTS - Cérebro da IA v9.0 SPATIAL AWARENESS EDITION
+NEURAL FIGHTS - Cérebro da IA v10.0 WEAPON PERCEPTION EDITION
 =============================================================================
-Sistema de inteligência artificial com comportamento humano realista
-e consciência espacial avançada.
+Sistema de inteligência artificial com comportamento humano realista,
+consciência espacial avançada e percepção de armas.
 
-NOVIDADES v9.0:
+NOVIDADES v10.0:
+- Percepção de armas inimigas (tipo, alcance, perigo)
+- Cálculo de zonas de ameaça baseado na arma do oponente
+- Adaptação de distância ideal baseado em matchup de armas
+- Análise de vantagens/desvantagens de arma
+- Comportamentos específicos contra cada tipo de arma
+- Sweet spots e zonas mortas de armas
+
+SISTEMAS v9.0 (mantidos):
 - Sistema de reconhecimento de paredes e obstáculos
 - Consciência espacial tática (encurralado, vantagem, cobertura)
 - Uso inteligente de obstáculos (cobertura, flanqueamento)
@@ -40,7 +48,7 @@ Total: CENTENAS DE MILHARES de personalidades únicas!
 import random
 import math
 
-from config import PPM
+from utils.config import PPM
 from core.physics import normalizar_angulo
 from core.skills import get_skill_data
 from models import get_class_data
@@ -51,11 +59,21 @@ from ai.personalities import (
     ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES
 )
 
+# Importação do sistema de análise de armas v10.0
+try:
+    from core.weapon_analysis import (
+        analisador_armas, get_weapon_profile, compare_weapons,
+        get_safe_distance, evaluate_combat_position, ThreatLevel, WeaponStyle
+    )
+    WEAPON_ANALYSIS_AVAILABLE = True
+except ImportError:
+    WEAPON_ANALYSIS_AVAILABLE = False
+
 
 class AIBrain:
     """
-    Cérebro da IA v8.0 HUMAN EDITION - Sistema de personalidade procedural com
-    comportamento humano realista e inteligência de combate avançada.
+    Cérebro da IA v10.0 WEAPON PERCEPTION EDITION - Sistema de personalidade procedural com
+    comportamento humano realista, inteligência de combate avançada e percepção de armas.
     """
     
     def __init__(self, parent):
@@ -224,6 +242,38 @@ class AIBrain:
             "recuar_para_obstaculo": False,  # Recuando de costas pra obstáculo (perigoso)
             "flanquear_obstaculo": False,  # Usando obstáculo pra flanquear
             "last_check_time": 0.0,  # Otimização - não checa todo frame
+        }
+        
+        # === SISTEMA DE PERCEPÇÃO DE ARMAS v10.0 ===
+        self.percepcao_arma = {
+            # Análise da minha arma
+            "minha_arma_perfil": None,          # WeaponProfile da minha arma
+            "meu_alcance_efetivo": 2.0,         # Alcance real da minha arma
+            "minha_velocidade_ataque": 0.5,    # Velocidade de ataque
+            "meu_arco_cobertura": 90.0,         # Arco que minha arma cobre
+            
+            # Análise da arma inimiga
+            "arma_inimigo_tipo": None,          # Tipo da arma do inimigo
+            "arma_inimigo_perfil": None,        # WeaponProfile da arma inimiga
+            "alcance_inimigo": 2.0,             # Alcance do inimigo
+            "zona_perigo_inimigo": 2.5,         # Distância perigosa
+            "ponto_cego_inimigo": None,         # Ângulo do ponto cego
+            "velocidade_inimigo": 0.5,          # Velocidade de ataque
+            
+            # Análise de matchup
+            "vantagem_alcance": 0.0,            # >0 = meu alcance maior
+            "vantagem_velocidade": 0.0,         # >0 = sou mais rápido
+            "vantagem_cobertura": 0.0,          # >0 = cubro mais área
+            "matchup_favoravel": 0.0,           # -1 a 1, geral
+            
+            # Estado tático baseado em armas
+            "distancia_segura": 3.0,            # Distância segura contra inimigo
+            "distancia_ataque": 1.5,            # Distância ideal para atacar
+            "estrategia_recomendada": "neutro", # "aproximar", "afastar", "flanquear", "trocar"
+            
+            # Timing
+            "last_analysis_time": 0.0,          # Quando última análise foi feita
+            "enemy_weapon_changed": False,      # Se arma do inimigo mudou
         }
         
         # Gera personalidade única
@@ -478,7 +528,7 @@ class AIBrain:
             self.raiva = 0.0
 
     # =========================================================================
-    # PROCESSAMENTO PRINCIPAL v8.0
+    # PROCESSAMENTO PRINCIPAL v10.0
     # =========================================================================
     
     def processar(self, dt, distancia, inimigo):
@@ -501,6 +551,9 @@ class AIBrain:
         
         # === SISTEMA ESPACIAL v9.0 ===
         self._atualizar_consciencia_espacial(dt, distancia, inimigo)
+        
+        # === SISTEMA DE PERCEPÇÃO DE ARMAS v10.0 ===
+        self._atualizar_percepcao_armas(dt, distancia, inimigo)
         
         # Hesitação humana - às vezes congela brevemente
         if self._verificar_hesitacao(distancia, inimigo):
@@ -1238,7 +1291,7 @@ class AIBrain:
         
         # Importa arena
         try:
-            from arena import get_arena
+            from core.arena import get_arena
             arena = get_arena()
         except:
             return  # Se arena não disponível, ignora
@@ -1361,10 +1414,14 @@ class AIBrain:
         self._avaliar_taticas_espaciais(distancia, inimigo)
     
     def _avaliar_taticas_espaciais(self, distancia, inimigo):
-        """Avalia e define táticas espaciais baseadas na situação"""
+        """
+        Avalia e define táticas espaciais baseadas na situação.
+        VERSÃO MELHORADA v10.0 - mais inteligente e baseada em traços.
+        """
         esp = self.consciencia_espacial
         tatica = self.tatica_espacial
         p = self.parent
+        hp_pct = p.vida / p.vida_max
         
         # Reset táticas
         tatica["usando_cobertura"] = False
@@ -1374,88 +1431,151 @@ class AIBrain:
         
         # === SE ENCURRALADO ===
         if esp["encurralado"]:
-            # Pânico ou contra-ataque desesperado
-            self.medo = min(1.0, self.medo + 0.2)
-            self.hesitacao = max(0.0, self.hesitacao - 0.3)  # Menos hesitação, ação urgente
+            # Reação depende da personalidade
+            if "BERSERKER" in self.tracos or "KAMIKAZE" in self.tracos:
+                # Berserkers ficam mais perigosos quando encurralados
+                self.raiva = min(1.0, self.raiva + 0.4)
+                self.medo = max(0, self.medo - 0.2)
+                self.hesitacao = 0
+            elif "COVARDE" in self.tracos or "MEDROSO" in self.tracos:
+                # Covardes entram em pânico
+                self.medo = min(1.0, self.medo + 0.4)
+                self.hesitacao = min(0.8, self.hesitacao + 0.3)
+            elif "FRIO" in self.tracos or "CALCULISTA" in self.tracos:
+                # Calculistas mantêm a calma e planejam escape
+                self.hesitacao = max(0.0, self.hesitacao - 0.2)
+            else:
+                # Padrão: stress moderado
+                self.medo = min(1.0, self.medo + 0.2)
+                self.hesitacao = max(0.0, self.hesitacao - 0.1)
             
-            # Tenta escapar pelos lados
-            if esp["caminho_livre"]["esquerda"]:
+            # Determina melhor rota de escape baseado em traços
+            if esp["caminho_livre"]["esquerda"] and esp["caminho_livre"]["direita"]:
+                # Escolhe baseado em tendência ou aleatoriedade
+                if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
+                    self.dir_circular = random.choice([-1, 1])
+                else:
+                    # Vai pro lado oposto do oponente
+                    ang_inimigo = math.atan2(inimigo.pos[1] - p.pos[1], inimigo.pos[0] - p.pos[0])
+                    self.dir_circular = 1 if math.sin(ang_inimigo) > 0 else -1
+            elif esp["caminho_livre"]["esquerda"]:
                 self.dir_circular = 1
             elif esp["caminho_livre"]["direita"]:
                 self.dir_circular = -1
-            
-            # Ou luta com tudo
-            if "BERSERKER" in self.tracos or "KAMIKAZE" in self.tracos:
-                self.raiva = 1.0
         
-        # === OPONENTE CONTRA PAREDE ===
-        if esp["oponente_contra_parede"] and distancia < 6.0:
+        # === OPONENTE CONTRA PAREDE/OBSTÁCULO ===
+        oponente_vulneravel = esp.get("oponente_contra_parede", False) or esp.get("oponente_perto_obstaculo", False)
+        if oponente_vulneravel and distancia < 6.0:
             tatica["forcar_canto"] = True
-            self.confianca = min(1.0, self.confianca + 0.1)
+            self.confianca = min(1.0, self.confianca + 0.15)
             
-            # Pressiona mais
-            if "PREDADOR" in self.tracos or "OPORTUNISTA" in self.tracos:
+            # Pressão extra baseada em traços
+            if "PREDADOR" in self.tracos:
+                self.agressividade_base = min(1.0, self.agressividade_base + 0.25)
+            if "SANGUINARIO" in self.tracos or "IMPLACAVEL" in self.tracos:
                 self.agressividade_base = min(1.0, self.agressividade_base + 0.2)
+            if "OPORTUNISTA" in self.tracos:
+                self.agressividade_base = min(1.0, self.agressividade_base + 0.15)
         
         # === USO DE COBERTURA ===
-        if esp["obstaculo_proxima"] and esp["distancia_obstaculo"] < 2.0:
-            # Usa obstáculo como cobertura se:
-            # - HP baixo
-            # - Oponente tem projéteis
-            # - É cauteloso
+        obs_proximo = esp.get("obstaculo_proximo") or esp.get("obstaculo_proxima")
+        dist_obs = esp.get("distancia_obstaculo", 999)
+        
+        if obs_proximo and dist_obs < 2.5:
+            # Decide se usa cobertura baseado em personalidade
+            usa_cobertura = False
             
-            hp_pct = p.vida / p.vida_max
-            usa_cobertura = (
-                hp_pct < 0.4 or
-                "CAUTELOSO" in self.tracos or
-                "TATICO" in self.tracos or
-                self.medo > 0.5
-            )
+            if "CAUTELOSO" in self.tracos or "TATICO" in self.tracos:
+                usa_cobertura = True
+            elif hp_pct < 0.35:
+                usa_cobertura = True
+            elif self.medo > 0.6:
+                usa_cobertura = True
+            elif "COVARDE" in self.tracos and distancia > 4.0:
+                usa_cobertura = True
             
-            if usa_cobertura and distancia > 4.0:
+            # Berserkers e kamikazes não usam cobertura
+            if "BERSERKER" in self.tracos or "KAMIKAZE" in self.tracos or "IMPLACAVEL" in self.tracos:
+                usa_cobertura = False
+            
+            if usa_cobertura:
                 tatica["usando_cobertura"] = True
-                tatica["tipo_cobertura"] = esp["obstaculo_proxima"].tipo
+                tatica["tipo_cobertura"] = getattr(obs_proximo, 'tipo', 'obstaculo')
         
         # === FLANQUEAMENTO COM OBSTÁCULOS ===
-        if (esp["obstaculo_proxima"] and 
-            3.0 < distancia < 8.0 and
-            esp["distancia_obstaculo"] < 4.0):
+        if obs_proximo and 3.0 < distancia < 8.0 and dist_obs < 4.0:
+            # Flanqueio é mais provável com certos traços
+            flanqueia = False
             
-            # Usa obstáculo pra flanquear
-            if "TATICO" in self.tracos or "INTELIGENTE" in self.tracos:
+            if "FLANQUEADOR" in self.tracos:
+                flanqueia = random.random() < 0.6
+            elif "TATICO" in self.tracos or "CALCULISTA" in self.tracos:
+                flanqueia = random.random() < 0.4
+            elif "ASSASSINO_NATO" in self.tracos or "NINJA" in self.arquetipo:
+                flanqueia = random.random() < 0.5
+            else:
+                flanqueia = random.random() < 0.2
+            
+            if flanqueia:
                 tatica["flanquear_obstaculo"] = True
         
         # === EVITA RECUAR PARA OBSTÁCULO ===
         if not esp["caminho_livre"]["tras"] and distancia < 4.0:
             tatica["recuar_para_obstaculo"] = True
-            # Aviso mental: não pode recuar!
+            
+            # Ajusta ação se estava tentando recuar
             if self.acao_atual in ["RECUAR", "FUGIR"]:
-                # Muda pra movimento lateral
-                self.acao_atual = "CIRCULAR"
+                if "BERSERKER" in self.tracos:
+                    self.acao_atual = "MATAR"  # Não foge, ataca!
+                elif random.random() < 0.7:
+                    self.acao_atual = "CIRCULAR"
+                else:
+                    self.acao_atual = "FLANQUEAR"
     
     def _aplicar_modificadores_espaciais(self, distancia, inimigo):
         """
         Aplica modificadores de comportamento baseados no ambiente.
-        Chamado durante a escolha de ação.
+        VERSÃO MELHORADA v10.0 - decisões mais inteligentes.
         """
         esp = self.consciencia_espacial
         tatica = self.tatica_espacial
+        p = self.parent
         
         # === MODIFICADORES POR SITUAÇÃO ===
         
         # Se encurralado
         if esp["encurralado"]:
-            # Força ações de escape ou contra-ataque desesperado
-            if self.medo > self.raiva:
-                if random.random() < 0.4:
-                    self.acao_atual = "CIRCULAR"  # Tenta escapar pelos lados
+            # Escolha depende do balanço medo/raiva e traços
+            escape_roll = random.random()
+            
+            if "BERSERKER" in self.tracos or self.raiva > self.medo * 1.5:
+                # Ataca com tudo
+                if escape_roll < 0.7:
+                    self.acao_atual = random.choice(["MATAR", "ESMAGAR", "CONTRA_ATAQUE"])
+            elif "EVASIVO" in self.tracos or "ACROBATA" in self.tracos:
+                # Tenta escapar com estilo
+                if escape_roll < 0.5:
+                    self.acao_atual = "FLANQUEAR"
+                else:
+                    self.acao_atual = "CIRCULAR"
             else:
-                if random.random() < 0.3:
-                    self.acao_atual = random.choice(["MATAR", "CONTRA_ATAQUE"])
+                # Padrão: mistura de escape e contra-ataque
+                if self.medo > self.raiva:
+                    if escape_roll < 0.5:
+                        self.acao_atual = "CIRCULAR"
+                    elif escape_roll < 0.8:
+                        self.acao_atual = "FLANQUEAR"
+                    else:
+                        self.acao_atual = "CONTRA_ATAQUE"
+                else:
+                    if escape_roll < 0.4:
+                        self.acao_atual = random.choice(["MATAR", "CONTRA_ATAQUE"])
+                    else:
+                        self.acao_atual = "CIRCULAR"
         
         # Se oponente contra parede
         if tatica["forcar_canto"]:
-            if random.random() < 0.3:
+            if random.random() < 0.35:
                 self.acao_atual = random.choice(["PRESSIONAR", "MATAR", "ESMAGAR"])
         
         # Se usando cobertura
@@ -1507,7 +1627,7 @@ class AIBrain:
         
         # Verifica se a direção está bloqueada
         try:
-            from arena import get_arena
+            from core.arena import get_arena
             arena = get_arena()
             
             # Testa ponto à frente
@@ -1540,6 +1660,223 @@ class AIBrain:
             pass
         
         return direcao_alvo
+    
+    # =========================================================================
+    # SISTEMA DE PERCEPÇÃO DE ARMAS v10.0
+    # =========================================================================
+    
+    def _atualizar_percepcao_armas(self, dt, distancia, inimigo):
+        """
+        Atualiza percepção da arma inimiga e calcula estratégias.
+        Chamado no processar() principal.
+        """
+        if not WEAPON_ANALYSIS_AVAILABLE:
+            return
+        
+        perc = self.percepcao_arma
+        p = self.parent
+        
+        # Otimização: só analisa a cada 0.5s ou quando mudou
+        perc["last_analysis_time"] += dt
+        if perc["last_analysis_time"] < 0.5:
+            return
+        perc["last_analysis_time"] = 0.0
+        
+        # === ANÁLISE DA MINHA ARMA ===
+        minha_arma = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
+        meu_perfil = get_weapon_profile(minha_arma)
+        
+        if meu_perfil:
+            perc["minha_arma_perfil"] = meu_perfil
+            perc["meu_alcance_efetivo"] = meu_perfil.alcance_maximo
+            perc["minha_velocidade_ataque"] = meu_perfil.velocidade_rating
+            perc["meu_arco_cobertura"] = meu_perfil.arco_ataque
+        
+        # === ANÁLISE DA ARMA INIMIGA ===
+        arma_inimigo = None
+        if hasattr(inimigo, 'dados') and hasattr(inimigo.dados, 'arma_obj'):
+            arma_inimigo = inimigo.dados.arma_obj
+        
+        perfil_inimigo = get_weapon_profile(arma_inimigo)
+        
+        # Verifica se arma do inimigo mudou
+        tipo_atual = arma_inimigo.tipo if arma_inimigo else None
+        if tipo_atual != perc["arma_inimigo_tipo"]:
+            perc["enemy_weapon_changed"] = True
+            perc["arma_inimigo_tipo"] = tipo_atual
+        else:
+            perc["enemy_weapon_changed"] = False
+        
+        if perfil_inimigo:
+            perc["arma_inimigo_perfil"] = perfil_inimigo
+            perc["alcance_inimigo"] = perfil_inimigo.alcance_maximo
+            perc["zona_perigo_inimigo"] = perfil_inimigo.alcance_maximo * 1.2
+            perc["velocidade_inimigo"] = perfil_inimigo.velocidade_rating
+            
+            # Calcula ponto cego do inimigo
+            if perfil_inimigo.pontos_cegos:
+                # Pega o primeiro ponto cego significativo
+                for _, _, arco_cego in perfil_inimigo.pontos_cegos:
+                    if arco_cego >= 90:
+                        perc["ponto_cego_inimigo"] = 180  # Atrás
+                        break
+        
+        # === ANÁLISE DE MATCHUP ===
+        if meu_perfil and perfil_inimigo:
+            # Vantagem de alcance
+            perc["vantagem_alcance"] = (meu_perfil.alcance_maximo - perfil_inimigo.alcance_maximo) / 2.0
+            
+            # Vantagem de velocidade
+            perc["vantagem_velocidade"] = meu_perfil.velocidade_rating - perfil_inimigo.velocidade_rating
+            
+            # Vantagem de cobertura
+            perc["vantagem_cobertura"] = (meu_perfil.arco_ataque - perfil_inimigo.arco_ataque) / 90.0
+            
+            # Matchup geral
+            comparacao = compare_weapons(minha_arma, arma_inimigo)
+            if comparacao["vencedor"] == 1:
+                perc["matchup_favoravel"] = comparacao["diferenca"] * 0.5
+            elif comparacao["vencedor"] == 2:
+                perc["matchup_favoravel"] = -comparacao["diferenca"] * 0.5
+            else:
+                perc["matchup_favoravel"] = 0.0
+            
+            # Limita entre -1 e 1
+            perc["matchup_favoravel"] = max(-1.0, min(1.0, perc["matchup_favoravel"]))
+            
+            # Calcula distâncias táticas
+            perc["distancia_segura"] = get_safe_distance(minha_arma, arma_inimigo)
+            if meu_perfil.alcance_ideal:
+                perc["distancia_ataque"] = meu_perfil.alcance_ideal
+            
+            # Define estratégia recomendada
+            self._calcular_estrategia_armas(distancia, inimigo)
+    
+    def _calcular_estrategia_armas(self, distancia, inimigo):
+        """
+        Calcula estratégia recomendada baseada no matchup de armas.
+        """
+        perc = self.percepcao_arma
+        p = self.parent
+        
+        # Avalia posição de combate
+        ang_relativo = 0.0
+        if hasattr(inimigo, 'angulo_olhar'):
+            # Calcula ângulo entre direção que inimigo olha e minha posição
+            dx = p.pos[0] - inimigo.pos[0]
+            dy = p.pos[1] - inimigo.pos[1]
+            ang_para_mim = math.degrees(math.atan2(dy, dx))
+            ang_relativo = ang_para_mim - inimigo.angulo_olhar
+        
+        # Usa o sistema de avaliação de posição
+        avaliacao = evaluate_combat_position(
+            p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None,
+            inimigo.dados.arma_obj if hasattr(inimigo.dados, 'arma_obj') else None,
+            distancia,
+            ang_relativo
+        )
+        
+        perc["estrategia_recomendada"] = avaliacao["recomendacao"]
+        
+        # Ajusta alcance ideal baseado no matchup
+        if perc["matchup_favoravel"] > 0.3:
+            # Matchup favorável - fico na minha distância ideal
+            p.alcance_ideal = perc.get("distancia_ataque", 2.0)
+        elif perc["matchup_favoravel"] < -0.3:
+            # Matchup desfavorável - ajusto baseado no estilo
+            perfil_ini = perc.get("arma_inimigo_perfil")
+            if perfil_ini:
+                # Se inimigo tem mais alcance, aproximo; se menos, afasto
+                if perc["vantagem_alcance"] < -0.5:
+                    # Preciso aproximar pra atacar
+                    p.alcance_ideal = max(1.0, perfil_ini.zona_morta * 0.8)
+                elif perc["vantagem_alcance"] > 0.5:
+                    # Mantenho distância segura
+                    p.alcance_ideal = perc["distancia_segura"] * 0.9
+    
+    def _aplicar_modificadores_armas(self, distancia, inimigo):
+        """
+        Aplica modificadores de comportamento baseados na percepção de armas.
+        Chamado em _decidir_movimento().
+        """
+        if not WEAPON_ANALYSIS_AVAILABLE:
+            return
+        
+        perc = self.percepcao_arma
+        p = self.parent
+        
+        estrategia = perc.get("estrategia_recomendada", "neutro")
+        matchup = perc.get("matchup_favoravel", 0.0)
+        
+        # Ajustes de confiança baseados no matchup
+        if matchup > 0.3:
+            self.confianca = min(1.0, self.confianca + 0.1)
+        elif matchup < -0.3:
+            self.confianca = max(0.0, self.confianca - 0.1)
+        
+        # Aplica estratégia recomendada (com chance de ignorar baseado em personalidade)
+        segue_estrategia = random.random() < 0.7  # 70% de chance base
+        
+        if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
+            segue_estrategia = random.random() < 0.3
+        elif "CALCULISTA" in self.tracos or "TATICO" in self.tracos:
+            segue_estrategia = random.random() < 0.9
+        elif "BERSERKER" in self.tracos:
+            segue_estrategia = False  # Ignora estratégia, só ataca
+        
+        if not segue_estrategia:
+            return
+        
+        # Aplica estratégia
+        if estrategia == "atacar":
+            if random.random() < 0.4:
+                self.acao_atual = random.choice(["MATAR", "APROXIMAR", "PRESSIONAR"])
+        
+        elif estrategia == "recuar":
+            if random.random() < 0.5:
+                self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "FLANQUEAR"])
+        
+        elif estrategia == "atacar_rapido":
+            if random.random() < 0.5:
+                self.acao_atual = random.choice(["ATAQUE_RAPIDO", "CONTRA_ATAQUE"])
+        
+        elif estrategia == "esperar":
+            if random.random() < 0.4:
+                self.acao_atual = random.choice(["COMBATE", "CIRCULAR", "BLOQUEAR"])
+        
+        elif estrategia == "aproximar":
+            if random.random() < 0.3:
+                self.acao_atual = random.choice(["APROXIMAR", "CIRCULAR"])
+        
+        # === COMPORTAMENTOS ESPECÍFICOS POR TIPO DE ARMA INIMIGA ===
+        tipo_ini = perc.get("arma_inimigo_tipo", "")
+        
+        if tipo_ini == "Corrente":
+            # Contra correntes: entrar na zona morta ou manter distância
+            if distancia < perc.get("distancia_segura", 3.0) * 0.5:
+                # Estou na zona morta - vantagem!
+                if random.random() < 0.6:
+                    self.acao_atual = random.choice(["MATAR", "PRESSIONAR"])
+            elif distancia < perc.get("zona_perigo_inimigo", 4.0):
+                # Zona perigosa da corrente - sai rápido
+                if random.random() < 0.5:
+                    self.acao_atual = random.choice(["APROXIMAR", "RECUAR"])  # Uma ou outra
+        
+        elif tipo_ini == "Arco":
+            # Contra arcos: flanqueia e aproxima
+            if distancia > 5.0:
+                if random.random() < 0.6:
+                    self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR"])
+        
+        elif tipo_ini == "Mágica":
+            # Contra mágica: pressiona para não deixar canalizar
+            if random.random() < 0.4:
+                self.acao_atual = random.choice(["PRESSIONAR", "APROXIMAR"])
+        
+        elif tipo_ini == "Orbital":
+            # Contra orbital: cuidado com o escudo
+            if random.random() < 0.4:
+                self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR"])
     
     # =========================================================================
     # SISTEMA DE ESTADOS HUMANOS v8.0
@@ -2707,6 +3044,9 @@ class AIBrain:
         
         # === MODIFICADORES ESPACIAIS v9.0 ===
         self._aplicar_modificadores_espaciais(distancia, inimigo)
+        
+        # === MODIFICADORES DE ARMAS v10.0 ===
+        self._aplicar_modificadores_armas(distancia, inimigo)
     
     def _aplicar_modificadores_momentum(self, distancia, inimigo_hp_pct):
         """Aplica modificadores baseados no momentum da luta"""

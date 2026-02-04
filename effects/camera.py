@@ -12,7 +12,7 @@ Como funciona:
 
 import random
 import math
-from config import LARGURA, ALTURA, PPM
+from utils.config import LARGURA, ALTURA, PPM
 
 
 class Câmera:
@@ -94,6 +94,8 @@ class Câmera:
     
     def _get_posicao_tela(self, lutador):
         """Retorna posição do lutador na TELA (não no mundo)"""
+        if lutador is None:
+            return (LARGURA // 2, ALTURA // 2)  # Centro da tela como fallback
         x = lutador.pos[0] * PPM
         y = lutador.pos[1] * PPM
         z = getattr(lutador, 'z', 0) * PPM  # Altura (pulo)
@@ -195,6 +197,10 @@ class Câmera:
         Aplica zoom de emergência se algum lutador estiver fora da tela.
         INSTANTÂNEO - não suaviza.
         """
+        # Se algum lutador for None, não há emergência
+        if p1 is None or p2 is None:
+            return False
+        
         # Verifica se ambos estão visíveis
         p1_visivel = self._lutador_visivel(p1)
         p2_visivel = self._lutador_visivel(p2)
@@ -240,6 +246,9 @@ class Câmera:
         
         # === PASSO 1: VERIFICAÇÃO DE EMERGÊNCIA ===
         # Se algum lutador estiver fora da tela, AÇÃO IMEDIATA
+        if p1 is None or p2 is None:
+            return  # Não pode atualizar sem lutadores
+        
         emergencia = self._aplicar_zoom_emergencia(p1, p2)
         
         if emergencia:

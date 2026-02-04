@@ -1,11 +1,13 @@
 """
-NEURAL FIGHTS - Sistema de Áudio v1.0
+NEURAL FIGHTS - Sistema de Áudio v2.0
 Gerenciador de sons para golpes, magias e efeitos de combate.
+Suporta configuração via UI (view_sons.py).
 """
 
 import pygame
 import os
 import random
+import json
 from typing import Dict, List, Optional
 
 
@@ -13,6 +15,7 @@ class AudioManager:
     """
     Gerenciador central de áudio do jogo.
     Sistema procedural que gera sons sintetizados se arquivos não existirem.
+    Carrega configuração de sound_config.json para sons personalizados.
     """
     
     _instance = None
@@ -27,10 +30,17 @@ class AudioManager:
         self.sounds: Dict[str, pygame.mixer.Sound] = {}
         self.sound_groups: Dict[str, List[pygame.mixer.Sound]] = {}
         
-        # Diretório de sons
-        self.sound_dir = "sounds"
+        # Diretório de sons - usa caminho absoluto
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.sound_dir = os.path.join(base_dir, "sounds")
+        print(f"[AUDIO] Sound directory: {self.sound_dir}")
+        print(f"[AUDIO] Directory exists: {os.path.exists(self.sound_dir)}")
+        
         if not os.path.exists(self.sound_dir):
             os.makedirs(self.sound_dir, exist_ok=True)
+        
+        # Carrega configuração de sons
+        self.sound_config = self._load_sound_config()
         
         # Inicializa mixer do pygame
         try:
@@ -43,6 +53,25 @@ class AudioManager:
         
         # Carrega/gera sons
         self._setup_sounds()
+    
+    def _load_sound_config(self) -> dict:
+        """Carrega configuração de sons personalizada."""
+        config_file = os.path.join(self.sound_dir, "sound_config.json")
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except:
+                pass
+        return {}
+    
+    def reload_sounds(self):
+        """Recarrega todos os sons do disco (útil após configurar no UI)."""
+        self.sounds.clear()
+        self.sound_groups.clear()
+        self.sound_config = self._load_sound_config()
+        self._setup_sounds()
+        print("AudioManager: Sons recarregados!")
     
     @classmethod
     def get_instance(cls):
@@ -124,17 +153,28 @@ class AudioManager:
         ])
         
         # === AMBIENTE ===
-        self._register_sound_group("wall_hit", [
-            "wall_impact_light", "wall_impact_heavy"
-        ])
-        self._register_sound_group("ground_slam", [
-            "ground_impact"
-        ])
+        self._register_sound("wall_hit")  # Som único de colisão com parede
+        self._register_sound("wall_impact_light")  # Alternativa leve
+        self._register_sound("wall_impact_heavy")  # Alternativa pesada
+        self._register_sound("ground_impact")
         
         # === UI E FEEDBACK ===
         self._register_sound_group("ui", [
             "ui_select", "ui_confirm", "ui_back"
         ])
+        
+        # === ARENA EVENTS ===
+        self._register_sound("arena_start")
+        self._register_sound("arena_victory")
+        self._register_sound("round_start")
+        self._register_sound("round_end")
+        
+        # === CLASH ===
+        self._register_sound("clash_magic")
+        
+        # === SLOW MOTION ===
+        self._register_sound("slowmo_whoosh")
+        self._register_sound("slowmo_return")
         
         # Sons individuais importantes
         self._register_sound("ko_impact")
@@ -142,6 +182,8 @@ class AudioManager:
         self._register_sound("counter_hit")
         self._register_sound("perfect_block")
         self._register_sound("stagger")
+        self._register_sound("shield_block")
+        self._register_sound("shield_break")
     
     def _register_sound_group(self, group_name: str, sound_names: List[str]):
         """Registra um grupo de sons variantes"""
@@ -163,154 +205,35 @@ class AudioManager:
             self.sounds[name] = sound
     
     def _load_or_generate_sound(self, name: str) -> Optional[pygame.mixer.Sound]:
-        """Carrega som do disco ou gera proceduralmente"""
+        """Carrega som do disco APENAS se configurado ou existir arquivo."""
         if not self.enabled:
             return None
         
-        # Tenta carregar arquivo
+        # Primeiro, verifica se há som configurado
+        if name in self.sound_config:
+            configured_file = self.sound_config[name]
+            filepath = os.path.join(self.sound_dir, configured_file)
+            if os.path.exists(filepath):
+                try:
+                    sound = pygame.mixer.Sound(filepath)
+                    print(f"[AUDIO] Loaded configured: {name} -> {filepath}")
+                    return sound
+                except Exception as e:
+                    print(f"[AUDIO] Error loading {filepath}: {e}")
+        
+        # Tenta carregar arquivo com nome padrão
         for ext in ['.wav', '.ogg', '.mp3']:
             filepath = os.path.join(self.sound_dir, f"{name}{ext}")
             if os.path.exists(filepath):
                 try:
-                    return pygame.mixer.Sound(filepath)
-                except:
-                    pass
+                    sound = pygame.mixer.Sound(filepath)
+                    print(f"[AUDIO] Loaded: {name} -> {filepath}")
+                    return sound
+                except Exception as e:
+                    print(f"[AUDIO] Error loading {filepath}: {e}")
         
-        # Gera som procedural (silencioso por padrão)
-        # Em produção, você substituiria por sons reais
-        return self._generate_procedural_sound(name)
-    
-    def _generate_procedural_sound(self, name: str) -> Optional[pygame.mixer.Sound]:
-        """
-        Gera sons procedurais simples.
-        Nota: Sons reais melhoram muito a experiência!
-        """
-        try:
-            import numpy as np
-            
-            sample_rate = 44100
-            duration = 0.1  # 100ms padrão
-            
-            # Diferentes perfis de som baseados no nome
-            if "punch" in name or "kick" in name or "impact" in name:
-                # Som de impacto: onda curta com decay rápido
-                duration = 0.08
-                freq = random.randint(80, 150)
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                wave = np.sin(2 * np.pi * freq * t)
-                # Envelope de decay exponencial
-                envelope = np.exp(-t * 30)
-                wave = wave * envelope
-                # Adiciona ruído
-                noise = np.random.normal(0, 0.3, len(wave))
-                wave = wave * 0.7 + noise * 0.3
-            
-            elif "slash" in name or "stab" in name:
-                # Som de corte: swoosh com freq variável
-                duration = 0.12
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                freq_start = random.randint(200, 400)
-                freq_end = random.randint(100, 200)
-                freq = np.linspace(freq_start, freq_end, len(t))
-                wave = np.sin(2 * np.pi * freq * t)
-                envelope = np.exp(-t * 15)
-                wave = wave * envelope
-            
-            elif "fire" in name or "explosion" in name:
-                # Som de fogo: ruído filtrado
-                duration = 0.15
-                wave = np.random.normal(0, 0.5, int(sample_rate * duration))
-                # Filtro passa-baixa simples
-                for i in range(1, len(wave)):
-                    wave[i] = wave[i] * 0.7 + wave[i-1] * 0.3
-                t = np.linspace(0, duration, len(wave))
-                envelope = np.exp(-t * 10)
-                wave = wave * envelope
-            
-            elif "ice" in name or "frost" in name:
-                # Som cristalino
-                duration = 0.12
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                wave = np.sin(2 * np.pi * 2000 * t) + np.sin(2 * np.pi * 3000 * t)
-                envelope = np.exp(-t * 20)
-                wave = wave * envelope * 0.5
-            
-            elif "lightning" in name or "electric" in name:
-                # Som elétrico: ruído de alta frequência
-                duration = 0.1
-                wave = np.random.normal(0, 0.6, int(sample_rate * duration))
-                t = np.linspace(0, duration, len(wave))
-                envelope = 1 - t / duration
-                wave = wave * envelope
-            
-            elif "energy" in name or "beam" in name:
-                # Som de energia: tom sustentado
-                duration = 0.2
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                freq = random.randint(300, 600)
-                wave = np.sin(2 * np.pi * freq * t)
-                # Vibrato
-                vibrato = np.sin(2 * np.pi * 5 * t) * 0.1
-                wave = wave * (1 + vibrato)
-                envelope = 1 - (t / duration) * 0.5
-                wave = wave * envelope
-            
-            elif "dash" in name or "whoosh" in name:
-                # Som de movimento rápido
-                duration = 0.15
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                freq = np.linspace(400, 200, len(t))
-                wave = np.sin(2 * np.pi * freq * t)
-                noise = np.random.normal(0, 0.2, len(wave))
-                wave = wave * 0.6 + noise * 0.4
-                envelope = 1 - t / duration
-                wave = wave * envelope
-            
-            elif "shield" in name or "block" in name:
-                # Som metálico
-                duration = 0.1
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                wave = (np.sin(2 * np.pi * 800 * t) + 
-                       np.sin(2 * np.pi * 1200 * t) +
-                       np.sin(2 * np.pi * 1600 * t))
-                envelope = np.exp(-t * 25)
-                wave = wave * envelope * 0.4
-            
-            elif "heal" in name or "buff" in name:
-                # Som mágico positivo
-                duration = 0.2
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                wave = (np.sin(2 * np.pi * 440 * t) + 
-                       np.sin(2 * np.pi * 550 * t) +
-                       np.sin(2 * np.pi * 660 * t))
-                envelope = 1 - (t / duration) * 0.3
-                wave = wave * envelope * 0.3
-            
-            else:
-                # Som genérico
-                duration = 0.1
-                t = np.linspace(0, duration, int(sample_rate * duration))
-                wave = np.sin(2 * np.pi * 440 * t)
-                envelope = np.exp(-t * 20)
-                wave = wave * envelope * 0.5
-            
-            # Normaliza e converte para int16
-            wave = wave / np.max(np.abs(wave)) * 0.7  # Limita a 70% do volume máximo
-            wave = (wave * 32767).astype(np.int16)
-            
-            # Cria som estéreo
-            stereo_wave = np.column_stack((wave, wave))
-            
-            # Cria Sound do pygame
-            sound = pygame.sndarray.make_sound(stereo_wave)
-            return sound
-            
-        except ImportError:
-            # numpy não disponível, retorna som silencioso
-            return None
-        except Exception as e:
-            print(f"Erro ao gerar som procedural '{name}': {e}")
-            return None
+        # SEM som configurado = não toca nada (sem sons procedurais)
+        return None
     
     # =========================================================================
     # API PÚBLICA
@@ -326,15 +249,20 @@ class AudioManager:
             pan: Panorâmica (-1.0 esquerda, 0.0 centro, 1.0 direita)
         """
         if not self.enabled or not sound_name:
+            print(f"[AUDIO] play() - disabled or no name: enabled={self.enabled}, name={sound_name}")
             return
         
         # Tenta tocar do grupo primeiro (variação aleatória)
+        sound = None
         if sound_name in self.sound_groups:
             sounds = self.sound_groups[sound_name]
             sound = random.choice(sounds)
+            print(f"[AUDIO] Playing from group: {sound_name}")
         elif sound_name in self.sounds:
             sound = self.sounds[sound_name]
+            print(f"[AUDIO] Playing sound: {sound_name}")
         else:
+            print(f"[AUDIO] Sound NOT FOUND: {sound_name} (available: {list(self.sounds.keys())[:5]}...)")
             return
         
         if sound:
@@ -349,6 +277,7 @@ class AudioManager:
             else:
                 sound.set_volume(final_volume)
             
+            print(f"[AUDIO] >>> PLAYING with volume {final_volume:.2f}")
             sound.play()
     
     def play_positional(self, sound_name: str, pos_x: float, listener_x: float, 
@@ -507,12 +436,26 @@ class AudioManager:
     def play_special(self, event_type: str, volume: float = 0.8):
         """Toca sons de eventos especiais"""
         special_sounds = {
+            # Combate
             "ko": "ko_impact",
             "combo": "combo_hit",
             "perfect_block": "perfect_block",
             "stagger": "stagger",
-            "wall_hit": "wall_hit",
-            "ground_slam": "ground_slam",
+            "wall_hit": "wall_impact_light",  # Usa o arquivo existente
+            "ground_slam": "ground_impact",
+            "shield_block": "shield_block",
+            "shield_break": "shield_break",
+            # Clash
+            "clash": "clash_magic",
+            "clash_magic": "clash_magic",
+            # Arena events
+            "arena_start": "arena_start",
+            "arena_victory": "arena_victory", 
+            "round_start": "round_start",
+            "round_end": "round_end",
+            # Slow motion
+            "slowmo_start": "slowmo_whoosh",
+            "slowmo_end": "slowmo_return",
         }
         
         sound = special_sounds.get(event_type)

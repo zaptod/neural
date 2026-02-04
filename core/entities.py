@@ -5,7 +5,7 @@ Classe principal do lutador com sistema de combate.
 
 import math
 import random
-from config import PPM, GRAVIDADE_Z, ATRITO, ALTURA_PADRAO
+from utils.config import PPM, GRAVIDADE_Z, ATRITO, ALTURA_PADRAO
 
 
 class Lutador:
@@ -20,8 +20,8 @@ class Lutador:
         from ai import AIBrain
         from core.skills import get_skill_data
         from models import get_class_data
-        from combat import DotEffect
-        from audio import AudioManager
+        from core.combat import DotEffect
+        from effects.audio import AudioManager
         
         self.dados = dados_char
         self.pos = [pos_x, pos_y]
@@ -227,7 +227,7 @@ class Lutador:
     def aplicar_efeitos_encantamento(self, alvo):
         """Aplica efeitos de encantamentos no alvo"""
         from models import ENCANTAMENTOS
-        from combat import DotEffect
+        from core.combat import DotEffect
         
         for enc_nome in self.arma_encantamentos:
             if enc_nome not in ENCANTAMENTOS:
@@ -256,8 +256,8 @@ class Lutador:
 
     def usar_skill_arma(self, skill_idx=None):
         """Usa a skill equipada na arma"""
-        from combat import Projetil, AreaEffect, Beam, Buff
-        from audio import AudioManager
+        from core.combat import Projetil, AreaEffect, Beam, Buff
+        from effects.audio import AudioManager
         
         if skill_idx is not None and skill_idx < len(self.skills_arma):
             skill_info = self.skills_arma[skill_idx]
@@ -390,8 +390,8 @@ class Lutador:
 
     def usar_skill_classe(self, skill_nome):
         """Usa uma skill de classe específica"""
-        from combat import Projetil, AreaEffect, Beam, Buff
-        from audio import AudioManager
+        from core.combat import Projetil, AreaEffect, Beam, Buff
+        from effects.audio import AudioManager
         
         skill_info = None
         for sk in self.skills_classe:
@@ -781,7 +781,7 @@ class Lutador:
 
     def executar_ataques(self, dt, distancia, inimigo):
         """Executa ataques físicos com sistema de animação aprimorado v2.0"""
-        from combat import ArmaProjetil, FlechaProjetil, OrbeMagico
+        from core.combat import ArmaProjetil, FlechaProjetil, OrbeMagico
         from effects.weapon_animations import get_weapon_animation_manager, WEAPON_PROFILES
         
         self.cooldown_ataque -= dt
@@ -880,7 +880,7 @@ class Lutador:
     
     def _disparar_arremesso(self, alvo):
         """Dispara projéteis de arma de arremesso"""
-        from combat import ArmaProjetil
+        from core.combat import ArmaProjetil
         
         arma = self.dados.arma_obj
         if not arma:
@@ -931,7 +931,7 @@ class Lutador:
     
     def _disparar_flecha(self, alvo):
         """Dispara flecha do arco"""
-        from combat import FlechaProjetil
+        from core.combat import FlechaProjetil
         
         arma = self.dados.arma_obj
         if not arma:
@@ -958,7 +958,7 @@ class Lutador:
 
     def _disparar_orbes(self, alvo):
         """Dispara orbes mágicos"""
-        from combat import OrbeMagico
+        from core.combat import OrbeMagico
         
         arma = self.dados.arma_obj
         if not arma:
@@ -989,7 +989,7 @@ class Lutador:
 
     def tomar_dano(self, dano, empurrao_x, empurrao_y, tipo_efeito="NORMAL"):
         """Recebe dano com suporte a efeitos"""
-        from combat import DotEffect
+        from core.combat import DotEffect
         
         if self.morto or self.invencivel_timer > 0:
             return False
@@ -1045,7 +1045,7 @@ class Lutador:
 
     def _aplicar_efeito_status(self, efeito):
         """Aplica efeitos de status do dano"""
-        from combat import DotEffect
+        from core.combat import DotEffect
         
         if efeito == "VENENO":
             dot = DotEffect("VENENO", self, 1.5, 4.0, (100, 255, 100))  # Reduzido de 3.0

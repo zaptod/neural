@@ -9,7 +9,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import simulacao
+from simulation import simulacao
 from ui.theme import (
     COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS,
     COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, CORES_CLASSE
@@ -374,7 +374,7 @@ class SeletorMapa(tk.Toplevel):
         self.grab_set()
         
         # Importa dados dos mapas
-        from arena import ARENAS, LISTA_MAPAS, get_mapa_info
+        from core.arena import ARENAS, LISTA_MAPAS, get_mapa_info
         self.ARENAS = ARENAS
         self.LISTA_MAPAS = LISTA_MAPAS
         self.get_mapa_info = get_mapa_info

@@ -13,6 +13,7 @@ from data import database
 from ui.view_armas import TelaArmas
 from ui.view_chars import TelaPersonagens
 from ui.view_luta import TelaLuta
+from ui.view_sons import TelaSons
 
 # Configurações Visuais Globais
 COR_FUNDO = "#2C3E50"
@@ -39,8 +40,8 @@ class SistemaApp(tk.Tk):
 
         self.frames = {}
 
-        # Registra todas as telas (Menu, Armas, Personagens, Luta, Interações)
-        for F in (MenuPrincipal, TelaArmas, TelaPersonagens, TelaLuta, TelaInteracoes):
+        # Registra todas as telas (Menu, Armas, Personagens, Luta, Interações, Sons)
+        for F in (MenuPrincipal, TelaArmas, TelaPersonagens, TelaLuta, TelaInteracoes, TelaSons):
             page_name = F.__name__
             frame = F(parent=container, controller=self)
             self.frames[page_name] = frame
@@ -99,7 +100,8 @@ class MenuPrincipal(tk.Frame):
         tk.Button(self, text="⚔️  FORJAR ARMAS", command=lambda: controller.show_frame("TelaArmas"), **btn_style).pack(pady=10)
         tk.Button(self, text="👤  CRIAR PERSONAGENS", command=lambda: controller.show_frame("TelaPersonagens"), **btn_style).pack(pady=10)
         tk.Button(self, text="🎮  SIMULAÇÃO (LUTA)", command=lambda: controller.show_frame("TelaLuta"), **btn_style).pack(pady=10)
-        tk.Button(self, text="💬  INTERAÇÕES SOCIAIS", command=lambda: controller.show_frame("TelaInteracoes"), **btn_style).pack(pady=10)
+        tk.Button(self, text="�  CONFIGURAR SONS", command=lambda: controller.show_frame("TelaSons"), **btn_style).pack(pady=10)
+        tk.Button(self, text="�💬  INTERAÇÕES SOCIAIS", command=lambda: controller.show_frame("TelaInteracoes"), **btn_style).pack(pady=10)
         
         # Botão Sair
         tk.Button(self, text="SAIR", command=controller.quit, 
@@ -120,6 +122,10 @@ class TelaInteracoes(tk.Frame):
         tk.Button(self, text="Voltar ao Menu", font=("Arial", 12), bg="#E67E22", fg="white",
                   command=lambda: controller.show_frame("MenuPrincipal")).pack(pady=50)
 
-if __name__ == "__main__":
+def main():
+    """Inicia o launcher."""
     app = SistemaApp()
     app.mainloop()
+
+if __name__ == "__main__":
+    main()

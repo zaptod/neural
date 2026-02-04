@@ -4,7 +4,7 @@ Texto flutuante e manchas (decals)
 """
 
 import pygame
-from config import PRETO
+from utils.config import PRETO
 
 
 class FloatingText:

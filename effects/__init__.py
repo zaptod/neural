@@ -70,9 +70,11 @@ from .weapon_animations import (
 
 # v10.0 - Audio movido para effects
 from .audio import (
-    GerenciadorAudio,
-    SomArma,
-    SOM_CONFIGS,
+    AudioManager,
+    play_sound,
+    play_attack_sound,
+    play_impact_sound,
+    play_skill_sound,
 )
 
 __all__ = [
@@ -123,7 +125,9 @@ __all__ = [
     'WEAPON_PROFILES',
     'get_weapon_animation_manager',
     # Audio v10.0
-    'GerenciadorAudio',
-    'SomArma',
-    'SOM_CONFIGS',
+    'AudioManager',
+    'play_sound',
+    'play_attack_sound',
+    'play_impact_sound',
+    'play_skill_sound',
 ]

@@ -3,7 +3,7 @@ NEURAL FIGHTS - Sistema de Skills
 Catálogo de todas as habilidades do jogo.
 """
 
-from config import PPM
+from utils.config import PPM
 
 # ============================================================================
 # CATÁLOGO MASTER DE HABILIDADES
