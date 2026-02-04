@@ -77,6 +77,19 @@ from .audio import (
     play_skill_sound,
 )
 
+# v11.0 - Efeitos de Magia Dramáticos
+from .magic_vfx import (
+    MagicVFXManager,
+    DramaticExplosion,
+    DramaticBeam,
+    DramaticAura,
+    DramaticSummon,
+    DramaticProjectileTrail,
+    MagicParticle,
+    ELEMENT_PALETTES,
+    get_element_from_skill,
+)
+
 __all__ = [
     # Partículas
     'Particula',
@@ -130,4 +143,14 @@ __all__ = [
     'play_attack_sound',
     'play_impact_sound',
     'play_skill_sound',
+    # Magic VFX v11.0
+    'MagicVFXManager',
+    'DramaticExplosion',
+    'DramaticBeam',
+    'DramaticAura',
+    'DramaticSummon',
+    'DramaticProjectileTrail',
+    'MagicParticle',
+    'ELEMENT_PALETTES',
+    'get_element_from_skill',
 ]

@@ -1,6 +1,7 @@
 {
-    "p1_nome": "Bjorn",
-    "p2_nome": "Hector",
+    "p1_nome": "Ajax o Lendário",
+    "p2_nome": "Suki",
     "cenario": "Arena",
-    "best_of": 1
+    "best_of": 1,
+    "portrait_mode": false
 }

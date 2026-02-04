@@ -27,6 +27,13 @@ from ai.spatial import SpatialAwarenessSystem
 from ai.emotions import EmotionSystem
 from ai.combat_tactics import CombatTacticsSystem
 
+# Novo módulo v10.0 - Estratégia de Skills
+try:
+    from ai.skill_strategy import SkillStrategySystem, CombatSituation, SkillPriority, StrategicRole
+    SKILL_STRATEGY_AVAILABLE = True
+except ImportError:
+    SKILL_STRATEGY_AVAILABLE = False
+
 __all__ = [
     'CombatChoreographer',
     'AIBrain',
@@ -46,4 +53,9 @@ __all__ = [
     'SpatialAwarenessSystem',
     'EmotionSystem',
     'CombatTacticsSystem',
+    # Sistema de Estratégia de Skills
+    'SkillStrategySystem',
+    'CombatSituation',
+    'SkillPriority',
+    'StrategicRole',
 ]

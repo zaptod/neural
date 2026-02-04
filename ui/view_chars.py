@@ -29,12 +29,13 @@ class TelaPersonagens(tk.Frame):
         
         # Estado do Wizard
         self.passo_atual = 1
-        self.total_passos = 5
+        self.total_passos = 6
         
         # Dados do personagem sendo criado
         self.dados_char = {
             "nome": "",
             "classe": "Guerreiro (Força Bruta)",
+            "personalidade": "Aleatório",
             "tamanho": 1.70,
             "forca": 5.0,
             "mana": 5.0,
@@ -102,7 +103,7 @@ class TelaPersonagens(tk.Frame):
         self.frame_progresso.pack(side="right", padx=20)
         
         self.labels_progresso = []
-        nomes_passos = ["Identidade", "Classe", "Atributos", "Visual", "Equipamento"]
+        nomes_passos = ["Identidade", "Classe", "Personalidade", "Atributos", "Visual", "Equipamento"]
         for i, nome in enumerate(nomes_passos, 1):
             cor = COR_SUCCESS if i == 1 else COR_TEXTO_DIM
             lbl = tk.Label(
@@ -357,17 +358,19 @@ class TelaPersonagens(tk.Frame):
         elif passo == 2:
             self.passo_classe()
         elif passo == 3:
-            self.passo_atributos()
+            self.passo_personalidade()
         elif passo == 4:
-            self.passo_visual()
+            self.passo_atributos()
         elif passo == 5:
+            self.passo_visual()
+        elif passo == 6:
             self.passo_equipamento()
         
         # Atualiza botões
         self.btn_anterior.config(state="normal" if passo > 1 else "disabled")
         
         # Texto do botão baseado no contexto
-        if passo == 5:
+        if passo == 6:
             if self.indice_em_edicao is not None:
                 self.btn_proximo.config(text="SALVAR", bg=COR_WARNING)
             else:
@@ -392,7 +395,7 @@ class TelaPersonagens(tk.Frame):
                 messagebox.showwarning("Atenção", "Digite um nome para o personagem!")
                 return
         
-        if self.passo_atual < 5:
+        if self.passo_atual < 6:
             self.mostrar_passo(self.passo_atual + 1)
         else:
             self.salvar_personagem()
@@ -524,11 +527,116 @@ class TelaPersonagens(tk.Frame):
         self.lbl_classe_passiva.config(text=f">> {passiva}")
 
     # -------------------------------------------------------------------------
-    # PASSO 3: ATRIBUTOS
+    # PASSO 3: PERSONALIDADE
+    # -------------------------------------------------------------------------
+    def passo_personalidade(self):
+        """Passo 3: Seleção de personalidade da IA"""
+        from ai.personalities import PERSONALIDADES_PRESETS, LISTA_PERSONALIDADES
+        
+        self.lbl_passo_titulo.config(text="3. PERSONALIDADE")
+        self.lbl_passo_desc.config(text="Defina como seu campeão luta! A personalidade determina o comportamento da IA em combate.")
+        
+        # Container para lista de personalidades
+        frame_lista = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
+        frame_lista.pack(fill="both", expand=True, pady=10)
+        
+        # Grid de personalidades (2 colunas)
+        self.var_personalidade = tk.StringVar(value=self.dados_char["personalidade"])
+        
+        row = 0
+        col = 0
+        for nome_pers in LISTA_PERSONALIDADES:
+            preset = PERSONALIDADES_PRESETS[nome_pers]
+            
+            # Frame para cada personalidade
+            frame_item = tk.Frame(frame_lista, bg=COR_BG, bd=1, relief="ridge")
+            frame_item.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            
+            # Configura cor
+            cor = preset["cor"]
+            cor_hex = f"#{cor[0]:02x}{cor[1]:02x}{cor[2]:02x}"
+            
+            # Radiobutton
+            rb = tk.Radiobutton(
+                frame_item, text=f"{preset['icone']} {nome_pers}",
+                variable=self.var_personalidade, value=nome_pers,
+                font=("Arial", 10, "bold"), bg=COR_BG, fg=cor_hex,
+                selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
+                activeforeground=cor_hex, anchor="w", padx=10, pady=5,
+                command=self._on_personalidade_change
+            )
+            rb.pack(fill="x")
+            
+            # Descrição
+            tk.Label(
+                frame_item, text=preset["descricao"],
+                font=("Arial", 8), bg=COR_BG, fg=COR_TEXTO_DIM,
+                wraplength=170, justify="left", padx=10
+            ).pack(fill="x", pady=(0, 5))
+            
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
+        
+        # Configura grid weights
+        frame_lista.grid_columnconfigure(0, weight=1)
+        frame_lista.grid_columnconfigure(1, weight=1)
+        
+        # Info da personalidade selecionada
+        frame_info = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO, bd=1, relief="ridge")
+        frame_info.pack(fill="x", pady=10, padx=5)
+        
+        tk.Label(
+            frame_info, text="COMPORTAMENTO EM COMBATE:",
+            font=("Arial", 9, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_ACCENT
+        ).pack(anchor="w", padx=10, pady=(5, 0))
+        
+        self.lbl_pers_detalhes = tk.Label(
+            frame_info, text="",
+            font=("Arial", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
+            wraplength=380, justify="left"
+        )
+        self.lbl_pers_detalhes.pack(anchor="w", padx=10, pady=5)
+        
+        # Atualiza info inicial
+        self._atualizar_info_personalidade()
+    
+    def _on_personalidade_change(self):
+        """Callback quando personalidade muda"""
+        self.dados_char["personalidade"] = self.var_personalidade.get()
+        self._atualizar_info_personalidade()
+        self.atualizar_preview()
+    
+    def _atualizar_info_personalidade(self):
+        """Atualiza info detalhada da personalidade"""
+        from ai.personalities import PERSONALIDADES_PRESETS
+        
+        nome = self.dados_char["personalidade"]
+        preset = PERSONALIDADES_PRESETS.get(nome, {})
+        
+        if nome == "Aleatório":
+            detalhes = "A cada luta, uma personalidade diferente será gerada proceduralmente com traços, estilo e comportamentos únicos!"
+        else:
+            tracos = preset.get("tracos_fixos", [])
+            estilo = preset.get("estilo_fixo", "Variado")
+            filosofia = preset.get("filosofia_fixa", "Variada")
+            
+            tracos_txt = ", ".join(tracos[:4]) if tracos else "Variados"
+            agressividade = preset.get("agressividade_mod", 0)
+            agr_txt = "Muito agressivo" if agressividade > 0.2 else "Agressivo" if agressividade > 0 else "Cauteloso" if agressividade < -0.1 else "Equilibrado"
+            
+            detalhes = f"Estilo: {estilo} | Filosofia: {filosofia}\nTemperamento: {agr_txt}\nTraços: {tracos_txt}"
+        
+        if hasattr(self, 'lbl_pers_detalhes'):
+            self.lbl_pers_detalhes.config(text=detalhes)
+
+    # -------------------------------------------------------------------------
+    # PASSO 4: ATRIBUTOS
     # -------------------------------------------------------------------------
     def passo_atributos(self):
-        """Passo 3: Configuração de atributos"""
-        self.lbl_passo_titulo.config(text="3. ATRIBUTOS")
+        """Passo 4: Configuração de atributos"""
+        self.lbl_passo_titulo.config(text="4. ATRIBUTOS")
         self.lbl_passo_desc.config(text="Distribua os atributos do seu campeão. O físico e poderes mentais definirão seu desempenho.")
         
         # Tamanho/Altura
@@ -697,11 +805,11 @@ class TelaPersonagens(tk.Frame):
         self._on_atributo_change()
 
     # -------------------------------------------------------------------------
-    # PASSO 4: VISUAL
+    # PASSO 5: VISUAL
     # -------------------------------------------------------------------------
     def passo_visual(self):
-        """Passo 4: Customização visual"""
-        self.lbl_passo_titulo.config(text="4. APARÊNCIA")
+        """Passo 5: Customização visual"""
+        self.lbl_passo_titulo.config(text="5. APARÊNCIA")
         self.lbl_passo_desc.config(text="Customize as cores do seu campeão. Uma aparência marcante ajuda na identificação!")
         
         # Cor do corpo (RGB)
@@ -827,11 +935,11 @@ class TelaPersonagens(tk.Frame):
         self._on_cor_change()
 
     # -------------------------------------------------------------------------
-    # PASSO 5: EQUIPAMENTO
+    # PASSO 6: EQUIPAMENTO
     # -------------------------------------------------------------------------
     def passo_equipamento(self):
-        """Passo 5: Seleção de equipamento"""
-        self.lbl_passo_titulo.config(text="5. EQUIPAMENTO")
+        """Passo 6: Seleção de equipamento"""
+        self.lbl_passo_titulo.config(text="6. EQUIPAMENTO")
         self.lbl_passo_desc.config(text="Escolha a arma que seu campeão levará para batalha. Visite a Forja para criar novas armas!")
         
         # Lista de armas disponíveis
@@ -867,18 +975,31 @@ class TelaPersonagens(tk.Frame):
         frame_lista_armas = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
         frame_lista_armas.pack(fill="both", expand=True, pady=10)
         
-        # Canvas com scroll para armas
-        self.canvas_armas = tk.Canvas(frame_lista_armas, bg=COR_BG_SECUNDARIO, highlightthickness=0, height=200)
+        # Canvas com scroll para armas - altura aumentada para 300
+        self.canvas_armas = tk.Canvas(frame_lista_armas, bg=COR_BG_SECUNDARIO, highlightthickness=0, height=300)
         scrollbar = ttk.Scrollbar(frame_lista_armas, orient="vertical", command=self.canvas_armas.yview)
         frame_armas_inner = tk.Frame(self.canvas_armas, bg=COR_BG_SECUNDARIO)
         
-        self.canvas_armas.create_window((0, 0), window=frame_armas_inner, anchor="nw")
+        self.canvas_armas.create_window((0, 0), window=frame_armas_inner, anchor="nw", tags="frame_inner")
         self.canvas_armas.configure(yscrollcommand=scrollbar.set)
         
         self.canvas_armas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
         
-        frame_armas_inner.bind("<Configure>", lambda e: self.canvas_armas.configure(scrollregion=self.canvas_armas.bbox("all")))
+        # Configura scrollregion quando o frame interno muda de tamanho
+        def _on_frame_configure(event):
+            self.canvas_armas.configure(scrollregion=self.canvas_armas.bbox("all"))
+            # Também ajusta a largura do frame interno para preencher o canvas
+            self.canvas_armas.itemconfig("frame_inner", width=self.canvas_armas.winfo_width())
+        
+        frame_armas_inner.bind("<Configure>", _on_frame_configure)
+        
+        # Bind direto no canvas para scroll com mouse
+        def _scroll_armas(event):
+            self.canvas_armas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        self.canvas_armas.bind("<MouseWheel>", _scroll_armas)
+        frame_armas_inner.bind("<MouseWheel>", _scroll_armas)
         
         # Popula com armas
         armas = self.controller.lista_armas
@@ -890,8 +1011,12 @@ class TelaPersonagens(tk.Frame):
                 frame_a = tk.Frame(frame_armas_inner, bg=COR_BG, bd=1, relief="solid")
                 frame_a.pack(fill="x", pady=2, padx=2)
                 
+                # Bind scroll nos frames de cada arma
+                frame_a.bind("<MouseWheel>", _scroll_armas)
+                
                 header = tk.Frame(frame_a, bg=COR_BG)
                 header.pack(fill="x", padx=5, pady=3)
+                header.bind("<MouseWheel>", _scroll_armas)
                 
                 rb = tk.Radiobutton(
                     header, text=arma.nome, 
@@ -900,14 +1025,17 @@ class TelaPersonagens(tk.Frame):
                     selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
                     command=lambda n=arma.nome: self._selecionar_arma(n)
                 )
+                rb.bind("<MouseWheel>", _scroll_armas)
                 rb.pack(side="left")
                 
                 # Info da arma
                 info = f"{arma.tipo} | Dano: {arma.dano:.0f} | {raridade}"
-                tk.Label(
+                lbl_info = tk.Label(
                     header, text=info,
                     font=("Arial", 8), bg=COR_BG, fg=COR_TEXTO_DIM
-                ).pack(side="right")
+                )
+                lbl_info.bind("<MouseWheel>", _scroll_armas)
+                lbl_info.pack(side="right")
         else:
             tk.Label(
                 frame_armas_inner, 
@@ -1092,7 +1220,8 @@ class TelaPersonagens(tk.Frame):
                 self.dados_char["cor_r"],
                 self.dados_char["cor_g"],
                 self.dados_char["cor_b"],
-                self.dados_char["classe"]
+                self.dados_char["classe"],
+                self.dados_char["personalidade"]
             )
             
             if self.indice_em_edicao is None:
@@ -1140,6 +1269,7 @@ class TelaPersonagens(tk.Frame):
         self.dados_char = {
             "nome": p.nome,
             "classe": getattr(p, "classe", "Guerreiro (Força Bruta)"),
+            "personalidade": getattr(p, "personalidade", "Aleatório"),
             "tamanho": p.tamanho,
             "forca": p.forca,
             "mana": p.mana,
@@ -1169,6 +1299,7 @@ class TelaPersonagens(tk.Frame):
         self.dados_char = {
             "nome": "",
             "classe": "Guerreiro (Força Bruta)",
+            "personalidade": "Aleatório",
             "tamanho": 1.70,
             "forca": 5.0,
             "mana": 5.0,

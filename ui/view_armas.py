@@ -742,7 +742,12 @@ class TelaArmas(tk.Frame):
             
             # Preenche com dados existentes
             if i < len(self.dados_arma["habilidades"]):
-                combo.set(self.dados_arma["habilidades"][i]["nome"])
+                hab = self.dados_arma["habilidades"][i]
+                # Suporta tanto string quanto dict
+                if isinstance(hab, dict):
+                    combo.set(hab.get("nome", "Nenhuma"))
+                else:
+                    combo.set(str(hab) if hab else "Nenhuma")
             else:
                 combo.set("Nenhuma")
             
@@ -877,8 +882,15 @@ class TelaArmas(tk.Frame):
             ).pack(anchor="w", padx=15)
             
             for hab in dados["habilidades"]:
+                # Suporta tanto string quanto dict
+                if isinstance(hab, dict):
+                    nome = hab.get('nome', 'Desconhecida')
+                    custo = hab.get('custo', 0)
+                    texto = f"  - {nome} ({custo} mana)"
+                else:
+                    texto = f"  - {hab}"
                 tk.Label(
-                    frame_resumo, text=f"  - {hab['nome']} ({hab['custo']} mana)",
+                    frame_resumo, text=texto,
                     font=("Arial", 9), bg=COR_BG, fg=COR_TEXTO
                 ).pack(anchor="w", padx=15)
         
@@ -1247,6 +1259,26 @@ class TelaArmas(tk.Frame):
             raridade = getattr(arma, 'raridade', 'Comum')
             self.tree.insert("", "end", values=(arma.nome, arma.tipo, raridade))
 
+    def _normalizar_habilidades(self, habilidades):
+        """Converte lista de habilidades para formato padrão (lista de dicts)"""
+        if not habilidades:
+            return []
+        
+        resultado = []
+        for hab in habilidades:
+            if isinstance(hab, dict):
+                # Já está no formato correto
+                resultado.append(hab)
+            elif isinstance(hab, str):
+                # String simples - converte para dict
+                custo = SKILL_DB.get(hab, {}).get("custo", 0)
+                resultado.append({"nome": hab, "custo": custo})
+            else:
+                # Outro formato - tenta converter
+                resultado.append({"nome": str(hab), "custo": 0})
+        
+        return resultado
+
     def selecionar_arma(self, event):
         """Seleciona uma arma da lista"""
         sel = self.tree.selection()
@@ -1287,7 +1319,7 @@ class TelaArmas(tk.Frame):
                 "forma2_lamina": getattr(arma, 'forma2_lamina', 0),
             },
             "cores": {"r": arma.r, "g": arma.g, "b": arma.b},
-            "habilidades": getattr(arma, 'habilidades', []),
+            "habilidades": self._normalizar_habilidades(getattr(arma, 'habilidades', [])),
             "encantamentos": getattr(arma, 'encantamentos', []),
             "cabo_dano": arma.cabo_dano,
             "afinidade_elemento": getattr(arma, 'afinidade_elemento', None),

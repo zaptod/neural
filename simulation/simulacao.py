@@ -13,7 +13,8 @@ from utils.config import *
 from effects import (Particula, FloatingText, Decal, Shockwave, Câmera, EncantamentoEffect,
                      ImpactFlash, MagicClash, BlockEffect, DashTrail, HitSpark,
                      MovementAnimationManager, MovementType,  # v8.0 Movement Animations
-                     AttackAnimationManager, calcular_knockback_com_forca, get_impact_tier)  # v8.0 Attack Animations
+                     AttackAnimationManager, calcular_knockback_com_forca, get_impact_tier,  # v8.0 Attack Animations
+                     MagicVFXManager, get_element_from_skill)  # v11.0 Magic VFX
 from effects.audio import AudioManager  # v10.0 Sistema de Áudio
 from core.entities import Lutador
 from core.physics import colisao_linha_circulo, intersect_line_circle, colisao_linha_linha, normalizar_angulo
@@ -25,12 +26,25 @@ from core.game_feel import GameFeelManager, HitStopManager  # Sistema de Game Fe
 class Simulador:
     def __init__(self):
         pygame.init()
-        self.tela = pygame.display.set_mode((LARGURA, ALTURA))
+        
+        # Carrega config primeiro para saber o modo de tela
+        self.portrait_mode = self._check_portrait_mode()
+        
+        # Define dimensões da tela baseado no modo
+        if self.portrait_mode:
+            from utils.config import LARGURA_PORTRAIT, ALTURA_PORTRAIT
+            self.screen_width = LARGURA_PORTRAIT
+            self.screen_height = ALTURA_PORTRAIT
+        else:
+            self.screen_width = LARGURA
+            self.screen_height = ALTURA
+        
+        self.tela = pygame.display.set_mode((self.screen_width, self.screen_height))
         pygame.display.set_caption("Neural Fights - v9.0 ARENA EDITION")
         self.clock = pygame.time.Clock()
         self.rodando = True
         
-        self.cam = Câmera()
+        self.cam = Câmera(self.screen_width, self.screen_height)
         self.particulas = [] 
         self.decals = [] 
         self.textos = [] 
@@ -70,13 +84,24 @@ class Simulador:
         
         self.recarregar_tudo()
 
+    def _check_portrait_mode(self) -> bool:
+        """Verifica se o modo retrato está ativado no config"""
+        try:
+            with open("match_config.json", "r", encoding="utf-8") as f:
+                config = json.load(f)
+                return config.get("portrait_mode", False)
+        except:
+            return False
+
     def recarregar_tudo(self):
         try:
-            self.p1, self.p2, self.cenario = self.carregar_luta_dados()
+            self.p1, self.p2, self.cenario, _ = self.carregar_luta_dados()
             self.particulas = []; self.decals = []; self.textos = []; self.shockwaves = []; self.projeteis = []
             # Reset novos efeitos v7.0
             self.impact_flashes = []; self.magic_clashes = []; self.block_effects = []
             self.dash_trails = []; self.hit_sparks = []
+            # Reset efeitos v2.0 (skills avançadas)
+            self.summons = []; self.traps = []; self.beams = []; self.areas = []
             self.time_scale = 1.0; self.slow_mo_timer = 0.0; self.hit_stop_timer = 0.0
             self.vencedor = None; self.paused = False; self.rastros = {self.p1: [], self.p2: []}
             if self.p1: self.vida_visual_p1 = self.p1.vida_max
@@ -134,6 +159,10 @@ class Simulador:
             self._prev_stagger = {self.p1: False, self.p2: False}
             self._prev_dash = {self.p1: 0, self.p2: 0}
             
+            # === INICIALIZA MAGIC VFX v11.0 ===
+            MagicVFXManager.reset()
+            self.magic_vfx = MagicVFXManager.get_instance()
+            
             # Som de início de arena/luta
             self.audio.play_special("arena_start", 0.8)
                 
@@ -145,7 +174,7 @@ class Simulador:
     def carregar_luta_dados(self):
         try:
             with open("match_config.json", "r", encoding="utf-8") as f: config = json.load(f)
-        except: return None, None, "Arena"
+        except: return None, None, "Arena", False
         todos = database.carregar_personagens()
         armas = database.carregar_armas()
         def montar(nome):
@@ -155,23 +184,46 @@ class Simulador:
         l1 = Lutador(montar(config["p1_nome"]), 5.0, 8.0)
         l2 = Lutador(montar(config["p2_nome"]), 19.0, 8.0)
         cenario = config.get("cenario", "Arena")
-        return l1, l2, cenario
+        portrait_mode = config.get("portrait_mode", False)
+        return l1, l2, cenario, portrait_mode
 
     def processar_inputs(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT: self.rodando = False
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE: self.rodando = False 
-                if event.key == pygame.K_r: self.recarregar_tudo()
-                if event.key == pygame.K_SPACE: self.paused = not self.paused
-                if event.key == pygame.K_g: self.show_hud = not self.show_hud  # G para HUD
-                if event.key == pygame.K_h: self.show_hitbox_debug = not self.show_hitbox_debug  # H para HITBOX DEBUG
-                if event.key == pygame.K_TAB: self.show_analysis = not self.show_analysis
-                if event.key == pygame.K_t: self.time_scale = 0.2 if self.time_scale == 1.0 else 1.0
-                if event.key == pygame.K_f: self.time_scale = 3.0 if self.time_scale == 1.0 else 1.0
-                if event.key == pygame.K_1: self.cam.modo = "P1"
-                if event.key == pygame.K_2: self.cam.modo = "P2"
-                if event.key == pygame.K_3: self.cam.modo = "AUTO"
+                if event.key == pygame.K_ESCAPE: 
+                    if self.audio: self.audio.play_ui("back")
+                    self.rodando = False 
+                if event.key == pygame.K_r: 
+                    if self.audio: self.audio.play_ui("confirm")
+                    self.recarregar_tudo()
+                if event.key == pygame.K_SPACE: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.paused = not self.paused
+                if event.key == pygame.K_g: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.show_hud = not self.show_hud  # G para HUD
+                if event.key == pygame.K_h: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.show_hitbox_debug = not self.show_hitbox_debug  # H para HITBOX DEBUG
+                if event.key == pygame.K_TAB: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.show_analysis = not self.show_analysis
+                if event.key == pygame.K_t: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.time_scale = 0.2 if self.time_scale == 1.0 else 1.0
+                if event.key == pygame.K_f: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.time_scale = 3.0 if self.time_scale == 1.0 else 1.0
+                if event.key == pygame.K_1: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.cam.modo = "P1"
+                if event.key == pygame.K_2: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.cam.modo = "P2"
+                if event.key == pygame.K_3: 
+                    if self.audio: self.audio.play_ui("select")
+                    self.cam.modo = "AUTO"
             if event.type == pygame.MOUSEWHEEL:
                 self.cam.target_zoom += event.y * 0.1
                 self.cam.target_zoom = max(0.5, min(self.cam.target_zoom, 3.0))
@@ -236,6 +288,38 @@ class Simulador:
                     self.beams = []
                 self.beams.extend(p.buffer_beams)
                 p.buffer_beams = []
+            
+            # === NOVOS TIPOS v2.0 ===
+            # Summons (invocações)
+            if hasattr(p, 'buffer_summons') and p.buffer_summons:
+                if not hasattr(self, 'summons'):
+                    self.summons = []
+                # Spawn effect dramático para cada novo summon
+                for summon in p.buffer_summons:
+                    if hasattr(self, 'magic_vfx') and self.magic_vfx:
+                        # Determina elemento pelo nome/cor do summon
+                        elemento = "ARCANO"
+                        nome = getattr(summon, 'nome', '').lower()
+                        if any(w in nome for w in ["fogo", "fire", "chama"]):
+                            elemento = "FOGO"
+                        elif any(w in nome for w in ["gelo", "ice"]):
+                            elemento = "GELO"
+                        elif any(w in nome for w in ["raio", "light"]):
+                            elemento = "RAIO"
+                        elif any(w in nome for w in ["trevas", "shadow"]):
+                            elemento = "TREVAS"
+                        
+                        self.magic_vfx.spawn_summon(summon.x * PPM, summon.y * PPM, elemento)
+                
+                self.summons.extend(p.buffer_summons)
+                p.buffer_summons = []
+            
+            # Traps (armadilhas/estruturas)
+            if hasattr(p, 'buffer_traps') and p.buffer_traps:
+                if not hasattr(self, 'traps'):
+                    self.traps = []
+                self.traps.extend(p.buffer_traps)
+                p.buffer_traps = []
 
         # === ATUALIZA NOVOS EFEITOS v7.0 ===
         for ef in self.impact_flashes: ef.update(dt)
@@ -248,13 +332,60 @@ class Simulador:
         self.dash_trails = [ef for ef in self.dash_trails if ef.vida > 0]
         for ef in self.hit_sparks: ef.update(dt)
         self.hit_sparks = [ef for ef in self.hit_sparks if ef.vida > 0]
+        
+        # === ATUALIZA MAGIC VFX v11.0 ===
+        if hasattr(self, 'magic_vfx') and self.magic_vfx:
+            self.magic_vfx.update(dt)
 
         # === CLASH DE PROJÉTEIS (v7.0) ===
         self._verificar_clash_projeteis()
 
-        # === ATUALIZA PROJÉTEIS ===
+        # === ATUALIZA PROJÉTEIS v2.0 - Suporte a novas mecânicas ===
+        novos_projeteis = []  # Para projéteis criados por split/duplicação
         for proj in self.projeteis:
-            proj.atualizar(dt)
+            # Passa lista de alvos para suportar homing
+            alvos = [self.p1, self.p2]
+            resultado = None
+            
+            # Verifica se o método atualizar aceita alvos
+            if hasattr(proj, 'atualizar'):
+                import inspect
+                sig = inspect.signature(proj.atualizar)
+                if len(sig.parameters) > 1:
+                    resultado = proj.atualizar(dt, alvos)
+                else:
+                    proj.atualizar(dt)
+            
+            # Processa resultados especiais
+            if resultado:
+                if resultado.get("duplicar"):
+                    # Cria projétil duplicado
+                    from core.combat import Projetil
+                    novo = Projetil(proj.nome, resultado["x"], resultado["y"], resultado["angulo"], proj.dono)
+                    novo.dano = proj.dano * 0.7  # Duplicata tem menos dano
+                    novo.duplicado = True  # Marca para não duplicar de novo
+                    novos_projeteis.append(novo)
+                
+                elif resultado.get("split"):
+                    # Split aleatório (Caos)
+                    from core.combat import Projetil
+                    novo = Projetil(proj.nome, resultado["x"], resultado["y"], resultado["angulo"], proj.dono)
+                    novo.dano = proj.dano * 0.5
+                    novo.split_aleatorio = False  # Não continua splitando
+                    novos_projeteis.append(novo)
+                
+                elif resultado.get("explodir"):
+                    # Cria efeito de área na posição
+                    from core.combat import AreaEffect
+                    area = AreaEffect(proj.nome, resultado["x"], resultado["y"], proj.dono)
+                    area.raio = resultado.get("raio", 2.0)
+                    if hasattr(self, 'areas'):
+                        self.areas.append(area)
+                    # Efeitos visuais de explosão
+                    self.impact_flashes.append(ImpactFlash(resultado["x"] * PPM, resultado["y"] * PPM, proj.cor, 2.0, "explosion"))
+                    self.shockwaves.append(Shockwave(resultado["x"] * PPM, resultado["y"] * PPM, proj.cor, tamanho=2.5))
+                    self._spawn_particulas_efeito(resultado["x"] * PPM, resultado["y"] * PPM, "EXPLOSAO")
+            
             alvo = self.p2 if proj.dono == self.p1 else self.p1
             
             # === SISTEMA DE BLOQUEIO/DESVIO v7.0 ===
@@ -275,7 +406,7 @@ class Simulador:
                 colidiu = dist < (alvo.raio_fisico + proj.raio) and proj.ativo
             
             if colidiu and proj.ativo:
-                proj.ativo = False
+                # Nota: proj.ativo será setado false dentro do bloco se não for perfurante
                 
                 # === ÁUDIO v10.0 - SOM DE IMPACTO DE PROJÉTIL ===
                 if self.audio:
@@ -288,7 +419,7 @@ class Simulador:
                     listener_x = self.cam.x / PPM
                     self.audio.play_skill("PROJETIL", tipo_proj, proj.x, listener_x, phase="impact")
                 
-                # === EFEITOS DE IMPACTO MELHORADOS v7.0 ===
+                # === EFEITOS DE IMPACTO MELHORADOS v11.0 DRAMATIC ===
                 cor_impacto = proj.cor if hasattr(proj, 'cor') else BRANCO
                 self.impact_flashes.append(ImpactFlash(proj.x * PPM, proj.y * PPM, cor_impacto, 1.2, "magic"))
                 self.shockwaves.append(Shockwave(proj.x * PPM, proj.y * PPM, cor_impacto, tamanho=1.2))
@@ -302,8 +433,40 @@ class Simulador:
                 # Hit Sparks na direção do impacto
                 self.hit_sparks.append(HitSpark(proj.x * PPM, proj.y * PPM, cor_impacto, direcao_impacto, 1.0))
                 
+                # === EXPLOSÃO DRAMÁTICA v11.0 ===
+                if hasattr(self, 'magic_vfx') and self.magic_vfx:
+                    # Determina elemento pelo nome/tipo do projétil
+                    elemento = "DEFAULT"
+                    tipo_proj_str = str(getattr(proj, 'tipo', '')).lower()
+                    nome_skill = str(getattr(proj, 'nome', '')).lower()
+                    
+                    if any(w in nome_skill + tipo_proj_str for w in ["fogo", "fire", "chama", "meteoro"]):
+                        elemento = "FOGO"
+                    elif any(w in nome_skill + tipo_proj_str for w in ["gelo", "ice", "glacial"]):
+                        elemento = "GELO"
+                    elif any(w in nome_skill + tipo_proj_str for w in ["raio", "lightning", "thunder"]):
+                        elemento = "RAIO"
+                    elif any(w in nome_skill + tipo_proj_str for w in ["trevas", "shadow", "dark"]):
+                        elemento = "TREVAS"
+                    elif any(w in nome_skill + tipo_proj_str for w in ["luz", "light", "holy"]):
+                        elemento = "LUZ"
+                    
+                    dano_proj = getattr(proj, 'dano', 10)
+                    self.magic_vfx.spawn_explosion(
+                        proj.x * PPM, proj.y * PPM, 
+                        elemento=elemento, 
+                        tamanho=0.6 + dano_proj * 0.02,
+                        dano=dano_proj
+                    )
+                
+                # === v11.0: VERIFICAÇÕES DE CONDIÇÃO ===
+                bonus_condicao = 1.0
+                if hasattr(proj, 'verificar_condicao'):
+                    bonus_condicao = proj.verificar_condicao(alvo)
+                
                 # Aplica dano com efeito
-                dano_final = proj.dono.get_dano_modificado(proj.dano) if hasattr(proj.dono, 'get_dano_modificado') else proj.dano
+                dano_base = proj.dono.get_dano_modificado(proj.dano) if hasattr(proj.dono, 'get_dano_modificado') else proj.dano
+                dano_final = dano_base * bonus_condicao
                 tipo_efeito = proj.tipo_efeito if hasattr(proj, 'tipo_efeito') else "NORMAL"
                 
                 # Camera shake proporcional ao dano
@@ -311,10 +474,22 @@ class Simulador:
                 self.cam.aplicar_shake(shake_intensity, 0.1)
                 self.hit_stop_timer = 0.03  # Micro hit-stop
                 
+                # === v11.0: PERFURAÇÃO - não desativa projétil ===
+                if hasattr(proj, 'perfura') and proj.perfura:
+                    if hasattr(proj, 'pode_atingir') and not proj.pode_atingir(alvo):
+                        continue  # Já atingiu esse alvo
+                    # Não desativa - continua voando
+                else:
+                    proj.ativo = False
+                
                 if alvo.tomar_dano(dano_final, dx/dist, dy/dist, tipo_efeito):
                     self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                     self.ativar_slow_motion(); self.vencedor = proj.dono.dados.nome
                 else:
+                    # Texto especial para execução
+                    if bonus_condicao >= 5.0:
+                        self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "EXECUÇÃO!", (200, 50, 50), 32))
+                    
                     # Cor do texto baseado no efeito ou tipo de projétil
                     if hasattr(proj, 'tipo') and proj.tipo in ["faca", "shuriken", "chakram", "flecha"]:
                         cor_txt = proj.cor if hasattr(proj, 'cor') else BRANCO
@@ -325,11 +500,65 @@ class Simulador:
                     # Partículas baseadas no efeito
                     self._spawn_particulas_efeito(alvo.pos[0]*PPM, alvo.pos[1]*PPM, tipo_efeito)
                 
+                # === v11.0: LIFESTEAL ===
+                if hasattr(proj, 'lifesteal') and proj.lifesteal > 0:
+                    cura = dano_final * proj.lifesteal
+                    proj.dono.vida = min(proj.dono.vida_max, proj.dono.vida + cura)
+                    self.textos.append(FloatingText(proj.dono.pos[0]*PPM, proj.dono.pos[1]*PPM - 30, f"+{int(cura)}", (200, 100, 200), 16))
+                
                 # Efeito DRENAR recupera vida do atacante
-                if tipo_efeito == "DRENAR":
+                elif tipo_efeito == "DRENAR":
                     proj.dono.vida = min(proj.dono.vida_max, proj.dono.vida + dano_final * 0.15)
                     self.textos.append(FloatingText(proj.dono.pos[0]*PPM, proj.dono.pos[1]*PPM - 30, f"+{int(dano_final*0.15)}", (100, 255, 150), 16))
+                
+                # === v11.0: EXPLOSÃO NO IMPACTO ===
+                if hasattr(proj, 'raio_explosao') and proj.raio_explosao > 0:
+                    from core.combat import AreaEffect
+                    explosao = AreaEffect(proj.nome + " Explosão", proj.x, proj.y, proj.dono)
+                    explosao.raio_max = proj.raio_explosao
+                    explosao.dano = proj.dano * 0.5  # Dano de área é 50% do projétil
+                    explosao.tipo_efeito = tipo_efeito
+                    if hasattr(self, 'areas'):
+                        self.areas.append(explosao)
+                    self.impact_flashes.append(ImpactFlash(proj.x * PPM, proj.y * PPM, cor_impacto, 2.0, "explosion"))
+                    self.shockwaves.append(Shockwave(proj.x * PPM, proj.y * PPM, cor_impacto, tamanho=2.5))
+                    self._spawn_particulas_efeito(proj.x * PPM, proj.y * PPM, "EXPLOSAO")
+                
+                # === v11.0: REMOVE CONGELAMENTO (Shatter) ===
+                if hasattr(proj, 'remove_congelamento') and proj.remove_congelamento:
+                    if getattr(alvo, 'congelado', False):
+                        alvo.congelado = False
+                        # Dano bonus por quebrar gelo
+                        alvo.tomar_dano(dano_final * 0.5, 0, 0, "GELO")
+                        self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 60, "SHATTER!", (180, 220, 255), 24))
+                
+                # === v11.0: CHAIN LIGHTNING ===
+                if hasattr(proj, 'chain') and proj.chain > 0 and proj.chain_count < proj.chain:
+                    # Encontra próximo alvo (pode ser qualquer um exceto o atingido)
+                    alvos_possiveis = [a for a in [self.p1, self.p2] if a != alvo and a.vivo and id(a) not in proj.chain_targets]
+                    if alvos_possiveis:
+                        prox_alvo = alvos_possiveis[0]
+                        dx = prox_alvo.pos[0] - alvo.pos[0]
+                        dy = prox_alvo.pos[1] - alvo.pos[1]
+                        dist = math.hypot(dx, dy)
+                        # Chain range baseado na distância original ou padrão de 5.0
+                        chain_range = getattr(proj, 'raio_contagio', 5.0)
+                        if dist <= chain_range:
+                            from core.combat import Projetil
+                            proj.chain_count += 1
+                            proj.chain_targets.add(id(alvo))
+                            chain_proj = Projetil(proj.nome, alvo.pos[0], alvo.pos[1], math.atan2(dy, dx), proj.dono)
+                            chain_proj.dano = proj.dano * proj.chain_decay
+                            chain_proj.chain = proj.chain
+                            chain_proj.chain_count = proj.chain_count
+                            chain_proj.chain_targets = proj.chain_targets.copy()
+                            chain_proj.cor = proj.cor if hasattr(proj, 'cor') else (150, 200, 255)
+                            novos_projeteis.append(chain_proj)
+                            # Efeito visual de chain
+                            self._spawn_particulas_efeito(alvo.pos[0]*PPM, alvo.pos[1]*PPM, "ELETRICO")
 
+        # Adiciona projéteis criados por split/duplicação/chain
+        self.projeteis.extend(novos_projeteis)
         self.projeteis = [p for p in self.projeteis if p.ativo]
 
         # === ATUALIZA ORBES MÁGICOS (colisões) ===
@@ -367,10 +596,73 @@ class Simulador:
                                 # Partículas mágicas
                                 self._spawn_particulas_efeito(alvo.pos[0]*PPM, alvo.pos[1]*PPM, "NORMAL")
 
-        # === ATUALIZA ÁREAS ===
+        # === ATUALIZA ÁREAS v2.0 - Suporte a novas mecânicas ===
         if hasattr(self, 'areas'):
+            novas_areas = []  # Para ondas adicionais, meteoros, etc.
             for area in self.areas:
-                area.atualizar(dt)
+                # Passa lista de alvos para suportar pull, vortex, etc.
+                alvos_area = [self.p1, self.p2]
+                resultado = None
+                
+                # Verifica se o método atualizar aceita alvos
+                if hasattr(area, 'atualizar'):
+                    import inspect
+                    sig = inspect.signature(area.atualizar)
+                    if len(sig.parameters) > 1:
+                        resultado = area.atualizar(dt, alvos_area)
+                    else:
+                        area.atualizar(dt)
+                
+                # Processa resultados especiais
+                if resultado:
+                    for res in resultado:
+                        if res.get("nova_onda"):
+                            # Cria nova onda expandindo
+                            from core.combat import AreaEffect
+                            nova = AreaEffect(area.nome + " Onda", res["x"], res["y"], area.dono)
+                            nova.raio_max = res.get("raio_max", area.raio_max * 1.5)
+                            nova.dano = area.dano * 0.7
+                            nova.tipo_efeito = area.tipo_efeito
+                            novas_areas.append(nova)
+                        
+                        elif res.get("meteoro"):
+                            # Cria meteoro caindo
+                            from core.combat import AreaEffect
+                            meteoro = AreaEffect("Meteoro", res["x"], res["y"], area.dono)
+                            meteoro.raio_max = res.get("raio", 3.0)
+                            meteoro.dano = res.get("dano", 30)
+                            meteoro.tipo_efeito = "FOGO"
+                            novas_areas.append(meteoro)
+                            # Efeito visual
+                            self.impact_flashes.append(ImpactFlash(res["x"] * PPM, res["y"] * PPM, (255, 100, 50), 2.0, "explosion"))
+                            self.shockwaves.append(Shockwave(res["x"] * PPM, res["y"] * PPM, (255, 100, 50), tamanho=2.5))
+                            self._spawn_particulas_efeito(res["x"] * PPM, res["y"] * PPM, "FOGO")
+                        
+                        elif res.get("pull"):
+                            # Aplica força de puxão no alvo
+                            alvo = res["alvo"]
+                            forca = res.get("forca", 5.0)
+                            dx = area.x - alvo.pos[0]
+                            dy = area.y - alvo.pos[1]
+                            dist = math.hypot(dx, dy) or 1
+                            # Aplica velocidade em direção ao centro
+                            if hasattr(alvo, 'vel'):
+                                alvo.vel[0] += (dx / dist) * forca * dt
+                                alvo.vel[1] += (dy / dist) * forca * dt
+                        
+                        elif res.get("dot_tick"):
+                            # Aplica dano de DoT (Damage over Time)
+                            alvo = res["alvo"]
+                            dano_dot = res.get("dano", 5)
+                            tipo_dot = res.get("tipo", "FOGO")
+                            if alvo.tomar_dano(dano_dot, 0, 0, tipo_dot):
+                                self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
+                                self.ativar_slow_motion()
+                                self.vencedor = area.dono.dados.nome
+                            else:
+                                cor_dot = self._get_cor_efeito(tipo_dot)
+                                self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano_dot), cor_dot, 14))
+                
                 if area.ativo:
                     # Verifica colisão com alvos
                     for alvo in [self.p1, self.p2]:
@@ -396,6 +688,9 @@ class Simulador:
                             else:
                                 cor_txt = self._get_cor_efeito(area.tipo_efeito)
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), cor_txt))
+            
+            # Adiciona novas áreas criadas por ondas/meteoros
+            self.areas.extend(novas_areas)
             self.areas = [a for a in self.areas if a.ativo]
 
         # === ATUALIZA BEAMS ===
@@ -427,28 +722,140 @@ class Simulador:
                             self.cam.aplicar_shake(8.0, 0.1)
             self.beams = [b for b in self.beams if b.ativo]
 
+        # === ATUALIZA SUMMONS (Invocações) v2.0 ===
+        if hasattr(self, 'summons'):
+            for summon in self.summons:
+                alvos = [self.p1, self.p2]
+                resultados = summon.atualizar(dt, alvos)
+                
+                for res in resultados:
+                    if res.get("tipo") == "ataque":
+                        alvo = res["alvo"]
+                        dano = res["dano"]
+                        if alvo.tomar_dano(dano, 0, 0, "NORMAL"):
+                            self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
+                            self.ativar_slow_motion()
+                            self.vencedor = summon.dono.dados.nome
+                        else:
+                            self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), summon.cor))
+                    
+                    elif res.get("tipo") == "aura":
+                        alvo = res["alvo"]
+                        dano = res["dano"]
+                        alvo.tomar_dano(dano, 0, 0, "NORMAL")
+                    
+                    elif res.get("revive"):
+                        # Fenix reviveu!
+                        self.textos.append(FloatingText(res["x"]*PPM, res["y"]*PPM - 30, "REVIVE!", (255, 200, 50), 28))
+                        self._spawn_particulas_efeito(res["x"]*PPM, res["y"]*PPM, "FOGO")
+            
+            self.summons = [s for s in self.summons if s.ativo]
+        
+        # === ATUALIZA TRAPS (Estruturas) v2.0 ===
+        if hasattr(self, 'traps'):
+            for trap in self.traps:
+                trap.atualizar(dt)
+                
+                # Verifica colisão com lutadores
+                if trap.bloqueia_movimento:
+                    for lutador in [self.p1, self.p2]:
+                        if lutador == trap.dono:
+                            continue
+                        if trap.colidir_ponto(lutador.pos[0], lutador.pos[1]):
+                            # Empurra para fora
+                            dx = lutador.pos[0] - trap.x
+                            dy = lutador.pos[1] - trap.y
+                            dist = math.hypot(dx, dy) or 1
+                            lutador.pos[0] = trap.x + (dx / dist) * (trap.largura / 2 + 0.5)
+                            lutador.pos[1] = trap.y + (dy / dist) * (trap.altura / 2 + 0.5)
+                            
+                            # Dano de contato
+                            if trap.dano_contato > 0:
+                                lutador.tomar_dano(trap.dano_contato * dt, 0, 0, trap.efeito_contato or "NORMAL")
+            
+            self.traps = [t for t in self.traps if t.ativo]
+        
+        # === ATUALIZA TRANSFORMAÇÕES v2.0 ===
+        for lutador in [self.p1, self.p2]:
+            if hasattr(lutador, 'transformacao_ativa') and lutador.transformacao_ativa:
+                transform = lutador.transformacao_ativa
+                alvos = [self.p1, self.p2]
+                resultados = transform.atualizar(dt, alvos)
+                
+                for res in resultados:
+                    if res.get("tipo") == "contato":
+                        alvo = res["alvo"]
+                        dano = res["dano"]
+                        alvo.tomar_dano(dano, 0, 0, "NORMAL")
+                    elif res.get("tipo") == "slow":
+                        alvo = res["alvo"]
+                        alvo.slow_timer = max(alvo.slow_timer, 0.1)
+                        alvo.slow_fator = min(alvo.slow_fator, res["fator"])
+                
+                if not transform.ativo:
+                    lutador.transformacao_ativa = None
+        
+        # === ATUALIZA CANALIZAÇÕES v2.0 ===
+        for lutador in [self.p1, self.p2]:
+            if hasattr(lutador, 'channel_ativo') and lutador.channel_ativo:
+                channel = lutador.channel_ativo
+                alvos = [self.p1, self.p2]
+                resultados = channel.atualizar(dt, alvos)
+                
+                for res in resultados:
+                    if res.get("tipo") == "cura":
+                        valor = res["valor"]
+                        self.textos.append(FloatingText(lutador.pos[0]*PPM, lutador.pos[1]*PPM - 30, f"+{int(valor)}", (100, 255, 150), 14))
+                    
+                    elif res.get("tipo") == "dano":
+                        alvo = res["alvo"]
+                        dano = res["dano"]
+                        efeito = res.get("efeito", "NORMAL")
+                        
+                        if alvo.tomar_dano(dano, 0, 0, efeito):
+                            self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
+                            self.ativar_slow_motion()
+                            self.vencedor = lutador.dados.nome
+                        else:
+                            cor = self._get_cor_efeito(efeito)
+                            self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), cor, 12))
+                
+                if not channel.ativo:
+                    lutador.channel_ativo = None
+
         if not self.vencedor:
             # Atualiza Sistema de Coreografia v5.0
             if self.choreographer:
+                momento_anterior = self.choreographer.momento_atual
                 self.choreographer.update(dt)
+                
+                # === SWORD CLASH v6.1 - Detecta início do momento CLASH ===
+                if self.choreographer.momento_atual == "CLASH" and momento_anterior != "CLASH":
+                    self._executar_sword_clash()
             
             self.p1.update(dt, self.p2); self.p2.update(dt, self.p1)
+            
+            # === ATUALIZA COOLDOWNS DE SOM DE PAREDE ===
+            if hasattr(self, '_wall_sound_cooldown'):
+                for lutador_id in list(self._wall_sound_cooldown.keys()):
+                    self._wall_sound_cooldown[lutador_id] = max(0, self._wall_sound_cooldown[lutador_id] - dt)
             
             # === APLICA LIMITES DA ARENA v9.0 ===
             if self.arena:
                 # Aplica colisão com paredes para ambos os lutadores
-                p1_colidiu = self.arena.aplicar_limites(self.p1, dt)
-                p2_colidiu = self.arena.aplicar_limites(self.p2, dt)
+                # Retorna intensidade do impacto (0.0 se apenas deslizando)
+                p1_impacto = self.arena.aplicar_limites(self.p1, dt)
+                p2_impacto = self.arena.aplicar_limites(self.p2, dt)
                 
-                # Debug
-                if p1_colidiu or p2_colidiu:
-                    print(f"[COLLISION] P1={p1_colidiu} P2={p2_colidiu}")
+                # Debug apenas para impactos reais
+                if p1_impacto > 0 or p2_impacto > 0:
+                    print(f"[COLLISION] P1_impacto={p1_impacto:.1f} P2_impacto={p2_impacto:.1f}")
                 
-                # Efeitos visuais de colisão com parede
-                if p1_colidiu:
-                    self._criar_efeito_colisao_parede(self.p1)
-                if p2_colidiu:
-                    self._criar_efeito_colisao_parede(self.p2)
+                # Efeitos visuais de colisão com parede (apenas impactos reais)
+                if p1_impacto > 0:
+                    self._criar_efeito_colisao_parede(self.p1, p1_impacto)
+                if p2_impacto > 0:
+                    self._criar_efeito_colisao_parede(self.p2, p2_impacto)
                 
                 # Limpa colisões antigas da arena
                 self.arena.limpar_colisoes()
@@ -478,22 +885,31 @@ class Simulador:
                 self.particulas.remove(p)
         if len(self.decals) > 100: self.decals.pop(0)
 
-    def _criar_efeito_colisao_parede(self, lutador):
-        """Cria efeitos visuais quando lutador colide com parede da arena"""
-        # Pega a velocidade antes de verificar - usa colisões recentes da arena
-        # que guardam a intensidade real do impacto
-        intensidade_colisao = 0.0  # Começa em 0
-        if self.arena and self.arena.colisoes_recentes:
-            for col in self.arena.colisoes_recentes:
-                if len(col) >= 3:
-                    intensidade_colisao = max(intensidade_colisao, col[2])
+    def _criar_efeito_colisao_parede(self, lutador, intensidade_colisao: float):
+        """
+        Cria efeitos visuais quando lutador colide com parede da arena.
         
-        # Só cria efeito se a colisão foi em ALTA VELOCIDADE (intensidade > 8)
-        if intensidade_colisao < 8:
+        Args:
+            lutador: O lutador que colidiu
+            intensidade_colisao: Intensidade do impacto (velocidade perpendicular à parede)
+                                 Valores típicos: 2-5 leve, 5-10 médio, 10-20+ forte
+        """
+        # Só cria efeito se a colisão foi em velocidade significativa (intensidade > 5)
+        # Valores baixos são deslizamentos ou toques leves
+        if intensidade_colisao < 5:
             return
         
+        # === COOLDOWN DE SOM POR LUTADOR ===
+        # Evita múltiplos sons em sequência rápida (ex: ao quicar na parede)
+        lutador_id = id(lutador)
+        if not hasattr(self, '_wall_sound_cooldown'):
+            self._wall_sound_cooldown = {}
+        
+        sound_on_cooldown = self._wall_sound_cooldown.get(lutador_id, 0) > 0
+        
         # === ÁUDIO v10.0 - SOM DE COLISÃO COM PAREDE (APENAS IMPACTOS FORTES) ===
-        if self.audio:
+        # Só toca som se impacto forte E não está em cooldown
+        if self.audio and intensidade_colisao >= 8 and not sound_on_cooldown:
             # Volume varia de 0.4 (impacto médio) a 1.0 (impacto muito forte)
             # intensidade 8 = volume 0.4, intensidade 20+ = volume 1.0
             volume = 0.4 + (intensidade_colisao - 8) * 0.05
@@ -504,9 +920,12 @@ class Simulador:
                 self.audio.play("wall_impact_heavy", volume=volume)
             else:
                 self.audio.play("wall_impact_light", volume=volume)
+            
+            # Aplica cooldown de 0.3 segundos para este lutador
+            self._wall_sound_cooldown[lutador_id] = 0.3
             print(f"[AUDIO] Wall hit! intensidade={intensidade_colisao:.1f}, volume={volume:.2f}")
         
-        # Intensidade baseada na velocidade
+        # Intensidade normalizada para efeitos visuais (0.0 a 1.0)
         intensidade = min(1.0, intensidade_colisao / 15)
         
         # Partículas de poeira/impacto
@@ -538,41 +957,159 @@ class Simulador:
             self.impact_flashes.append(ImpactFlash(x_px, y_px, cor_parede, intensidade * 0.8, "physical"))
 
     def _get_cor_efeito(self, efeito):
-        """Retorna cor do texto baseado no tipo de efeito"""
+        """Retorna cor do texto baseado no tipo de efeito - v2.0 COLOSSAL"""
         cores = {
+            # Base
             "NORMAL": BRANCO,
+            # Fogo
             "FOGO": (255, 100, 0),
             "QUEIMAR": (255, 150, 50),
+            "QUEIMANDO": (255, 120, 20),
+            # Gelo
             "GELO": (150, 220, 255),
             "CONGELAR": (100, 200, 255),
+            "CONGELADO": (180, 230, 255),
+            "LENTO": (150, 200, 255),
+            # Natureza/Veneno
             "VENENO": (100, 255, 100),
+            "ENVENENADO": (80, 220, 80),
+            "NATUREZA": (100, 200, 50),
+            # Sangue
             "SANGRAMENTO": (180, 0, 30),
+            "SANGRANDO": (200, 30, 30),
+            "SANGUE": (180, 0, 50),
+            # Raio
             "RAIO": (255, 255, 100),
-            "ATORDOAR": (255, 255, 150),
+            "PARALISIA": (255, 255, 150),
+            # Trevas
             "TREVAS": (150, 0, 200),
             "DRENAR": (80, 0, 120),
+            "MALDITO": (100, 0, 150),
+            "NECROSE": (50, 50, 50),
+            # Luz
+            "LUZ": (255, 255, 220),
+            "CEGO": (255, 255, 200),
+            # Arcano
+            "ARCANO": (150, 100, 255),
+            "SILENCIADO": (180, 150, 255),
+            # Tempo
+            "TEMPO": (200, 180, 255),
+            "TEMPO_PARADO": (220, 200, 255),
+            # Gravitação
+            "GRAVITACAO": (100, 50, 150),
+            "PUXADO": (120, 70, 180),
+            "VORTEX": (80, 30, 130),
+            # Caos
+            "CAOS": (255, 100, 200),
+            # CC
+            "ATORDOAR": (255, 255, 150),
+            "ATORDOADO": (255, 255, 100),
+            "ENRAIZADO": (139, 90, 43),
+            "MEDO": (150, 0, 150),
+            "CHARME": (255, 150, 200),
+            "SONO": (100, 100, 200),
+            "KNOCK_UP": (200, 200, 255),
+            # Debuffs
+            "FRACO": (150, 150, 150),
+            "VULNERAVEL": (255, 150, 150),
+            "EXAUSTO": (100, 100, 100),
+            "MARCADO": (255, 200, 50),
+            "EXPOSTO": (255, 180, 100),
+            "CORROENDO": (150, 100, 50),
+            # Buffs
+            "ACELERADO": (255, 200, 100),
+            "FORTALECIDO": (255, 150, 50),
+            "BLINDADO": (200, 200, 200),
+            "REGENERANDO": (100, 255, 100),
+            "ESCUDO_MAGICO": (150, 150, 255),
+            "FURIA": (255, 50, 50),
+            "INVISIVEL": (200, 200, 200),
+            "INTANGIVEL": (180, 180, 255),
+            "DETERMINADO": (255, 200, 100),
+            "ABENÇOADO": (255, 255, 200),
+            "IMORTAL": (255, 215, 0),
+            # Especiais
             "EMPURRAO": (200, 200, 255),
             "EXPLOSAO": (255, 200, 50),
+            "BOMBA_RELOGIO": (255, 150, 0),
+            "POSSESSO": (100, 0, 100),
+            "LINK_ALMA": (255, 100, 255),
+            "ESPELHADO": (200, 200, 255),
+            "PERFURAR": (200, 200, 200),
         }
         return cores.get(efeito, BRANCO)
     
     def _spawn_particulas_efeito(self, x, y, efeito):
-        """Spawna partículas específicas do efeito"""
+        """Spawna partículas específicas do efeito - v2.0 COLOSSAL"""
         cores_part = {
+            # Fogo
             "QUEIMAR": (255, 100, 0),
+            "QUEIMANDO": (255, 120, 20),
+            "FOGO": (255, 150, 50),
+            # Gelo
             "CONGELAR": (150, 220, 255),
+            "CONGELADO": (180, 240, 255),
+            "LENTO": (150, 200, 255),
+            "GELO": (100, 200, 255),
+            # Natureza/Veneno
             "VENENO": (100, 255, 100),
+            "ENVENENADO": (80, 220, 80),
+            "NATUREZA": (100, 200, 50),
+            # Sangue
             "SANGRAMENTO": VERMELHO_SANGUE,
-            "ATORDOAR": (255, 255, 100),
+            "SANGRANDO": (200, 30, 30),
+            "SANGUE": (180, 0, 50),
+            # Raio
+            "RAIO": (255, 255, 100),
+            "PARALISIA": (255, 255, 150),
+            # Trevas
+            "TREVAS": (100, 0, 150),
             "DRENAR": (80, 0, 120),
+            "MALDITO": (100, 0, 150),
+            "NECROSE": (50, 50, 50),
+            # Luz
+            "LUZ": (255, 255, 220),
+            "CEGO": (255, 255, 200),
+            # Arcano
+            "ARCANO": (150, 100, 255),
+            "SILENCIADO": (180, 150, 255),
+            # Tempo
+            "TEMPO": (200, 180, 255),
+            "TEMPO_PARADO": (220, 200, 255),
+            # Gravitação
+            "GRAVITACAO": (100, 50, 150),
+            "PUXADO": (120, 70, 180),
+            "VORTEX": (80, 30, 130),
+            # Caos
+            "CAOS": (255, 100, 200),
+            # CC
+            "ATORDOAR": (255, 255, 100),
+            "ATORDOADO": (255, 255, 100),
+            "ENRAIZADO": (139, 90, 43),
+            "KNOCK_UP": (200, 200, 255),
+            # Especiais
             "EXPLOSAO": (255, 200, 50),
+            "BOMBA_RELOGIO": (255, 150, 0),
         }
         cor = cores_part.get(efeito)
         if cor:
-            for _ in range(8):
+            # Quantidade de partículas varia por tipo
+            qtd = 8
+            if efeito in ["EXPLOSAO", "FOGO", "QUEIMANDO"]:
+                qtd = 15
+            elif efeito in ["RAIO", "PARALISIA"]:
+                qtd = 12
+            elif efeito in ["VORTEX", "GRAVITACAO"]:
+                qtd = 20
+            elif efeito in ["CAOS"]:
+                qtd = 18
+            
+            for _ in range(qtd):
                 vx = random.uniform(-8, 8)
                 vy = random.uniform(-8, 8)
-                self.particulas.append(Particula(x, y, cor, vx, vy, random.randint(3, 6), 0.5))
+                tamanho = random.randint(3, 7)
+                vida = random.uniform(0.4, 0.8)
+                self.particulas.append(Particula(x, y, cor, vx, vy, tamanho, vida))
     
     def _beam_colide_alvo(self, beam, alvo):
         """Verifica se um beam colide com um alvo"""
@@ -600,9 +1137,6 @@ class Simulador:
         - Recuperação de stagger (stun_timer zerou)
         - Corrida rápida (velocidade alta contínua)
         """
-        if not self.movement_anims:
-            return
-        
         for lutador in [self.p1, self.p2]:
             if lutador.morto:
                 continue
@@ -615,18 +1149,29 @@ class Simulador:
             listener_x = (self.p1.pos[0] + self.p2.pos[0]) / 2  # Centro entre lutadores
             
             # === ATERRISSAGEM ===
-            if z_anterior > 0.5 and z_atual <= 0.1:
-                # Calcula intensidade baseada na velocidade de queda
-                vel_queda = abs(getattr(lutador, 'vel_z', 0))
-                self.movement_anims.criar_landing_effect(lutador, vel_queda + 5)
+            # Detecta quando z cai para o chão (aterrissando)
+            # Trigger mais cedo: quando z cai de qualquer altura para perto do chão
+            if z_anterior > 0.15 and z_atual <= 0.05:
                 # Som de aterrissagem
-                self.audio.play_movement("land", pos_x, listener_x)
+                if self.audio:
+                    self.audio.play_movement("land", pos_x, listener_x)
+                    print(f"[SOUND] Land triggered for {lutador.dados.nome}, z: {z_anterior:.2f} -> {z_atual:.2f}")
+                # Efeito visual (se disponível)
+                if self.movement_anims:
+                    vel_queda = abs(getattr(lutador, 'vel_z', 0))
+                    self.movement_anims.criar_landing_effect(lutador, vel_queda + 5)
             
             # === PULO ===
-            elif z_atual > 0.5 and z_anterior <= 0.1:
-                self.movement_anims.criar_jump_effect(lutador)
+            # Detecta quando z começa a subir do chão (iniciando pulo)
+            # Threshold baixo: vel_z ~10 * dt ~0.017 = ~0.17 de aumento por frame
+            elif z_anterior <= 0.05 and z_atual > 0.1:
                 # Som de pulo
-                self.audio.play_movement("jump", pos_x, listener_x)
+                if self.audio:
+                    self.audio.play_movement("jump", pos_x, listener_x)
+                    print(f"[SOUND] Jump triggered for {lutador.dados.nome}, z: {z_anterior:.2f} -> {z_atual:.2f}")
+                # Efeito visual (se disponível)
+                if self.movement_anims:
+                    self.movement_anims.criar_jump_effect(lutador)
             
             # === DASH ===
             dash_atual = getattr(lutador, 'dash_timer', 0)
@@ -636,30 +1181,34 @@ class Simulador:
                 # Novo dash detectado
                 direcao = math.radians(lutador.angulo_olhar)
                 
-                # Determina tipo de dash baseado na ação
-                acao = getattr(lutador.brain, 'acao_atual', "")
-                if acao in ["RECUAR", "FUGIR"]:
-                    tipo = MovementType.DASH_BACKWARD
-                elif acao in ["CIRCULAR", "FLANQUEAR"]:
-                    tipo = MovementType.DASH_LATERAL
-                else:
-                    tipo = MovementType.DASH_FORWARD
-                
-                self.movement_anims.criar_dash_effect(lutador, direcao, tipo)
                 # Som de dash
-                self.audio.play_skill("DASH", "", pos_x, listener_x, phase="cast")
+                if self.audio:
+                    self.audio.play_skill("DASH", "", pos_x, listener_x, phase="cast")
+                
+                # Efeito visual (se disponível)
+                if self.movement_anims:
+                    # Determina tipo de dash baseado na ação
+                    acao = getattr(lutador.brain, 'acao_atual', "")
+                    if acao in ["RECUAR", "FUGIR"]:
+                        tipo = MovementType.DASH_BACKWARD
+                    elif acao in ["CIRCULAR", "FLANQUEAR"]:
+                        tipo = MovementType.DASH_LATERAL
+                    else:
+                        tipo = MovementType.DASH_FORWARD
+                    self.movement_anims.criar_dash_effect(lutador, direcao, tipo)
             
             # === RECUPERAÇÃO DE STAGGER ===
             stagger_atual = getattr(lutador, 'stun_timer', 0) > 0
             stagger_anterior = self._prev_stagger.get(lutador, False)
             
             if stagger_anterior and not stagger_atual:
-                # Acabou de se recuperar
-                self.movement_anims.criar_recovery_effect(lutador)
+                # Acabou de se recuperar - efeito visual
+                if self.movement_anims:
+                    self.movement_anims.criar_recovery_effect(lutador)
             
             # === CORRIDA RÁPIDA ===
             vel_magnitude = math.hypot(lutador.vel[0], lutador.vel[1])
-            if vel_magnitude > 12.0 and z_atual <= 0.1:
+            if vel_magnitude > 12.0 and z_atual <= 0.1 and self.movement_anims:
                 # Correndo rápido no chão
                 if random.random() < 0.15:  # Não spammar efeitos
                     direcao = math.atan2(lutador.vel[1], lutador.vel[0])
@@ -761,6 +1310,88 @@ class Simulador:
                 math.cos(ang) * vel / 60, math.sin(ang) * vel / 60,
                 random.randint(4, 8), 0.4
             ))
+    
+    def _executar_sword_clash(self):
+        """Executa efeito de clash de espadas entre dois lutadores (momento cinematográfico)"""
+        if not self.p1 or not self.p2:
+            return
+        
+        # === CANCELA OS ATAQUES DE AMBOS (evita que alguém tome dano) ===
+        self.p1.atacando = False
+        self.p2.atacando = False
+        self.p1.timer_animacao = 0
+        self.p2.timer_animacao = 0
+        # Reseta cooldown de ataque para que possam atacar novamente após o clash
+        self.p1.cooldown_ataque = 0.3
+        self.p2.cooldown_ataque = 0.3
+        # Limpa alvos atingidos para evitar hits fantasmas
+        self.p1.alvos_atingidos_neste_ataque.clear()
+        self.p2.alvos_atingidos_neste_ataque.clear()
+        
+        # Ponto médio do clash (entre os dois lutadores)
+        mx = (self.p1.pos[0] + self.p2.pos[0]) / 2
+        my = (self.p1.pos[1] + self.p2.pos[1]) / 2
+        
+        # Cores das armas/lutadores
+        cor1 = self.p1.dados.cor if hasattr(self.p1, 'dados') and hasattr(self.p1.dados, 'cor') else (255, 180, 80)
+        cor2 = self.p2.dados.cor if hasattr(self.p2, 'dados') and hasattr(self.p2.dados, 'cor') else (80, 180, 255)
+        
+        # === EFEITOS VISUAIS ===
+        # Flash de impacto principal
+        self.impact_flashes.append(ImpactFlash(mx * PPM, my * PPM, AMARELO_FAISCA, 2.0, "clash"))
+        
+        # Shockwave dramático
+        self.shockwaves.append(Shockwave(mx * PPM, my * PPM, BRANCO, tamanho=2.5))
+        
+        # Texto épico
+        textos_clash = ["CLASH!", "CLANG!", "⚔ CLASH ⚔", "STEEL!", "IMPACTO!"]
+        texto = random.choice(textos_clash)
+        self.textos.append(FloatingText(mx * PPM, my * PPM - 50, texto, AMARELO_FAISCA, 40))
+        
+        # === SOM DE CLASH DE ESPADAS - FORÇA TOCAR ===
+        print(f"[SWORD CLASH] Tentando tocar som clash_swords...")
+        try:
+            # Tenta via AudioManager
+            if hasattr(self.audio, 'sounds') and 'clash_swords' in self.audio.sounds:
+                sound = self.audio.sounds['clash_swords']
+                sound.set_volume(1.0)
+                sound.play()
+                print(f"[SWORD CLASH] Som tocado diretamente!")
+            else:
+                # Fallback: tenta carregar e tocar
+                import os
+                sound_path = os.path.join("sounds", "clash_swords.mp3")
+                if os.path.exists(sound_path):
+                    sound = pygame.mixer.Sound(sound_path)
+                    sound.set_volume(1.0)
+                    sound.play()
+                    print(f"[SWORD CLASH] Som carregado e tocado via fallback!")
+                else:
+                    print(f"[SWORD CLASH] ERRO: Arquivo de som não encontrado!")
+        except Exception as e:
+            print(f"[SWORD CLASH] ERRO ao tocar som: {e}")
+        
+        # === CAMERA SHAKE E HIT STOP DRAMÁTICOS ===
+        self.cam.aplicar_shake(20.0, 0.3)
+        self.hit_stop_timer = 0.2  # Pausa dramática
+        
+        # === PARTÍCULAS DE FAÍSCAS ===
+        for _ in range(40):
+            ang = random.uniform(0, math.pi * 2)
+            vel = random.uniform(100, 250)
+            cor = random.choice([AMARELO_FAISCA, BRANCO, cor1, cor2, (255, 200, 100)])
+            self.particulas.append(Particula(
+                mx * PPM, my * PPM, cor,
+                math.cos(ang) * vel / 60, math.sin(ang) * vel / 60,
+                random.randint(3, 7), random.uniform(0.3, 0.6)
+            ))
+        
+        # === EFEITO ADICIONAL - Hit Sparks nas armas ===
+        # Direção aleatória para as faíscas
+        direcao_faiscas = random.uniform(0, math.pi * 2)
+        self.hit_sparks.append(HitSpark(mx * PPM, my * PPM, AMARELO_FAISCA, direcao_faiscas, 1.5))
+        
+        print(f"[SWORD CLASH] Épico clash de espadas em ({mx:.1f}, {my:.1f})!")
     
     # =========================================================================
     # SISTEMA DE BLOQUEIO E DESVIO v7.0
@@ -1038,6 +1669,10 @@ class Simulador:
         - Hit Stop proporcional à classe (Força > Ágil)
         - Super Armor para tanks/berserkers
         - Camera shake baseado em INTENSIDADE, não velocidade
+        
+        === v10.1: PREVENÇÃO DE MULTI-HIT ===
+        - Cada ataque só pode acertar cada alvo UMA vez
+        - Evita o bug de múltiplos hits durante um único swing
         """
         
         # Armas ranged e mágicas NÃO usam hitbox direta
@@ -1046,24 +1681,35 @@ class Simulador:
         if arma and arma.tipo in ["Arremesso", "Arco", "Mágica"]:
             return False  # Dano é feito pelos projéteis/orbes, não pela hitbox
         
+        # === v10.1: VERIFICA SE JÁ ACERTOU ESTE ALVO NESTE ATAQUE ===
+        defensor_id = id(defensor)
+        if hasattr(atacante, 'alvos_atingidos_neste_ataque'):
+            if defensor_id in atacante.alvos_atingidos_neste_ataque:
+                # Já acertou este alvo neste ataque, ignora
+                return False
+        
         # Usa o novo sistema modular para armas melee
         acertou, motivo = verificar_hit(atacante, defensor)
         
         if acertou:
+            # === v10.1: MARCA ALVO COMO ATINGIDO NESTE ATAQUE ===
+            if hasattr(atacante, 'alvos_atingidos_neste_ataque'):
+                atacante.alvos_atingidos_neste_ataque.add(defensor_id)
+            
             dx, dy = int(defensor.pos[0] * PPM), int(defensor.pos[1] * PPM)
             vx = defensor.pos[0] - atacante.pos[0]
             vy = defensor.pos[1] - atacante.pos[1]
             mag = math.hypot(vx, vy) or 1
             
-            # === ÁUDIO v10.0 - SOM DE ATAQUE ===
-            tipo_ataque = arma.tipo if arma else "SOCO"
-            if self.audio:
-                listener_x = self.cam.x / PPM
-                self.audio.play_attack(tipo_ataque, atacante.pos[0], listener_x)
-            
             # Usa o novo sistema de dano modificado
             dano_base = arma.dano * (atacante.dados.forca / 2.0)
             dano, is_critico = atacante.calcular_dano_ataque(dano_base) if hasattr(atacante, 'calcular_dano_ataque') else (dano_base, False)
+            
+            # === ÁUDIO v10.0 - SOM DE ATAQUE (baseado no dano) ===
+            tipo_ataque = arma.tipo if arma else "SOCO"
+            if self.audio:
+                listener_x = self.cam.x / PPM
+                self.audio.play_attack(tipo_ataque, atacante.pos[0], listener_x, damage=dano, is_critical=is_critico)
             
             # Notifica Sistema de Coreografia v5.0
             if self.choreographer:
@@ -1170,7 +1816,7 @@ class Simulador:
                     if impact_result['zoom_punch'] > 0:
                         self.cam.zoom_punch(impact_result['zoom_punch'], 0.15)
             
-            if defensor.tomar_dano(dano, kb_x, kb_y, "NORMAL"):
+            if defensor.tomar_dano(dano, kb_x, kb_y, "NORMAL", atacante=atacante):
                 # === ÁUDIO v10.0 - SOM DE MORTE ===
                 if self.audio:
                     self.audio.play_special("ko", volume=1.0)
@@ -1265,22 +1911,54 @@ class Simulador:
         
         for d in self.decals: d.draw(self.tela, self.cam)
         
-        # === DESENHA ÁREAS ===
+        # === DESENHA ÁREAS COM EFEITOS DRAMÁTICOS v11.0 ===
         if hasattr(self, 'areas'):
             for area in self.areas:
                 if area.ativo:
                     ax, ay = self.cam.converter(area.x * PPM, area.y * PPM)
                     ar = self.cam.converter_tam(area.raio_atual * PPM)
                     if ar > 0:
+                        # Pulso baseado no tempo
+                        pulse_time = pygame.time.get_ticks() / 1000.0
+                        pulse = 0.85 + 0.15 * math.sin(pulse_time * 6)
+                        ar_pulsing = int(ar * pulse)
+                        
+                        # Múltiplas camadas para glow dramático
+                        # Camada externa (glow)
+                        s_glow = pygame.Surface((ar*4, ar*4), pygame.SRCALPHA)
+                        glow_alpha = int(30 + 20 * math.sin(pulse_time * 4))
+                        pygame.draw.circle(s_glow, (*area.cor[:3], glow_alpha), (ar*2, ar*2), ar*2)
+                        self.tela.blit(s_glow, (ax - ar*2, ay - ar*2))
+                        
+                        # Camada média
                         s = pygame.Surface((ar*2, ar*2), pygame.SRCALPHA)
-                        cor_com_alpha = (*area.cor, min(255, area.alpha // 2))
-                        pygame.draw.circle(s, cor_com_alpha, (ar, ar), ar)
+                        cor_com_alpha = (*area.cor[:3], min(255, area.alpha // 3))
+                        pygame.draw.circle(s, cor_com_alpha, (ar, ar), ar_pulsing)
                         self.tela.blit(s, (ax - ar, ay - ar))
-                        # Borda
-                        pygame.draw.circle(self.tela, area.cor, (ax, ay), ar, 2)
+                        
+                        # Anéis pulsantes (2-3 anéis)
+                        for i in range(3):
+                            ring_phase = pulse_time * (3 + i) + i * 0.5
+                            ring_pulse = 0.5 + 0.5 * ((ring_phase % 1.0))
+                            ring_r = int(ar * ring_pulse)
+                            if ring_r > 2 and ring_r < ar:
+                                ring_alpha = int(150 * (1 - ring_pulse))
+                                s_ring = pygame.Surface((ring_r*2+4, ring_r*2+4), pygame.SRCALPHA)
+                                pygame.draw.circle(s_ring, (*area.cor[:3], ring_alpha), (ring_r+2, ring_r+2), ring_r, 2)
+                                self.tela.blit(s_ring, (ax - ring_r - 2, ay - ring_r - 2))
+                        
+                        # Borda principal (brilhante)
+                        pygame.draw.circle(self.tela, area.cor, (ax, ay), ar_pulsing, 3)
+                        # Core brilhante
+                        inner_r = int(ar * 0.3)
+                        if inner_r > 2:
+                            s_core = pygame.Surface((inner_r*2+4, inner_r*2+4), pygame.SRCALPHA)
+                            pygame.draw.circle(s_core, (255, 255, 255, 80), (inner_r+2, inner_r+2), inner_r)
+                            self.tela.blit(s_core, (ax - inner_r - 2, ay - inner_r - 2))
         
-        # === DESENHA BEAMS ===
+        # === DESENHA BEAMS COM EFEITOS DRAMÁTICOS v11.0 ===
         if hasattr(self, 'beams'):
+            pulse_time = pygame.time.get_ticks() / 1000.0
             for beam in self.beams:
                 if beam.ativo:
                     # Desenha segmentos zigzag
@@ -1289,16 +1967,141 @@ class Simulador:
                         sx, sy = self.cam.converter(bx * PPM, by * PPM)
                         pts_screen.append((sx, sy))
                     if len(pts_screen) >= 2:
-                        # Glow externo
-                        pygame.draw.lines(self.tela, (255, 255, 255), False, pts_screen, beam.largura + 4)
-                        # Beam principal
-                        pygame.draw.lines(self.tela, beam.cor, False, pts_screen, beam.largura)
-                        # Core brilhante
-                        pygame.draw.lines(self.tela, BRANCO, False, pts_screen, max(1, beam.largura // 2))
+                        pulse = 0.8 + 0.4 * abs(math.sin(pulse_time * 12))
+                        largura_efetiva = int(beam.largura * pulse)
+                        
+                        # Calcula bounding box para surface
+                        min_x = min(p[0] for p in pts_screen) - largura_efetiva - 10
+                        min_y = min(p[1] for p in pts_screen) - largura_efetiva - 10
+                        max_x = max(p[0] for p in pts_screen) + largura_efetiva + 10
+                        max_y = max(p[1] for p in pts_screen) + largura_efetiva + 10
+                        
+                        w = int(max_x - min_x + 1)
+                        h = int(max_y - min_y + 1)
+                        
+                        if w > 0 and h > 0:
+                            s = pygame.Surface((w, h), pygame.SRCALPHA)
+                            local_pts = [(int(p[0] - min_x), int(p[1] - min_y)) for p in pts_screen]
+                            
+                            # Glow externo (muito largo, semi-transparente)
+                            glow_alpha = int(60 + 30 * math.sin(pulse_time * 8))
+                            pygame.draw.lines(s, (*beam.cor[:3], glow_alpha), False, local_pts, largura_efetiva + 12)
+                            
+                            # Glow médio
+                            pygame.draw.lines(s, (*beam.cor[:3], 150), False, local_pts, largura_efetiva + 6)
+                            
+                            # Beam principal colorido
+                            pygame.draw.lines(s, beam.cor, False, local_pts, largura_efetiva)
+                            
+                            # Core brilhante branco
+                            core_largura = max(2, largura_efetiva // 2)
+                            pygame.draw.lines(s, (255, 255, 255), False, local_pts, core_largura)
+                            
+                            self.tela.blit(s, (min_x, min_y))
+                        
+                        # Partículas ao longo do beam
+                        if random.random() < 0.3:
+                            idx = random.randint(0, len(pts_screen) - 1)
+                            px, py = pts_screen[idx]
+                            # Particula(x, y, cor, vel_x, vel_y, tamanho, vida_util)
+                            self.particulas.append(Particula(
+                                px + random.uniform(-10, 10),
+                                py + random.uniform(-10, 10),
+                                beam.cor,
+                                random.uniform(-30, 30),  # vel_x
+                                random.uniform(-30, 30),  # vel_y
+                                random.uniform(3, 6),     # tamanho
+                                0.3                       # vida_util
+                            ))
         
         for p in self.particulas:
             sx, sy = self.cam.converter(p.x, p.y); tam = self.cam.converter_tam(p.tamanho)
-            pygame.draw.rect(self.tela, p.cor, (sx, sy, tam, tam))
+            # Desenha partícula com glow
+            if tam > 2:
+                s = pygame.Surface((int(tam*2)+4, int(tam*2)+4), pygame.SRCALPHA)
+                pygame.draw.circle(s, (*p.cor, 100), (int(tam)+2, int(tam)+2), int(tam))
+                pygame.draw.circle(s, p.cor, (int(tam)+2, int(tam)+2), max(1, int(tam*0.6)))
+                self.tela.blit(s, (sx - int(tam) - 2, sy - int(tam) - 2))
+            else:
+                pygame.draw.rect(self.tela, p.cor, (sx, sy, max(1, int(tam)), max(1, int(tam))))
+        
+        # === DESENHA SUMMONS (Invocações) v11.0 DRAMATIC ===
+        if hasattr(self, 'summons') and self.summons:
+            pulse_time = pygame.time.get_ticks() / 1000.0
+            for summon in self.summons:
+                if summon.ativo:
+                    sx, sy = self.cam.converter(summon.x * PPM, summon.y * PPM)
+                    raio = self.cam.converter_tam(0.8 * PPM)  # Tamanho visual do summon
+                    
+                    # Círculo mágico no chão (rotacionando)
+                    rotacao = pulse_time * 2
+                    circle_r = int(raio * 1.5)
+                    s_circle = pygame.Surface((circle_r*2+4, circle_r*2+4), pygame.SRCALPHA)
+                    pygame.draw.circle(s_circle, (*summon.cor, 60), (circle_r+2, circle_r+2), circle_r, 2)
+                    # Runas (linhas radiais)
+                    for i in range(8):
+                        ang = rotacao + i * (math.pi / 4)
+                        inner = circle_r * 0.6
+                        outer = circle_r
+                        x1 = circle_r + 2 + math.cos(ang) * inner
+                        y1 = circle_r + 2 + math.sin(ang) * inner
+                        x2 = circle_r + 2 + math.cos(ang) * outer
+                        y2 = circle_r + 2 + math.sin(ang) * outer
+                        pygame.draw.line(s_circle, (*summon.cor, 100), (int(x1), int(y1)), (int(x2), int(y2)), 2)
+                    self.tela.blit(s_circle, (sx - circle_r - 2, sy - circle_r - 2))
+                    
+                    # Sombra
+                    pygame.draw.ellipse(self.tela, (30, 30, 30), (sx - raio, sy + raio//2, raio*2, raio//2))
+                    
+                    # Glow exterior pulsante
+                    glow_pulse = 0.8 + 0.4 * math.sin(pulse_time * 5 + summon.vida_timer)
+                    s = pygame.Surface((int(raio*4), int(raio*4)), pygame.SRCALPHA)
+                    glow_alpha = int((60 + 40 * math.sin(summon.vida_timer * 3)) * glow_pulse)
+                    pygame.draw.circle(s, (*summon.cor, glow_alpha), (int(raio*2), int(raio*2)), int(raio * 1.8 * glow_pulse))
+                    self.tela.blit(s, (sx - raio*2, sy - raio*2))
+                    
+                    # Corpo do summon (baseado na cor da skill) com gradiente
+                    pygame.draw.circle(self.tela, summon.cor, (int(sx), int(sy)), int(raio))
+                    pygame.draw.circle(self.tela, tuple(min(255, c + 50) for c in summon.cor), (int(sx), int(sy)), int(raio * 0.7))
+                    
+                    # Core brilhante
+                    pygame.draw.circle(self.tela, BRANCO, (int(sx), int(sy)), max(1, int(raio * 0.35)))
+                    
+                    # Barra de vida do summon
+                    vida_pct = summon.vida / summon.vida_max
+                    barra_w = raio * 2
+                    pygame.draw.rect(self.tela, (50, 50, 50), (sx - raio, sy - raio - 10, barra_w, 5))
+                    pygame.draw.rect(self.tela, summon.cor, (sx - raio, sy - raio - 10, barra_w * vida_pct, 5))
+                    
+                    # Nome do summon
+                    font = pygame.font.Font(None, 16)
+                    nome_txt = font.render(summon.nome, True, summon.cor)
+                    self.tela.blit(nome_txt, (sx - nome_txt.get_width()//2, sy - raio - 22))
+        
+        # === DESENHA TRAPS (Armadilhas) v2.0 ===
+        if hasattr(self, 'traps'):
+            for trap in self.traps:
+                if trap.ativo:
+                    tx, ty = self.cam.converter(trap.x * PPM, trap.y * PPM)
+                    traio = self.cam.converter_tam(trap.raio * PPM)
+                    
+                    # Desenha armadilha como hexágono ou círculo
+                    if trap.bloqueia_movimento:
+                        # Estrutura sólida - hexágono
+                        pts = []
+                        for i in range(6):
+                            ang = i * (math.pi / 3) + trap.angulo
+                            pts.append((tx + math.cos(ang) * traio, ty + math.sin(ang) * traio))
+                        pygame.draw.polygon(self.tela, trap.cor, pts)
+                        pygame.draw.polygon(self.tela, BRANCO, pts, 2)
+                    else:
+                        # Armadilha no chão - círculo com padrão
+                        s = pygame.Surface((traio*2, traio*2), pygame.SRCALPHA)
+                        pygame.draw.circle(s, (*trap.cor, 150), (traio, traio), traio)
+                        self.tela.blit(s, (tx - traio, ty - traio))
+                        # Marcas de perigo
+                        pygame.draw.circle(self.tela, trap.cor, (int(tx), int(ty)), int(traio), 2)
+                        pygame.draw.circle(self.tela, trap.cor, (int(tx), int(ty)), int(traio * 0.5), 1)
         
         # === DESENHA MARCAS NO CHÃO (CRATERAS, RACHADURAS) - v8.0 IMPACT ===
         if hasattr(self, 'attack_anims') and self.attack_anims:
@@ -1308,22 +2111,46 @@ class Simulador:
         lutadores.sort(key=lambda p: 0 if p.morto else 1)
         for l in lutadores: self.desenhar_lutador(l)
         
-        # === DESENHA PROJÉTEIS COM TRAIL ===
+        # === DESENHA PROJÉTEIS COM TRAIL DRAMÁTICO v11.0 ===
+        pulse_time = pygame.time.get_ticks() / 1000.0
         for proj in self.projeteis:
-            # Trail
+            # Trail dramático com glow
             if hasattr(proj, 'trail') and len(proj.trail) > 1:
+                cor_trail = proj.cor if hasattr(proj, 'cor') else BRANCO
+                
                 for i in range(1, len(proj.trail)):
-                    alpha = int(255 * (i / len(proj.trail)) * 0.5)
+                    t = i / len(proj.trail)
+                    alpha = int(255 * t * 0.7)
+                    largura = max(1, int(proj.raio * PPM * self.cam.zoom * t))
+                    
                     p1 = self.cam.converter(proj.trail[i-1][0] * PPM, proj.trail[i-1][1] * PPM)
                     p2 = self.cam.converter(proj.trail[i][0] * PPM, proj.trail[i][1] * PPM)
-                    # Trail colorido
-                    cor_trail = proj.cor if hasattr(proj, 'cor') else BRANCO
-                    pygame.draw.line(self.tela, cor_trail, p1, p2, max(1, int(proj.raio * PPM * self.cam.zoom * 0.5)))
+                    
+                    # Glow do trail (mais largo, semi-transparente)
+                    if largura > 2:
+                        s = pygame.Surface((abs(int(p2[0]-p1[0]))+largura*4, abs(int(p2[1]-p1[1]))+largura*4), pygame.SRCALPHA)
+                        offset_x = min(p1[0], p2[0]) - largura*2
+                        offset_y = min(p1[1], p2[1]) - largura*2
+                        local_p1 = (p1[0] - offset_x, p1[1] - offset_y)
+                        local_p2 = (p2[0] - offset_x, p2[1] - offset_y)
+                        pygame.draw.line(s, (*cor_trail[:3], alpha // 2), local_p1, local_p2, largura * 2)
+                        pygame.draw.line(s, (*cor_trail[:3], alpha), local_p1, local_p2, largura)
+                        self.tela.blit(s, (offset_x, offset_y))
+                    else:
+                        pygame.draw.line(self.tela, cor_trail, p1, p2, largura)
             
             # Projétil principal - desenho baseado no tipo
             px, py = self.cam.converter(proj.x * PPM, proj.y * PPM)
             pr = self.cam.converter_tam(proj.raio * PPM)
             cor = proj.cor if hasattr(proj, 'cor') else BRANCO
+            
+            # Glow do projétil
+            glow_pulse = 0.8 + 0.4 * math.sin(pulse_time * 10 + id(proj) % 100)
+            glow_r = int(pr * 2 * glow_pulse)
+            if glow_r > 3:
+                s = pygame.Surface((glow_r*2+4, glow_r*2+4), pygame.SRCALPHA)
+                pygame.draw.circle(s, (*cor[:3], 60), (glow_r+2, glow_r+2), glow_r)
+                self.tela.blit(s, (px - glow_r - 2, py - glow_r - 2))
             
             tipo_proj = getattr(proj, 'tipo', 'skill')
             ang_visual = getattr(proj, 'angulo_visual', proj.angulo) if hasattr(proj, 'angulo') else 0
@@ -1449,6 +2276,10 @@ class Simulador:
         for ef in self.magic_clashes: ef.draw(self.tela, self.cam)
         for ef in self.impact_flashes: ef.draw(self.tela, self.cam)
         for ef in self.block_effects: ef.draw(self.tela, self.cam)
+        
+        # === MAGIC VFX v11.0 DRAMATIC EDITION ===
+        if hasattr(self, 'magic_vfx') and self.magic_vfx:
+            self.magic_vfx.draw(self.tela, self.cam)
 
         # === ANIMAÇÕES DE MOVIMENTO v8.0 CINEMATIC EDITION ===
         if self.movement_anims:
@@ -1463,7 +2294,7 @@ class Simulador:
 
         # === SCREEN EFFECTS (FLASH) v8.0 IMPACT ===
         if hasattr(self, 'attack_anims') and self.attack_anims:
-            self.attack_anims.draw_screen_effects(self.tela, LARGURA, ALTURA)
+            self.attack_anims.draw_screen_effects(self.tela, self.screen_width, self.screen_height)
 
         # === DEBUG VISUAL DE HITBOX ===
         if self.show_hitbox_debug:
@@ -1472,8 +2303,11 @@ class Simulador:
         if self.show_hud:
             if not self.vencedor:
                 self.desenhar_barras(self.p1, 20, 20, COR_P1, self.vida_visual_p1)
-                self.desenhar_barras(self.p2, LARGURA - 320, 20, COR_P2, self.vida_visual_p2)
-                self.desenhar_controles() 
+                # Ajusta posição P2 baseado no modo (220 em portrait, 320 em normal)
+                p2_offset = 220 if self.portrait_mode else 320
+                self.desenhar_barras(self.p2, self.screen_width - p2_offset, 20, COR_P2, self.vida_visual_p2)
+                if not self.portrait_mode:  # Esconde controles em portrait para mais espaço
+                    self.desenhar_controles() 
             else: self.desenhar_vitoria()
             if self.paused: self.desenhar_pause()
         if self.show_analysis: self.desenhar_analise()
@@ -1482,8 +2316,8 @@ class Simulador:
         start_x = int((-self.cam.x * self.cam.zoom) % (50 * self.cam.zoom))
         start_y = int((-self.cam.y * self.cam.zoom) % (50 * self.cam.zoom))
         step = int(50 * self.cam.zoom)
-        for x in range(start_x, LARGURA, step): pygame.draw.line(self.tela, COR_GRID, (x, 0), (x, ALTURA))
-        for y in range(start_y, ALTURA, step): pygame.draw.line(self.tela, COR_GRID, (0, y), (LARGURA, y))
+        for x in range(start_x, self.screen_width, step): pygame.draw.line(self.tela, COR_GRID, (x, 0), (x, self.screen_height))
+        for y in range(start_y, self.screen_height, step): pygame.draw.line(self.tela, COR_GRID, (0, y), (self.screen_width, y))
 
     def desenhar_lutador(self, l):
         px = l.pos[0] * PPM; py = l.pos[1] * PPM
@@ -1494,7 +2328,7 @@ class Simulador:
                 p_conv = self.cam.converter(ponta[0], ponta[1]); c_conv = self.cam.converter(cabo[0], cabo[1])
                 p_conv = (p_conv[0], p_conv[1] - off_y); c_conv = (c_conv[0], c_conv[1] - off_y)
                 pts_rastro.append(p_conv); pts_rastro.insert(0, c_conv)
-            s = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
+            s = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
             cor_rastro = (l.dados.arma_obj.r, l.dados.arma_obj.g, l.dados.arma_obj.b, 80)
             if len(pts_rastro) > 2: pygame.draw.polygon(s, cor_rastro, pts_rastro); self.tela.blit(s, (0,0))
         if l.morto:
@@ -1517,10 +2351,16 @@ class Simulador:
             # Intensidade do flash diminui com o tempo
             flash_intensity = l.flash_timer / 0.25
             # Mistura cor original com cor de flash
-            cor_original = (l.dados.cor_r, l.dados.cor_g, l.dados.cor_b)
-            cor = tuple(int(flash_cor[i] * flash_intensity + cor_original[i] * (1 - flash_intensity)) for i in range(3))
+            cor_r = getattr(l.dados, 'cor_r', 200) or 200
+            cor_g = getattr(l.dados, 'cor_g', 50) or 50
+            cor_b = getattr(l.dados, 'cor_b', 50) or 50
+            cor_original = (cor_r, cor_g, cor_b)
+            cor = tuple(int(max(0, min(255, flash_cor[i] * flash_intensity + cor_original[i] * (1 - flash_intensity)))) for i in range(3))
         else:
-            cor = (l.dados.cor_r, l.dados.cor_g, l.dados.cor_b)
+            cor_r = getattr(l.dados, 'cor_r', 200) or 200
+            cor_g = getattr(l.dados, 'cor_g', 50) or 50
+            cor_b = getattr(l.dados, 'cor_b', 50) or 50
+            cor = (int(cor_r), int(cor_g), int(cor_b))
         
         pygame.draw.circle(self.tela, cor, centro, raio)
         
@@ -1708,238 +2548,418 @@ class Simulador:
 
     def desenhar_arma(self, arma, centro, angulo, tam_char, raio_char, anim_scale=1.0):
         """
-        Renderiza a arma do lutador baseado no tipo.
-        
-        NOVA LÓGICA COM ANIMAÇÃO v2.0:
-        - raio_char já está em pixels de tela (já considera zoom)
-        - anim_scale aplica squash/stretch durante ataques
-        - Comprimento padrão: 1.5x a 3x o raio do personagem dependendo do tipo
+        Renderiza a arma do lutador - VERSÃO APRIMORADA v3.0
+        Visual muito mais bonito com gradientes, brilhos e detalhes.
         """
         cx, cy = centro
         rad = math.radians(angulo)
-        cor = (arma.r, arma.g, arma.b)
-        cor_raridade = getattr(arma, 'cor_raridade', (200, 200, 200))
-        tipo = arma.tipo
         
-        # Tamanho base da arma em unidades JSON
-        if tipo in ["Reta", "Dupla", "Transformável"]:
-            tam_base = arma.comp_cabo + arma.comp_lamina
-        elif tipo == "Corrente":
-            tam_base = getattr(arma, 'comp_corrente', 80)
-        elif tipo == "Arremesso":
-            tam_base = getattr(arma, 'tamanho_projetil', 15)
-        elif tipo == "Arco":
-            tam_base = getattr(arma, 'tamanho_arco', 50)
-        elif tipo == "Orbital":
-            tam_base = arma.distancia
-        elif tipo == "Mágica":
-            tam_base = getattr(arma, 'tamanho', 15)
-        else:
-            tam_base = 50
+        # Cores da arma com validação
+        cor_r = getattr(arma, 'r', 180) or 180
+        cor_g = getattr(arma, 'g', 180) or 180
+        cor_b = getattr(arma, 'b', 180) or 180
+        cor = (int(cor_r), int(cor_g), int(cor_b))
         
-        # Fator de escala: quanto do raio do personagem a arma deve ocupar
-        # Ex: fator 2.0 = arma tem comprimento de 2x o raio (= 1x o diâmetro)
-        fatores = {
-            "Reta": 2.5,        # Espada = 2.5x raio
-            "Dupla": 2.0,       # Adagas = 2x raio cada
-            "Corrente": 4.0,    # Corrente longa
-            "Arremesso": 0.8,   # Projéteis menores
-            "Arco": 2.0,        # Arco médio
-            "Orbital": 1.5,     # Orbitais próximos
-            "Mágica": 1.5,      # Espadas mágicas
-            "Transformável": 2.5
+        # Cor mais clara para highlights
+        cor_clara = tuple(min(255, c + 60) for c in cor)
+        # Cor mais escura para sombras
+        cor_escura = tuple(max(0, c - 40) for c in cor)
+        
+        # Cor de raridade para efeitos especiais
+        raridade = getattr(arma, 'raridade', 'Comum')
+        cores_raridade = {
+            'Comum': (180, 180, 180),
+            'Incomum': (30, 255, 30),
+            'Raro': (30, 144, 255),
+            'Épico': (148, 0, 211),
+            'Lendário': (255, 165, 0),
+            'Mítico': (255, 20, 147)
         }
-        fator = fatores.get(tipo, 2.0)
+        cor_raridade = cores_raridade.get(raridade, (180, 180, 180))
         
-        # Comprimento alvo em pixels = raio * fator * escala de animação
-        comp_alvo = raio_char * fator * anim_scale
+        tipo = getattr(arma, 'tipo', 'Reta')
         
-        # Escala: quanto cada unidade da arma vale em pixels
-        escala = comp_alvo / max(tam_base, 1)
+        # Escala base da arma
+        base_scale = raio_char * 0.025  # Escala relativa ao personagem
         
-        # Largura proporcional ao raio (também escala)
-        larg = max(3, int(raio_char * 0.15 * anim_scale))
+        # Largura da arma proporcional
+        larg_base = max(3, int(raio_char * 0.12 * anim_scale))
         
-        # === RETA (Espadas, Lanças) com efeito de swing ===
+        # Flag de ataque ativo (para efeitos especiais)
+        atacando = anim_scale > 1.05
+        tempo = pygame.time.get_ticks()
+        
+        # === RETA (Espadas, Lanças, Machados) ===
         if tipo == "Reta":
-            cabo = arma.comp_cabo * escala
-            lamina = arma.comp_lamina * escala
+            cabo_len = getattr(arma, 'comp_cabo', 20) * base_scale * 1.2
+            lamina_len = getattr(arma, 'comp_lamina', 60) * base_scale * 1.5 * anim_scale
+            larg = max(4, int(larg_base * 1.2))
             
-            # Ponto do cabo
-            ex, ey = cx + math.cos(rad)*cabo, cy + math.sin(rad)*cabo
-            # Ponta da lâmina
-            fx, fy = cx + math.cos(rad)*(cabo+lamina), cy + math.sin(rad)*(cabo+lamina)
+            # Pontos
+            cabo_end_x = cx + math.cos(rad) * cabo_len
+            cabo_end_y = cy + math.sin(rad) * cabo_len
+            lamina_end_x = cx + math.cos(rad) * (cabo_len + lamina_len)
+            lamina_end_y = cy + math.sin(rad) * (cabo_len + lamina_len)
             
-            # Cabo (marrom)
-            pygame.draw.line(self.tela, (100,50,0), (cx, cy), (int(ex), int(ey)), larg)
+            # === CABO ===
+            # Guarda (oval)
+            guarda_x = cabo_end_x + math.cos(rad) * 2
+            guarda_y = cabo_end_y + math.sin(rad) * 2
+            pygame.draw.ellipse(self.tela, (80, 60, 40), 
+                              (int(guarda_x - larg*1.5), int(guarda_y - larg*0.8), larg*3, larg*1.6))
             
-            # Lâmina com gradiente de brilho quando atacando
-            if anim_scale > 1.05:
-                # Brilho durante ataque
-                cor_brilho = tuple(min(255, c + 60) for c in cor)
-                pygame.draw.line(self.tela, cor_brilho, (int(ex), int(ey)), (int(fx), int(fy)), larg + 2)
-            pygame.draw.line(self.tela, cor, (int(ex), int(ey)), (int(fx), int(fy)), larg)
+            # Cabo com gradiente simulado
+            for i in range(3):
+                offset = i - 1
+                cor_cabo = (90 - i*15, 50 - i*10, 20 - i*5)
+                pygame.draw.line(self.tela, cor_cabo, 
+                               (int(cx) + offset, int(cy) + offset), 
+                               (int(cabo_end_x) + offset, int(cabo_end_y) + offset), 
+                               max(2, larg - i))
             
-            # Ponta com glow de raridade
-            if cor_raridade != (180, 180, 180):
-                pygame.draw.circle(self.tela, cor_raridade, (int(fx), int(fy)), max(3, larg//2))
+            # === LÂMINA ===
+            # Forma da lâmina (polígono para visual mais interessante)
+            perp_x = math.cos(rad + math.pi/2) * larg * 0.6
+            perp_y = math.sin(rad + math.pi/2) * larg * 0.6
+            
+            # Pontos da lâmina (forma de espada)
+            lamina_pts = [
+                (int(cabo_end_x - perp_x), int(cabo_end_y - perp_y)),  # Base esquerda
+                (int(cabo_end_x + perp_x), int(cabo_end_y + perp_y)),  # Base direita
+                (int(lamina_end_x - perp_x*0.3), int(lamina_end_y - perp_y*0.3)),  # Ponta esquerda
+                (int(lamina_end_x), int(lamina_end_y)),  # Ponta
+                (int(lamina_end_x + perp_x*0.3), int(lamina_end_y + perp_y*0.3)),  # Ponta direita
+            ]
+            
+            # Lâmina principal
+            if len(lamina_pts) >= 3:
+                pygame.draw.polygon(self.tela, cor, lamina_pts)
+                pygame.draw.polygon(self.tela, cor_escura, lamina_pts, 1)
+            
+            # Highlight central (fio da espada)
+            mid_x = (cabo_end_x + lamina_end_x) / 2
+            mid_y = (cabo_end_y + lamina_end_y) / 2
+            pygame.draw.line(self.tela, cor_clara, 
+                           (int(cabo_end_x), int(cabo_end_y)), 
+                           (int(mid_x), int(mid_y)), max(1, larg//3))
+            
+            # Efeito de brilho durante ataque
+            if atacando:
+                glow_surface = pygame.Surface((int(lamina_len*2), int(lamina_len*2)), pygame.SRCALPHA)
+                for r in range(3, 0, -1):
+                    alpha = 50 // r
+                    pygame.draw.line(glow_surface, (*cor_clara, alpha),
+                                   (lamina_len, lamina_len),
+                                   (lamina_len + math.cos(rad)*lamina_len*0.8, 
+                                    lamina_len + math.sin(rad)*lamina_len*0.8), larg + r*2)
+                self.tela.blit(glow_surface, (int(cabo_end_x - lamina_len), int(cabo_end_y - lamina_len)))
+            
+            # Efeito de raridade na ponta
+            if raridade not in ['Comum', 'Incomum']:
+                pulso = 0.5 + 0.5 * math.sin(tempo / 200)
+                glow_r = max(3, int(larg * 0.8 * (1 + pulso * 0.3)))
+                pygame.draw.circle(self.tela, cor_raridade, (int(lamina_end_x), int(lamina_end_y)), glow_r)
         
-        # === DUPLA (Adagas duplas) - ataques alternados ===
+        # === DUPLA (Adagas, Sai) ===
         elif tipo == "Dupla":
-            cabo = arma.comp_cabo * escala
-            lamina = arma.comp_lamina * escala
+            cabo_len = getattr(arma, 'comp_cabo', 15) * base_scale * 1.0
+            lamina_len = getattr(arma, 'comp_lamina', 35) * base_scale * 1.3 * anim_scale
+            sep = getattr(arma, 'separacao', 15) * base_scale
+            larg = max(3, int(larg_base * 0.9))
             
-            for i, offset_ang in enumerate([-25, 25]):
-                r = rad + math.radians(offset_ang)
-                ex, ey = cx + math.cos(r)*cabo, cy + math.sin(r)*cabo
-                fx, fy = cx + math.cos(r)*(cabo+lamina), cy + math.sin(r)*(cabo+lamina)
-                pygame.draw.line(self.tela, (100,50,0), (cx, cy), (int(ex), int(ey)), max(2, larg//2))
-                pygame.draw.line(self.tela, cor, (int(ex), int(ey)), (int(fx), int(fy)), larg)
-                if cor_raridade != (180, 180, 180):
-                    pygame.draw.circle(self.tela, cor_raridade, (int(fx), int(fy)), max(3, larg//2))
+            for i, offset_deg in enumerate([-22, 22]):
+                r = rad + math.radians(offset_deg)
+                
+                # Offset lateral
+                lado = math.cos(rad + math.pi/2) * sep * (1 if i == 0 else -1)
+                lado_y = math.sin(rad + math.pi/2) * sep * (1 if i == 0 else -1)
+                
+                base_x = cx + lado * 0.5
+                base_y = cy + lado_y * 0.5
+                
+                cabo_end_x = base_x + math.cos(r) * cabo_len
+                cabo_end_y = base_y + math.sin(r) * cabo_len
+                lamina_end_x = base_x + math.cos(r) * (cabo_len + lamina_len)
+                lamina_end_y = base_y + math.sin(r) * (cabo_len + lamina_len)
+                
+                # Cabo
+                pygame.draw.line(self.tela, (80, 50, 30), 
+                               (int(base_x), int(base_y)), 
+                               (int(cabo_end_x), int(cabo_end_y)), larg)
+                
+                # Lâmina curva (adaga)
+                perp_x = math.cos(r + math.pi/2) * larg * 0.5
+                perp_y = math.sin(r + math.pi/2) * larg * 0.5
+                
+                pts = [
+                    (int(cabo_end_x - perp_x), int(cabo_end_y - perp_y)),
+                    (int(cabo_end_x + perp_x), int(cabo_end_y + perp_y)),
+                    (int(lamina_end_x), int(lamina_end_y)),
+                ]
+                pygame.draw.polygon(self.tela, cor, pts)
+                pygame.draw.polygon(self.tela, cor_clara, pts, 1)
+                
+                # Brilho na ponta
+                pygame.draw.circle(self.tela, cor_raridade, (int(lamina_end_x), int(lamina_end_y)), max(2, larg//2))
         
-        # === CORRENTE (Kusarigama, Chicote) ===
+        # === CORRENTE (Kusarigama, Chicote, Mangual) ===
         elif tipo == "Corrente":
-            comp = getattr(arma, 'comp_corrente', 80) * escala
-            larg_ponta = max(4, int(raio_char * 0.2))
+            comp_total = getattr(arma, 'comp_corrente', 80) * base_scale * 2.5 * anim_scale
+            ponta_tam = max(6, int(raio_char * 0.25))
             
+            # Gera pontos da corrente com física de onda
+            num_segs = 15
             pts = []
-            segs = 10
-            for i in range(segs + 1):
-                t = i / segs
-                wave = math.sin(t * math.pi * 3 + pygame.time.get_ticks() / 200) * (raio_char * 0.15)
-                px = cx + math.cos(rad) * (comp * t)
-                py = cy + math.sin(rad) * (comp * t) + math.cos(rad + math.pi/2) * wave
-                pts.append((int(px), int(py)))
             
+            for i in range(num_segs + 1):
+                t = i / num_segs
+                # Onda senoidal que se propaga
+                wave_amp = raio_char * 0.15 * (1 - t * 0.5)  # Diminui amplitude no fim
+                wave = math.sin(t * math.pi * 4 + tempo / 150) * wave_amp
+                
+                # Posição base
+                px = cx + math.cos(rad) * (comp_total * t)
+                py = cy + math.sin(rad) * (comp_total * t)
+                
+                # Aplica onda perpendicular
+                perp_x = math.cos(rad + math.pi/2) * wave
+                perp_y = math.sin(rad + math.pi/2) * wave
+                
+                pts.append((int(px + perp_x), int(py + perp_y)))
+            
+            # Desenha corrente com elos
             if len(pts) > 1:
-                pygame.draw.lines(self.tela, (100, 100, 100), False, pts, max(2, larg//2))
+                # Sombra da corrente
+                shadow_pts = [(p[0]+2, p[1]+2) for p in pts]
+                pygame.draw.lines(self.tela, (30, 30, 30), False, shadow_pts, max(3, larg_base))
+                
+                # Corrente principal
+                pygame.draw.lines(self.tela, (120, 120, 130), False, pts, max(3, larg_base))
+                
+                # Elos individuais
+                for i, (px, py) in enumerate(pts):
+                    if i % 2 == 0:
+                        pygame.draw.circle(self.tela, (90, 90, 100), (px, py), max(2, larg_base//2))
             
-            fx, fy = pts[-1]
-            pygame.draw.circle(self.tela, cor, (fx, fy), larg_ponta)
-            if cor_raridade != (180, 180, 180):
-                pygame.draw.circle(self.tela, cor_raridade, (fx, fy), larg_ponta, 2)
+            # Ponta da arma (peso/lâmina)
+            if pts:
+                end_x, end_y = pts[-1]
+                
+                # Desenha ponta como esfera com spikes ou lâmina
+                pygame.draw.circle(self.tela, cor, (end_x, end_y), ponta_tam)
+                pygame.draw.circle(self.tela, cor_escura, (end_x, end_y), ponta_tam, 2)
+                
+                # Spikes na ponta
+                for spike_ang in range(0, 360, 45):
+                    spike_r = math.radians(spike_ang + tempo/50)
+                    sx = end_x + math.cos(spike_r) * ponta_tam * 1.4
+                    sy = end_y + math.sin(spike_r) * ponta_tam * 1.4
+                    pygame.draw.line(self.tela, cor_clara, (end_x, end_y), (int(sx), int(sy)), max(2, larg_base//2))
+                
+                # Glow de raridade
+                if raridade not in ['Comum']:
+                    pygame.draw.circle(self.tela, cor_raridade, (end_x, end_y), ponta_tam + 3, 2)
         
-        # === ARREMESSO (Facas, Chakrams) ===
+        # === ARREMESSO (Facas, Chakram, Shuriken) ===
         elif tipo == "Arremesso":
-            tam = max(int(raio_char * 0.4), 8)
-            qtd = int(getattr(arma, 'quantidade', 3))
+            tam_proj = max(8, int(raio_char * 0.35))
+            qtd = min(5, int(getattr(arma, 'quantidade', 3)))
             
             for i in range(qtd):
-                offset_ang = (i - (qtd-1)/2) * 20
+                offset_ang = (i - (qtd-1)/2) * 18
                 r = rad + math.radians(offset_ang)
-                dist = raio_char + tam * 1.2
+                
+                dist = raio_char * 1.1 + tam_proj * 0.5
                 px = cx + math.cos(r) * dist
                 py = cy + math.sin(r) * dist
                 
-                pts = [
-                    (int(px + math.cos(r) * tam), int(py + math.sin(r) * tam)),
-                    (int(px + math.cos(r + math.pi/2) * tam*0.4), int(py + math.sin(r + math.pi/2) * tam*0.4)),
-                    (int(px - math.cos(r) * tam*0.3), int(py - math.sin(r) * tam*0.3)),
-                    (int(px + math.cos(r - math.pi/2) * tam*0.4), int(py + math.sin(r - math.pi/2) * tam*0.4)),
-                ]
-                pygame.draw.polygon(self.tela, cor, pts)
-                pygame.draw.polygon(self.tela, cor_raridade, pts, 1)
+                # Rotação individual
+                rot = tempo / 100 + i * 60
+                
+                # Desenha shuriken/chakram
+                num_pontas = 4 if i % 2 == 0 else 6
+                pontas = []
+                
+                for j in range(num_pontas * 2):
+                    ang = rot + (j * math.pi / num_pontas)
+                    raio = tam_proj if j % 2 == 0 else tam_proj * 0.4
+                    pontas.append((
+                        int(px + math.cos(ang) * raio),
+                        int(py + math.sin(ang) * raio)
+                    ))
+                
+                if len(pontas) >= 3:
+                    pygame.draw.polygon(self.tela, cor, pontas)
+                    pygame.draw.polygon(self.tela, cor_clara, pontas, 1)
+                
+                # Centro
+                pygame.draw.circle(self.tela, cor_escura, (int(px), int(py)), max(2, tam_proj//3))
         
         # === ARCO ===
         elif tipo == "Arco":
-            tam_arco = raio_char * 1.2
-            tam_flecha = raio_char * 1.5
+            tam_arco = raio_char * 1.4 * anim_scale
+            tam_flecha = raio_char * 2.0 * anim_scale
             
-            pts = []
-            for i in range(9):
-                a = rad + math.radians(-40 + i * 10)
-                px = cx + math.cos(a) * tam_arco * 0.6
-                py = cy + math.sin(a) * tam_arco * 0.6
-                pts.append((int(px), int(py)))
+            # Desenha arco curvado
+            arco_pts = []
+            for i in range(13):
+                ang = rad + math.radians(-50 + i * (100/12))
+                # Curva do arco
+                curva = math.sin((i / 12) * math.pi) * tam_arco * 0.15
+                raio = tam_arco * 0.5 + curva
+                arco_pts.append((
+                    int(cx + math.cos(ang) * raio),
+                    int(cy + math.sin(ang) * raio)
+                ))
             
-            if len(pts) > 1:
-                pygame.draw.lines(self.tela, cor, False, pts, max(3, larg))
-                pygame.draw.line(self.tela, (139, 90, 43), pts[0], pts[-1], 2)
+            if len(arco_pts) > 1:
+                # Corpo do arco (madeira)
+                pygame.draw.lines(self.tela, cor, False, arco_pts, max(4, larg_base))
+                pygame.draw.lines(self.tela, cor_escura, False, arco_pts, 1)
+                
+                # Corda
+                pygame.draw.line(self.tela, (200, 180, 140), arco_pts[0], arco_pts[-1], 2)
             
-            fx = cx + math.cos(rad) * (raio_char + tam_flecha)
-            fy = cy + math.sin(rad) * (raio_char + tam_flecha)
-            pygame.draw.line(self.tela, (139, 90, 43), (int(cx), int(cy)), (int(fx), int(fy)), max(2, larg//2))
-            pygame.draw.circle(self.tela, cor_raridade, (int(fx), int(fy)), max(4, larg//2))
+            # Flecha
+            flecha_start_x = cx
+            flecha_start_y = cy
+            flecha_end_x = cx + math.cos(rad) * tam_flecha
+            flecha_end_y = cy + math.sin(rad) * tam_flecha
+            
+            # Corpo da flecha
+            pygame.draw.line(self.tela, (139, 90, 43), 
+                           (int(flecha_start_x), int(flecha_start_y)), 
+                           (int(flecha_end_x), int(flecha_end_y)), max(2, larg_base//2))
+            
+            # Ponta da flecha
+            ponta_len = tam_flecha * 0.15
+            perp = math.pi/2
+            ponta_pts = [
+                (int(flecha_end_x), int(flecha_end_y)),
+                (int(flecha_end_x - math.cos(rad)*ponta_len + math.cos(rad+perp)*ponta_len*0.4),
+                 int(flecha_end_y - math.sin(rad)*ponta_len + math.sin(rad+perp)*ponta_len*0.4)),
+                (int(flecha_end_x - math.cos(rad)*ponta_len - math.cos(rad+perp)*ponta_len*0.4),
+                 int(flecha_end_y - math.sin(rad)*ponta_len - math.sin(rad+perp)*ponta_len*0.4)),
+            ]
+            pygame.draw.polygon(self.tela, cor_raridade, ponta_pts)
+            
+            # Penas da flecha
+            for pena_off in [-1, 1]:
+                pena_x = flecha_start_x + math.cos(rad) * tam_flecha * 0.15
+                pena_y = flecha_start_y + math.sin(rad) * tam_flecha * 0.15
+                pena_end_x = pena_x + math.cos(rad + pena_off * 0.5) * tam_flecha * 0.1
+                pena_end_y = pena_y + math.sin(rad + pena_off * 0.5) * tam_flecha * 0.1
+                pygame.draw.line(self.tela, (200, 50, 50), 
+                               (int(pena_x), int(pena_y)), (int(pena_end_x), int(pena_end_y)), 2)
         
-        # === ORBITAL (Escudos, Drones) ===
+        # === ORBITAL (Escudo, Drone, Orbes) ===
         elif tipo == "Orbital":
-            dist = raio_char * 1.5
-            qtd = int(getattr(arma, 'quantidade_orbitais', 1))
-            rot_offset = pygame.time.get_ticks() / 1000 * 2
+            dist_orbit = raio_char * 1.6
+            qtd = max(1, min(5, int(getattr(arma, 'quantidade_orbitais', 2))))
+            tam_orbe = max(6, int(raio_char * 0.3))
+            
+            rot_speed = tempo / 800
             
             for i in range(qtd):
-                a = rad + (2 * math.pi / qtd) * i + rot_offset
-                ox = cx + math.cos(a) * dist
-                oy = cy + math.sin(a) * dist
+                ang = rot_speed + (2 * math.pi / qtd) * i
+                ox = cx + math.cos(ang) * dist_orbit
+                oy = cy + math.sin(ang) * dist_orbit
                 
-                if arma.largura < 20:
-                    raio_orbe = max(5, int(raio_char * 0.25))
-                    pygame.draw.circle(self.tela, cor, (int(ox), int(oy)), raio_orbe)
-                    pygame.draw.circle(self.tela, cor_raridade, (int(ox), int(oy)), raio_orbe, 2)
-                    pygame.draw.line(self.tela, (80,80,80), (int(cx), int(cy)), (int(ox), int(oy)), 1)
-                else:
-                    pts = []
-                    ang_range = min(60, arma.largura)
-                    for j in range(11):
-                        aa = a + math.radians(-ang_range/2 + (j * ang_range/10))
-                        pts.append((int(cx + math.cos(aa)*dist), int(cy + math.sin(aa)*dist)))
-                    pygame.draw.lines(self.tela, cor, False, pts, max(4, larg))
-                    pygame.draw.lines(self.tela, cor_raridade, False, pts, 1)
+                # Linha conectora sutil
+                pygame.draw.line(self.tela, (60, 60, 80), (int(cx), int(cy)), (int(ox), int(oy)), 1)
+                
+                # Orbe com glow
+                for glow_r in range(3, 0, -1):
+                    alpha_cor = tuple(min(255, c + glow_r * 20) for c in cor)
+                    pygame.draw.circle(self.tela, alpha_cor, (int(ox), int(oy)), tam_orbe + glow_r)
+                
+                pygame.draw.circle(self.tela, cor, (int(ox), int(oy)), tam_orbe)
+                pygame.draw.circle(self.tela, cor_clara, (int(ox), int(oy)), tam_orbe//2)
+                pygame.draw.circle(self.tela, cor_raridade, (int(ox), int(oy)), tam_orbe, 2)
         
-        # === MÁGICA (Espadas espectrais) ===
+        # === MÁGICA (Espadas espectrais, Runas) ===
         elif tipo == "Mágica":
-            qtd = int(getattr(arma, 'quantidade', 3))
-            tam = max(int(raio_char * 0.6), 10)
-            dist_max = raio_char * 1.3
-            float_offset = math.sin(pygame.time.get_ticks() / 300) * (raio_char * 0.1)
+            qtd = min(5, int(getattr(arma, 'quantidade', 3)))
+            tam_espada = max(12, int(raio_char * 0.7))
+            dist_base = raio_char * 1.4
+            
+            float_offset = math.sin(tempo / 250) * raio_char * 0.1
+            rot_offset = tempo / 1500
             
             for i in range(qtd):
-                offset_ang = (i - (qtd-1)/2) * 25
+                offset_ang = (i - (qtd-1)/2) * 22 + math.degrees(rot_offset)
                 r = rad + math.radians(offset_ang)
-                dist = raio_char + dist_max + float_offset
                 
+                dist = dist_base + float_offset * (1 + i * 0.2)
                 px = cx + math.cos(r) * dist
                 py = cy + math.sin(r) * dist
                 
-                pts = [
-                    (int(px + math.cos(r) * tam), int(py + math.sin(r) * tam)),
-                    (int(px + math.cos(r + math.pi/2) * tam*0.25), int(py + math.sin(r + math.pi/2) * tam*0.25)),
-                    (int(px - math.cos(r) * tam*0.4), int(py - math.sin(r) * tam*0.4)),
-                    (int(px + math.cos(r - math.pi/2) * tam*0.25), int(py + math.sin(r - math.pi/2) * tam*0.25)),
-                ]
+                # Espada espectral
+                sword_end_x = px + math.cos(r) * tam_espada
+                sword_end_y = py + math.sin(r) * tam_espada
                 
-                cor_magica = tuple(min(255, c + 50) for c in cor)
-                pygame.draw.polygon(self.tela, cor_magica, pts)
-                pygame.draw.polygon(self.tela, cor_raridade, pts, 1)
+                # Glow da espada
+                for glow in range(4, 0, -1):
+                    glow_cor = (*cor, 40 // glow)
+                    pygame.draw.line(self.tela, cor, 
+                                   (int(px), int(py)), (int(sword_end_x), int(sword_end_y)), 
+                                   max(2, larg_base//2) + glow)
+                
+                # Espada principal
+                pygame.draw.line(self.tela, cor_clara, 
+                               (int(px), int(py)), (int(sword_end_x), int(sword_end_y)), 
+                               max(3, larg_base//2))
+                
+                # Ponta brilhante
+                pygame.draw.circle(self.tela, cor_raridade, (int(sword_end_x), int(sword_end_y)), 3)
+                
+                # Runa flutuante no centro
+                runa_pulso = 0.7 + 0.3 * math.sin(tempo / 200 + i)
+                pygame.draw.circle(self.tela, cor_raridade, (int(px), int(py)), int(4 * runa_pulso), 1)
         
         # === TRANSFORMÁVEL ===
         elif tipo == "Transformável":
             forma = getattr(arma, 'forma_atual', 1)
+            
             if forma == 1:
-                cabo_v = getattr(arma, 'forma1_cabo', arma.comp_cabo)
-                lamina_v = getattr(arma, 'forma1_lamina', arma.comp_lamina)
+                cabo_len = getattr(arma, 'forma1_cabo', 20) * base_scale * 1.2
+                lamina_len = getattr(arma, 'forma1_lamina', 50) * base_scale * 1.4 * anim_scale
             else:
-                cabo_v = getattr(arma, 'forma2_cabo', arma.comp_cabo)
-                lamina_v = getattr(arma, 'forma2_lamina', arma.comp_lamina)
+                cabo_len = getattr(arma, 'forma2_cabo', 30) * base_scale * 1.2
+                lamina_len = getattr(arma, 'forma2_lamina', 80) * base_scale * 1.4 * anim_scale
             
-            cabo = cabo_v * escala
-            lamina = lamina_v * escala
-            ex, ey = cx + math.cos(rad)*cabo, cy + math.sin(rad)*cabo
-            fx, fy = cx + math.cos(rad)*(cabo+lamina), cy + math.sin(rad)*(cabo+lamina)
+            cabo_end_x = cx + math.cos(rad) * cabo_len
+            cabo_end_y = cy + math.sin(rad) * cabo_len
+            lamina_end_x = cx + math.cos(rad) * (cabo_len + lamina_len)
+            lamina_end_y = cy + math.sin(rad) * (cabo_len + lamina_len)
             
-            pygame.draw.line(self.tela, (100,50,0), (int(cx), int(cy)), (int(ex), int(ey)), larg)
-            pygame.draw.line(self.tela, cor, (int(ex), int(ey)), (int(fx), int(fy)), larg)
-            pygame.draw.circle(self.tela, cor_raridade, (int(fx), int(fy)), max(4, larg//2))
+            larg = max(4, int(larg_base * 1.1))
+            
+            # Mecanismo de transformação
+            pygame.draw.circle(self.tela, (100, 100, 110), (int(cabo_end_x), int(cabo_end_y)), larg)
+            
+            # Cabo
+            pygame.draw.line(self.tela, (80, 50, 30), (int(cx), int(cy)), (int(cabo_end_x), int(cabo_end_y)), larg)
+            
+            # Lâmina
+            pygame.draw.line(self.tela, cor, (int(cabo_end_x), int(cabo_end_y)), (int(lamina_end_x), int(lamina_end_y)), larg)
+            pygame.draw.line(self.tela, cor_clara, (int(cabo_end_x), int(cabo_end_y)), (int(lamina_end_x), int(lamina_end_y)), larg//2)
+            
+            # Indicador de forma
+            pygame.draw.circle(self.tela, cor_raridade, (int(lamina_end_x), int(lamina_end_y)), max(4, larg//2))
         
         # === FALLBACK ===
         else:
-            cabo = arma.comp_cabo * escala
-            lamina = arma.comp_lamina * escala
-            ex, ey = cx + math.cos(rad)*cabo, cy + math.sin(rad)*cabo
-            fx, fy = cx + math.cos(rad)*(cabo+lamina), cy + math.sin(rad)*(cabo+lamina)
-            pygame.draw.line(self.tela, (100,50,0), (int(cx), int(cy)), (int(ex), int(ey)), larg)
-            pygame.draw.line(self.tela, cor, (int(ex), int(ey)), (int(fx), int(fy)), larg)
+            cabo_len = getattr(arma, 'comp_cabo', 20) * base_scale
+            lamina_len = getattr(arma, 'comp_lamina', 50) * base_scale * anim_scale
+            
+            cabo_end_x = cx + math.cos(rad) * cabo_len
+            cabo_end_y = cy + math.sin(rad) * cabo_len
+            lamina_end_x = cx + math.cos(rad) * (cabo_len + lamina_len)
+            lamina_end_y = cy + math.sin(rad) * (cabo_len + lamina_len)
+            
+            pygame.draw.line(self.tela, (80, 50, 30), (int(cx), int(cy)), (int(cabo_end_x), int(cabo_end_y)), larg_base)
+            pygame.draw.line(self.tela, cor, (int(cabo_end_x), int(cabo_end_y)), (int(lamina_end_x), int(lamina_end_y)), larg_base)
 
     def desenhar_hitbox_debug(self):
         """Desenha visualização de debug das hitboxes"""
@@ -1964,7 +2984,7 @@ class Simulador:
             cy_screen -= off_y
             
             # Surface transparente para desenho
-            s = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA)
+            s = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
             
             # Desenha raio de alcance
             alcance_screen = self.cam.converter_tam(hitbox.alcance)
@@ -2088,7 +3108,7 @@ class Simulador:
     
     def desenhar_painel_debug(self):
         """Desenha painel com info de debug"""
-        x, y = LARGURA - 300, 80
+        x, y = self.screen_width - 300, 80
         w, h = 280, 250
         
         s = pygame.Surface((w, h), pygame.SRCALPHA)
@@ -2122,19 +3142,23 @@ class Simulador:
             off += 11
             self.tela.blit(fonte.render(f"Alcance IA: {p.alcance_ideal:.2f}m CD: {p.cooldown_ataque:.2f}", True, BRANCO), (x + 10, y + off))
             off += 11
-            self.tela.blit(fonte.render(f"Ação: {p.brain.acao_atual}", True, BRANCO), (x + 10, y + off))
+            acao_atual = p.brain.acao_atual if p.brain is not None else "MANUAL"
+            self.tela.blit(fonte.render(f"Ação: {acao_atual}", True, BRANCO), (x + 10, y + off))
             off += 16
 
     def desenhar_barras(self, l, x, y, cor, vida_vis):
-        w, h = 300, 30
+        # Ajusta largura das barras baseado no modo (menor em portrait)
+        w = 200 if self.portrait_mode else 300
+        h = 25 if self.portrait_mode else 30
         pygame.draw.rect(self.tela, (20,20,20), (x, y, w, h))
         pct_vis = max(0, vida_vis / l.vida_max); pygame.draw.rect(self.tela, BRANCO, (x, y, int(w * pct_vis), h))
         pct_real = max(0, l.vida / l.vida_max); pygame.draw.rect(self.tela, cor, (x, y, int(w * pct_real), h))
         pygame.draw.rect(self.tela, BRANCO, (x, y, w, h), 2)
         pct_mana = max(0, l.mana / l.mana_max)
-        pygame.draw.rect(self.tela, (20, 20, 20), (x, y + 35, w, 10))
-        pygame.draw.rect(self.tela, AZUL_MANA, (x, y + 35, int(w * pct_mana), 10))
-        ft = pygame.font.SysFont("Arial", 16, bold=True)
+        pygame.draw.rect(self.tela, (20, 20, 20), (x, y + h + 5, w, 10))
+        pygame.draw.rect(self.tela, AZUL_MANA, (x, y + h + 5, int(w * pct_mana), 10))
+        ft_size = 14 if self.portrait_mode else 16
+        ft = pygame.font.SysFont("Arial", ft_size, bold=True)
         self.tela.blit(ft.render(f"{l.dados.nome}", True, BRANCO), (x+10, y+5))
 
     def desenhar_controles(self):
@@ -2152,7 +3176,7 @@ class Simulador:
             off_y += 16
 
     def desenhar_analise(self):
-        s = pygame.Surface((300, ALTURA)); s.fill(COR_UI_BG); self.tela.blit(s, (0,0))
+        s = pygame.Surface((300, self.screen_height)); s.fill(COR_UI_BG); self.tela.blit(s, (0,0))
         ft = pygame.font.SysFont("Consolas", 14)
         lines = [
             "--- ANÁLISE ---", f"FPS: {int(self.clock.get_fps())}", f"Cam: {self.cam.modo}", "",
@@ -2167,14 +3191,14 @@ class Simulador:
 
     def desenhar_pause(self):
         ft = pygame.font.SysFont("Impact", 60); txt = ft.render("PAUSE", True, BRANCO)
-        self.tela.blit(txt, (LARGURA//2 - txt.get_width()//2, ALTURA//2 - 50))
+        self.tela.blit(txt, (self.screen_width//2 - txt.get_width()//2, self.screen_height//2 - 50))
 
     def desenhar_vitoria(self):
-        s = pygame.Surface((LARGURA, ALTURA), pygame.SRCALPHA); s.fill(COR_UI_BG); self.tela.blit(s, (0,0))
+        s = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA); s.fill(COR_UI_BG); self.tela.blit(s, (0,0))
         ft = pygame.font.SysFont("Impact", 80); txt = ft.render(f"{self.vencedor} VENCEU!", True, COR_TEXTO_TITULO)
-        self.tela.blit(txt, (LARGURA//2 - txt.get_width()//2, ALTURA//2 - 100))
+        self.tela.blit(txt, (self.screen_width//2 - txt.get_width()//2, self.screen_height//2 - 100))
         ft2 = pygame.font.SysFont("Arial", 24); msg = ft2.render("Pressione 'R' para Reiniciar ou 'ESC' para Sair", True, COR_TEXTO_INFO)
-        self.tela.blit(msg, (LARGURA//2 - msg.get_width()//2, ALTURA//2 + 20))
+        self.tela.blit(msg, (self.screen_width//2 - msg.get_width()//2, self.screen_height//2 + 20))
 
     def run(self):
         self._slow_mo_ended = False  # Flag para tocar som de vitória uma vez

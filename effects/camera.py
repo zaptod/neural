@@ -21,9 +21,15 @@ class Câmera:
     
     Esta câmera foi projetada para NUNCA perder os lutadores de vista,
     mesmo com knockbacks extremos de Berserkers ou Colossos.
+    
+    Suporta diferentes resoluções (modo paisagem e retrato).
     """
     
-    def __init__(self):
+    def __init__(self, screen_width: int = None, screen_height: int = None):
+        # Dimensões da tela (permite override para modo retrato)
+        self.screen_width = screen_width if screen_width else LARGURA
+        self.screen_height = screen_height if screen_height else ALTURA
+        
         # Posição da câmera (centro da visão em pixels do mundo)
         self.x = 15.0 * PPM  # Centro da arena padrão
         self.y = 10.0 * PPM
@@ -40,8 +46,10 @@ class Câmera:
         self.offset_y = 0
         
         # === PARÂMETROS BULLETPROOF v9.0 ===
-        self.margem_segura = 120     # Margem ideal das bordas
-        self.margem_critica = 20     # Se passar disso, ZOOM IMEDIATO
+        # Ajusta margens baseado no tamanho da tela
+        min_dim = min(self.screen_width, self.screen_height)
+        self.margem_segura = int(min_dim * 0.12)  # ~12% da menor dimensão
+        self.margem_critica = int(min_dim * 0.02)  # ~2% da menor dimensão
         self.zoom_min = 0.15         # Pode mostrar arena ENORME se necessário
         self.zoom_max = 1.6          # Zoom máximo (combate próximo)
         self.velocidade_zoom_in = 2.0   # Zoom in é suave
@@ -72,8 +80,8 @@ class Câmera:
         self.y = centro_y * PPM
         
         # Ajusta zoom inicial para ver a arena toda
-        zoom_x = (LARGURA - self.margem_segura * 2) / (largura * PPM)
-        zoom_y = (ALTURA - self.margem_segura * 2) / (altura * PPM)
+        zoom_x = (self.screen_width - self.margem_segura * 2) / (largura * PPM)
+        zoom_y = (self.screen_height - self.margem_segura * 2) / (altura * PPM)
         self.zoom = min(zoom_x, zoom_y, 1.0)
         self.target_zoom = self.zoom
 
@@ -84,8 +92,8 @@ class Câmera:
 
     def converter(self, world_x, world_y):
         """Converte coordenadas do mundo para tela"""
-        screen_x = (world_x - self.x) * self.zoom + LARGURA / 2 + self.offset_x
-        screen_y = (world_y - self.y) * self.zoom + ALTURA / 2 + self.offset_y
+        screen_x = (world_x - self.x) * self.zoom + self.screen_width / 2 + self.offset_x
+        screen_y = (world_y - self.y) * self.zoom + self.screen_height / 2 + self.offset_y
         return int(screen_x), int(screen_y)
 
     def converter_tam(self, tamanho):
@@ -95,7 +103,7 @@ class Câmera:
     def _get_posicao_tela(self, lutador):
         """Retorna posição do lutador na TELA (não no mundo)"""
         if lutador is None:
-            return (LARGURA // 2, ALTURA // 2)  # Centro da tela como fallback
+            return (self.screen_width // 2, self.screen_height // 2)  # Centro da tela como fallback
         x = lutador.pos[0] * PPM
         y = lutador.pos[1] * PPM
         z = getattr(lutador, 'z', 0) * PPM  # Altura (pulo)
@@ -109,14 +117,14 @@ class Câmera:
         sx, sy = self._get_posicao_tela(lutador)
         
         # Usa margem crítica (bem menor que margem segura)
-        return (self.margem_critica < sx < LARGURA - self.margem_critica and
-                self.margem_critica < sy < ALTURA - self.margem_critica)
+        return (self.margem_critica < sx < self.screen_width - self.margem_critica and
+                self.margem_critica < sy < self.screen_height - self.margem_critica)
     
     def _lutador_na_zona_segura(self, lutador) -> bool:
         """Verifica se o lutador está na zona segura (com margem)"""
         sx, sy = self._get_posicao_tela(lutador)
-        return (self.margem_segura < sx < LARGURA - self.margem_segura and
-                self.margem_segura < sy < ALTURA - self.margem_segura)
+        return (self.margem_segura < sx < self.screen_width - self.margem_segura and
+                self.margem_segura < sy < self.screen_height - self.margem_segura)
     
     def _calcular_bounding_box(self, p1, p2):
         """
@@ -156,8 +164,8 @@ class Câmera:
         altura_mundo = (max_y - min_y)
         
         # Espaço disponível na tela (descontando margens)
-        largura_tela = LARGURA - self.margem_segura * 2
-        altura_tela = ALTURA - self.margem_segura * 2
+        largura_tela = self.screen_width - self.margem_segura * 2
+        altura_tela = self.screen_height - self.margem_segura * 2
         
         # Zoom necessário em cada eixo
         if largura_mundo > 0:

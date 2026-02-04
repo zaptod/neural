@@ -80,11 +80,19 @@ class CombatChoreographer:
         # Troca de golpes
         self.sequencia_hits = []  # Quem acertou: [1, 2, 1, 1, 2...]
         self.ultima_troca_tempo = 0.0
+        
+        # === CLASH DETECTION v6.1 ===
+        # Rastreia ataques recentes para detectar clash (janela de tempo maior)
+        self.l1_ultimo_ataque_tempo = 999.0  # Tempo desde último ataque de L1
+        self.l2_ultimo_ataque_tempo = 999.0  # Tempo desde último ataque de L2
+        self.clash_window = 0.35  # Janela de tempo para considerar "mesmo momento"
     
     def registrar_lutadores(self, l1, l2):
         """Registra os dois lutadores"""
         self.lutador1 = l1
         self.lutador2 = l2
+        self.l1_ultimo_ataque_tempo = 999.0
+        self.l2_ultimo_ataque_tempo = 999.0
     
     def update(self, dt):
         """Atualiza o sistema de coreografia"""
@@ -97,6 +105,19 @@ class CombatChoreographer:
         self.tempo_sem_hit += dt
         self.ritmo_timer -= dt
         self.ultima_troca_tempo += dt
+        
+        # === CLASH DETECTION v6.1 - Rastreia ataques ===
+        self.l1_ultimo_ataque_tempo += dt
+        self.l2_ultimo_ataque_tempo += dt
+        
+        # Detecta quando um lutador começa a atacar
+        l1_atacando_agora = getattr(self.lutador1, 'atacando', False)
+        l2_atacando_agora = getattr(self.lutador2, 'atacando', False)
+        
+        if l1_atacando_agora:
+            self.l1_ultimo_ataque_tempo = 0.0
+        if l2_atacando_agora:
+            self.l2_ultimo_ataque_tempo = 0.0
         
         # Decay de cooldowns
         for k in list(self.cooldown_momentos.keys()):
@@ -268,11 +289,18 @@ class CombatChoreographer:
         hp1_pct = l1.vida / l1.vida_max
         hp2_pct = l2.vida / l2.vida_max
         
-        # === CLASH (Colisão de ataques) ===
+        # === CLASH (Colisão de ataques) v6.1 - Janela de tempo melhorada ===
         if self._pode_momento("CLASH"):
-            ambos_atacando = getattr(l1, 'atacando', False) and getattr(l2, 'atacando', False)
-            if ambos_atacando and distancia < 3.0:
+            # Verifica se ambos atacaram dentro da janela de tempo
+            ambos_atacando_agora = getattr(l1, 'atacando', False) and getattr(l2, 'atacando', False)
+            ambos_atacaram_recente = (self.l1_ultimo_ataque_tempo < self.clash_window and 
+                                       self.l2_ultimo_ataque_tempo < self.clash_window)
+            
+            if (ambos_atacando_agora or ambos_atacaram_recente) and distancia < 3.5:
                 self._iniciar_momento("CLASH", 0.8)
+                # Reset timers para evitar múltiplos clashes
+                self.l1_ultimo_ataque_tempo = 999.0
+                self.l2_ultimo_ataque_tempo = 999.0
                 return
         
         # === STANDOFF (Confronto visual) ===

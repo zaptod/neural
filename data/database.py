@@ -49,7 +49,8 @@ def carregar_personagens():
             item["nome"], item["tamanho"], item["forca"], item["mana"],
             nome_arma, peso_arma,
             item.get("cor_r", 200), item.get("cor_g", 50), item.get("cor_b", 50),
-            item.get("classe", "Guerreiro (Força Bruta)")  # Carrega classe!
+            item.get("classe", "Guerreiro (Força Bruta)"),
+            item.get("personalidade", "Aleatório")  # Carrega personalidade!
         )
         lista.append(p)
     return lista
@@ -59,3 +60,12 @@ def salvar_lista_armas(lista):
 
 def salvar_lista_chars(lista):
     salvar_json(ARQUIVO_CHARS, [p.to_dict() for p in lista])
+
+
+def carregar_arma_por_nome(nome_arma):
+    """Carrega uma arma específica pelo nome"""
+    armas = carregar_armas()
+    for arma in armas:
+        if arma.nome == nome_arma:
+            return arma
+    return None

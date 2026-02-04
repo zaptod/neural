@@ -48,6 +48,9 @@ class SistemaApp(tk.Tk):
             frame.grid(row=0, column=0, sticky="nsew")
 
         self.show_frame("MenuPrincipal")
+        
+        # Referência para janela do torneio
+        self.tournament_window = None
 
     def recarregar_dados(self):
         """
@@ -100,12 +103,43 @@ class MenuPrincipal(tk.Frame):
         tk.Button(self, text="⚔️  FORJAR ARMAS", command=lambda: controller.show_frame("TelaArmas"), **btn_style).pack(pady=10)
         tk.Button(self, text="👤  CRIAR PERSONAGENS", command=lambda: controller.show_frame("TelaPersonagens"), **btn_style).pack(pady=10)
         tk.Button(self, text="🎮  SIMULAÇÃO (LUTA)", command=lambda: controller.show_frame("TelaLuta"), **btn_style).pack(pady=10)
-        tk.Button(self, text="�  CONFIGURAR SONS", command=lambda: controller.show_frame("TelaSons"), **btn_style).pack(pady=10)
-        tk.Button(self, text="�💬  INTERAÇÕES SOCIAIS", command=lambda: controller.show_frame("TelaInteracoes"), **btn_style).pack(pady=10)
+        tk.Button(self, text="🏆  MODO TORNEIO", command=lambda: self.abrir_torneio(controller), **btn_style).pack(pady=10)
+        tk.Button(self, text="🔊  CONFIGURAR SONS", command=lambda: controller.show_frame("TelaSons"), **btn_style).pack(pady=10)
+        tk.Button(self, text="💬  INTERAÇÕES SOCIAIS", command=lambda: controller.show_frame("TelaInteracoes"), **btn_style).pack(pady=10)
         
         # Botão Sair
         tk.Button(self, text="SAIR", command=controller.quit, 
                   font=("Helvetica", 12, "bold"), bg="#C0392B", fg="white", width=15).pack(side="bottom", pady=40)
+    
+    def abrir_torneio(self, controller):
+        """Abre a janela do modo torneio"""
+        try:
+            import customtkinter as ctk
+            from ui.view_torneio import TournamentWindow
+            
+            # Verifica se já existe uma janela aberta
+            if controller.tournament_window is not None:
+                try:
+                    controller.tournament_window.lift()
+                    controller.tournament_window.focus_force()
+                    return
+                except:
+                    pass
+            
+            # Configura customtkinter
+            ctk.set_appearance_mode("dark")
+            ctk.set_default_color_theme("blue")
+            
+            # Cria nova janela
+            controller.tournament_window = TournamentWindow()
+            
+        except ImportError as e:
+            messagebox.showerror("Erro", 
+                f"CustomTkinter não instalado!\n\n"
+                f"Execute: pip install customtkinter\n\n"
+                f"Erro: {e}")
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao abrir torneio: {e}")
 
 # --- PLACEHOLDER (Futuramente será view_interacoes.py) ---
 class TelaInteracoes(tk.Frame):

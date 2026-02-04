@@ -171,6 +171,8 @@ class AudioManager:
         
         # === CLASH ===
         self._register_sound("clash_magic")
+        self._register_sound("clash_swords")
+        self._register_sound("clash_projectiles")
         
         # === SLOW MOTION ===
         self._register_sound("slowmo_whoosh")
@@ -310,23 +312,72 @@ class AudioManager:
         
         self.play(sound_name, volume * distance_volume, pan)
     
-    def play_attack(self, attack_type: str, pos_x: float = 0, listener_x: float = 0):
-        """Toca som de ataque baseado no tipo"""
-        sound_map = {
+    def play_attack(self, attack_type: str, pos_x: float = 0, listener_x: float = 0,
+                     damage: float = 0, is_critical: bool = False):
+        """
+        Toca som de ataque baseado no tipo e dano.
+        
+        attack_type pode ser:
+        - Tipo de arma: "Reta", "Dupla", "Corrente", "Arremesso", "Arco", "Mágica", "Orbital", "Transformável"
+        - Tipo de ataque legado: "SOCO", "CHUTE", "ESPADADA", etc.
+        
+        damage: Dano causado pelo ataque (usado para selecionar variação do som)
+        is_critical: Se é um golpe crítico
+        """
+        # Mapeia tipos de ARMA para categoria de som base
+        weapon_sound_category = {
+            # Armas de lâmina -> slash
+            "Reta": "slash",
+            "Dupla": "slash",
+            "Transformável": "slash",
+            # Armas de corrente -> slash (mais pesado)
+            "Corrente": "slash",
+            # Armas de impacto
+            "Orbital": "impact",
+            # Armas ranged (não deveriam chegar aqui, mas por segurança)
+            "Arremesso": "energy",
+            "Arco": "energy",
+            "Mágica": "energy",
+        }
+        
+        # Mapeia tipos de ATAQUE legado para categoria de som
+        attack_sound_category = {
             "SOCO": "punch",
             "CHUTE": "kick",
             "ESPADADA": "slash",
             "MACHADADA": "slash",
             "FACADA": "stab",
-            "ARCO": "energy",  # Som de arco
+            "ARCO": "energy",
             "MAGIA": "energy",
         }
         
-        sound = sound_map.get(attack_type, "punch")
-        if pos_x != 0:
-            self.play_positional(sound, pos_x, listener_x, volume=0.7)
+        # Primeiro tenta mapear como tipo de arma
+        category = weapon_sound_category.get(attack_type)
+        
+        # Se não encontrou, tenta como tipo de ataque legado
+        if not category:
+            category = attack_sound_category.get(attack_type, "punch")
+        
+        # Seleciona variação do som baseado no dano (para slash)
+        if category == "slash":
+            if is_critical or damage >= 35:
+                sound = "slash_critical"
+                volume = 0.9
+            elif damage >= 20:
+                sound = "slash_heavy"
+                volume = 0.8
+            else:
+                sound = "slash_light"
+                volume = 0.7
+            print(f"[AUDIO] Slash sound: damage={damage:.1f}, critical={is_critical} -> {sound}")
         else:
-            self.play(sound, volume=0.7)
+            sound = category
+            volume = 0.7
+        
+        if pos_x != 0:
+            self.play_positional(sound, pos_x, listener_x, volume=volume)
+        else:
+            self.play(sound, volume=volume)
     
     def play_impact(self, damage: float, pos_x: float = 0, listener_x: float = 0, 
                    is_critical: bool = False, is_counter: bool = False):
@@ -418,6 +469,7 @@ class AudioManager:
     
     def play_movement(self, movement_type: str, pos_x: float = 0, listener_x: float = 0):
         """Toca som de movimento"""
+        print(f"[AUDIO] play_movement called: type={movement_type}, pos_x={pos_x}")
         sound_map = {
             "jump": "jump_start",
             "land": "jump_land",
@@ -426,11 +478,15 @@ class AudioManager:
         }
         
         sound = sound_map.get(movement_type)
+        print(f"[AUDIO] play_movement: mapped '{movement_type}' -> '{sound}'")
         if sound:
-            volume = 0.3 if movement_type == "footstep" else 0.5
+            # Volume mais alto para pulos (0.7) para ser audível mesmo com atenuação espacial
+            volume = 0.3 if movement_type == "footstep" else 0.7
             if pos_x != 0:
+                print(f"[AUDIO] Calling play_positional for {sound}")
                 self.play_positional(sound, pos_x, listener_x, volume=volume)
             else:
+                print(f"[AUDIO] Calling play for {sound}")
                 self.play(sound, volume=volume)
     
     def play_special(self, event_type: str, volume: float = 0.8):
@@ -448,6 +504,8 @@ class AudioManager:
             # Clash
             "clash": "clash_magic",
             "clash_magic": "clash_magic",
+            "clash_swords": "clash_swords",
+            "clash_projectiles": "clash_projectiles",
             # Arena events
             "arena_start": "arena_start",
             "arena_victory": "arena_victory", 
@@ -499,9 +557,10 @@ def play_sound(sound_name: str, volume: float = 1.0):
     """Atalho para tocar som"""
     AudioManager.get_instance().play(sound_name, volume)
 
-def play_attack_sound(attack_type: str, pos_x: float = 0, listener_x: float = 0):
+def play_attack_sound(attack_type: str, pos_x: float = 0, listener_x: float = 0,
+                      damage: float = 0, is_critical: bool = False):
     """Atalho para som de ataque"""
-    AudioManager.get_instance().play_attack(attack_type, pos_x, listener_x)
+    AudioManager.get_instance().play_attack(attack_type, pos_x, listener_x, damage, is_critical)
 
 def play_impact_sound(damage: float, pos_x: float = 0, listener_x: float = 0, 
                      is_critical: bool = False, is_counter: bool = False):

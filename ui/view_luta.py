@@ -133,6 +133,20 @@ class TelaLuta(tk.Frame):
         ttk.Combobox(frame_cfg, textvariable=self.var_best_of,
                      values=["1", "3", "5"], state="readonly", width=8).pack(pady=5)
         
+        # === MODO RETRATO (9:16) ===
+        tk.Label(frame_cfg, text="", bg=COR_BG_SECUNDARIO).pack(pady=2)  # Espaçador
+        self.var_portrait = tk.BooleanVar(value=False)
+        self.chk_portrait = tk.Checkbutton(
+            frame_cfg, text="📱 Modo Retrato (9:16)",
+            variable=self.var_portrait,
+            font=("Arial", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
+            selectcolor=COR_BG, activebackground=COR_BG_SECUNDARIO,
+            activeforeground=COR_ACCENT
+        )
+        self.chk_portrait.pack()
+        tk.Label(frame_cfg, text="Ideal para TikTok/Reels",
+                 font=("Arial", 7), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack()
+        
         # === SELETOR DE MAPA ===
         tk.Label(frame_cfg, text="", bg=COR_BG_SECUNDARIO).pack(pady=5)  # Espaçador
         tk.Label(frame_cfg, text="🗺️ MAPA:", font=("Arial", 10, "bold"), 
@@ -329,6 +343,7 @@ class TelaLuta(tk.Frame):
             "p2_nome": self.personagem_p2.nome,
             "cenario": self.var_cenario.get(),
             "best_of": int(self.var_best_of.get()),
+            "portrait_mode": self.var_portrait.get(),
         }
         
         try:

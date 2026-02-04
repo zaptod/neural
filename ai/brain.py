@@ -56,7 +56,8 @@ from ai.choreographer import CombatChoreographer
 from ai.personalities import (
     TODOS_TRACOS, TRACOS_AGRESSIVIDADE, TRACOS_DEFENSIVO, TRACOS_MOBILIDADE,
     TRACOS_SKILLS, TRACOS_MENTAL, TRACOS_ESPECIAIS,
-    ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES
+    ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES,
+    PERSONALIDADES_PRESETS, INSTINTOS, RITMOS, RITMO_MODIFICADORES
 )
 
 # Importação do sistema de análise de armas v10.0
@@ -68,6 +69,13 @@ try:
     WEAPON_ANALYSIS_AVAILABLE = True
 except ImportError:
     WEAPON_ANALYSIS_AVAILABLE = False
+
+# Importação do sistema de estratégia de skills v1.0
+try:
+    from ai.skill_strategy import SkillStrategySystem, CombatSituation, SkillPriority
+    SKILL_STRATEGY_AVAILABLE = True
+except ImportError:
+    SKILL_STRATEGY_AVAILABLE = False
 
 
 class AIBrain:
@@ -102,6 +110,7 @@ class AIBrain:
         self.hits_dados_recente = 0
         self.tempo_desde_dano = 5.0
         self.tempo_desde_hit = 5.0
+        self.ultimo_dano_recebido = 0.0  # Valor do último dano recebido
         self.vezes_que_fugiu = 0
         self.ultimo_hp = parent.vida
         self.combo_atual = 0
@@ -115,6 +124,13 @@ class AIBrain:
         self.tracos = []
         self.quirks = []
         self.agressividade_base = 0.5
+        
+        # === NOVOS SISTEMAS v11.0 ===
+        self.instintos = []  # Lista de instintos ativos
+        self.ritmo = None    # Ritmo de batalha atual
+        self.ritmo_fase_atual = 0  # Índice da fase atual
+        self.ritmo_timer = 0.0     # Timer para mudança de fase
+        self.ritmo_modificadores = {"agressividade": 0, "defesa": 0, "mobilidade": 0}
         
         # === COOLDOWNS INTERNOS ===
         self.cd_dash = 0.0
@@ -132,8 +148,14 @@ class AIBrain:
             "AREA": [],
             "DASH": [],
             "BUFF": [],
-            "SUMMON": []
+            "SUMMON": [],
+            "TRAP": [],
+            "TRANSFORM": [],
+            "CHANNEL": []
         }
+        
+        # === SISTEMA DE ESTRATÉGIA DE SKILLS v1.0 ===
+        self.skill_strategy = None  # Inicializado após gerar personalidade
         
         # === ESTADO ESPECIAL ===
         self.modo_berserk = False
@@ -284,15 +306,127 @@ class AIBrain:
     # =========================================================================
     
     def _gerar_personalidade(self):
-        """Gera uma personalidade completamente única"""
+        """Gera uma personalidade - usa preset se definido, ou aleatório"""
+        # Verifica se o personagem tem uma personalidade preset definida
+        preset_nome = getattr(self.parent.dados, 'personalidade', 'Aleatório')
+        
+        if preset_nome and preset_nome != 'Aleatório' and preset_nome in PERSONALIDADES_PRESETS:
+            # Usa o preset definido
+            self._aplicar_preset(preset_nome)
+        else:
+            # Gera aleatoriamente como antes
+            self._gerar_personalidade_aleatoria()
+    
+    def _aplicar_preset(self, preset_nome):
+        """Aplica um preset de personalidade"""
+        preset = PERSONALIDADES_PRESETS[preset_nome]
+        
+        # Define arquétipo baseado na classe primeiro
+        self._definir_arquetipo()
+        
+        # Aplica estilo fixo se definido
+        if preset["estilo_fixo"]:
+            self.estilo_luta = preset["estilo_fixo"]
+        else:
+            self._selecionar_estilo()
+        
+        # Aplica filosofia fixa se definida
+        if preset["filosofia_fixa"]:
+            self.filosofia = preset["filosofia_fixa"]
+        else:
+            self._selecionar_filosofia()
+        
+        # Aplica traços fixos + alguns aleatórios
+        self.tracos = list(preset["tracos_fixos"])
+        # Adiciona 1-2 traços aleatórios para variedade
+        tracos_extras = random.randint(1, 2)
+        tracos_disponiveis = [t for t in TODOS_TRACOS if t not in self.tracos]
+        self.tracos.extend(random.sample(tracos_disponiveis, min(tracos_extras, len(tracos_disponiveis))))
+        
+        # Aplica quirks fixos + chance de um extra aleatório
+        self.quirks = list(preset["quirks_fixos"])
+        if random.random() < 0.3 and len(self.quirks) < 3:
+            quirks_disponiveis = [q for q in QUIRKS.keys() if q not in self.quirks]
+            if quirks_disponiveis:
+                self.quirks.append(random.choice(quirks_disponiveis))
+        
+        # === NOVOS SISTEMAS v11.0 ===
+        # Aplica instintos do preset + alguns aleatórios
+        self.instintos = list(preset.get("instintos_fixos", []))
+        if random.random() < 0.4:
+            instintos_disponiveis = [i for i in INSTINTOS.keys() if i not in self.instintos]
+            if instintos_disponiveis:
+                self.instintos.append(random.choice(instintos_disponiveis))
+        
+        # Aplica ritmo do preset ou seleciona aleatoriamente
+        ritmo_fixo = preset.get("ritmo_fixo")
+        if ritmo_fixo and ritmo_fixo in RITMOS:
+            self.ritmo = ritmo_fixo
+        else:
+            self.ritmo = random.choice(list(RITMOS.keys()))
+        self.ritmo_fase_atual = 0
+        self.ritmo_timer = 0.0
+        
+        # Calcula agressividade com modificador do preset
+        self._calcular_agressividade()
+        self.agressividade_base = max(0.0, min(1.0, self.agressividade_base + preset["agressividade_mod"]))
+        
+        # Categoriza skills e aplica modificadores
+        self._categorizar_skills()
+        self._aplicar_modificadores_iniciais()
+        self._inicializar_skill_strategy()
+    
+    def _gerar_personalidade_aleatoria(self):
+        """Gera uma personalidade completamente aleatória (comportamento original)"""
         self._definir_arquetipo()
         self._selecionar_estilo()
         self._selecionar_filosofia()
         self._gerar_tracos()
         self._gerar_quirks()
+        self._gerar_instintos()
+        self._gerar_ritmo()
         self._calcular_agressividade()
         self._categorizar_skills()
         self._aplicar_modificadores_iniciais()
+        self._inicializar_skill_strategy()
+    
+    def _inicializar_skill_strategy(self):
+        """Inicializa o sistema de estratégia de skills"""
+        if SKILL_STRATEGY_AVAILABLE:
+            self.skill_strategy = SkillStrategySystem(self.parent, self)
+            
+            # Ajusta estratégia baseado na arma
+            if hasattr(self.parent.dados, 'arma_obj') and self.parent.dados.arma_obj:
+                arma = self.parent.dados.arma_obj
+                alcance_arma = getattr(arma, 'alcance', 2.0)
+                vel_arma = getattr(arma, 'velocidade_ataque', 1.0)
+                self.skill_strategy.ajustar_para_arma(alcance_arma, vel_arma)
+                
+                # Log do perfil estratégico
+                print(f"[IA] {self.parent.dados.nome}: Role={self.skill_strategy.role_principal.value}, "
+                      f"Skills={len(self.skill_strategy.todas_skills)}, "
+                      f"Combos={len(self.skill_strategy.combos_disponiveis)}")
+        else:
+            self.skill_strategy = None
+    
+    def _gerar_instintos(self):
+        """Gera instintos aleatórios para a IA"""
+        num_instintos = random.randint(2, 4)
+        self.instintos = random.sample(list(INSTINTOS.keys()), min(num_instintos, len(INSTINTOS)))
+    
+    def _gerar_ritmo(self):
+        """Seleciona um ritmo de batalha aleatório"""
+        # Alguns ritmos são mais raros
+        ritmos_comuns = ["ONDAS", "RESPIRACAO", "CONSTANTE", "PREDADOR"]
+        ritmos_raros = ["TEMPESTADE", "BERSERKER", "CAOTICO", "ESCALADA"]
+        
+        if random.random() < 0.3:
+            self.ritmo = random.choice(ritmos_raros)
+        else:
+            self.ritmo = random.choice(ritmos_comuns)
+        
+        self.ritmo_fase_atual = 0
+        self.ritmo_timer = 0.0
 
     def _definir_arquetipo(self):
         """Define arquétipo baseado na classe"""
@@ -325,7 +459,7 @@ class AIBrain:
             self.agressividade_base = data["agressividade"]
 
     def _definir_arquetipo_por_arma(self):
-        """Define arquétipo pela arma se classe não mapeada"""
+        """Define arquétipo pela arma se classe não mapeada - CORRIGIDO v12.1"""
         p = self.parent
         arma = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
         
@@ -337,24 +471,59 @@ class AIBrain:
         tipo = getattr(arma, 'tipo', '')
         peso = getattr(arma, 'peso', 5.0)
         
+        # Importa perfis de hitbox para alcance preciso
+        try:
+            from core.hitbox import HITBOX_PROFILES
+            perfil = HITBOX_PROFILES.get(tipo, HITBOX_PROFILES.get("Reta", {}))
+            range_mult = perfil.get("range_mult", 2.0)
+        except:
+            range_mult = 2.0
+        
+        # Define arquétipo e alcance baseado no tipo de arma
         if "Orbital" in tipo:
             self.arquetipo = "SENTINELA"
+            p.alcance_ideal = range_mult  # 1.5
         elif "Arco" in tipo:
             self.arquetipo = "ARQUEIRO"
+            p.alcance_ideal = range_mult  # 8.0
         elif "Mágica" in tipo or "Cajado" in tipo:
             self.arquetipo = "MAGO"
+            p.alcance_ideal = range_mult  # 2.5
         elif "Corrente" in tipo:
             self.arquetipo = "ACROBATA"
+            # Correntes têm zona morta - IA deve ficar no alcance médio
+            min_range = perfil.get("min_range_ratio", 0.25) * range_mult
+            p.alcance_ideal = (range_mult + min_range) / 2  # Média entre zona morta e max
         elif "Arremesso" in tipo:
             self.arquetipo = "LANCEIRO"
-        elif peso > 10.0:
-            self.arquetipo = "COLOSSO"
-        elif peso < 2.5:
+            p.alcance_ideal = range_mult * 0.7  # Fica mais perto que o máximo
+        elif "Dupla" in tipo:
             self.arquetipo = "DUELISTA"
-        elif peso > 6.0:
-            self.arquetipo = "GUERREIRO_PESADO"
-        else:
+            p.alcance_ideal = range_mult  # 1.5
+        elif "Transformável" in tipo:
             self.arquetipo = "GUERREIRO"
+            p.alcance_ideal = range_mult  # 2.5
+        elif "Reta" in tipo:
+            if peso > 10.0:
+                self.arquetipo = "COLOSSO"
+            elif peso < 2.5:
+                self.arquetipo = "DUELISTA"
+            elif peso > 6.0:
+                self.arquetipo = "GUERREIRO_PESADO"
+            else:
+                self.arquetipo = "GUERREIRO"
+            p.alcance_ideal = range_mult  # 2.0
+        else:
+            # Fallback
+            if peso > 10.0:
+                self.arquetipo = "COLOSSO"
+            elif peso < 2.5:
+                self.arquetipo = "DUELISTA"
+            elif peso > 6.0:
+                self.arquetipo = "GUERREIRO_PESADO"
+            else:
+                self.arquetipo = "GUERREIRO"
+            p.alcance_ideal = range_mult
 
     def _selecionar_estilo(self):
         """Seleciona estilo de luta"""
@@ -480,18 +649,37 @@ class AIBrain:
         self.agressividade_base = max(0.1, min(0.95, agg))
 
     def _categorizar_skills(self):
-        """Categoriza todas as skills disponíveis"""
+        """Categoriza todas as skills disponíveis (expandido para todos os tipos)"""
         p = self.parent
         
+        # Skills da arma (legado)
         if hasattr(p, 'skill_arma_nome') and p.skill_arma_nome and p.skill_arma_nome != "Nenhuma":
             data = get_skill_data(p.skill_arma_nome)
             self._adicionar_skill(p.skill_arma_nome, data, "arma")
         
+        # Skills da arma (novo sistema com lista)
+        for skill_info in getattr(p, 'skills_arma', []):
+            nome = skill_info.get("nome", "Nenhuma")
+            if nome != "Nenhuma" and nome != p.skill_arma_nome:  # Evita duplicata
+                data = skill_info.get("data", get_skill_data(nome))
+                self._adicionar_skill(nome, data, "arma")
+        
+        # Skills da classe
         if hasattr(p, 'classe_nome') and p.classe_nome:
             class_data = get_class_data(p.classe_nome)
             for skill_nome in class_data.get("skills_afinidade", []):
                 data = get_skill_data(skill_nome)
                 self._adicionar_skill(skill_nome, data, "classe")
+        
+        # Skills da classe (novo sistema com lista)
+        for skill_info in getattr(p, 'skills_classe', []):
+            nome = skill_info.get("nome", "Nenhuma")
+            if nome != "Nenhuma":
+                data = skill_info.get("data", get_skill_data(nome))
+                # Evita duplicatas
+                ja_existe = any(s["nome"] == nome for skills in self.skills_por_tipo.values() for s in skills)
+                if not ja_existe:
+                    self._adicionar_skill(nome, data, "classe")
 
     def _adicionar_skill(self, nome, data, fonte):
         """Adiciona skill à lista categorizada"""
@@ -555,6 +743,11 @@ class AIBrain:
         # === SISTEMA DE PERCEPÇÃO DE ARMAS v10.0 ===
         self._atualizar_percepcao_armas(dt, distancia, inimigo)
         
+        # === NOVOS SISTEMAS v11.0 ===
+        self._atualizar_ritmo(dt)
+        if self._processar_instintos(dt, distancia, inimigo):
+            return  # Instinto tomou controle
+        
         # Hesitação humana - às vezes congela brevemente
         if self._verificar_hesitacao(distancia, inimigo):
             return
@@ -586,12 +779,26 @@ class AIBrain:
         if self._processar_reacoes(dt, distancia, inimigo):
             return
         
-        # === SISTEMA DE ATAQUE INTELIGENTE v8.0 ===
-        if self._avaliar_e_executar_ataque(dt, distancia, inimigo):
-            return
+        # === PRIORIZAÇÃO DE SKILLS PARA MAGOS ===
+        # Se o personagem é um caster (role de mago), prioriza skills sobre ataques básicos
+        usa_skills_primeiro = False
+        if self.skill_strategy is not None:
+            role = self.skill_strategy.role_principal.value
+            if role in ["artillery", "burst_mage", "control_mage", "summoner", "buffer", "channeler"]:
+                usa_skills_primeiro = True
         
-        if self._processar_skills(distancia, inimigo):
-            return
+        if usa_skills_primeiro:
+            # Magos: Skills primeiro, depois ataque básico
+            if self._processar_skills(distancia, inimigo):
+                return
+            if self._avaliar_e_executar_ataque(dt, distancia, inimigo):
+                return
+        else:
+            # Melee: Ataque primeiro, skills como suporte
+            if self._avaliar_e_executar_ataque(dt, distancia, inimigo):
+                return
+            if self._processar_skills(distancia, inimigo):
+                return
         
         self.timer_decisao -= dt
         if self.timer_decisao <= 0:
@@ -2292,6 +2499,7 @@ class AIBrain:
             self.hits_recebidos_total += 1
             self.hits_recebidos_recente += 1
             self.tempo_desde_dano = 0.0
+            self.ultimo_dano_recebido = dano  # Salva o valor do dano
             self.combo_atual = 0
             self._reagir_ao_dano(dano)
         
@@ -2675,20 +2883,27 @@ class AIBrain:
         return False
 
     # =========================================================================
-    # SKILLS
+    # SKILLS - SISTEMA INTELIGENTE v1.0
     # =========================================================================
     
     def _processar_skills(self, distancia, inimigo):
-        """Processa uso de skills"""
+        """Processa uso de skills com sistema de estratégia inteligente"""
         p = self.parent
         
+        # Verifica cooldown global
         if hasattr(p, 'cd_skill_arma') and p.cd_skill_arma > 0:
             return False
         
+        # Traço CONSERVADOR reduz uso de skills
         if "CONSERVADOR" in self.tracos and p.mana < p.mana_max * 0.4:
             if random.random() > 0.2:
                 return False
         
+        # === USA SISTEMA DE ESTRATÉGIA SE DISPONÍVEL ===
+        if self.skill_strategy is not None:
+            return self._processar_skills_estrategico(distancia, inimigo)
+        
+        # === FALLBACK: Sistema legado ===
         if self._tentar_dash_ofensivo(distancia, inimigo):
             return True
         if self._tentar_usar_buff(distancia, inimigo):
@@ -2698,6 +2913,189 @@ class AIBrain:
         if self._tentar_usar_summon(distancia, inimigo):
             return True
         
+        return False
+    
+    def _processar_skills_estrategico(self, distancia, inimigo):
+        """Processa skills usando o sistema de estratégia inteligente"""
+        p = self.parent
+        strategy = self.skill_strategy
+        
+        # Atualiza timers do sistema
+        strategy.atualizar(0.016)  # ~60fps
+        
+        # Cria situação de combate atual
+        situacao = CombatSituation(
+            distancia=distancia,
+            meu_hp_percent=p.vida / p.vida_max if p.vida_max > 0 else 1.0,
+            inimigo_hp_percent=inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0,
+            meu_mana_percent=p.mana / p.mana_max if p.mana_max > 0 else 1.0,
+            estou_encurralado=self.consciencia_espacial.get("encurralado", False),
+            inimigo_encurralado=self.consciencia_espacial.get("oponente_contra_parede", False),
+            inimigo_atacando=self.leitura_oponente.get("ataque_iminente", False),
+            tenho_summons_ativos=self._contar_summons_ativos(),
+            tenho_traps_ativos=self._contar_traps_ativos(),
+            tenho_buffs_ativos=len(getattr(p, 'buffs_ativos', [])),
+            inimigo_debuffado=self._verificar_inimigo_debuffado(inimigo),
+            momentum=self.momentum,
+            tempo_combate=self.tempo_combate
+        )
+        
+        # Verifica se tem combo disponível e usa
+        combo = strategy.get_combo_recomendado()
+        if combo and random.random() < 0.4:
+            skill1_nome, skill2_nome, razao = combo
+            print(f"[STRATEGY] {p.dados.nome} tentando combo: {skill1_nome} -> {skill2_nome}")
+            if self._executar_skill_por_nome(skill1_nome):
+                # Marca para usar segunda skill logo em seguida
+                self.combo_state["em_combo"] = True
+                self.combo_state["pode_followup"] = True
+                self.combo_state["timer_followup"] = 0.5
+                self._proximo_skill_combo = skill2_nome
+                return True
+        
+        # Obtém melhor skill para a situação
+        resultado = strategy.obter_melhor_skill(situacao)
+        
+        if resultado:
+            skill_profile, razao = resultado
+            
+            # Debug - mostrar escolha (10% de chance)
+            if random.random() < 0.1:
+                print(f"[STRATEGY] {p.dados.nome} fase={strategy.fase_atual.value}, skill={skill_profile.nome}, razao={razao}, mana={p.mana:.0f}")
+            
+            # Chance baseada no role - magos usam skills muito mais frequentemente
+            role = strategy.role_principal.value
+            if role in ["artillery", "burst_mage", "control_mage", "summoner", "buffer", "channeler"]:
+                chance_usar = 0.85  # Magos: 85% de chance base
+            else:
+                chance_usar = 0.6   # Melee: 60% de chance base
+            
+            # Modificadores de personalidade
+            if "SPAMMER" in self.tracos:
+                chance_usar = min(0.95, chance_usar + 0.15)
+            if "CALCULISTA" in self.tracos:
+                chance_usar *= 0.85
+            if self.modo_burst:
+                chance_usar = 0.95
+            
+            # Summons/Traps são mais estratégicos
+            if skill_profile.tipo in ["SUMMON", "TRAP", "TRANSFORM"]:
+                chance_usar *= 0.9  # Menos redução que antes
+            
+            if random.random() < chance_usar:
+                if self._executar_skill_por_nome(skill_profile.nome):
+                    # Registra uso
+                    strategy.registrar_uso_skill(skill_profile.nome)
+                    
+                    # Ação pós-skill baseada no tipo
+                    self._pos_uso_skill_estrategica(skill_profile)
+                    return True
+        else:
+            # Debug - sem skill disponível (5% de chance de logar)
+            if random.random() < 0.05:
+                cds = {k: f"{v:.1f}" for k, v in p.cd_skills.items() if v > 0}
+                print(f"[STRATEGY] {p.dados.nome} sem skill (mana={p.mana:.0f}, dist={distancia:.1f}, cds={cds})")
+        
+        return False
+    
+    def _executar_skill_por_nome(self, nome_skill):
+        """Executa uma skill pelo nome"""
+        p = self.parent
+        
+        # Verifica nas skills da arma (COM ÍNDICE!)
+        for idx, skill_info in enumerate(getattr(p, 'skills_arma', [])):
+            if skill_info.get("nome") == nome_skill:
+                if hasattr(p, 'usar_skill_arma'):
+                    resultado = p.usar_skill_arma(skill_idx=idx)
+                    if resultado:
+                        print(f"[SKILL] {p.dados.nome} usou skill de arma: {nome_skill}")
+                    return resultado
+        
+        # Verifica nas skills da classe
+        for skill_info in getattr(p, 'skills_classe', []):
+            if skill_info.get("nome") == nome_skill:
+                if hasattr(p, 'usar_skill_classe'):
+                    resultado = p.usar_skill_classe(nome_skill)
+                    if resultado:
+                        print(f"[SKILL] {p.dados.nome} usou skill de classe: {nome_skill}")
+                    return resultado
+        
+        # Tenta usar como skill de arma legado (índice 0)
+        if nome_skill == getattr(p, 'skill_arma_nome', None):
+            if hasattr(p, 'usar_skill_arma'):
+                resultado = p.usar_skill_arma(skill_idx=0)
+                if resultado:
+                    print(f"[SKILL] {p.dados.nome} usou skill legada: {nome_skill}")
+                return resultado
+        
+        return False
+    
+    def _pos_uso_skill_estrategica(self, skill_profile):
+        """Define ação após usar uma skill baseada na estratégia"""
+        tipo = skill_profile.tipo
+        
+        if tipo == "DASH":
+            if skill_profile.data.get("dano_chegada", 0) > 0:
+                self.acao_atual = "MATAR"
+            else:
+                self.acao_atual = "CIRCULAR"
+        elif tipo == "SUMMON":
+            # Após invocar, recuar para deixar o summon lutar
+            if self.skill_strategy.preferencias.get("estilo_kite"):
+                self.acao_atual = "RECUAR"
+            else:
+                self.acao_atual = "PRESSIONAR"
+        elif tipo == "TRAP":
+            # Após colocar trap, tentar atrair inimigo
+            self.acao_atual = "RECUAR"
+        elif tipo == "TRANSFORM":
+            # Transformado = agressivo
+            self.acao_atual = "MATAR"
+        elif tipo == "BUFF":
+            if skill_profile.data.get("buff_velocidade"):
+                # Com velocidade, pode aproximar ou fugir
+                if self.medo > 0.4:
+                    self.acao_atual = "FUGIR"
+                else:
+                    self.acao_atual = "APROXIMAR"
+            elif skill_profile.data.get("cura"):
+                # Após cura, manter distância
+                self.acao_atual = "CIRCULAR"
+            else:
+                self.acao_atual = "PRESSIONAR"
+        elif tipo in ["PROJETIL", "BEAM"]:
+            # Skills de distância, manter range
+            if self.estilo_luta in ["KITE", "RANGED"]:
+                self.acao_atual = "RECUAR"
+            else:
+                self.acao_atual = "CIRCULAR"
+        elif tipo == "AREA":
+            # Após área, pode seguir agressivo
+            self.acao_atual = "MATAR"
+    
+    def _contar_summons_ativos(self):
+        """Conta quantos summons estão ativos"""
+        p = self.parent
+        # Verifica buffer de summons se existir
+        if hasattr(p, 'buffer_summons'):
+            return len([s for s in p.buffer_summons if hasattr(s, 'vida') and s.vida > 0])
+        return 0
+    
+    def _contar_traps_ativos(self):
+        """Conta quantas traps estão ativas"""
+        p = self.parent
+        if hasattr(p, 'buffer_traps'):
+            return len(p.buffer_traps)
+        return 0
+    
+    def _verificar_inimigo_debuffado(self, inimigo):
+        """Verifica se o inimigo tem debuffs ativos"""
+        if hasattr(inimigo, 'dots_ativos') and len(inimigo.dots_ativos) > 0:
+            return True
+        if hasattr(inimigo, 'slow_timer') and inimigo.slow_timer > 0:
+            return True
+        if hasattr(inimigo, 'stun_timer') and inimigo.stun_timer > 0:
+            return True
         return False
 
     def _tentar_dash_ofensivo(self, distancia, inimigo):
@@ -2862,15 +3260,152 @@ class AIBrain:
         return False
 
     def _tentar_usar_summon(self, distancia, inimigo):
-        """Usa summons"""
+        """Usa summons com lógica melhorada (fallback do sistema estratégico)"""
         summon_skills = self.skills_por_tipo.get("SUMMON", [])
         if not summon_skills:
             return False
         
+        p = self.parent
+        hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1.0
+        inimigo_hp_pct = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
+        
+        # Conta summons ativos
+        summons_ativos = self._contar_summons_ativos()
+        
         for skill in summon_skills:
-            if distancia > 4.0 or self.medo > 0.4:
-                if self._usar_skill(skill):
-                    return True
+            data = skill["data"]
+            custo = skill.get("custo", data.get("custo", 15))
+            
+            # Verifica mana
+            if p.mana < custo:
+                continue
+            
+            # Verifica cooldown
+            nome = skill["nome"]
+            if nome in p.cd_skills and p.cd_skills[nome] > 0:
+                continue
+            
+            usar = False
+            
+            # Sem summons = prioridade alta
+            if summons_ativos == 0:
+                # HP baixo = invocar para distrair
+                if hp_pct < 0.4:
+                    usar = True
+                # Distância segura = invocar
+                elif distancia > 4.0:
+                    usar = True
+                # Início do combate
+                elif self.tempo_combate < 5.0:
+                    usar = True
+                # Chance base
+                elif random.random() < 0.25:
+                    usar = True
+            
+            # Tem vantagem = reforçar
+            elif summons_ativos == 1 and inimigo_hp_pct < 0.5:
+                if random.random() < 0.3:
+                    usar = True
+            
+            # Medo = invocar ajuda
+            if self.medo > 0.4:
+                usar = True
+            
+            # Arquétipo INVOCADOR sempre tenta invocar
+            if self.arquetipo == "INVOCADOR" and random.random() < 0.4:
+                usar = True
+            
+            if usar and self._usar_skill(skill):
+                # Após invocar, recuar para deixar summon lutar
+                self.acao_atual = "RECUAR" if random.random() < 0.6 else "CIRCULAR"
+                return True
+        
+        return False
+    
+    def _tentar_usar_trap(self, distancia, inimigo):
+        """Usa armadilhas estrategicamente"""
+        trap_skills = self.skills_por_tipo.get("TRAP", [])
+        if not trap_skills:
+            return False
+        
+        p = self.parent
+        traps_ativos = self._contar_traps_ativos()
+        
+        # Limite de traps
+        if traps_ativos >= 3:
+            return False
+        
+        for skill in trap_skills:
+            data = skill["data"]
+            custo = skill.get("custo", data.get("custo", 15))
+            
+            if p.mana < custo:
+                continue
+            
+            nome = skill["nome"]
+            if nome in p.cd_skills and p.cd_skills[nome] > 0:
+                continue
+            
+            usar = False
+            
+            # Encurralado = trap para escapar
+            if self.consciencia_espacial.get("encurralado", False):
+                usar = True
+            
+            # Inimigo se aproximando
+            elif self.leitura_oponente.get("ataque_iminente", False) and distancia < 4.0:
+                usar = True
+            
+            # Controle de área
+            elif traps_ativos < 2 and distancia > 3.0:
+                if random.random() < 0.15:
+                    usar = True
+            
+            if usar and self._usar_skill(skill):
+                self.acao_atual = "RECUAR"
+                return True
+        
+        return False
+    
+    def _tentar_usar_transform(self, distancia, inimigo):
+        """Usa transformações estrategicamente"""
+        transform_skills = self.skills_por_tipo.get("TRANSFORM", [])
+        if not transform_skills:
+            return False
+        
+        p = self.parent
+        hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1.0
+        inimigo_hp_pct = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
+        
+        for skill in transform_skills:
+            data = skill["data"]
+            custo = skill.get("custo", data.get("custo", 15))
+            
+            if p.mana < custo:
+                continue
+            
+            nome = skill["nome"]
+            if nome in p.cd_skills and p.cd_skills[nome] > 0:
+                continue
+            
+            usar = False
+            
+            # Transform defensivo se HP baixo
+            if data.get("bonus_resistencia", 0) > 0.3 and hp_pct < 0.4:
+                usar = True
+            
+            # Transform ofensivo para finalizar
+            elif data.get("bonus_dano") and inimigo_hp_pct < 0.5 and hp_pct > 0.4:
+                usar = True
+            
+            # Início do combate
+            elif self.tempo_combate < 8.0 and hp_pct > 0.7:
+                if random.random() < 0.2:
+                    usar = True
+            
+            if usar and self._usar_skill(skill):
+                self.acao_atual = "MATAR"
+                return True
         
         return False
 
@@ -2976,6 +3511,31 @@ class AIBrain:
                 self.acao_atual = "ATAQUE_RAPIDO"
             else:
                 self.acao_atual = "FUGIR"
+            return
+        
+        # === COMPORTAMENTO ESPECIAL PARA ARMAS RANGED (Arco, Arremesso) ===
+        arma = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
+        arma_tipo = arma.tipo if arma else ""
+        
+        if arma_tipo in ["Arco", "Arremesso"]:
+            # Armas ranged: mantém distância e atira
+            dist_ideal_ranged = alcance_efetivo * 0.6  # Fica a 60% do alcance máximo
+            
+            if distancia < dist_ideal_ranged * 0.5:
+                # Muito perto - recua urgentemente
+                self.acao_atual = "RECUAR"
+            elif distancia < dist_ideal_ranged:
+                # Perto demais - recua enquanto ataca
+                if roll < 0.7:
+                    self.acao_atual = "RECUAR"
+                else:
+                    self.acao_atual = "PRESSIONAR"  # Atira enquanto recua
+            elif distancia < alcance_efetivo:
+                # Distância ideal - ataca!
+                self.acao_atual = "PRESSIONAR"
+            else:
+                # Longe demais - aproxima um pouco
+                self.acao_atual = "APROXIMAR"
             return
         
         # Inteligência de alcance
@@ -3399,3 +3959,187 @@ class AIBrain:
         
         if "CONTRA_ATAQUE_PERFEITO" in self.quirks:
             self.reacao_pendente = "CONTRA_MATAR"
+
+    # =========================================================================
+    # NOVOS SISTEMAS v11.0 - RITMOS E INSTINTOS
+    # =========================================================================
+    
+    def _atualizar_ritmo(self, dt):
+        """Atualiza o sistema de ritmo de batalha"""
+        if not self.ritmo or self.ritmo not in RITMOS:
+            return
+        
+        ritmo_data = RITMOS[self.ritmo]
+        fases = ritmo_data["fases"]
+        duracao = ritmo_data["duracao_fase"]
+        
+        # Atualiza timer
+        self.ritmo_timer += dt
+        
+        # Verifica mudança de fase
+        if self.ritmo_timer >= duracao:
+            self.ritmo_timer = 0.0
+            self.ritmo_fase_atual = (self.ritmo_fase_atual + 1) % len(fases)
+        
+        # Aplica modificadores da fase atual
+        fase_atual = fases[self.ritmo_fase_atual]
+        
+        # Fase ALEATORIO do ritmo caótico
+        if fase_atual == "ALEATORIO":
+            if self.ritmo_timer < 0.1:  # Só muda no início da fase
+                fase_atual = random.choice(list(RITMO_MODIFICADORES.keys()))
+        
+        if fase_atual in RITMO_MODIFICADORES:
+            mods = RITMO_MODIFICADORES[fase_atual]
+            self.ritmo_modificadores = mods.copy()
+        else:
+            self.ritmo_modificadores = {"agressividade": 0, "defesa": 0, "mobilidade": 0}
+    
+    def _processar_instintos(self, dt, distancia, inimigo):
+        """Processa instintos de combate - reações automáticas"""
+        if not self.instintos:
+            return False
+        
+        p = self.parent
+        hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1.0
+        inimigo_hp_pct = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
+        
+        for instinto_nome in self.instintos:
+            if instinto_nome not in INSTINTOS:
+                continue
+            
+            instinto = INSTINTOS[instinto_nome]
+            trigger = instinto["trigger"]
+            chance = instinto["chance"]
+            acao = instinto["acao"]
+            
+            # Verifica se o trigger está ativo
+            triggered = False
+            
+            if trigger == "hp_critico" and hp_pct < 0.2:
+                triggered = True
+            elif trigger == "hp_baixo" and hp_pct < 0.4:
+                triggered = True
+            elif trigger == "oponente_fraco" and inimigo_hp_pct < 0.3:
+                triggered = True
+            elif trigger == "oponente_whiff" and self.janela_ataque.get("tipo") == "whiff":
+                triggered = True
+            elif trigger == "oponente_recuando" and getattr(inimigo, 'acao_atual', None) in ["RECUAR", "FUGIR"]:
+                triggered = True
+            elif trigger == "vantagem_hp" and hp_pct > inimigo_hp_pct + 0.2:
+                triggered = True
+            elif trigger == "dano_alto" and self.tempo_desde_dano < 0.3 and self.ultimo_dano_recebido > p.vida_max * 0.15:
+                triggered = True
+            elif trigger == "em_combo" and self.combo_state.get("sendo_combo", False):
+                triggered = True
+            elif trigger == "pos_combo" and self.tempo_desde_dano < 0.5 and self.tempo_desde_dano > 0.3:
+                triggered = True
+            elif trigger == "bloqueio_sucesso" and hasattr(self, 'ultimo_bloqueio') and self.ultimo_bloqueio < 0.3:
+                triggered = True
+            elif trigger == "perdendo_trocas" and self.hits_recebidos_recente > self.hits_dados_recente + 2:
+                triggered = True
+            elif trigger == "ataque_previsivel" and self.leitura_oponente.get("padrao_detectado", False):
+                triggered = True
+            
+            # Executa o instinto se triggado e passar no check de chance
+            if triggered and random.random() < chance:
+                return self._executar_instinto(acao, distancia, inimigo)
+        
+        return False
+    
+    def _executar_instinto(self, acao, distancia, inimigo):
+        """Executa uma ação instintiva"""
+        p = self.parent
+        
+        if acao == "panic_dash":
+            # Dash de pânico para longe
+            if self.cd_dash <= 0:
+                ang = math.atan2(p.pos[1] - inimigo.pos[1], p.pos[0] - inimigo.pos[0])
+                p.movimento_x = math.cos(ang) * 0.5
+                if hasattr(p, 'iniciar_dash'):
+                    p.iniciar_dash()
+                self.cd_dash = 0.8
+                return True
+        
+        elif acao == "rage_trigger":
+            # Entra em modo de fúria
+            self.raiva = min(1.0, self.raiva + 0.5)
+            self.medo = max(0, self.medo - 0.3)
+            self.agressividade_base = min(1.0, self.agressividade_base + 0.3)
+            return False  # Não consome o turno
+        
+        elif acao == "auto_chase":
+            # Persegue automaticamente
+            self.acao_atual = "APROXIMAR"
+            self._executar_aproximar(distancia, inimigo)
+            return True
+        
+        elif acao == "defensive_mode":
+            # Modo defensivo
+            self.acao_atual = "RECUAR"
+            self.agressividade_base = max(0.1, self.agressividade_base - 0.2)
+            return False
+        
+        elif acao == "punish_attack":
+            # Ataque de punição
+            self.acao_atual = "MATAR"
+            self._executar_ataque(distancia, inimigo)
+            return True
+        
+        elif acao == "execute_mode":
+            # Modo execução - all in
+            self.acao_atual = "ESMAGAR"
+            self.agressividade_base = min(1.0, self.agressividade_base + 0.4)
+            self._executar_ataque(distancia, inimigo)
+            return True
+        
+        elif acao == "tactical_retreat":
+            # Recuo tático
+            self.acao_atual = "RECUAR"
+            if self.cd_dash <= 0:
+                if hasattr(p, 'iniciar_dash'):
+                    p.iniciar_dash()
+                self.cd_dash = 0.6
+            return True
+        
+        elif acao == "pressure_increase":
+            # Aumenta pressão
+            self.agressividade_base = min(1.0, self.agressividade_base + 0.15)
+            self.pressao_aplicada = min(1.0, self.pressao_aplicada + 0.2)
+            return False
+        
+        elif acao == "style_switch":
+            # Muda de estilo temporariamente
+            estilos_alternativos = ["AGGRO", "DEFENSIVE", "MOBILE", "COUNTER"]
+            novo_estilo = random.choice([e for e in estilos_alternativos if e != self.estilo_luta])
+            self.estilo_luta = novo_estilo
+            return False
+        
+        elif acao == "combo_break":
+            # Tenta quebrar combo
+            if self.cd_dash <= 0 and random.random() < 0.5:
+                if hasattr(p, 'iniciar_dash'):
+                    p.iniciar_dash()
+                self.cd_dash = 0.5
+                return True
+        
+        elif acao == "instant_counter":
+            # Contra-ataque instantâneo
+            self.acao_atual = "CONTRA_ATAQUE"
+            self._executar_ataque(distancia, inimigo)
+            return True
+        
+        elif acao == "auto_jump":
+            # Pulo automático
+            if self.cd_pulo <= 0 and hasattr(p, 'pular'):
+                p.pular()
+                self.cd_pulo = 0.3
+                return True
+        
+        return False
+    
+    def get_agressividade_efetiva(self):
+        """Retorna agressividade com modificadores de ritmo"""
+        base = self.agressividade
+        ritmo_mod = self.ritmo_modificadores.get("agressividade", 0)
+        return max(0.0, min(1.0, base + ritmo_mod))

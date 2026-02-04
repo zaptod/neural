@@ -499,6 +499,9 @@ class Arena:
         # Histórico de colisões para efeitos
         self.colisoes_recentes: List[Tuple[float, float, float]] = []  # (x, y, intensidade)
         
+        # Cooldown de som de colisão por lutador (evita som repetido ao deslizar)
+        self.wall_sound_cooldown: dict = {}  # {lutador_id: tempo_restante}
+        
         # Efeitos especiais ativos
         self.efeitos_ativos = list(config.efeitos_especiais) if config.efeitos_especiais else []
     
@@ -543,15 +546,21 @@ class Arena:
         
         return None
     
-    def aplicar_limites(self, lutador, dt: float) -> bool:
+    def aplicar_limites(self, lutador, dt: float) -> float:
         """
         Aplica limites da arena ao lutador.
-        Retorna True se houve colisão com parede.
+        Retorna a intensidade do impacto (0.0 se não houve impacto significativo).
+        Deslizar na parede retorna 0.0, apenas impactos reais retornam > 0.
         """
         if not self.config.tem_paredes:
-            return False
+            return 0.0
         
-        colidiu = False
+        # Atualiza cooldown de som
+        lutador_id = id(lutador)
+        if lutador_id in self.wall_sound_cooldown:
+            self.wall_sound_cooldown[lutador_id] = max(0, self.wall_sound_cooldown[lutador_id] - dt)
+        
+        impacto_max = 0.0  # Maior intensidade de impacto neste frame
         margem = lutador.raio_fisico
         bounce = 0.3  # Coeficiente de rebote
         
@@ -563,7 +572,6 @@ class Arena:
             
             if dist + margem > self.raio:
                 # Colisão com borda circular
-                colidiu = True
                 
                 # Normaliza direção
                 if dist > 0:
@@ -571,24 +579,28 @@ class Arena:
                 else:
                     nx, ny = 1, 0
                 
+                # Calcula velocidade perpendicular à parede ANTES do rebote
+                dot = lutador.vel[0] * nx + lutador.vel[1] * ny
+                
                 # Empurra de volta
                 lutador.pos[0] = self.centro_x + nx * (self.raio - margem - 0.01)
                 lutador.pos[1] = self.centro_y + ny * (self.raio - margem - 0.01)
                 
-                # Rebote
-                dot = lutador.vel[0] * nx + lutador.vel[1] * ny
-                if dot > 0:  # Só rebote se indo em direção à parede
+                # Rebote apenas se indo em direção à parede
+                if dot > 0:
                     lutador.vel[0] -= (1 + bounce) * dot * nx
                     lutador.vel[1] -= (1 + bounce) * dot * ny
-                
-                # Registra colisão
-                intensidade = abs(dot)
-                if intensidade > 2:
-                    self.colisoes_recentes.append((lutador.pos[0], lutador.pos[1], intensidade))
+                    
+                    # Registra impacto apenas se velocidade perpendicular significativa
+                    intensidade = abs(dot)
+                    if intensidade > 2:
+                        self.colisoes_recentes.append((lutador.pos[0], lutador.pos[1], intensidade))
+                        impacto_max = max(impacto_max, intensidade)
         
         elif self.config.formato == "octogono":
             # Arena octogonal (simplificado como retângulo com cantos cortados)
-            colidiu = self._aplicar_limites_retangular(lutador, margem, bounce)
+            impacto_ret = self._aplicar_limites_retangular(lutador, margem, bounce)
+            impacto_max = max(impacto_max, impacto_ret)
             
             # Corta cantos (45 graus)
             corte = min(self.largura, self.altura) * 0.2
@@ -619,27 +631,32 @@ class Arena:
                     # Linha do canto: dy*x + dx*y = dy*cx + dx*cy
                     linha_val = dy * (px - cx) + dx * (py - cy)
                     if (dx * dy > 0 and linha_val < 0) or (dx * dy < 0 and linha_val > 0):
-                        colidiu = True
                         # Projeta de volta
                         norm = math.hypot(dx, dy)
                         nx, ny = dx / norm, dy / norm
                         dist_linha = abs(linha_val) / norm
+                        
+                        # Calcula velocidade perpendicular ao canto
+                        vel_perp = abs(lutador.vel[0] * nx + lutador.vel[1] * ny)
+                        if vel_perp > 2:
+                            impacto_max = max(impacto_max, vel_perp)
+                        
                         lutador.pos[0] += nx * (dist_linha + margem)
                         lutador.pos[1] += ny * (dist_linha + margem)
         else:
             # Arena retangular padrão
-            colidiu = self._aplicar_limites_retangular(lutador, margem, bounce)
+            impacto_ret = self._aplicar_limites_retangular(lutador, margem, bounce)
+            impacto_max = max(impacto_max, impacto_ret)
         
         # Aplica colisão com obstáculos
-        obs_colidido = self._aplicar_colisao_obstaculos(lutador, margem, bounce)
-        if obs_colidido:
-            colidiu = True
+        impacto_obs = self._aplicar_colisao_obstaculos(lutador, margem, bounce)
+        impacto_max = max(impacto_max, impacto_obs)
         
-        return colidiu
+        return impacto_max
     
-    def _aplicar_colisao_obstaculos(self, lutador, margem: float, bounce: float) -> bool:
-        """Aplica colisão com obstáculos sólidos"""
-        colidiu = False
+    def _aplicar_colisao_obstaculos(self, lutador, margem: float, bounce: float) -> float:
+        """Aplica colisão com obstáculos sólidos. Retorna intensidade do impacto."""
+        impacto_max = 0.0
         
         for obs in self.obstaculos:
             if not obs.solido:
@@ -657,8 +674,6 @@ class Arena:
             px, py = lutador.pos[0], lutador.pos[1]
             
             if left < px < right and top < py < bottom:
-                colidiu = True
-                
                 # Determina lado de colisão
                 dist_left = px - left
                 dist_right = right - px
@@ -670,40 +685,44 @@ class Arena:
                 if min_dist == dist_left:
                     lutador.pos[0] = left
                     if lutador.vel[0] > 0:
+                        impacto_max = max(impacto_max, abs(lutador.vel[0]))
                         lutador.vel[0] *= -bounce
                 elif min_dist == dist_right:
                     lutador.pos[0] = right
                     if lutador.vel[0] < 0:
+                        impacto_max = max(impacto_max, abs(lutador.vel[0]))
                         lutador.vel[0] *= -bounce
                 elif min_dist == dist_top:
                     lutador.pos[1] = top
                     if lutador.vel[1] > 0:
+                        impacto_max = max(impacto_max, abs(lutador.vel[1]))
                         lutador.vel[1] *= -bounce
                 else:
                     lutador.pos[1] = bottom
                     if lutador.vel[1] < 0:
+                        impacto_max = max(impacto_max, abs(lutador.vel[1]))
                         lutador.vel[1] *= -bounce
                 
-                # Registra colisão
-                vel_mag = math.hypot(lutador.vel[0], lutador.vel[1])
-                if vel_mag > 2:
-                    self.colisoes_recentes.append((lutador.pos[0], lutador.pos[1], vel_mag))
+                # Registra colisão apenas se impacto significativo
+                if impacto_max > 2:
+                    self.colisoes_recentes.append((lutador.pos[0], lutador.pos[1], impacto_max))
         
-        return colidiu
+        return impacto_max
     
-    def _aplicar_limites_retangular(self, lutador, margem: float, bounce: float) -> bool:
-        """Aplica limites retangulares"""
-        colidiu = False
+    def _aplicar_limites_retangular(self, lutador, margem: float, bounce: float) -> float:
+        """Aplica limites retangulares. Retorna intensidade do impacto (0 se apenas deslizando)."""
+        impacto_max = 0.0
         
         # Parede esquerda
         if lutador.pos[0] - margem < self.min_x:
             lutador.pos[0] = self.min_x + margem
+            # Só conta como impacto se estava indo em direção à parede
             if lutador.vel[0] < 0:
                 intensidade = abs(lutador.vel[0])
                 lutador.vel[0] *= -bounce
                 if intensidade > 2:
                     self.colisoes_recentes.append((lutador.pos[0], lutador.pos[1], intensidade))
-            colidiu = True
+                    impacto_max = max(impacto_max, intensidade)
         
         # Parede direita
         if lutador.pos[0] + margem > self.max_x:
@@ -713,7 +732,7 @@ class Arena:
                 lutador.vel[0] *= -bounce
                 if intensidade > 2:
                     self.colisoes_recentes.append((lutador.pos[0], lutador.pos[1], intensidade))
-            colidiu = True
+                    impacto_max = max(impacto_max, intensidade)
         
         # Parede superior
         if lutador.pos[1] - margem < self.min_y:
@@ -723,7 +742,7 @@ class Arena:
                 lutador.vel[1] *= -bounce
                 if intensidade > 2:
                     self.colisoes_recentes.append((lutador.pos[0], lutador.pos[1], intensidade))
-            colidiu = True
+                    impacto_max = max(impacto_max, intensidade)
         
         # Parede inferior
         if lutador.pos[1] + margem > self.max_y:
@@ -733,9 +752,9 @@ class Arena:
                 lutador.vel[1] *= -bounce
                 if intensidade > 2:
                     self.colisoes_recentes.append((lutador.pos[0], lutador.pos[1], intensidade))
-            colidiu = True
+                    impacto_max = max(impacto_max, intensidade)
         
-        return colidiu
+        return impacto_max
     
     def esta_dentro(self, x: float, y: float, margem: float = 0) -> bool:
         """Verifica se um ponto está dentro da arena"""
@@ -761,9 +780,9 @@ class Arena:
         return (p1_x, p1_y), (p2_x, p2_y)
     
     def limpar_colisoes(self):
-        """Limpa histórico de colisões"""
-        # Mantém apenas colisões recentes
-        self.colisoes_recentes = self.colisoes_recentes[-10:]
+        """Limpa histórico de colisões após processamento"""
+        # Limpa completamente - colisões já foram processadas neste frame
+        self.colisoes_recentes.clear()
     
     def desenhar(self, surface: pygame.Surface, camera):
         """

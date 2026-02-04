@@ -8,10 +8,10 @@ from .constants import get_class_data
 
 class Personagem:
     """
-    Classe de Personagem com sistema de classes.
+    Classe de Personagem com sistema de classes e personalidade.
     """
     def __init__(self, nome, tamanho, forca, mana, nome_arma="", peso_arma_cache=0, 
-                 r=200, g=50, b=50, classe="Guerreiro (Força Bruta)"):
+                 r=200, g=50, b=50, classe="Guerreiro (Força Bruta)", personalidade="Aleatório"):
         self.nome = nome
         self.tamanho = float(tamanho)
         self.forca = float(forca)
@@ -21,6 +21,7 @@ class Personagem:
         self.cor_g = int(g)
         self.cor_b = int(b)
         self.classe = classe
+        self.personalidade = personalidade  # Personalidade da IA
         
         # Carrega dados da classe
         self.class_data = get_class_data(classe)
@@ -74,5 +75,6 @@ class Personagem:
             "cor_r": self.cor_r, 
             "cor_g": self.cor_g, 
             "cor_b": self.cor_b,
-            "classe": self.classe
+            "classe": self.classe,
+            "personalidade": self.personalidade
         }

@@ -157,6 +157,11 @@ class Lutador:
         self.atacando = False
         self.modo_ataque_aereo = False
         
+        # === SISTEMA DE PREVENÇÃO DE MULTI-HIT v10.1 ===
+        # Cada ataque recebe um ID único para evitar múltiplos hits no mesmo swing
+        self.ataque_id = 0  # Incrementa a cada novo ataque
+        self.alvos_atingidos_neste_ataque = set()  # IDs dos alvos já atingidos neste ataque
+        
         # === SISTEMA DE ANIMAÇÃO DE ARMAS v2.0 ===
         self.weapon_anim_scale = 1.0      # Escala da arma (squash/stretch)
         self.weapon_anim_shake = (0, 0)   # Offset de shake no impacto
@@ -179,7 +184,7 @@ class Lutador:
 
     def _calcular_vida_max(self):
         """Calcula vida máxima com modificadores"""
-        base = 200.0 + (self.dados.resistencia * 15)  # Dobrado a vida base
+        base = 80.0 + (self.dados.resistencia * 5)  # Vida reduzida para lutas mais rápidas
         return base * self.class_data.get("mod_vida", 1.0)
     
     def _calcular_mana_max(self):
@@ -256,7 +261,7 @@ class Lutador:
 
     def usar_skill_arma(self, skill_idx=None):
         """Usa a skill equipada na arma"""
-        from core.combat import Projetil, AreaEffect, Beam, Buff
+        from core.combat import Projetil, AreaEffect, Beam, Buff, Summon, Trap, Transform, Channel
         from effects.audio import AudioManager
         
         if skill_idx is not None and skill_idx < len(self.skills_arma):
@@ -370,7 +375,7 @@ class Lutador:
             if data.get("cura"):
                 self.vida = min(self.vida_max, self.vida + data["cura"])
             
-            buff = Buff(self.skill_arma_nome, self)
+            buff = Buff(nome_skill, self)
             self.buffs_ativos.append(buff)
         
         elif tipo == "BEAM":
@@ -383,14 +388,59 @@ class Lutador:
             end_x = self.pos[0] + math.cos(rad) * alcance
             end_y = self.pos[1] + math.sin(rad) * alcance
             
-            beam = Beam(self.skill_arma_nome, self.pos[0], self.pos[1], end_x, end_y, self)
+            beam = Beam(nome_skill, self.pos[0], self.pos[1], end_x, end_y, self)
             self.buffer_beams.append(beam)
+        
+        # === TIPOS ADICIONAIS (v2.0) ===
+        elif tipo == "SUMMON":
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("SUMMON", nome_skill, self.pos[0], phase="cast")
+            
+            summon_x = self.pos[0] + math.cos(rad) * 1.5
+            summon_y = self.pos[1] + math.sin(rad) * 1.5
+            
+            summon = Summon(nome_skill, summon_x, summon_y, self)
+            if not hasattr(self, 'buffer_summons'):
+                self.buffer_summons = []
+            self.buffer_summons.append(summon)
+        
+        elif tipo == "TRAP":
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("TRAP", nome_skill, self.pos[0], phase="cast")
+            
+            trap_x = self.pos[0] + math.cos(rad) * 2.0
+            trap_y = self.pos[1] + math.sin(rad) * 2.0
+            
+            trap = Trap(nome_skill, trap_x, trap_y, self)
+            if not hasattr(self, 'buffer_traps'):
+                self.buffer_traps = []
+            self.buffer_traps.append(trap)
+        
+        elif tipo == "TRANSFORM":
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("TRANSFORM", nome_skill, self.pos[0], phase="cast")
+            
+            transform = Transform(nome_skill, self)
+            self.transformacao_ativa = transform
+        
+        elif tipo == "CHANNEL":
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("CHANNEL", nome_skill, self.pos[0], phase="cast")
+            
+            channel = Channel(nome_skill, self)
+            if not hasattr(self, 'buffer_channels'):
+                self.buffer_channels = []
+            self.buffer_channels.append(channel)
         
         return True
 
     def usar_skill_classe(self, skill_nome):
         """Usa uma skill de classe específica"""
-        from core.combat import Projetil, AreaEffect, Beam, Buff
+        from core.combat import Projetil, AreaEffect, Beam, Buff, Summon, Trap, Transform, Channel
         from effects.audio import AudioManager
         
         skill_info = None
@@ -411,6 +461,13 @@ class Lutador:
         
         if "Mago" in self.classe_nome:
             custo *= 0.8
+        
+        # Custo em vida (Pacto de Sangue, Sacrifício)
+        custo_vida = data.get("custo_vida", 0) or data.get("custo_vida_percent", 0) * self.vida_max
+        if custo_vida > 0:
+            if self.vida <= custo_vida:
+                return False  # Não pode usar se morreria
+            self.vida -= custo_vida
         
         if self.mana < custo:
             return False
@@ -503,6 +560,55 @@ class Lutador:
             beam = Beam(skill_nome, self.pos[0], self.pos[1], end_x, end_y, self)
             self.buffer_beams.append(beam)
         
+        # === NOVOS TIPOS v2.0 ===
+        elif tipo == "SUMMON":
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("SUMMON", skill_nome, self.pos[0], phase="cast")
+            
+            # Spawn na frente do caster
+            summon_x = self.pos[0] + math.cos(rad) * 1.5
+            summon_y = self.pos[1] + math.sin(rad) * 1.5
+            
+            summon = Summon(skill_nome, summon_x, summon_y, self)
+            if not hasattr(self, 'buffer_summons'):
+                self.buffer_summons = []
+            self.buffer_summons.append(summon)
+        
+        elif tipo == "TRAP":
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("TRAP", skill_nome, self.pos[0], phase="cast")
+            
+            # Spawn na frente do caster
+            trap_x = self.pos[0] + math.cos(rad) * 2.0
+            trap_y = self.pos[1] + math.sin(rad) * 2.0
+            
+            trap = Trap(skill_nome, trap_x, trap_y, self)
+            if not hasattr(self, 'buffer_traps'):
+                self.buffer_traps = []
+            self.buffer_traps.append(trap)
+        
+        elif tipo == "TRANSFORM":
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("TRANSFORM", skill_nome, self.pos[0], phase="cast")
+            
+            transform = Transform(skill_nome, self)
+            if not hasattr(self, 'transformacao_ativa'):
+                self.transformacao_ativa = None
+            self.transformacao_ativa = transform
+        
+        elif tipo == "CHANNEL":
+            audio = AudioManager.get_instance()
+            if audio:
+                audio.play_skill("CHANNEL", skill_nome, self.pos[0], phase="cast")
+            
+            channel = Channel(skill_nome, self)
+            if not hasattr(self, 'channel_ativo'):
+                self.channel_ativo = None
+            self.channel_ativo = channel
+        
         return True
 
     def update(self, dt, inimigo):
@@ -552,7 +658,7 @@ class Lutador:
         self.mana = min(self.mana_max, self.mana + mana_regen * dt)
         
         if "Paladino" in self.classe_nome:
-            self.vida = min(self.vida_max, self.vida + self.vida_max * 0.02 * dt)
+            self.vida = min(self.vida_max, self.vida + self.vida_max * 0.005 * dt)  # Reduzido de 2% para 0.5%
         
         dx = inimigo.pos[0] - self.pos[0]
         dy = inimigo.pos[1] - self.pos[1]
@@ -564,9 +670,11 @@ class Lutador:
         self.angulo_olhar += diff * vel_giro * dt
 
         if self.stun_timer <= 0 and not inimigo.morto:
-            self.brain.processar(dt, distancia, inimigo)
-            self.executar_movimento(dt, distancia)
-            self.executar_ataques(dt, distancia, inimigo)
+            # Só processa IA se tiver brain (não em modo manual)
+            if self.brain is not None:
+                self.brain.processar(dt, distancia, inimigo)
+                self.executar_movimento(dt, distancia)
+                self.executar_ataques(dt, distancia, inimigo)
 
         self.aplicar_fisica(dt)
 
@@ -758,7 +866,7 @@ class Lutador:
         
         elif acao in ["RECUAR", "FUGIR"] and self.z == 0:
             chance = 0.03
-            if self.brain.medo > 0.5:
+            if self.brain is not None and self.brain.medo > 0.5:
                 chance = 0.06
             if random.random() < chance:
                 self.vel_z = random.uniform(9.0, 12.0)
@@ -834,14 +942,17 @@ class Lutador:
             self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
 
         if not self.atacando and not is_orbital and self.cooldown_ataque <= 0:
-            acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE"]
+            acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE", "PRESSIONAR"]
             deve_atacar = False
             
-            alcance_ataque = self.alcance_ideal + 1.0
+            # Calcula alcance de ataque baseado na arma
             if arma_tipo in ["Arremesso", "Arco"]:
-                alcance_ataque = self.alcance_ideal + 3.0
+                # Armas ranged atacam em qualquer distância razoável
+                alcance_ataque = 12.0  # Alcance máximo fixo para ranged
             elif arma_tipo == "Mágica":
-                alcance_ataque = self.alcance_ideal + 4.0
+                alcance_ataque = 8.0
+            else:
+                alcance_ataque = self.alcance_ideal + 1.0
             
             if self.brain.acao_atual in acoes_ofensivas and distancia < alcance_ataque:
                 deve_atacar = True
@@ -852,6 +963,10 @@ class Lutador:
 
             if deve_atacar and abs(self.z - inimigo.z) < 1.5:
                 self.atacando = True
+                
+                # === v10.1: Novo ataque = novo ID, limpa alvos atingidos ===
+                self.ataque_id += 1
+                self.alvos_atingidos_neste_ataque.clear()
                 
                 # Usa duração do perfil da arma
                 profile = WEAPON_PROFILES.get(arma_tipo, WEAPON_PROFILES["Reta"])
@@ -987,8 +1102,8 @@ class Lutador:
                 orbe.iniciar_carga(alvo)
                 self.buffer_orbes.append(orbe)
 
-    def tomar_dano(self, dano, empurrao_x, empurrao_y, tipo_efeito="NORMAL"):
-        """Recebe dano com suporte a efeitos"""
+    def tomar_dano(self, dano, empurrao_x, empurrao_y, tipo_efeito="NORMAL", atacante=None):
+        """Recebe dano com suporte a efeitos e reflexão"""
         from core.combat import DotEffect
         
         if self.morto or self.invencivel_timer > 0:
@@ -1006,6 +1121,21 @@ class Lutador:
             if buff.escudo_atual > 0:
                 dano_final = buff.absorver_dano(dano_final)
         
+        # Reflexo de dano (Reflexo Espelhado)
+        dano_refletido = 0
+        for buff in self.buffs_ativos:
+            if hasattr(buff, 'refletir') and buff.refletir > 0:
+                dano_refletido += dano_final * buff.refletir
+        
+        # Aplica dano refletido ao atacante (se existir)
+        if dano_refletido > 0 and atacante is not None and not atacante.morto:
+            # Aplica dano direto sem recursão (sem passar atacante)
+            atacante.vida -= dano_refletido
+            atacante.flash_timer = 0.15
+            atacante.flash_cor = (200, 200, 255)  # Flash azulado para reflexo
+            if atacante.vida <= 0:
+                atacante.morrer()
+        
         self.vida -= dano_final
         self.invencivel_timer = 0.3
         
@@ -1015,17 +1145,70 @@ class Lutador:
         # Cor do flash baseada no tipo de efeito
         self.flash_cor = {
             "NORMAL": (255, 255, 255),
+            # Fogo
             "FOGO": (255, 150, 50),
             "QUEIMAR": (255, 100, 0),
+            "QUEIMANDO": (255, 120, 20),
+            # Gelo
             "GELO": (150, 220, 255),
             "CONGELAR": (100, 200, 255),
+            "CONGELADO": (180, 230, 255),
+            "LENTO": (150, 200, 255),
+            # Natureza/Veneno
             "VENENO": (100, 255, 100),
+            "ENVENENADO": (80, 220, 80),
+            "NATUREZA": (100, 200, 50),
+            # Sangue
             "SANGRAMENTO": (255, 50, 50),
+            "SANGRANDO": (200, 30, 30),
+            "SANGUE": (180, 0, 50),
+            # Raio
             "RAIO": (255, 255, 100),
+            "PARALISIA": (255, 255, 150),
+            # Trevas
             "TREVAS": (150, 50, 200),
+            "MALDITO": (100, 0, 150),
+            "NECROSE": (50, 50, 50),
+            "DRENAR": (120, 0, 150),
+            # Luz
+            "LUZ": (255, 255, 220),
+            "CEGO": (255, 255, 200),
+            # Arcano
+            "ARCANO": (150, 100, 255),
+            "SILENCIADO": (180, 150, 255),
+            # Tempo
+            "TEMPO": (200, 180, 255),
+            "TEMPO_PARADO": (220, 200, 255),
+            # Gravitação
+            "GRAVITACAO": (100, 50, 150),
+            "PUXADO": (120, 70, 180),
+            "VORTEX": (80, 30, 130),
+            # Caos
+            "CAOS": (255, 100, 200),
+            # CC
+            "ATORDOAR": (255, 255, 100),
+            "ATORDOADO": (255, 255, 100),
+            "ENRAIZADO": (139, 90, 43),
+            "MEDO": (150, 0, 150),
+            "CHARME": (255, 150, 200),
+            "SONO": (100, 100, 200),
+            "KNOCK_UP": (200, 200, 255),
+            # Debuffs
+            "FRACO": (150, 150, 150),
+            "VULNERAVEL": (255, 150, 150),
+            "EXAUSTO": (100, 100, 100),
+            "MARCADO": (255, 200, 50),
+            "EXPOSTO": (255, 180, 100),
+            "CORROENDO": (150, 100, 50),
+            # Especiais
+            "EXPLOSAO": (255, 200, 100),
+            "EMPURRAO": (200, 200, 200),
+            "BOMBA_RELOGIO": (255, 150, 0),
+            "POSSESSO": (100, 0, 100),
         }.get(tipo_efeito, (255, 255, 255))
         
-        self.brain.raiva += 0.2
+        if self.brain is not None:
+            self.brain.raiva += 0.2
         
         # Knockback proporcional ao dano e vida restante
         kb = 15.0 + (1.0 - (self.vida/self.vida_max)) * 10.0
@@ -1043,24 +1226,214 @@ class Lutador:
             return True
         return False
 
-    def _aplicar_efeito_status(self, efeito):
-        """Aplica efeitos de status do dano"""
+    def _aplicar_efeito_status(self, efeito, duracao=None, intensidade=1.0):
+        """
+        Aplica efeitos de status do dano - Sistema v2.0 COLOSSAL
+        
+        Args:
+            efeito: Nome do efeito a aplicar
+            duracao: Duração customizada (opcional)
+            intensidade: Multiplicador de intensidade (default 1.0)
+        """
         from core.combat import DotEffect
         
-        if efeito == "VENENO":
-            dot = DotEffect("VENENO", self, 1.5, 4.0, (100, 255, 100))  # Reduzido de 3.0
+        # =================================================================
+        # DANOS AO LONGO DO TEMPO (DoT)
+        # =================================================================
+        if efeito == "VENENO" or efeito == "ENVENENADO":
+            dot = DotEffect("ENVENENADO", self, 1.5 * intensidade, duracao or 4.0, (100, 255, 100))
             self.dots_ativos.append(dot)
-        elif efeito == "SANGRAMENTO":
-            dot = DotEffect("SANGRAMENTO", self, 2.0, 3.0, (180, 0, 30))  # Reduzido de 4.0
+            
+        elif efeito == "SANGRAMENTO" or efeito == "SANGRANDO":
+            dot = DotEffect("SANGRANDO", self, 2.0 * intensidade, duracao or 3.0, (180, 0, 30))
             self.dots_ativos.append(dot)
-        elif efeito == "QUEIMAR":
-            dot = DotEffect("QUEIMAR", self, 2.5, 2.0, (255, 100, 0))  # Reduzido de 5.0
+            
+        elif efeito == "QUEIMAR" or efeito == "QUEIMANDO":
+            dot = DotEffect("QUEIMANDO", self, 2.5 * intensidade, duracao or 2.5, (255, 100, 0))
             self.dots_ativos.append(dot)
-        elif efeito == "CONGELAR":
-            self.slow_timer = 2.0
-            self.slow_fator = 0.5
-        elif efeito == "ATORDOAR":
-            self.stun_timer = 0.8
+            
+        elif efeito == "CORROENDO":
+            # Corrosão: Dano + reduz defesa
+            dot = DotEffect("CORROENDO", self, 1.5 * intensidade, duracao or 4.0, (150, 100, 50))
+            self.dots_ativos.append(dot)
+            self.mod_defesa *= 0.8  # -20% defesa
+            
+        elif efeito == "NECROSE":
+            # Necrose: DoT que impede cura
+            dot = DotEffect("NECROSE", self, 3.0 * intensidade, duracao or 5.0, (50, 50, 50))
+            self.dots_ativos.append(dot)
+            if not hasattr(self, 'cura_bloqueada'):
+                self.cura_bloqueada = 0
+            self.cura_bloqueada = duracao or 5.0
+            
+        elif efeito == "MALDITO":
+            # Maldição: DoT + dano recebido aumentado
+            dot = DotEffect("MALDITO", self, 1.0 * intensidade, duracao or 6.0, (100, 0, 100))
+            self.dots_ativos.append(dot)
+            if not hasattr(self, 'vulnerabilidade'):
+                self.vulnerabilidade = 1.0
+            self.vulnerabilidade = 1.3
+        
+        # =================================================================
+        # CONTROLE DE GRUPO (CC)
+        # =================================================================
+        elif efeito == "CONGELAR" or efeito == "CONGELADO":
+            self.stun_timer = max(self.stun_timer, duracao or 2.0)
+            self.slow_timer = max(self.slow_timer, (duracao or 2.0) + 1.0)
+            self.slow_fator = 0.3
+            if not hasattr(self, 'congelado'):
+                self.congelado = False
+            self.congelado = True
+            
+        elif efeito == "LENTO":
+            self.slow_timer = max(self.slow_timer, duracao or 2.0)
+            self.slow_fator = min(self.slow_fator, 0.5 / intensidade)
+            
+        elif efeito == "ATORDOAR" or efeito == "ATORDOADO":
+            self.stun_timer = max(self.stun_timer, (duracao or 0.8) * intensidade)
+            
+        elif efeito == "PARALISIA":
+            # Paralisia: Stun mais curto mas frequente
+            self.stun_timer = max(self.stun_timer, (duracao or 0.5) * intensidade)
+            self.flash_cor = (255, 255, 100)
+            self.flash_timer = 0.3
+            
+        elif efeito == "ENRAIZADO":
+            # Enraizado: Não pode mover mas pode atacar
+            if not hasattr(self, 'enraizado_timer'):
+                self.enraizado_timer = 0
+            self.enraizado_timer = max(self.enraizado_timer, duracao or 2.5)
+            self.slow_fator = 0.0  # Velocidade zero
+            
+        elif efeito == "SILENCIADO":
+            # Silenciado: Não pode usar skills
+            if not hasattr(self, 'silenciado_timer'):
+                self.silenciado_timer = 0
+            self.silenciado_timer = duracao or 3.0
+            
+        elif efeito == "CEGO":
+            # Cego: Ângulo de visão prejudicado (IA afetada)
+            if not hasattr(self, 'cego_timer'):
+                self.cego_timer = 0
+            self.cego_timer = duracao or 2.0
+            self.flash_cor = (255, 255, 200)
+            self.flash_timer = 0.5
+            
+        elif efeito == "MEDO":
+            # Medo: Força a fugir
+            if not hasattr(self, 'medo_timer'):
+                self.medo_timer = 0
+            self.medo_timer = duracao or 2.5
+            if self.brain is not None:
+                self.brain.medo = 1.0  # Maximiza medo na IA
+            
+        elif efeito == "CHARME":
+            # Charme: Inimigo te segue
+            if not hasattr(self, 'charme_timer'):
+                self.charme_timer = 0
+            self.charme_timer = duracao or 2.0
+            
+        elif efeito == "SONO":
+            # Sono: Stun longo que quebra com dano
+            if not hasattr(self, 'dormindo'):
+                self.dormindo = False
+            self.dormindo = True
+            self.stun_timer = max(self.stun_timer, duracao or 4.0)
+            
+        elif efeito == "KNOCK_UP":
+            # Knock Up: Joga no ar
+            self.vel_z = 12.0 * intensidade
+            self.stun_timer = max(self.stun_timer, 0.5)
+            
+        elif efeito == "PUXADO":
+            # Puxado: Atração gravitacional (implementado no efeito de área)
+            if not hasattr(self, 'sendo_puxado'):
+                self.sendo_puxado = False
+            self.sendo_puxado = True
+            
+        elif efeito == "TEMPO_PARADO":
+            # Tempo parado: Completamente imobilizado
+            self.stun_timer = max(self.stun_timer, duracao or 2.0)
+            self.slow_fator = 0.0
+            if not hasattr(self, 'tempo_parado'):
+                self.tempo_parado = False
+            self.tempo_parado = True
+            
+        elif efeito == "VORTEX":
+            # Vortex: Sendo puxado continuamente
+            if not hasattr(self, 'em_vortex'):
+                self.em_vortex = False
+            self.em_vortex = True
+        
+        # =================================================================
+        # DEBUFFS
+        # =================================================================
+        elif efeito == "FRACO":
+            # Fraco: Dano reduzido
+            if not hasattr(self, 'dano_reduzido'):
+                self.dano_reduzido = 1.0
+            self.dano_reduzido = 0.7
+            
+        elif efeito == "VULNERAVEL":
+            # Vulnerável: Dano recebido aumentado
+            if not hasattr(self, 'vulnerabilidade'):
+                self.vulnerabilidade = 1.0
+            self.vulnerabilidade = 1.5
+            
+        elif efeito == "EXAUSTO":
+            # Exausto: Regen de stamina/mana reduzida
+            if not hasattr(self, 'exausto_timer'):
+                self.exausto_timer = 0
+            self.exausto_timer = duracao or 5.0
+            self.regen_mana_base *= 0.3
+            
+        elif efeito == "MARCADO":
+            # Marcado: Próximo ataque causa dano extra
+            if not hasattr(self, 'marcado'):
+                self.marcado = False
+            self.marcado = True
+            
+        elif efeito == "EXPOSTO":
+            # Exposto: Ignora parte da defesa
+            if not hasattr(self, 'exposto_timer'):
+                self.exposto_timer = 0
+            self.exposto_timer = duracao or 4.0
+        
+        # =================================================================
+        # EFEITOS DE EMPURRÃO/MOVIMENTO
+        # =================================================================
+        elif efeito == "EMPURRAO":
+            # Já tratado pelo knockback normal
+            pass
+            
+        elif efeito == "EXPLOSAO":
+            # Explosão já causa o knockback
+            pass
+        
+        # =================================================================
+        # EFEITOS ESPECIAIS
+        # =================================================================
+        elif efeito == "DRENAR":
+            # Drenar: Já é tratado pelo lifesteal da skill
+            pass
+            
+        elif efeito == "BOMBA_RELOGIO":
+            # Bomba relógio: Explode depois de X segundos
+            if not hasattr(self, 'bomba_relogio_timer'):
+                self.bomba_relogio_timer = 0
+            self.bomba_relogio_timer = duracao or 3.0
+            self.bomba_relogio_dano = 80.0 * intensidade
+            
+        elif efeito == "LINK_ALMA":
+            # Link de alma: Dano compartilhado
+            if not hasattr(self, 'link_alma_alvo'):
+                self.link_alma_alvo = None
+                
+        elif efeito == "POSSESSO":
+            # Possessão: Controle invertido temporário
+            if not hasattr(self, 'possesso_timer'):
+                self.possesso_timer = 0
+            self.possesso_timer = duracao or 3.0
 
     def tomar_clash(self, ex, ey):
         """Recebe impacto de clash de armas"""
