@@ -942,24 +942,56 @@ class Lutador:
             self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
 
         if not self.atacando and not is_orbital and self.cooldown_ataque <= 0:
-            acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE", "PRESSIONAR"]
+            acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"]
             deve_atacar = False
             
-            # Calcula alcance de ataque baseado na arma
-            if arma_tipo in ["Arremesso", "Arco"]:
-                # Armas ranged atacam em qualquer distância razoável
-                alcance_ataque = 12.0  # Alcance máximo fixo para ranged
+            # Calcula alcance de ataque usando mesmo método que brain.py
+            try:
+                from core.hitbox import HITBOX_PROFILES
+                from utils.config import PPM
+                profile_hitbox = HITBOX_PROFILES.get(arma_tipo, HITBOX_PROFILES.get("Reta", {}))
+                range_mult = profile_hitbox.get("range_mult", 2.0)
+                alcance_base = self.raio_fisico * range_mult
+                
+                # Adiciona componente da arma como brain.py faz
+                arma = self.dados.arma_obj if self.dados else None
+                if arma_tipo == "Dupla":
+                    comp = getattr(arma, 'comp_lamina', 55) / PPM if arma else 1.1
+                    alcance_ataque = alcance_base + comp * 0.4
+                elif arma_tipo == "Reta":
+                    comp_total = (getattr(arma, 'comp_cabo', 20) + getattr(arma, 'comp_lamina', 40)) / PPM if arma else 1.2
+                    alcance_ataque = alcance_base + comp_total * 0.3
+                else:
+                    alcance_ataque = alcance_base
+                
+                # Margem de 30% para garantir ataque quando IA decide
+                alcance_ataque *= 1.3
+            except:
+                alcance_ataque = self.raio_fisico * 3.0  # Fallback generoso
+            
+            # Ajustes APENAS para armas ranged (não sobrescreve corpo-a-corpo!)
+            if arma_tipo == "Arco":
+                alcance_ataque = 20.0  # Arco: MUITO alcance (20 metros!)
+            elif arma_tipo == "Arremesso":
+                alcance_ataque = 12.0  # Arremesso: alcance médio
             elif arma_tipo == "Mágica":
                 alcance_ataque = 8.0
-            else:
-                alcance_ataque = self.alcance_ideal + 1.0
+            # Para armas corpo-a-corpo (incluindo Dupla), usa o cálculo baseado no profile
             
+            # Verifica se deve atacar
             if self.brain.acao_atual in acoes_ofensivas and distancia < alcance_ataque:
                 deve_atacar = True
             if self.brain.acao_atual == "POKE" and abs(distancia - self.alcance_ideal) < 1.5:
                 deve_atacar = True
             if self.modo_ataque_aereo and distancia < 2.0:
                 deve_atacar = True
+            
+            # === ARMAS RANGED: atacam mesmo recuando/fugindo! ===
+            if arma_tipo in ["Arremesso", "Arco"] and distancia < alcance_ataque:
+                # Arqueiros atiram mesmo fugindo (desde que não esteja em cooldown)
+                if self.brain.acao_atual in ["RECUAR", "FUGIR", "APROXIMAR"]:
+                    if random.random() < 0.7:  # 70% chance de atirar mesmo recuando
+                        deve_atacar = True
 
             if deve_atacar and abs(self.z - inimigo.z) < 1.5:
                 self.atacando = True
@@ -1028,7 +1060,8 @@ class Lutador:
                 offset = 0
             
             ang = self.angulo_olhar + offset
-            spawn_dist = 0.5
+            # Spawn BEM FORA do corpo do lutador
+            spawn_dist = self.raio_fisico + 0.5
             spawn_x = self.pos[0] + math.cos(math.radians(ang)) * spawn_dist
             spawn_y = self.pos[1] + math.sin(math.radians(ang)) * spawn_dist
             
@@ -1045,28 +1078,57 @@ class Lutador:
             self.buffer_projeteis.append(proj)
     
     def _disparar_flecha(self, alvo):
-        """Dispara flecha do arco"""
+        """Dispara flecha do arco - DIRETA E PRECISA"""
         from core.combat import FlechaProjetil
         
         arma = self.dados.arma_obj
         if not arma:
             return
         
-        dano = arma.dano * (self.dados.forca / 2.0)
+        dano = arma.dano * (self.dados.forca / 2.0 + 0.5)  # Dano base melhor
         forca = getattr(arma, 'forca_arco', 1.0)
+        # Normaliza força do arco (valores no JSON são 5-50, queremos 0.5-2.0)
+        forca_normalizada = max(0.5, min(2.0, forca / 25.0))
         
         cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (139, 90, 43)
         
-        rad = math.radians(self.angulo_olhar)
-        spawn_x = self.pos[0] + math.cos(rad) * 0.5
-        spawn_y = self.pos[1] + math.sin(rad) * 0.5
+        # === MIRA DIRETA NO ALVO (sem gravidade, sem complicação) ===
+        dx = alvo.pos[0] - self.pos[0]
+        dy = alvo.pos[1] - self.pos[1]
+        dist = math.hypot(dx, dy)
+        
+        if dist > 0.1:
+            # Velocidade da flecha
+            vel_flecha = 35.0 + forca_normalizada * 20.0
+            tempo_voo = dist / vel_flecha
+            
+            # Predição simples: 70% da velocidade do alvo
+            alvo_futuro_x = alvo.pos[0] + alvo.vel[0] * tempo_voo * 0.7
+            alvo_futuro_y = alvo.pos[1] + alvo.vel[1] * tempo_voo * 0.7
+            
+            # Mira direto no alvo (sem compensação de gravidade - flecha voa reta!)
+            dx_mira = alvo_futuro_x - self.pos[0]
+            dy_mira = alvo_futuro_y - self.pos[1]
+            angulo_mira = math.degrees(math.atan2(dy_mira, dx_mira))
+        else:
+            angulo_mira = self.angulo_olhar
+        
+        # Imprecisão pequena (arqueiro é preciso!)
+        angulo_mira += random.uniform(-2, 2)
+        
+        # === SPAWN DA FLECHA: Sai do CORPO do arqueiro (não do range!) ===
+        # A flecha nasce na beirada do corpo do arqueiro, na direção da mira
+        rad = math.radians(angulo_mira)
+        spawn_dist = self.raio_fisico + 0.3  # Logo na borda do corpo + pequena folga
+        spawn_x = self.pos[0] + math.cos(rad) * spawn_dist
+        spawn_y = self.pos[1] + math.sin(rad) * spawn_dist
         
         flecha = FlechaProjetil(
             x=spawn_x, y=spawn_y,
-            angulo=self.angulo_olhar,
+            angulo=angulo_mira,
             dono=self,
             dano=dano,
-            forca=forca,
+            forca=forca_normalizada,
             cor=cor
         )
         self.buffer_projeteis.append(flecha)

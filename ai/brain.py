@@ -459,7 +459,7 @@ class AIBrain:
             self.agressividade_base = data["agressividade"]
 
     def _definir_arquetipo_por_arma(self):
-        """Define arquétipo pela arma se classe não mapeada - CORRIGIDO v12.1"""
+        """Define arquétipo pela arma se classe não mapeada - v12.2 CORRIGIDO"""
         p = self.parent
         arma = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
         
@@ -477,42 +477,69 @@ class AIBrain:
             perfil = HITBOX_PROFILES.get(tipo, HITBOX_PROFILES.get("Reta", {}))
             range_mult = perfil.get("range_mult", 2.0)
         except:
+            perfil = {}
             range_mult = 2.0
         
-        # Define arquétipo e alcance baseado no tipo de arma
+        # Calcula alcance REAL em metros: raio do personagem * multiplicador da arma
+        raio = p.raio_fisico if hasattr(p, 'raio_fisico') else 0.4
+        alcance_max = raio * range_mult
+        
+        # Define arquétipo e alcance IDEAL (onde a IA quer ficar)
         if "Orbital" in tipo:
             self.arquetipo = "SENTINELA"
-            p.alcance_ideal = range_mult  # 1.5
+            # Orbitais: fica bem perto para os orbes acertarem
+            p.alcance_ideal = alcance_max * 0.8
+            
         elif "Arco" in tipo:
             self.arquetipo = "ARQUEIRO"
-            p.alcance_ideal = range_mult  # 8.0
+            # Arco tem range_mult = 20.0, então alcance_max = raio * 20 = ~8.5m
+            # Arqueiro quer ficar BEM LONGE - usa 60% do alcance máximo
+            # Isso coloca ele a ~5m do inimigo, seguro mas efetivo
+            p.alcance_ideal = alcance_max * 0.6
+            p.alcance_efetivo = alcance_max  # Pode acertar em todo o alcance
+            
         elif "Mágica" in tipo or "Cajado" in tipo:
             self.arquetipo = "MAGO"
-            p.alcance_ideal = range_mult  # 2.5
+            # Mago: distância média para skills
+            p.alcance_ideal = alcance_max * 0.7
+            
         elif "Corrente" in tipo:
             self.arquetipo = "ACROBATA"
-            # Correntes têm zona morta - IA deve ficar no alcance médio
-            min_range = perfil.get("min_range_ratio", 0.25) * range_mult
-            p.alcance_ideal = (range_mult + min_range) / 2  # Média entre zona morta e max
+            # Correntes têm ZONA MORTA - IA deve ficar na distância média
+            min_range_ratio = perfil.get("min_range_ratio", 0.25)
+            zona_morta = alcance_max * min_range_ratio
+            # Alcance ideal = meio termo entre zona morta e máximo
+            p.alcance_ideal = (alcance_max + zona_morta) / 2
+            
         elif "Arremesso" in tipo:
             self.arquetipo = "LANCEIRO"
-            p.alcance_ideal = range_mult * 0.7  # Fica mais perto que o máximo
+            # Arremesso: mantém distância segura mas não muito longe
+            p.alcance_ideal = alcance_max * 0.5
+            
         elif "Dupla" in tipo:
-            self.arquetipo = "DUELISTA"
-            p.alcance_ideal = range_mult  # 1.5
+            self.arquetipo = "ASSASSINO"
+            # Adagas: fica BEM PERTO para maximizar dano rápido
+            p.alcance_ideal = alcance_max * 0.7  # Bem perto!
+            
         elif "Transformável" in tipo:
             self.arquetipo = "GUERREIRO"
-            p.alcance_ideal = range_mult  # 2.5
+            # Transformável: distância média (adapta-se)
+            p.alcance_ideal = alcance_max * 0.8
+            
         elif "Reta" in tipo:
+            # Define arquétipo pelo peso
             if peso > 10.0:
                 self.arquetipo = "COLOSSO"
+                p.alcance_ideal = alcance_max * 0.9  # Pesadas = mais perto
             elif peso < 2.5:
                 self.arquetipo = "DUELISTA"
+                p.alcance_ideal = alcance_max * 0.75
             elif peso > 6.0:
                 self.arquetipo = "GUERREIRO_PESADO"
+                p.alcance_ideal = alcance_max * 0.85
             else:
                 self.arquetipo = "GUERREIRO"
-            p.alcance_ideal = range_mult  # 2.0
+                p.alcance_ideal = alcance_max * 0.8
         else:
             # Fallback
             if peso > 10.0:
@@ -523,7 +550,10 @@ class AIBrain:
                 self.arquetipo = "GUERREIRO_PESADO"
             else:
                 self.arquetipo = "GUERREIRO"
-            p.alcance_ideal = range_mult
+            p.alcance_ideal = alcance_max * 0.8
+        
+        # Garante alcance mínimo razoável
+        p.alcance_ideal = max(0.8, p.alcance_ideal)
 
     def _selecionar_estilo(self):
         """Seleciona estilo de luta"""
@@ -1213,14 +1243,42 @@ class AIBrain:
     # =========================================================================
     
     def _avaliar_e_executar_ataque(self, dt, distancia, inimigo):
-        """Avalia se deve atacar e como"""
+        """Avalia se deve atacar e como - v12.2 MELHORADO"""
         p = self.parent
         janela = self.janela_ataque
         combo = self.combo_state
         
+        # Calcula alcance efetivo baseado na arma
+        alcance_efetivo = self._calcular_alcance_efetivo()
+        no_alcance = distancia <= alcance_efetivo * 1.1  # 10% de margem
+        
         # Se está em combo, tenta continuar
         if combo["em_combo"] and combo["pode_followup"]:
             if self._tentar_followup(distancia, inimigo):
+                return True
+        
+        # === ATAQUE DIRETO SE NO ALCANCE E NÃO ATACANDO ===
+        if no_alcance and not p.atacando:
+            # Chance base de atacar quando no alcance
+            chance_base = 0.6
+            
+            # Aumenta chance se inimigo com pouca vida
+            if inimigo.vida / inimigo.vida_max < 0.3:
+                chance_base = 0.85
+            
+            # Modificadores de personalidade
+            if "AGRESSIVO" in self.tracos or "BERSERKER" in self.tracos:
+                chance_base += 0.2
+            if "CAUTELOSO" in self.tracos:
+                chance_base -= 0.15
+            if "OPORTUNISTA" in self.tracos:
+                chance_base += 0.1
+            
+            # Momentum
+            chance_base += self.momentum * 0.15
+            
+            if random.random() < chance_base:
+                self._executar_ataque(distancia, inimigo)
                 return True
         
         # Verifica se tem janela de oportunidade
@@ -1228,11 +1286,13 @@ class AIBrain:
             # Calcula se vale a pena atacar
             chance_ataque = janela["qualidade"]
             
-            # Modificadores
-            if distancia > p.alcance_ideal + 2.0:
-                chance_ataque *= 0.5  # Longe demais
-            if distancia < p.alcance_ideal * 0.5:
-                chance_ataque *= 1.2  # Muito perto, aproveita
+            # Modificadores de distância
+            if distancia > alcance_efetivo * 1.5:
+                chance_ataque *= 0.3  # Longe demais
+            elif distancia > alcance_efetivo:
+                chance_ataque *= 0.7  # Um pouco longe
+            elif distancia < p.alcance_ideal * 0.5:
+                chance_ataque *= 1.3  # Muito perto, aproveita
             
             # Personalidade
             if "OPORTUNISTA" in self.tracos:
@@ -1302,6 +1362,40 @@ class AIBrain:
             return True
         
         return False
+    
+    def _executar_ataque(self, distancia, inimigo):
+        """Executa um ataque baseado na distância e situação - v12.2"""
+        p = self.parent
+        
+        # Usa alcance efetivo calculado
+        alcance_efetivo = self._calcular_alcance_efetivo()
+        
+        # Escolhe tipo de ataque baseado na distância relativa ao alcance
+        if distancia <= alcance_efetivo * 0.5:
+            # Muito perto - ataque rápido
+            self.acao_atual = "ATAQUE_RAPIDO"
+        elif distancia <= alcance_efetivo:
+            # Dentro do alcance - ataque normal
+            if random.random() < 0.6:
+                self.acao_atual = "MATAR"
+            else:
+                self.acao_atual = "ATAQUE_RAPIDO"
+        elif distancia <= alcance_efetivo * 1.3:
+            # Quase no alcance - pressiona
+            if random.random() < 0.5:
+                self.acao_atual = "PRESSIONAR"
+            else:
+                self.acao_atual = "APROXIMAR"
+        else:
+            # Longe - aproxima
+            self.acao_atual = "APROXIMAR"
+        
+        # Seta flag de ataque diretamente (não existe método iniciar_ataque)
+        if distancia <= alcance_efetivo * 1.1:
+            # O ataque é executado via executar_ataques() em entities.py
+            # Basta garantir que a ação seja ofensiva
+            if self.acao_atual not in ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "PRESSIONAR", "CONTRA_ATAQUE", "POKE"]:
+                self.acao_atual = "MATAR"
     
     def _tentar_followup(self, distancia, inimigo):
         """Tenta continuar combo"""
@@ -3469,25 +3563,31 @@ class AIBrain:
     # =========================================================================
     
     def _decidir_movimento(self, distancia, inimigo):
-        """Decide ação de movimento com inteligência humana avançada"""
+        """Decide ação de movimento com inteligência humana avançada v12.2"""
         p = self.parent
         roll = random.random()
         hp_pct = p.vida / p.vida_max
         inimigo_hp_pct = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
         
-        # Calcula alcance real
+        # Calcula alcance real baseado no hitbox
         alcance_efetivo = self._calcular_alcance_efetivo()
-        dentro_alcance = distancia <= alcance_efetivo
-        quase_no_alcance = distancia <= alcance_efetivo * 1.3
-        muito_longe = distancia > alcance_efetivo * 2.0
+        alcance_ideal = p.alcance_ideal
         
-        # Condições especiais
+        # Zonas de distância relativas ao alcance
+        muito_perto = distancia < alcance_ideal * 0.5
+        perto = distancia < alcance_ideal
+        no_alcance = distancia <= alcance_efetivo
+        quase_no_alcance = distancia <= alcance_efetivo * 1.3
+        longe = distancia > alcance_efetivo * 1.5
+        muito_longe = distancia > alcance_efetivo * 2.5
+        
+        # Condições especiais de alta prioridade
         if hasattr(p, 'modo_adrenalina') and p.modo_adrenalina:
             self.acao_atual = "MATAR"
             return
         
         if hasattr(p, 'estamina') and p.estamina < 15:
-            if dentro_alcance and roll < 0.4:
+            if no_alcance and roll < 0.4:
                 self.acao_atual = "ATAQUE_RAPIDO"
             else:
                 self.acao_atual = "RECUAR"
@@ -3498,67 +3598,127 @@ class AIBrain:
             return
         
         if self.modo_defensivo:
-            if dentro_alcance and roll < 0.3:
+            if no_alcance and roll < 0.3:
                 self.acao_atual = "CONTRA_ATAQUE"
-            elif distancia < alcance_efetivo * 0.7:
+            elif muito_perto:
                 self.acao_atual = "RECUAR"
             else:
                 self.acao_atual = "COMBATE"
             return
         
         if self.medo > 0.75 and "DETERMINADO" not in self.tracos and "FRIO" not in self.tracos:
-            if dentro_alcance and roll < 0.25:
+            if no_alcance and roll < 0.25:
                 self.acao_atual = "ATAQUE_RAPIDO"
             else:
                 self.acao_atual = "FUGIR"
             return
         
-        # === COMPORTAMENTO ESPECIAL PARA ARMAS RANGED (Arco, Arremesso) ===
+        # === COMPORTAMENTO POR TIPO DE ARMA ===
         arma = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
         arma_tipo = arma.tipo if arma else ""
         
+        # ARMAS RANGED (Arco, Arremesso)
         if arma_tipo in ["Arco", "Arremesso"]:
-            # Armas ranged: mantém distância e atira
-            dist_ideal_ranged = alcance_efetivo * 0.6  # Fica a 60% do alcance máximo
+            # Para armas ranged, o alcance é muito maior
+            # Recalcula zonas especificamente para ranged
+            alcance_ranged = alcance_efetivo  # Já é o alcance total
+            perigosamente_perto = distancia < alcance_ideal * 0.4
+            perto_demais = distancia < alcance_ideal * 0.7
+            distancia_boa = distancia >= alcance_ideal * 0.7 and distancia <= alcance_ranged
+            longe_demais = distancia > alcance_ranged
             
-            if distancia < dist_ideal_ranged * 0.5:
-                # Muito perto - recua urgentemente
-                self.acao_atual = "RECUAR"
-            elif distancia < dist_ideal_ranged:
-                # Perto demais - recua enquanto ataca
-                if roll < 0.7:
-                    self.acao_atual = "RECUAR"
+            if perigosamente_perto:
+                # Muito perto - FOGE!
+                self.acao_atual = "FUGIR"
+            elif perto_demais:
+                # Perto demais - recua enquanto atira
+                if roll < 0.3:
+                    self.acao_atual = "ATAQUE_RAPIDO"  # Atira enquanto recua
                 else:
-                    self.acao_atual = "PRESSIONAR"  # Atira enquanto recua
-            elif distancia < alcance_efetivo:
-                # Distância ideal - ataca!
-                self.acao_atual = "PRESSIONAR"
+                    self.acao_atual = "RECUAR"
+            elif distancia_boa:
+                # Distância perfeita - ATACA COM TUDO!
+                self.acao_atual = random.choice(["MATAR", "MATAR", "PRESSIONAR", "ATAQUE_RAPIDO"])
+            elif longe_demais:
+                # Longe demais - aproxima até entrar no alcance
+                self.acao_atual = "APROXIMAR"
             else:
-                # Longe demais - aproxima um pouco
+                # Fallback
+                self.acao_atual = "MATAR"
+            return
+        
+        # CORRENTE (zona morta!)
+        if arma_tipo == "Corrente":
+            # Correntes têm zona morta - precisa manter distância média
+            from core.hitbox import HITBOX_PROFILES
+            perfil = HITBOX_PROFILES.get("Corrente", {})
+            zona_morta_ratio = perfil.get("min_range_ratio", 0.25)
+            zona_morta = alcance_efetivo * zona_morta_ratio
+            
+            if distancia < zona_morta:
+                # Dentro da zona morta - PRECISA sair!
+                self.acao_atual = "RECUAR"
+            elif distancia < alcance_ideal:
+                # Na zona ideal - ataca!
+                self.acao_atual = random.choice(["MATAR", "ESMAGAR", "FLANQUEAR"])
+            elif no_alcance:
+                # Ainda no alcance
+                self.acao_atual = random.choice(["MATAR", "CIRCULAR", "COMBATE"])
+            else:
                 self.acao_atual = "APROXIMAR"
             return
         
-        # Inteligência de alcance
-        if dentro_alcance:
+        # ADAGAS (Dupla) - agressivo e perto
+        if arma_tipo == "Dupla":
+            if muito_longe:
+                # Longe - aproxima rápido
+                self.acao_atual = "APROXIMAR"
+            elif longe:
+                # Médio - flanqueia
+                self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR", "PRESSIONAR"])
+            elif no_alcance:
+                # No alcance - ATACA MUITO!
+                if inimigo_hp_pct < 0.3:
+                    self.acao_atual = "MATAR"
+                elif roll < 0.7:
+                    self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO", "MATAR"])
+                else:
+                    self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR"])
+            else:
+                # Quase no alcance
+                self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR"])
+            return
+        
+        # === LÓGICA PADRÃO PARA OUTRAS ARMAS ===
+        
+        # Finalização de inimigo com pouca vida
+        if inimigo_hp_pct < 0.25 and no_alcance:
+            self.acao_atual = random.choice(["MATAR", "ESMAGAR", "MATAR"])
+            return
+        
+        # Dentro do alcance - ataca
+        if no_alcance:
             if inimigo_hp_pct < 0.3:
                 self.acao_atual = random.choice(["MATAR", "ESMAGAR", "MATAR"])
-            elif roll < 0.6:
+            elif roll < 0.55:
                 self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO", "COMBATE"])
-            elif roll < 0.85:
-                self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR"])
+            elif roll < 0.8:
+                self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR", "PRESSIONAR"])
             else:
                 self.acao_atual = "CONTRA_ATAQUE"
             return
         
+        # Quase no alcance - pressiona
         if quase_no_alcance:
-            if roll < 0.7:
+            if roll < 0.65:
                 self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "FLANQUEAR"])
             else:
-                self.acao_atual = random.choice(["COMBATE", "POKE"])
+                self.acao_atual = random.choice(["COMBATE", "POKE", "CIRCULAR"])
             return
         
-        if muito_longe:
-            self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "MATAR"])
+        # Longe - aproxima
+        if longe or muito_longe:
+            self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "APROXIMAR"])
             return
         
         # Traços especiais
@@ -3597,7 +3757,7 @@ class AIBrain:
         self._aplicar_modificadores_humor()
         self._aplicar_modificadores_filosofia()
         
-        # === NOVOS MODIFICADORES v8.0 ===
+        # === MODIFICADORES v8.0+ ===
         self._aplicar_modificadores_momentum(distancia, inimigo_hp_pct)
         self._aplicar_modificadores_leitura(distancia, inimigo)
         self._evitar_repeticao_excessiva()
@@ -3687,40 +3847,78 @@ class AIBrain:
                 self.acao_atual = random.choice(acoes_alternativas)
     
     def _calcular_alcance_efetivo(self):
-        """Calcula alcance real de ataque baseado na arma"""
+        """Calcula alcance real de ataque baseado na arma e hitbox profile v12.2"""
         p = self.parent
-        alcance_base = p.alcance_ideal
         
         arma = p.dados.arma_obj if p.dados else None
         if not arma:
-            return alcance_base + 1.0
+            return 2.0  # Fallback sem arma
         
         tipo = arma.tipo
+        raio = p.raio_fisico if hasattr(p, 'raio_fisico') else 0.4
         
+        # Importa perfis de hitbox para cálculo preciso
+        try:
+            from core.hitbox import HITBOX_PROFILES
+            profile = HITBOX_PROFILES.get(tipo, HITBOX_PROFILES.get("Reta", {}))
+            range_mult = profile.get("range_mult", 2.0)
+        except:
+            range_mult = 2.0
+        
+        # Alcance base = raio do personagem * multiplicador do tipo de arma
+        alcance_base = raio * range_mult
+        
+        # Ajustes específicos por tipo
         if tipo == "Reta":
-            comp_total = (arma.comp_cabo + arma.comp_lamina) / PPM
-            return alcance_base + comp_total * 0.5
+            # Lâminas: considera tamanho real da arma
+            comp_total = (getattr(arma, 'comp_cabo', 20) + getattr(arma, 'comp_lamina', 40)) / PPM
+            return alcance_base + comp_total * 0.3
+        
         elif tipo == "Dupla":
-            return alcance_base + 0.5
-        elif tipo == "Corrente":
-            comp = getattr(arma, 'comp_corrente', 80) / PPM
+            # Adagas: alcance curto mas zona de ataque ampla
+            comp = getattr(arma, 'comp_lamina', 55) / PPM
             return alcance_base + comp * 0.4
+        
+        elif tipo == "Corrente":
+            # Corrente: alcance longo mas zona morta grande
+            comp = getattr(arma, 'comp_corrente', 80) / PPM
+            zona_morta = alcance_base * profile.get("min_range_ratio", 0.25)
+            # Retorna distância ideal (entre zona morta e máximo)
+            return (alcance_base + zona_morta) / 2 + comp * 0.2
+        
         elif tipo == "Arremesso":
-            return alcance_base + 6.0
+            # Projéteis: mantém distância média
+            return alcance_base * 0.7
+        
         elif tipo == "Arco":
-            return alcance_base + 8.0
+            # Arco: ALCANCE TOTAL - flechas voam longe!
+            return alcance_base * 1.0
+        
         elif tipo == "Mágica":
-            return alcance_base + 5.0
+            # Magia: distância média
+            return alcance_base * 0.7
+        
         elif tipo == "Orbital":
-            return alcance_base + arma.distancia / PPM
+            # Orbitais: fica perto
+            dist_orbe = getattr(arma, 'distancia', 50) / PPM
+            return raio + dist_orbe * 0.8
+        
         elif tipo == "Transformável":
-            return alcance_base + 1.5
-        else:
-            return alcance_base + 1.0
+            # Transformável: depende da forma atual
+            forma = getattr(arma, 'forma_atual', 1)
+            if forma == 1:
+                comp = getattr(arma, 'forma1_lamina', 40) / PPM
+            else:
+                comp = getattr(arma, 'forma2_lamina', 60) / PPM
+            return alcance_base + comp * 0.3
+        
+        return alcance_base
 
     def _comportamento_estilo(self, distancia, roll, hp_pct, inimigo_hp_pct):
-        """Comportamento baseado no estilo de luta"""
-        alcance = self.parent.alcance_ideal
+        """Comportamento baseado no estilo de luta - v12.2"""
+        # Usa alcance efetivo calculado, não o ideal
+        alcance = self._calcular_alcance_efetivo()
+        alcance_ideal = self.parent.alcance_ideal
         
         estilo_data = ESTILOS_LUTA.get(self.estilo_luta, ESTILOS_LUTA["BALANCED"])
         agressividade = estilo_data.get("agressividade_base", 0.6)
@@ -3742,10 +3940,10 @@ class AIBrain:
         
         agressividade = max(0.3, min(1.0, agressividade))
         
-        margem = 0.5
-        if distancia < alcance - margem:
+        # Zonas baseadas no alcance efetivo
+        if distancia < alcance_ideal * 0.7:
             zona = "perto"
-        elif distancia > alcance + 2.0 + margem:
+        elif distancia > alcance * 1.3:
             zona = "longe"
         else:
             zona = "medio"
@@ -3764,13 +3962,15 @@ class AIBrain:
             acoes_variadas = ["CIRCULAR", "FLANQUEAR", "COMBATE", "POKE"]
             self.acao_atual = random.choice(acoes_variadas)
         
-        if distancia > 10.0 and self.acao_atual not in ["APROXIMAR", "MATAR", "PRESSIONAR"]:
-            if random.random() < 0.7:
+        # Se muito longe, aproxima
+        if distancia > alcance * 2.0 and self.acao_atual not in ["APROXIMAR", "MATAR", "PRESSIONAR"]:
+            if random.random() < 0.8:
                 self.acao_atual = "APROXIMAR"
         
-        if distancia < 2.0 and self.acao_atual not in ["MATAR", "ATAQUE_RAPIDO", "ESMAGAR", "CONTRA_ATAQUE"]:
-            if random.random() < agressividade * 0.5:
-                self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO", "COMBATE"])
+        # Se no alcance de ataque, ataca
+        if distancia <= alcance and self.acao_atual not in ["MATAR", "ATAQUE_RAPIDO", "ESMAGAR", "CONTRA_ATAQUE", "PRESSIONAR"]:
+            if random.random() < agressividade * 0.6:
+                self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO", "COMBATE", "PRESSIONAR"])
 
     def _aplicar_modificadores_movimento(self, distancia, roll):
         """Modifica ação baseado nos traços"""

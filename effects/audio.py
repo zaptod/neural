@@ -20,11 +20,76 @@ class AudioManager:
     
     _instance = None
     
+    # Categorias de volume
+    VOLUME_CATEGORIES = {
+        "master": "Volume Geral",
+        "golpes": "Golpes Físicos",
+        "impactos": "Impactos",
+        "projeteis": "Projéteis/Magias",
+        "skills": "Habilidades",
+        "movimento": "Movimentos",
+        "ambiente": "Ambiente/Arena",
+        "ui": "Interface (UI)",
+    }
+    
+    # Mapeamento de sons para categorias
+    SOUND_TO_CATEGORY = {
+        # Golpes
+        "punch": "golpes", "kick": "golpes", "slash": "golpes", "stab": "golpes",
+        "punch_light": "golpes", "punch_medium": "golpes", "punch_heavy": "golpes",
+        "kick_light": "golpes", "kick_heavy": "golpes", "kick_spin": "golpes",
+        "slash_light": "golpes", "slash_heavy": "golpes", "slash_critical": "golpes",
+        "stab_quick": "golpes", "stab_deep": "golpes",
+        # Impactos
+        "impact": "impactos", "impact_flesh": "impactos", "impact_heavy": "impactos",
+        "impact_critical": "impactos", "ko_impact": "impactos", "combo_hit": "impactos",
+        "counter_hit": "impactos", "perfect_block": "impactos", "stagger": "impactos",
+        "clash_swords": "impactos", "clash_magic": "impactos", "clash_projectiles": "impactos",
+        # Projéteis/Magias
+        "fireball": "projeteis", "ice": "projeteis", "lightning": "projeteis",
+        "energy": "projeteis", "beam": "projeteis",
+        "fireball_cast": "projeteis", "fireball_fly": "projeteis", "fireball_impact": "projeteis",
+        "ice_cast": "projeteis", "ice_shard": "projeteis", "ice_impact": "projeteis",
+        "lightning_charge": "projeteis", "lightning_bolt": "projeteis", "lightning_impact": "projeteis",
+        "energy_charge": "projeteis", "energy_blast": "projeteis", "energy_impact": "projeteis",
+        "beam_charge": "projeteis", "beam_fire": "projeteis", "beam_end": "projeteis",
+        # Skills
+        "dash": "skills", "teleport": "skills", "buff": "skills", "heal": "skills", "shield": "skills",
+        "dash_whoosh": "skills", "dash_impact": "skills",
+        "teleport_out": "skills", "teleport_in": "skills",
+        "buff_activate": "skills", "buff_pulse": "skills",
+        "heal_cast": "skills", "heal_complete": "skills",
+        "shield_up": "skills", "shield_block": "skills", "shield_break": "skills",
+        "slowmo_whoosh": "skills", "slowmo_return": "skills",
+        # Movimento
+        "jump": "movimento", "footstep": "movimento", "dodge": "movimento",
+        "jump_start": "movimento", "jump_land": "movimento",
+        "step_1": "movimento", "step_2": "movimento", "step_3": "movimento", "step_4": "movimento",
+        "dodge_whoosh": "movimento", "dodge_slide": "movimento",
+        # Ambiente
+        "wall_hit": "ambiente", "wall_impact_light": "ambiente", "wall_impact_heavy": "ambiente",
+        "ground_impact": "ambiente", "arena_start": "ambiente", "arena_victory": "ambiente",
+        "round_start": "ambiente", "round_end": "ambiente",
+        # UI
+        "ui": "ui", "ui_select": "ui", "ui_confirm": "ui", "ui_back": "ui",
+    }
+    
     def __init__(self):
         self.enabled = True
         self.master_volume = 0.7
         self.sfx_volume = 0.8
         self.music_volume = 0.5
+        
+        # Volumes por categoria (0.0 a 1.0)
+        self.category_volumes = {
+            "golpes": 1.0,
+            "impactos": 1.0,
+            "projeteis": 1.0,
+            "skills": 1.0,
+            "movimento": 0.7,
+            "ambiente": 0.8,
+            "ui": 0.6,
+        }
         
         # Cache de sons carregados
         self.sounds: Dict[str, pygame.mixer.Sound] = {}
@@ -60,10 +125,57 @@ class AudioManager:
         if os.path.exists(config_file):
             try:
                 with open(config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    config = json.load(f)
+                    # Carrega volumes de categoria se existirem
+                    if "_volumes" in config:
+                        for cat, vol in config["_volumes"].items():
+                            if cat in self.category_volumes:
+                                self.category_volumes[cat] = vol
+                        # Carrega master volume se existir
+                        if "master" in config["_volumes"]:
+                            self.master_volume = config["_volumes"]["master"]
+                    return config
             except:
                 pass
         return {}
+    
+    def save_volume_config(self):
+        """Salva configuração de volumes no arquivo."""
+        config_file = os.path.join(self.sound_dir, "sound_config.json")
+        config = self._load_sound_config() if os.path.exists(config_file) else {}
+        config["_volumes"] = {
+            "master": self.master_volume,
+            **self.category_volumes
+        }
+        try:
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"[AUDIO] Error saving volume config: {e}")
+    
+    def set_category_volume(self, category: str, volume: float):
+        """Define volume de uma categoria."""
+        if category == "master":
+            self.master_volume = max(0.0, min(1.0, volume))
+        elif category in self.category_volumes:
+            self.category_volumes[category] = max(0.0, min(1.0, volume))
+    
+    def get_category_volume(self, category: str) -> float:
+        """Obtém volume de uma categoria."""
+        if category == "master":
+            return self.master_volume
+        return self.category_volumes.get(category, 1.0)
+    
+    def _get_sound_category(self, sound_name: str) -> str:
+        """Determina a categoria de um som."""
+        # Tenta correspondência exata primeiro
+        if sound_name in self.SOUND_TO_CATEGORY:
+            return self.SOUND_TO_CATEGORY[sound_name]
+        # Tenta pelo prefixo (nome do grupo)
+        for prefix, cat in self.SOUND_TO_CATEGORY.items():
+            if sound_name.startswith(prefix):
+                return cat
+        return "golpes"  # Default
     
     def reload_sounds(self):
         """Recarrega todos os sons do disco (útil após configurar no UI)."""
@@ -256,6 +368,7 @@ class AudioManager:
         
         # Tenta tocar do grupo primeiro (variação aleatória)
         sound = None
+        actual_name = sound_name
         if sound_name in self.sound_groups:
             sounds = self.sound_groups[sound_name]
             sound = random.choice(sounds)
@@ -268,7 +381,12 @@ class AudioManager:
             return
         
         if sound:
-            final_volume = volume * self.sfx_volume * self.master_volume
+            # Obtém volume da categoria do som
+            category = self._get_sound_category(actual_name)
+            category_vol = self.category_volumes.get(category, 1.0)
+            
+            # Volume final = base * categoria * sfx * master
+            final_volume = volume * category_vol * self.sfx_volume * self.master_volume
             
             # Aplica volume e pan
             if pan != 0.0:
@@ -279,7 +397,7 @@ class AudioManager:
             else:
                 sound.set_volume(final_volume)
             
-            print(f"[AUDIO] >>> PLAYING with volume {final_volume:.2f}")
+            print(f"[AUDIO] >>> PLAYING {actual_name} [{category}] vol={final_volume:.2f}")
             sound.play()
     
     def play_positional(self, sound_name: str, pos_x: float, listener_x: float, 

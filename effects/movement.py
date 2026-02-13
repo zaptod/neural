@@ -106,7 +106,8 @@ class AfterImage:
         """Atualiza a afterimage"""
         self.vida -= dt
         # Fade não-linear para efeito mais interessante
-        prog = 1.0 - (self.vida / self.max_vida)
+        # Clamp prog para evitar números complexos com potência fracionária
+        prog = max(0.0, min(1.0, 1.0 - (self.vida / self.max_vida)))
         self.alpha = 255 * (1.0 - prog ** 1.5)  # Curva de fade
         self.escala *= (1.0 - fade_rate * dt * 3)
     

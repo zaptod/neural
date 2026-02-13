@@ -163,6 +163,9 @@ class TelaSons(tk.Frame):
         # Widgets de som selecionados
         self.sound_widgets = {}
         
+        # Sliders de volume
+        self.volume_sliders = {}
+        
         self._criar_interface()
     
     def _load_config(self) -> dict:
@@ -177,9 +180,108 @@ class TelaSons(tk.Frame):
     
     def _save_config(self):
         """Salva configuração de sons."""
+        # Adiciona volumes ao config
+        volumes = {}
+        for cat, slider_data in self.volume_sliders.items():
+            volumes[cat] = slider_data['var'].get() / 100.0
+        self.sound_config["_volumes"] = volumes
+        
         with open(self.config_file, 'w', encoding='utf-8') as f:
             json.dump(self.sound_config, f, indent=2, ensure_ascii=False)
     
+    def _criar_painel_volumes(self):
+        """Cria painel com sliders de volume por categoria."""
+        from effects.audio import AudioManager
+        
+        volume_frame = tk.LabelFrame(
+            self, text=" 🎚️ Volumes por Categoria ",
+            font=("Arial", 11, "bold"), bg=COR_CARD, fg=COR_ACCENT,
+            relief="flat", bd=2
+        )
+        volume_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Frame interno para organizar sliders em grid
+        inner_frame = tk.Frame(volume_frame, bg=COR_CARD)
+        inner_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Categorias de volume
+        volume_categories = {
+            "master": ("🔊 Volume Geral", 70),
+            "golpes": ("⚔️ Golpes Físicos", 100),
+            "impactos": ("💥 Impactos", 100),
+            "projeteis": ("🔮 Projéteis/Magias", 100),
+            "skills": ("✨ Habilidades", 100),
+            "movimento": ("👣 Movimentos", 70),
+            "ambiente": ("🏟️ Ambiente/Arena", 80),
+            "ui": ("🖱️ Interface (UI)", 60),
+        }
+        
+        # Carrega volumes salvos
+        saved_volumes = self.sound_config.get("_volumes", {})
+        
+        row = 0
+        col = 0
+        for cat_id, (cat_name, default_vol) in volume_categories.items():
+            # Obtém volume salvo ou usa padrão
+            current_vol = int(saved_volumes.get(cat_id, default_vol / 100.0) * 100)
+            
+            # Container do slider
+            slider_container = tk.Frame(inner_frame, bg=COR_CARD)
+            slider_container.grid(row=row, column=col, padx=10, pady=5, sticky="ew")
+            
+            # Label do nome
+            tk.Label(
+                slider_container, text=cat_name, font=("Arial", 9),
+                bg=COR_CARD, fg=COR_TEXTO, width=18, anchor="w"
+            ).pack(side="left")
+            
+            # Variável do slider
+            vol_var = tk.IntVar(value=current_vol)
+            
+            # Slider
+            slider = ttk.Scale(
+                slider_container, from_=0, to=100, 
+                variable=vol_var, orient="horizontal", length=120,
+                command=lambda v, cid=cat_id: self._on_volume_change(cid, v)
+            )
+            slider.pack(side="left", padx=5)
+            
+            # Label de valor
+            val_label = tk.Label(
+                slider_container, text=f"{current_vol}%", font=("Arial", 9, "bold"),
+                bg=COR_CARD, fg=COR_SUCCESS, width=5
+            )
+            val_label.pack(side="left")
+            
+            self.volume_sliders[cat_id] = {
+                'var': vol_var,
+                'label': val_label,
+                'slider': slider
+            }
+            
+            col += 1
+            if col >= 4:  # 4 sliders por linha
+                col = 0
+                row += 1
+        
+        # Configura grid
+        for i in range(4):
+            inner_frame.grid_columnconfigure(i, weight=1)
+    
+    def _on_volume_change(self, category: str, value):
+        """Callback quando volume muda."""
+        vol = int(float(value))
+        if category in self.volume_sliders:
+            self.volume_sliders[category]['label'].config(text=f"{vol}%")
+            
+            # Aplica em tempo real se AudioManager existir
+            try:
+                from effects.audio import AudioManager
+                audio = AudioManager.get_instance()
+                audio.set_category_volume(category, vol / 100.0)
+            except:
+                pass
+
     def _criar_interface(self):
         """Cria a interface principal."""
         
@@ -231,6 +333,9 @@ class TelaSons(tk.Frame):
                  "📌 Sons não configurados usarão sons procedurais gerados automaticamente",
             font=("Arial", 9), bg=COR_CARD, fg="#BDC3C7", justify="left"
         ).pack(pady=8, padx=10)
+        
+        # === PAINEL DE VOLUMES ===
+        self._criar_painel_volumes()
         
         # === ÁREA PRINCIPAL COM SCROLL ===
         main_container = tk.Frame(self, bg=COR_FUNDO)
@@ -436,7 +541,7 @@ class TelaSons(tk.Frame):
     
     def _salvar_tudo(self):
         """Salva toda a configuração."""
-        # Atualiza config com valores atuais
+        # Atualiza config com valores atuais (sons)
         for event_id, widgets in self.sound_widgets.items():
             filename = widgets['var'].get()
             if filename:
@@ -445,11 +550,28 @@ class TelaSons(tk.Frame):
                 del self.sound_config[event_id]
         
         self._save_config()
-        messagebox.showinfo("Sucesso", "Configuração de sons salva!")
+        
+        # Salva também no AudioManager
+        try:
+            from effects.audio import AudioManager
+            audio = AudioManager.get_instance()
+            audio.save_volume_config()
+        except:
+            pass
+        
+        messagebox.showinfo("Sucesso", "Configuração de sons e volumes salva!")
     
     def _recarregar(self):
         """Recarrega a configuração do disco."""
         self.sound_config = self._load_config()
+        
+        # Atualiza sliders de volume
+        saved_volumes = self.sound_config.get("_volumes", {})
+        for cat_id, slider_data in self.volume_sliders.items():
+            vol = int(saved_volumes.get(cat_id, 0.7 if cat_id == "master" else 1.0) * 100)
+            slider_data['var'].set(vol)
+            slider_data['label'].config(text=f"{vol}%")
+        
         self._criar_categorias()
     
     def _abrir_pasta_sons(self):
@@ -467,6 +589,15 @@ class TelaSons(tk.Frame):
     def atualizar_dados(self):
         """Chamado quando a tela é exibida."""
         self.sound_config = self._load_config()
+        
+        # Atualiza sliders de volume
+        saved_volumes = self.sound_config.get("_volumes", {})
+        for cat_id, slider_data in self.volume_sliders.items():
+            default_vol = 70 if cat_id == "master" else (70 if cat_id == "movimento" else 100)
+            vol = int(saved_volumes.get(cat_id, default_vol / 100.0) * 100)
+            slider_data['var'].set(vol)
+            slider_data['label'].config(text=f"{vol}%")
+        
         # Atualiza status de todos os sons
         for event_id, widgets in self.sound_widgets.items():
             filename = widgets['var'].get()

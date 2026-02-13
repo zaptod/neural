@@ -663,7 +663,7 @@ class Simulador:
                                 cor_dot = self._get_cor_efeito(tipo_dot)
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano_dot), cor_dot, 14))
                 
-                if area.ativo:
+                if area.ativo and getattr(area, 'ativado', True):
                     # Verifica colisão com alvos
                     for alvo in [self.p1, self.p2]:
                         if alvo == area.dono or alvo in area.alvos_atingidos:
@@ -2662,12 +2662,12 @@ class Simulador:
         
         # === DUPLA (Adagas, Sai) ===
         elif tipo == "Dupla":
-            cabo_len = getattr(arma, 'comp_cabo', 15) * base_scale * 1.0
-            lamina_len = getattr(arma, 'comp_lamina', 35) * base_scale * 1.3 * anim_scale
-            sep = getattr(arma, 'separacao', 15) * base_scale
-            larg = max(3, int(larg_base * 0.9))
+            cabo_len = getattr(arma, 'comp_cabo', 20) * base_scale * 1.3
+            lamina_len = getattr(arma, 'comp_lamina', 55) * base_scale * 1.8 * anim_scale
+            sep = getattr(arma, 'separacao', 25) * base_scale * 1.4
+            larg = max(5, int(larg_base * 1.3))
             
-            for i, offset_deg in enumerate([-22, 22]):
+            for i, offset_deg in enumerate([-40, 40]):
                 r = rad + math.radians(offset_deg)
                 
                 # Offset lateral

@@ -59,35 +59,34 @@ class ArmaProjetil:
             return False
         
         dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
-        raio_alvo = alvo.dados.tamanho / 2
+        # Usa raio_fisico se disponível, senão calcula do tamanho
+        raio_alvo = getattr(alvo, 'raio_fisico', alvo.dados.tamanho / 4.0)
         
-        return dist < (self.raio + raio_alvo)
+        # Colisão generosa para projéteis
+        return dist < (self.raio + raio_alvo * 1.2)
 
 
 class FlechaProjetil(ArmaProjetil):
-    """Flecha com gravidade opcional"""
+    """Flecha rápida e precisa - voa em linha reta"""
     def __init__(self, x, y, angulo, dono, dano, forca=1.0, cor=(139, 90, 43)):
+        # Flecha MUITO rápida: 35-55 m/s dependendo da força do arco
         super().__init__("flecha", x, y, angulo, dono, dano, 
-                        velocidade=12.0 + forca * 8.0,  # Mais força = mais rápido
-                        tamanho=0.2, cor=cor)
+                        velocidade=35.0 + forca * 20.0,  # MUITO mais rápido!
+                        tamanho=0.6, cor=cor)  # Raio maior para colisão generosa
         self.forca = forca
-        self.gravidade = 3.0  # Queda suave
-        self.vel_y_extra = 0  # Velocidade vertical adicional pela gravidade
-        self.perfurante = forca > 0.8  # Flechas fortes perfuram
+        self.gravidade = 0.0  # SEM gravidade - voa em linha reta!
+        self.vel_y_extra = 0
+        self.vida = 5.0  # Vive 5 segundos (alcança ~200m)
+        self.perfurante = forca > 0.5  # Flechas médias+ perfuram
     
     def atualizar(self, dt):
-        # Movimento base
+        # Movimento em LINHA RETA - flecha voa direto no alvo
         rad = math.radians(self.angulo)
         self.x += math.cos(rad) * self.vel * dt
+        self.y += math.sin(rad) * self.vel * dt
         
-        # Gravidade afeta Y
-        self.vel_y_extra += self.gravidade * dt
-        self.y += math.sin(rad) * self.vel * dt + self.vel_y_extra * dt
-        
-        # Ajusta ângulo visual para acompanhar trajetória
-        vel_x = math.cos(rad) * self.vel
-        vel_y = math.sin(rad) * self.vel + self.vel_y_extra
-        self.angulo_visual = math.degrees(math.atan2(vel_y, vel_x))
+        # Ângulo visual = ângulo de voo (linha reta)
+        self.angulo_visual = self.angulo
         
         # Trail
         self.trail.append((self.x, self.y))
@@ -521,6 +520,15 @@ class AreaEffect:
         # Elemento
         self.elemento = data.get("elemento", None)
         
+        # Delay antes de ativar
+        self.delay = data.get("delay", 0)
+        self.ativado = self.delay <= 0
+        self.aviso_visual = data.get("aviso_visual", self.delay > 0)
+        
+        # Garante que duração é suficiente após o delay
+        if self.delay > 0 and self.duracao < 0.5:
+            self.duracao = 0.5  # Mínimo 0.5s de duração ativa após delay
+        
         self.vida = self.duracao
         self.ativo = True
         self.alvos_atingidos = set()  # Evita hit múltiplo inicial
@@ -547,11 +555,6 @@ class AreaEffect:
         
         # Gravidade aumentada
         self.gravidade_aumentada = data.get("gravidade_aumentada", 1.0)
-        
-        # Delay antes de ativar
-        self.delay = data.get("delay", 0)
-        self.ativado = self.delay <= 0
-        self.aviso_visual = data.get("aviso_visual", self.delay > 0)
         
         # Ondas (múltiplas explosões)
         self.ondas = data.get("ondas", 1)

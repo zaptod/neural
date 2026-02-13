@@ -33,15 +33,15 @@ HITBOX_PROFILES = {
     "Dupla": {
         "shape": "dual_arc",
         "idle_shape": "dual_line",
-        "base_arc": 60,
-        "attack_arc_mult": 1.5,
-        "range_mult": 1.5,
-        "min_range_ratio": 0.1,
-        "hit_window_start": 0.15,
-        "hit_window_end": 0.75,
-        "sweet_spot_start": 0.4,
+        "base_arc": 100,           # Arco amplo para adagas
+        "attack_arc_mult": 2.0,    # Swing bem amplo
+        "range_mult": 2.8,         # Alcance maior (adagas velozes)
+        "min_range_ratio": 0.05,   # Quase sem zona morta
+        "hit_window_start": 0.10,  # Janela mais cedo (ataques rápidos)
+        "hit_window_end": 0.85,
+        "sweet_spot_start": 0.2,
         "sweet_spot_end": 1.0,
-        "offset_angles": [-25, 25],  # Ângulos das lâminas duplas
+        "offset_angles": [-40, 40],  # Ângulos bem abertos das lâminas
     },
     "Corrente": {
         "shape": "sweep_arc",
@@ -72,10 +72,10 @@ HITBOX_PROFILES = {
         "idle_shape": "point",
         "base_arc": 15,
         "attack_arc_mult": 1.0,
-        "range_mult": 8.0,
-        "min_range_ratio": 0.3,
-        "hit_window_start": 0.3,
-        "hit_window_end": 0.6,
+        "range_mult": 20.0,        # Arco tem MUITO alcance!
+        "min_range_ratio": 0.1,     # Pode atirar de perto também
+        "hit_window_start": 0.2,
+        "hit_window_end": 0.8,
         "is_projectile": True,
     },
     "Mágica": {

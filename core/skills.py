@@ -68,7 +68,7 @@ SKILL_DB = {
     "Pilar de Fogo": {
         "tipo": "AREA", "dano": 50.0, "raio_area": 1.5, "cor": (255, 150, 0),
         "custo": 28.0, "cooldown": 7.0, "efeito": "KNOCK_UP", "elemento": "FOGO",
-        "delay": 0.8, "descricao": "Pilar de fogo que lança inimigos"
+        "delay": 0.8, "duracao": 1.0, "descricao": "Pilar de fogo que lança inimigos"
     },
     "Fênix": {
         "tipo": "SUMMON", "dano": 25.0, "cor": (255, 180, 50), 
