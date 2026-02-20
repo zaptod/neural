@@ -144,350 +144,133 @@ class WeaponAnimationProfile:
                 self.recovery_time)
 
 
-# ============================================================================
-# PERFIS BASE POR TIPO DE ARMA (fallback por tipo)
-# ============================================================================
-
+# Perfis específicos para cada tipo de arma
 WEAPON_PROFILES: Dict[str, WeaponAnimationProfile] = {
     
     "Reta": WeaponAnimationProfile(
-        anticipation_time=0.10, attack_time=0.12, impact_time=0.025,
-        follow_through_time=0.09, recovery_time=0.14,
-        anticipation_angle=-50, attack_angle=130, follow_through_angle=25,
-        anticipation_scale=0.88, attack_scale=1.22,
-        trail_length=10, shake_intensity=4.0,
-        attack_easing="ease_out_back",
+        anticipation_time=0.1,
+        attack_time=0.12,
+        impact_time=0.02,
+        follow_through_time=0.08,
+        recovery_time=0.15,
+        anticipation_angle=-50,
+        attack_angle=130,
+        follow_through_angle=25,
+        anticipation_scale=0.9,
+        attack_scale=1.2,
+        trail_length=10,
+        shake_intensity=4.0,
     ),
+    
     "Dupla": WeaponAnimationProfile(
-        anticipation_time=0.045, attack_time=0.075, impact_time=0.018,
-        follow_through_time=0.045, recovery_time=0.075,
-        anticipation_angle=-28, attack_angle=85, follow_through_angle=12,
-        anticipation_scale=0.96, attack_scale=1.12,
-        trail_length=6, shake_intensity=2.0,
-        attack_easing="ease_out_elastic",
+        anticipation_time=0.05,       # Mais rápido
+        attack_time=0.08,
+        impact_time=0.02,
+        follow_through_time=0.05,
+        recovery_time=0.08,
+        anticipation_angle=-30,        # Wind-up menor
+        attack_angle=90,               # Arco menor mas rápido
+        follow_through_angle=15,
+        anticipation_scale=0.95,
+        attack_scale=1.1,
+        trail_length=6,
+        shake_intensity=2.0,
     ),
+    
     "Corrente": WeaponAnimationProfile(
-        anticipation_time=0.18, attack_time=0.22, impact_time=0.04,
-        follow_through_time=0.18, recovery_time=0.22,
-        anticipation_angle=-90, attack_angle=220, follow_through_angle=70,
-        anticipation_scale=0.78, attack_scale=1.35,
-        trail_length=18, shake_intensity=7.0,
-        attack_easing="ease_out_back", anticipation_easing="ease_in_back",
+        anticipation_time=0.15,        # Wind-up longo para momentum
+        attack_time=0.2,               # Ataque mais lento mas poderoso
+        impact_time=0.03,
+        follow_through_time=0.15,      # Continua girando
+        recovery_time=0.2,
+        anticipation_angle=-80,        # Grande wind-up
+        attack_angle=200,              # Arco enorme
+        follow_through_angle=60,
+        anticipation_scale=0.8,
+        attack_scale=1.3,
+        trail_length=15,
+        shake_intensity=6.0,
     ),
+    
     "Arremesso": WeaponAnimationProfile(
-        anticipation_time=0.13, attack_time=0.055, impact_time=0.0,
-        follow_through_time=0.11, recovery_time=0.16,
-        anticipation_angle=-65, attack_angle=85, follow_through_angle=45,
-        anticipation_scale=0.82, attack_scale=1.28,
-        trail_enabled=False, shake_intensity=0.0,
-        attack_easing="ease_out_back",
+        anticipation_time=0.12,
+        attack_time=0.06,              # Release rápido
+        impact_time=0.0,               # Sem impacto (projétil)
+        follow_through_time=0.1,
+        recovery_time=0.15,
+        anticipation_angle=-60,        # Puxa para trás
+        attack_angle=80,
+        follow_through_angle=40,       # Acompanha o arremesso
+        anticipation_scale=0.85,
+        attack_scale=1.25,
+        trail_enabled=False,           # Trail no projétil, não na mão
+        shake_intensity=0.0,
     ),
+    
     "Arco": WeaponAnimationProfile(
-        anticipation_time=0.28, attack_time=0.04, impact_time=0.0,
-        follow_through_time=0.09, recovery_time=0.22,
-        anticipation_angle=-12, attack_angle=6, follow_through_angle=4,
-        anticipation_scale=1.18, attack_scale=0.88,
-        trail_enabled=False, shake_intensity=1.8,
-        anticipation_easing="ease_in_out_quad", attack_easing="ease_out_elastic",
+        anticipation_time=0.25,        # Puxar a corda
+        attack_time=0.04,              # Release instantâneo
+        impact_time=0.0,
+        follow_through_time=0.08,
+        recovery_time=0.2,
+        anticipation_angle=-10,        # Quase não muda ângulo
+        attack_angle=5,                # Pequeno recuo
+        follow_through_angle=3,
+        anticipation_scale=1.15,       # Estica ao puxar
+        attack_scale=0.9,              # Comprime no release
+        trail_enabled=False,
+        shake_intensity=1.5,
     ),
+    
     "Orbital": WeaponAnimationProfile(
-        anticipation_time=0.0, attack_time=0.16, impact_time=0.025,
-        follow_through_time=0.12, recovery_time=0.0,
-        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
-        anticipation_scale=1.0, attack_scale=1.08,
-        trail_length=22, shake_intensity=2.5,
-        attack_easing="linear",
+        anticipation_time=0.0,         # Sempre girando
+        attack_time=0.15,
+        impact_time=0.02,
+        follow_through_time=0.1,
+        recovery_time=0.0,
+        anticipation_angle=0,
+        attack_angle=360,              # Giro completo
+        follow_through_angle=0,
+        anticipation_scale=1.0,
+        attack_scale=1.0,
+        trail_length=20,
+        shake_intensity=2.0,
     ),
-    "Magica": WeaponAnimationProfile(
-        anticipation_time=0.12, attack_time=0.17, impact_time=0.06,
-        follow_through_time=0.12, recovery_time=0.17,
-        anticipation_angle=-22, attack_angle=65, follow_through_angle=22,
-        anticipation_scale=0.65, attack_scale=1.45,
-        trail_length=14, shake_intensity=3.5,
-        attack_easing="ease_out_elastic", anticipation_easing="ease_in_back",
+    
+    "Mágica": WeaponAnimationProfile(
+        anticipation_time=0.1,
+        attack_time=0.15,
+        impact_time=0.05,              # Mais tempo de impacto para efeitos
+        follow_through_time=0.1,
+        recovery_time=0.15,
+        anticipation_angle=-20,
+        attack_angle=60,
+        follow_through_angle=20,
+        anticipation_scale=0.7,        # Contrai antes de expandir
+        attack_scale=1.4,              # Expansão dramática
+        trail_length=12,
+        shake_intensity=3.0,
     ),
-    "Transformavel": WeaponAnimationProfile(
-        anticipation_time=0.09, attack_time=0.16, impact_time=0.035,
-        follow_through_time=0.13, recovery_time=0.16,
-        anticipation_angle=-42, attack_angle=115, follow_through_angle=32,
-        anticipation_scale=0.83, attack_scale=1.25,
-        trail_length=11, shake_intensity=4.5,
-        attack_easing="anticipate_overshoot",
-    ),
-}
-# Aliases com acentos
-WEAPON_PROFILES["Mágica"] = WEAPON_PROFILES["Magica"]
-WEAPON_PROFILES["Transformável"] = WEAPON_PROFILES["Transformavel"]
-
-
-# ============================================================================
-# PERFIS REFINADOS POR ESTILO (sobrepõe perfil base do tipo)
-# Cada estilo tem sua própria identidade de animação
-# ============================================================================
-
-STYLE_PROFILES: Dict[str, WeaponAnimationProfile] = {
-    # ── RETA ──
-    "Katana": WeaponAnimationProfile(
-        anticipation_time=0.18, attack_time=0.07, impact_time=0.04,
-        follow_through_time=0.06, recovery_time=0.20,
-        anticipation_angle=-85, attack_angle=115, follow_through_angle=15,
-        anticipation_scale=0.82, attack_scale=1.28, trail_length=14,
-        shake_intensity=5.0, attack_easing="ease_out_back", anticipation_easing="ease_in_back",
-    ),
-    "Montante": WeaponAnimationProfile(
-        anticipation_time=0.22, attack_time=0.18, impact_time=0.05,
-        follow_through_time=0.16, recovery_time=0.25,
-        anticipation_angle=-75, attack_angle=165, follow_through_angle=40,
-        anticipation_scale=0.78, attack_scale=1.38, trail_length=16,
-        shake_intensity=8.0, attack_easing="ease_out_back", anticipation_easing="ease_in_back",
-    ),
-    "Claymore": WeaponAnimationProfile(
-        anticipation_time=0.25, attack_time=0.20, impact_time=0.06,
-        follow_through_time=0.18, recovery_time=0.28,
-        anticipation_angle=-80, attack_angle=180, follow_through_angle=50,
-        anticipation_scale=0.72, attack_scale=1.42, trail_length=18,
-        shake_intensity=10.0, attack_easing="ease_out_back", anticipation_easing="ease_in_back",
-    ),
-    "Lança": WeaponAnimationProfile(
-        anticipation_time=0.12, attack_time=0.07, impact_time=0.03,
-        follow_through_time=0.06, recovery_time=0.15,
-        anticipation_angle=-35, attack_angle=45, follow_through_angle=8,
-        anticipation_scale=0.90, attack_scale=1.18, trail_length=8,
-        shake_intensity=3.5, attack_easing="ease_out_elastic",
-    ),
-    "Alabarda": WeaponAnimationProfile(
-        anticipation_time=0.16, attack_time=0.15, impact_time=0.04,
-        follow_through_time=0.12, recovery_time=0.20,
-        anticipation_angle=-65, attack_angle=155, follow_through_angle=35,
-        anticipation_scale=0.82, attack_scale=1.30, trail_length=14,
-        shake_intensity=5.5, attack_easing="ease_out_back",
-    ),
-    "Martelo": WeaponAnimationProfile(
-        anticipation_time=0.28, attack_time=0.14, impact_time=0.08,
-        follow_through_time=0.08, recovery_time=0.30,
-        anticipation_angle=-90, attack_angle=110, follow_through_angle=20,
-        anticipation_scale=0.70, attack_scale=1.50, trail_length=12,
-        shake_intensity=12.0, attack_easing="ease_out_back", anticipation_easing="ease_in_back",
-    ),
-    "Foice": WeaponAnimationProfile(
-        anticipation_time=0.15, attack_time=0.14, impact_time=0.04,
-        follow_through_time=0.14, recovery_time=0.18,
-        anticipation_angle=-60, attack_angle=160, follow_through_angle=40,
-        anticipation_scale=0.82, attack_scale=1.32, trail_length=15,
-        shake_intensity=6.0, attack_easing="ease_out_back",
-    ),
-    "Sabre": WeaponAnimationProfile(
-        anticipation_time=0.09, attack_time=0.10, impact_time=0.022,
-        follow_through_time=0.10, recovery_time=0.13,
-        anticipation_angle=-48, attack_angle=145, follow_through_angle=30,
-        anticipation_scale=0.88, attack_scale=1.25, trail_length=12,
-        shake_intensity=3.5, attack_easing="ease_out_back",
-    ),
-    "Maça": WeaponAnimationProfile(
-        anticipation_time=0.18, attack_time=0.13, impact_time=0.05,
-        follow_through_time=0.10, recovery_time=0.22,
-        anticipation_angle=-70, attack_angle=125, follow_through_angle=25,
-        anticipation_scale=0.80, attack_scale=1.36, trail_length=10,
-        shake_intensity=7.0, attack_easing="ease_out_back", anticipation_easing="ease_in_back",
-    ),
-    "Machado": WeaponAnimationProfile(
-        anticipation_time=0.16, attack_time=0.12, impact_time=0.04,
-        follow_through_time=0.11, recovery_time=0.20,
-        anticipation_angle=-68, attack_angle=135, follow_through_angle=30,
-        anticipation_scale=0.80, attack_scale=1.35, trail_length=11,
-        shake_intensity=6.5, attack_easing="ease_out_back", anticipation_easing="ease_in_back",
-    ),
-    # ── DUPLA ──
-    "Adagas Gêmeas": WeaponAnimationProfile(
-        anticipation_time=0.03, attack_time=0.055, impact_time=0.012,
-        follow_through_time=0.03, recovery_time=0.055,
-        anticipation_angle=-20, attack_angle=75, follow_through_angle=10,
-        anticipation_scale=0.97, attack_scale=1.10, trail_length=5,
-        shake_intensity=1.5, attack_easing="ease_out_elastic",
-    ),
-    "Garras": WeaponAnimationProfile(
-        anticipation_time=0.05, attack_time=0.065, impact_time=0.015,
-        follow_through_time=0.04, recovery_time=0.07,
-        anticipation_angle=-22, attack_angle=70, follow_through_angle=15,
-        anticipation_scale=0.95, attack_scale=1.15, trail_length=7,
-        shake_intensity=2.5, attack_easing="ease_out_elastic",
-    ),
-    "Tonfas": WeaponAnimationProfile(
-        anticipation_time=0.06, attack_time=0.08, impact_time=0.02,
-        follow_through_time=0.05, recovery_time=0.09,
-        anticipation_angle=-38, attack_angle=100, follow_through_angle=18,
-        anticipation_scale=0.92, attack_scale=1.18, trail_length=6,
-        shake_intensity=3.0, attack_easing="ease_out_back",
-    ),
-    # ── CORRENTE ──
-    "Chicote": WeaponAnimationProfile(
-        anticipation_time=0.12, attack_time=0.10, impact_time=0.025,
-        follow_through_time=0.10, recovery_time=0.15,
-        anticipation_angle=-75, attack_angle=185, follow_through_angle=55,
-        anticipation_scale=0.85, attack_scale=1.28, trail_length=16,
-        shake_intensity=4.5, attack_easing="ease_out_back",
-    ),
-    "Meteor Hammer": WeaponAnimationProfile(
-        anticipation_time=0.0, attack_time=0.25, impact_time=0.06,
-        follow_through_time=0.20, recovery_time=0.0,
-        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
-        anticipation_scale=1.0, attack_scale=1.15, trail_length=22,
-        shake_intensity=9.0, attack_easing="linear",
-    ),
-    "Mangual": WeaponAnimationProfile(
-        anticipation_time=0.20, attack_time=0.20, impact_time=0.05,
-        follow_through_time=0.18, recovery_time=0.24,
-        anticipation_angle=-105, attack_angle=230, follow_through_angle=75,
-        anticipation_scale=0.75, attack_scale=1.40, trail_length=20,
-        shake_intensity=9.5, attack_easing="ease_out_back", anticipation_easing="ease_in_back",
-    ),
-    # ── ARREMESSO ──
-    "Shuriken": WeaponAnimationProfile(
-        anticipation_time=0.08, attack_time=0.04, impact_time=0.0,
-        follow_through_time=0.07, recovery_time=0.10,
-        anticipation_angle=-42, attack_angle=60, follow_through_angle=35,
-        anticipation_scale=0.88, attack_scale=1.20,
-        trail_enabled=False, shake_intensity=0.0, attack_easing="ease_out_back",
-    ),
-    "Chakram": WeaponAnimationProfile(
-        anticipation_time=0.14, attack_time=0.06, impact_time=0.0,
-        follow_through_time=0.12, recovery_time=0.18,
-        anticipation_angle=-70, attack_angle=95, follow_through_angle=50,
-        anticipation_scale=0.80, attack_scale=1.30,
-        trail_enabled=False, shake_intensity=0.0, attack_easing="ease_out_back",
-    ),
-    # ── ARCO ──
-    "Arco Longo": WeaponAnimationProfile(
-        anticipation_time=0.35, attack_time=0.035, impact_time=0.0,
-        follow_through_time=0.10, recovery_time=0.25,
-        anticipation_angle=-14, attack_angle=7, follow_through_angle=5,
-        anticipation_scale=1.22, attack_scale=0.85,
-        trail_enabled=False, shake_intensity=2.0,
-        anticipation_easing="ease_in_out_quad", attack_easing="ease_out_elastic",
-    ),
-    "Arco Élfico": WeaponAnimationProfile(
-        anticipation_time=0.22, attack_time=0.038, impact_time=0.0,
-        follow_through_time=0.08, recovery_time=0.18,
-        anticipation_angle=-11, attack_angle=6, follow_through_angle=4,
-        anticipation_scale=1.20, attack_scale=0.88,
-        trail_enabled=False, shake_intensity=1.5,
-        anticipation_easing="ease_in_out_quad", attack_easing="ease_out_elastic",
-    ),
-    "Besta Pesada": WeaponAnimationProfile(
-        anticipation_time=0.40, attack_time=0.03, impact_time=0.0,
-        follow_through_time=0.08, recovery_time=0.30,
-        anticipation_angle=-8, attack_angle=4, follow_through_angle=3,
-        anticipation_scale=1.14, attack_scale=0.82,
-        trail_enabled=False, shake_intensity=3.0,
-        anticipation_easing="linear", attack_easing="ease_out_elastic",
-    ),
-    # ── ORBITAL ──
-    "Lâminas Orbitais": WeaponAnimationProfile(
-        anticipation_time=0.0, attack_time=0.12, impact_time=0.02,
-        follow_through_time=0.10, recovery_time=0.0,
-        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
-        anticipation_scale=1.0, attack_scale=1.14, trail_length=24,
-        shake_intensity=3.5, attack_easing="linear",
-    ),
-    "Orbes Místicos": WeaponAnimationProfile(
-        anticipation_time=0.0, attack_time=0.18, impact_time=0.04,
-        follow_through_time=0.14, recovery_time=0.0,
-        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
-        anticipation_scale=1.0, attack_scale=1.10, trail_length=18,
-        shake_intensity=2.0, attack_easing="ease_out_elastic",
-    ),
-    "Drones de Combate": WeaponAnimationProfile(
-        anticipation_time=0.0, attack_time=0.10, impact_time=0.02,
-        follow_through_time=0.08, recovery_time=0.0,
-        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
-        anticipation_scale=1.0, attack_scale=1.12, trail_length=16,
-        shake_intensity=2.0, attack_easing="linear",
-    ),
-    # ── MÁGICA ──
-    "Espadas Espectrais": WeaponAnimationProfile(
-        anticipation_time=0.08, attack_time=0.10, impact_time=0.04,
-        follow_through_time=0.09, recovery_time=0.12,
-        anticipation_angle=-38, attack_angle=130, follow_through_angle=25,
-        anticipation_scale=0.70, attack_scale=1.50, trail_length=16,
-        shake_intensity=4.0, attack_easing="ease_out_elastic", anticipation_easing="ease_in_back",
-    ),
-    "Tentáculos Sombrios": WeaponAnimationProfile(
-        anticipation_time=0.10, attack_time=0.18, impact_time=0.05,
-        follow_through_time=0.14, recovery_time=0.18,
-        anticipation_angle=-28, attack_angle=185, follow_through_angle=45,
-        anticipation_scale=0.72, attack_scale=1.40, trail_length=15,
-        shake_intensity=3.0, attack_easing="ease_out_elastic", anticipation_easing="ease_in_back",
-    ),
-    "Chamas Espirituais": WeaponAnimationProfile(
-        anticipation_time=0.14, attack_time=0.15, impact_time=0.07,
-        follow_through_time=0.12, recovery_time=0.16,
-        anticipation_angle=-25, attack_angle=70, follow_through_angle=25,
-        anticipation_scale=0.60, attack_scale=1.55, trail_length=15,
-        shake_intensity=4.5, attack_easing="ease_out_elastic", anticipation_easing="ease_in_back",
-    ),
-    "Runas Flutuantes": WeaponAnimationProfile(
-        anticipation_time=0.16, attack_time=0.13, impact_time=0.06,
-        follow_through_time=0.10, recovery_time=0.18,
-        anticipation_angle=-18, attack_angle=55, follow_through_angle=18,
-        anticipation_scale=0.68, attack_scale=1.48, trail_length=13,
-        shake_intensity=3.5, attack_easing="ease_out_elastic", anticipation_easing="ease_in_back",
-    ),
-    "Lanças de Mana": WeaponAnimationProfile(
-        anticipation_time=0.12, attack_time=0.09, impact_time=0.04,
-        follow_through_time=0.08, recovery_time=0.14,
-        anticipation_angle=-28, attack_angle=45, follow_through_angle=12,
-        anticipation_scale=0.72, attack_scale=1.45, trail_length=12,
-        shake_intensity=4.0, attack_easing="ease_out_elastic", anticipation_easing="ease_in_back",
-    ),
-    "Cristais Arcanos": WeaponAnimationProfile(
-        anticipation_time=0.14, attack_time=0.12, impact_time=0.05,
-        follow_through_time=0.10, recovery_time=0.16,
-        anticipation_angle=-20, attack_angle=55, follow_through_angle=18,
-        anticipation_scale=0.68, attack_scale=1.48, trail_length=13,
-        shake_intensity=3.5, attack_easing="ease_out_elastic", anticipation_easing="ease_in_back",
-    ),
-    # ── TRANSFORMÁVEL ──
-    "Chicote-Espada": WeaponAnimationProfile(
-        anticipation_time=0.10, attack_time=0.16, impact_time=0.04,
-        follow_through_time=0.15, recovery_time=0.18,
-        anticipation_angle=-58, attack_angle=165, follow_through_angle=45,
-        anticipation_scale=0.80, attack_scale=1.35, trail_length=14,
-        shake_intensity=5.5, attack_easing="anticipate_overshoot",
-    ),
-    "Arco-Lâminas": WeaponAnimationProfile(
-        anticipation_time=0.12, attack_time=0.14, impact_time=0.03,
-        follow_through_time=0.12, recovery_time=0.16,
-        anticipation_angle=-50, attack_angle=125, follow_through_angle=30,
-        anticipation_scale=0.85, attack_scale=1.28, trail_length=12,
-        shake_intensity=4.5, attack_easing="anticipate_overshoot",
-    ),
-    "Machado-Martelo": WeaponAnimationProfile(
-        anticipation_time=0.22, attack_time=0.18, impact_time=0.07,
-        follow_through_time=0.15, recovery_time=0.26,
-        anticipation_angle=-75, attack_angle=150, follow_through_angle=40,
-        anticipation_scale=0.72, attack_scale=1.45, trail_length=14,
-        shake_intensity=10.0, attack_easing="ease_out_back", anticipation_easing="ease_in_back",
-    ),
-    "Bastão Segmentado": WeaponAnimationProfile(
-        anticipation_time=0.14, attack_time=0.16, impact_time=0.04,
-        follow_through_time=0.14, recovery_time=0.18,
-        anticipation_angle=-55, attack_angle=155, follow_through_angle=40,
-        anticipation_scale=0.82, attack_scale=1.32, trail_length=13,
-        shake_intensity=5.0, attack_easing="ease_out_back",
+    
+    "Transformável": WeaponAnimationProfile(
+        anticipation_time=0.08,
+        attack_time=0.15,
+        impact_time=0.03,
+        follow_through_time=0.12,
+        recovery_time=0.15,
+        anticipation_angle=-40,
+        attack_angle=110,
+        follow_through_angle=30,
+        anticipation_scale=0.85,
+        attack_scale=1.2,
+        trail_length=10,
+        shake_intensity=4.0,
     ),
 }
 
 
-def get_animation_profile(weapon_type: str, weapon_style: str = "") -> WeaponAnimationProfile:
-    """
-    Retorna o melhor perfil de animação para uma arma.
-    Prioridade: STYLE_PROFILES > WEAPON_PROFILES > default Reta
-    """
-    if weapon_style and weapon_style in STYLE_PROFILES:
-        return STYLE_PROFILES[weapon_style]
-    return WEAPON_PROFILES.get(weapon_type, WEAPON_PROFILES["Reta"])
-
-
+# ============================================================================
+# ANIMADOR DE ARMA
 # ============================================================================
 
 @dataclass
@@ -546,10 +329,10 @@ class WeaponAnimator:
             self.states[fighter_id] = WeaponAnimationState()
         return self.states[fighter_id]
     
-    def start_attack(self, fighter_id: int, weapon_type: str, weapon_style: str = ""):
+    def start_attack(self, fighter_id: int, weapon_type: str):
         """Inicia uma animação de ataque"""
         state = self.get_state(fighter_id)
-        profile = get_animation_profile(weapon_type, weapon_style)
+        profile = WEAPON_PROFILES.get(weapon_type, WEAPON_PROFILES["Reta"])
         
         state.is_attacking = True
         state.attack_timer = 0.0
@@ -560,8 +343,7 @@ class WeaponAnimator:
         state.attack_pattern = (state.attack_pattern + 1) % 3
     
     def update(self, dt: float, fighter_id: int, weapon_type: str, 
-               base_angle: float, weapon_tip_pos: Tuple[float, float],
-               weapon_style: str = "") -> WeaponAnimationState:
+               base_angle: float, weapon_tip_pos: Tuple[float, float]) -> WeaponAnimationState:
         """
         Atualiza animação e retorna estado atual.
         
@@ -571,10 +353,9 @@ class WeaponAnimator:
             weapon_type: Tipo da arma
             base_angle: Ângulo base (direção que o lutador olha)
             weapon_tip_pos: Posição da ponta da arma (para trail)
-            weapon_style: Estilo específico da arma (opcional)
         """
         state = self.get_state(fighter_id)
-        profile = get_animation_profile(weapon_type, weapon_style)
+        profile = WEAPON_PROFILES.get(weapon_type, WEAPON_PROFILES["Reta"])
         
         if state.is_attacking:
             state.attack_timer += dt
@@ -989,46 +770,17 @@ class WeaponAnimationManager:
         self.active_effects: List[Any] = []
     
     def start_attack(self, fighter_id: int, weapon_type: str,
-                     position: Tuple[float, float], angle: float,
-                     weapon_style: str = "",
-                     weapon_color: Tuple[int, int, int] = (255, 255, 255)):
+                     position: Tuple[float, float], angle: float):
         """Inicia ataque e cria efeitos visuais"""
-        self.animator.start_attack(fighter_id, weapon_type, weapon_style)
+        self.animator.start_attack(fighter_id, weapon_type)
         
-        # Cria efeitos baseado no tipo e estilo
+        # Cria efeitos baseado no tipo
         if weapon_type in ["Reta", "Dupla", "Transformável"]:
-            # Tamanho do slash varia com o estilo
-            slash_width = {
-                "Claymore": 55, "Montante": 50, "Martelo": 45, "Foice": 48,
-                "Machado": 42, "Maça": 40, "Alabarda": 44, "Sabre": 35,
-                "Katana": 38, "Espada Longa": 36, "Espada Curta": 28,
-                "Adagas Gêmeas": 20, "Garras": 22, "Tonfas": 25,
-            }.get(weapon_style, 30)
-            
             self.active_effects.append(SlashEffect(
                 x=position[0], y=position[1],
                 angle=angle,
-                width=slash_width,
-                color=weapon_color,
-            ))
-        elif weapon_type == "Mágica":
-            # Efeito de pulso mágico ao invés de slash
-            self.active_effects.append(SlashEffect(
-                x=position[0], y=position[1],
-                angle=angle,
-                width=25,
-                color=weapon_color,
-                arc_length=360,  # Explosão circular
-                lifetime=0.20,
-            ))
-        elif weapon_type == "Corrente":
-            self.active_effects.append(SlashEffect(
-                x=position[0], y=position[1],
-                angle=angle,
-                width=35,
-                color=weapon_color,
-                arc_length=180,
-                lifetime=0.18,
+                width=30,
+                color=(255, 255, 255)
             ))
     
     def update(self, dt: float):
@@ -1038,14 +790,14 @@ class WeaponAnimationManager:
     
     def get_weapon_transform(self, fighter_id: int, weapon_type: str,
                              base_angle: float, weapon_tip: Tuple[float, float],
-                             dt: float, weapon_style: str = "") -> Dict[str, Any]:
+                             dt: float) -> Dict[str, Any]:
         """
         Obtém transformações da arma para renderização.
         
         Returns:
             Dict com: angle_offset, scale, shake, trail_positions
         """
-        state = self.animator.update(dt, fighter_id, weapon_type, base_angle, weapon_tip, weapon_style)
+        state = self.animator.update(dt, fighter_id, weapon_type, base_angle, weapon_tip)
         
         return {
             "angle_offset": state.angle_offset,
