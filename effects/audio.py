@@ -265,9 +265,19 @@ class AudioManager:
         ])
         
         # === AMBIENTE ===
-        self._register_sound("wall_hit")  # Som único de colisão com parede
-        self._register_sound("wall_impact_light")  # Alternativa leve
-        self._register_sound("wall_impact_heavy")  # Alternativa pesada
+        # BUGFIX v2.0: sons de parede com fallback cruzado
+        # Registra individualmente e depois cria aliases entre si para garantir
+        # que pelo menos um nome seja encontrado mesmo sem todos os arquivos
+        self._register_sound("wall_hit")          # Som principal de parede
+        self._register_sound("wall_impact_light") # Impacto leve (alternativo)
+        self._register_sound("wall_impact_heavy") # Impacto pesado (alternativo)
+        # Aliases de fallback: garante que ao menos um nome funcione
+        if "wall_hit" not in self.sounds and "wall_impact_light" in self.sounds:
+            self.sounds["wall_hit"] = self.sounds["wall_impact_light"]
+        if "wall_impact_light" not in self.sounds and "wall_hit" in self.sounds:
+            self.sounds["wall_impact_light"] = self.sounds["wall_hit"]
+        if "wall_impact_heavy" not in self.sounds and "wall_impact_light" in self.sounds:
+            self.sounds["wall_impact_heavy"] = self.sounds["wall_impact_light"]
         self._register_sound("ground_impact")
         
         # === UI E FEEDBACK ===

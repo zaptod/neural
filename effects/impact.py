@@ -144,7 +144,7 @@ class MagicClash:
             px, py = cam.converter(p['x'], p['y'])
             tam = cam.converter_tam(p['tam'])
             if tam > 0:
-                alpha = int(255 * (p['vida'] / 0.5))
+                alpha = max(0, min(255, int(255 * (p['vida'] / 0.5))))
                 s = pygame.Surface((tam * 2 + 2, tam * 2 + 2), pygame.SRCALPHA)
                 pygame.draw.circle(s, (*p['cor'][:3], alpha), (tam + 1, tam + 1), max(1, tam))
                 tela.blit(s, (px - tam - 1, py - tam - 1))
@@ -207,7 +207,9 @@ class BlockEffect:
         for f in self.faiscas:
             fx, fy = cam.converter(f['x'], f['y'])
             alpha_f = int(255 * (f['vida'] / 0.3))
-            pygame.draw.circle(tela, (255, 255, 150, alpha_f), (int(fx), int(fy)), 2)
+            s = pygame.Surface((6, 6), pygame.SRCALPHA)
+            pygame.draw.circle(s, (255, 255, 150, alpha_f), (3, 3), 2)
+            tela.blit(s, (int(fx) - 3, int(fy) - 3))
 
 
 class DashTrail:

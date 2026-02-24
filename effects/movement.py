@@ -264,14 +264,18 @@ class DustParticle:
     vida: float = 0.5
     rotation: float = 0.0
     rotation_speed: float = 0.0
-    
+    max_vida: float = field(init=False)
+
+    def __post_init__(self):
+        self.max_vida = self.vida
+
     def update(self, dt: float):
         self.x += self.vx * dt
         self.y += self.vy * dt
         self.vy += 50 * dt  # Gravidade leve
         self.vx *= 0.95  # Atrito
         self.vida -= dt
-        self.alpha = max(0, 255 * (self.vida / 0.5))
+        self.alpha = max(0, 255 * (self.vida / self.max_vida))
         self.size *= 0.98
         self.rotation += self.rotation_speed * dt
     
@@ -419,10 +423,14 @@ class SpeedLine:
     alpha: float = 255.0
     vida: float = 0.2
     offset: float = 0.0  # Offset do centro
-    
+    _max_vida: float = field(init=False)
+
+    def __post_init__(self):
+        self._max_vida = self.vida
+
     def update(self, dt: float):
         self.vida -= dt
-        self.alpha = 255 * (self.vida / 0.2)
+        self.alpha = 255 * (self.vida / self._max_vida)
         self.comprimento *= 1.05  # Estica um pouco
     
     @property

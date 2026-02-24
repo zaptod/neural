@@ -990,48 +990,103 @@ class TelaArmas(tk.Frame):
         )
 
     def desenhar_arma_dupla(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Dupla"""
+        """Desenha arma do tipo Dupla - Adagas Gêmeas (karambit style)"""
+        import math as _math
         cabo = geo.get("comp_cabo", 15)
         lamina = geo.get("comp_lamina", 35)
         largura = geo.get("largura", 4)
         sep = geo.get("separacao", 20)
         
-        for offset in [-sep/2, sep/2]:
-            # Cabo
-            self.canvas_preview.create_rectangle(
-                cx + raio, cy + offset - largura*0.3,
-                cx + raio + cabo, cy + offset + largura*0.3,
-                fill="#8B4513"
+        for i, offset in enumerate([-sep * 0.7, sep * 0.7]):
+            lado = -1 if i == 0 else 1
+            bx = cx + raio + 10
+            by = cy + offset
+            # Anel de polegar
+            self.canvas_preview.create_oval(
+                bx - 4, by - 4, bx + 4, by + 4,
+                outline="#C8C8D0", width=2
             )
-            # Lamina
-            self.canvas_preview.create_rectangle(
-                cx + raio + cabo, cy + offset - largura/2,
-                cx + raio + cabo + lamina, cy + offset + largura/2,
-                fill=cor, outline=cor_rar, width=2
+            # Cabo
+            cabo_ex = bx + cabo * 0.7
+            cabo_ey = by + cabo * 0.2 * lado
+            self.canvas_preview.create_line(
+                bx, by, cabo_ex, cabo_ey,
+                fill="#6B3A1F", width=max(2, int(largura))
+            )
+            # Lâmina curva (karambit arc) - arc de 90 graus
+            arc_r = lamina * 0.6
+            arc_cx = cabo_ex + arc_r * 0.3
+            arc_cy = cabo_ey - arc_r * lado * 0.5
+            self.canvas_preview.create_arc(
+                arc_cx - arc_r, arc_cy - arc_r,
+                arc_cx + arc_r, arc_cy + arc_r,
+                start=150 if lado < 0 else 180,
+                extent=100,
+                style="arc", outline=cor, width=max(2, int(largura))
+            )
+            # Ponta com glow
+            tip_x = arc_cx + _math.cos(_math.radians(240 if lado < 0 else 280)) * arc_r
+            tip_y = arc_cy + _math.sin(_math.radians(240 if lado < 0 else 280)) * arc_r
+            self.canvas_preview.create_oval(
+                tip_x - 3, tip_y - 3, tip_x + 3, tip_y + 3,
+                fill=cor_rar, outline=cor_rar
             )
 
     def desenhar_arma_corrente(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Corrente"""
-        comp = geo.get("comp_corrente", 100)
-        ponta = geo.get("comp_ponta", 20)
-        largura = geo.get("largura_ponta", 10)
+        """Desenha arma do tipo Corrente - Mangual (heavy flail) v3.0"""
+        import math as _math
+        comp = geo.get("comp_corrente", 100) * 0.7
+        ponta_tam = max(12, int(geo.get("comp_ponta", 20) * 0.8))
         
-        # Corrente (segmentos)
-        segs = 10
-        for i in range(segs):
-            x1 = cx + raio + (comp/segs) * i
-            x2 = cx + raio + (comp/segs) * (i+1)
-            wave = math.sin(i * 0.8) * 10
-            self.canvas_preview.create_line(
-                x1, cy + wave, x2, cy + math.sin((i+1) * 0.8) * 10,
-                fill="#666", width=3
+        # Cabo de madeira
+        cabo_tam = geo.get("comp_cabo", 18) * 0.5
+        self.canvas_preview.create_rectangle(
+            cx + raio, cy - 5, cx + raio + cabo_tam, cy + 5,
+            fill="#6B3A1F", outline="#4A2810"
+        )
+        # Argola de conexão
+        self.canvas_preview.create_oval(
+            cx + raio + cabo_tam - 4, cy - 5, cx + raio + cabo_tam + 4, cy + 5,
+            outline="#A0A5B0", width=2
+        )
+        
+        # Elos da corrente (retângulos alternados horizontal/vertical)
+        num_elos = 8
+        elo_start_x = cx + raio + cabo_tam + 4
+        for i in range(num_elos):
+            t = i / num_elos
+            ex = elo_start_x + comp * t
+            ey = cy + _math.sin(t * _math.pi) * 15  # Catenary sag
+            ew = 8 if i % 2 == 0 else 5
+            eh = 4 if i % 2 == 0 else 7
+            self.canvas_preview.create_rectangle(
+                ex - ew//2, ey - eh//2, ex + ew//2, ey + eh//2,
+                fill="#6A6C78", outline="#9A9CA8"
             )
         
-        # Ponta
-        fim_x = cx + raio + comp
+        # Bola espigada no final
+        ball_x = elo_start_x + comp + 4
+        ball_y = cy + _math.sin(_math.pi * 0.9) * 15
+        # Bola principal
         self.canvas_preview.create_oval(
-            fim_x, cy - largura/2, fim_x + ponta, cy + largura/2,
+            ball_x - ponta_tam, ball_y - ponta_tam,
+            ball_x + ponta_tam, ball_y + ponta_tam,
             fill=cor, outline=cor_rar, width=2
+        )
+        # Spikes (4 visíveis no preview)
+        for sa in [0, 90, 180, 270]:
+            s_r = _math.radians(sa)
+            sx1 = ball_x + _math.cos(s_r) * (ponta_tam - 1)
+            sy1 = ball_y + _math.sin(s_r) * (ponta_tam - 1)
+            sx2 = ball_x + _math.cos(s_r) * (ponta_tam + 7)
+            sy2 = ball_y + _math.sin(s_r) * (ponta_tam + 7)
+            self.canvas_preview.create_line(sx1, sy1, sx2, sy2,
+                                            fill=cor, width=3)
+        # Highlight da bola
+        self.canvas_preview.create_oval(
+            ball_x - ponta_tam//3, ball_y - ponta_tam//3,
+            ball_x, ball_y,
+            fill="#FFFFFF", outline=""
         )
 
     def desenhar_arma_arremesso(self, cx, cy, raio, geo, cor, cor_rar):

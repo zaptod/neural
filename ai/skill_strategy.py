@@ -671,55 +671,124 @@ class SkillStrategySystem:
     # =========================================================================
     
     def _descobrir_combos(self):
-        """Descobre combos e sinergias entre skills"""
+        """
+        Descobre combos e sinergias v3.0 - analise elementar completa.
+        Cada combo tem uma RAZAO que explica o benefit estrategico.
+        """
         combos = []
-        
-        # Congelamento + Shatter
-        freeze_skills = [s for s in self.skills.values() 
-                        if s.data.get("efeito") == "CONGELADO"]
-        shatter_skills = [s for s in self.skills.values() 
-                         if s.data.get("condicao") == "ALVO_CONGELADO"]
-        for freeze in freeze_skills:
-            for shatter in shatter_skills:
-                combos.append((freeze.nome, shatter.nome, "freeze_shatter"))
-                freeze.pode_combo_apos.append(shatter.nome)
-                shatter.requer_setup = True
-                shatter.setup_skill = freeze.nome
-        
-        # Queimadura + Combustão
-        burn_skills = [s for s in self.skills.values() 
-                       if s.data.get("efeito") == "QUEIMANDO"]
-        detonate_skills = [s for s in self.skills.values() 
-                          if s.data.get("condicao") == "ALVO_QUEIMANDO"]
-        for burn in burn_skills:
-            for det in detonate_skills:
-                combos.append((burn.nome, det.nome, "burn_detonate"))
-                burn.pode_combo_apos.append(det.nome)
-        
-        # Buff + Burst
-        buff_dano = [s for s in self.skills.values() 
-                     if s.data.get("buff_dano")]
-        bursts = [s for s in self.skills_por_proposito[SkillPurpose.BURST]]
-        for buff in buff_dano:
-            for burst in bursts[:2]:  # Top 2 bursts
-                if buff.nome != burst.nome:
-                    combos.append((buff.nome, burst.nome, "buff_burst"))
-        
-        # Summon + Buff
-        summons = self.skills_por_tipo["SUMMON"]
-        for summon in summons:
-            for buff in buff_dano:
-                combos.append((buff.nome, summon.nome, "buff_summon"))
-        
-        # Control + Burst
+        all_sk = list(self.skills.values())
+        bursts = sorted(self.skills_por_proposito[SkillPurpose.BURST],
+                        key=lambda s: s.dano_total, reverse=True)
         controls = self.skills_por_proposito[SkillPurpose.CONTROL]
-        for ctrl in controls:
+        buff_dano = [s for s in all_sk if s.data.get("buff_dano")]
+        finishers = self.skills_por_proposito[SkillPurpose.FINISHER]
+        summons = self.skills_por_tipo.get("SUMMON", [])
+        escapes = self.skills_por_proposito[SkillPurpose.ESCAPE]
+        sustains = self.skills_por_proposito[SkillPurpose.SUSTAIN]
+
+        def add(s1, s2, razao):
+            if s1.nome != s2.nome:
+                entry = (s1.nome, s2.nome, razao)
+                if entry not in combos:
+                    combos.append(entry)
+                    if s2.nome not in s1.pode_combo_apos:
+                        s1.pode_combo_apos.append(s2.nome)
+
+        # ELEMENTAL: Congelado/Paralisia -> burst (alvo toma +50% dano)
+        freeze_sk = [s for s in all_sk
+                     if s.data.get("efeito") in ("CONGELADO", "PARALISIA", "SONO")]
+        for frz in freeze_sk:
+            for burst in bursts[:3]:
+                add(frz, burst, "elemental_amplify_stun")
+            shatter = [s for s in all_sk if s.data.get("condicao") == "ALVO_CONGELADO"]
+            for sh in shatter:
+                add(frz, sh, "freeze_shatter_DOUBLE_DMG")
+                sh.requer_setup = True
+                sh.setup_skill = frz.nome
+
+        # CC direto -> burst garantido
+        cc_sk = [s for s in all_sk if s.data.get("efeito") in
+                 ("ATORDOADO", "ENRAIZADO", "SILENCIADO", "MEDO", "CHARME")]
+        for cc in cc_sk:
             for burst in bursts[:2]:
-                if ctrl.nome != burst.nome:
-                    combos.append((ctrl.nome, burst.nome, "control_burst"))
-        
-        self.plano.combos = combos
-    
+                add(cc, burst, "cc_burst_window")
+            for fin in finishers[:2]:
+                add(cc, fin, "cc_execute")
+
+        # Queimando -> detonacao ou burst de fogo
+        burn_sk = [s for s in all_sk if s.data.get("efeito") == "QUEIMANDO"]
+        det_sk  = [s for s in all_sk if s.data.get("condicao") == "ALVO_QUEIMANDO"]
+        for burn in burn_sk:
+            for det in det_sk:
+                add(burn, det, "burn_detonate_COMBUSTAO")
+            for burst in bursts[:2]:
+                if burst not in det_sk:
+                    add(burn, burst, "burn_amplify")
+
+        # Veneno -> finisher
+        poison_sk = [s for s in all_sk if s.data.get("efeito") == "ENVENENADO"]
+        for psn in poison_sk:
+            for fin in finishers:
+                add(psn, fin, "poison_execute")
+
+        # Lento -> CC follow-up
+        slow_sk = [s for s in all_sk if s.data.get("efeito") == "LENTO"]
+        for slow in slow_sk:
+            for cc in cc_sk[:2]:
+                add(slow, cc, "slow_into_cc")
+
+        # Buff dano -> burst
+        for buff in buff_dano:
+            for burst in bursts[:3]:
+                add(buff, burst, "buff_burst_AMPLIFIED")
+
+        # Velocidade -> dash engage
+        speed_buff = [s for s in all_sk if s.data.get("buff_velocidade")]
+        dash_sk = self.skills_por_tipo.get("DASH", [])
+        for spd in speed_buff:
+            for dash in dash_sk:
+                add(spd, dash, "speed_dash_engage")
+
+        # Buff -> summon (invoca amplificado)
+        for buff in buff_dano:
+            for summon in summons[:2]:
+                add(buff, summon, "buff_summon_army")
+
+        # Summon -> CC (summon ocupa, CC prende)
+        for summon in summons[:2]:
+            for cc in cc_sk[:2]:
+                add(summon, cc, "summon_then_cc")
+
+        # Escape -> poke (kite)
+        pokes = self.skills_por_proposito[SkillPurpose.POKE]
+        for esc in escapes[:2]:
+            for poke in pokes[:2]:
+                add(esc, poke, "escape_poke_kite")
+            for cc in cc_sk[:1]:
+                add(esc, cc, "escape_cc_gap")
+
+        # Sustain -> burst (cura e ataca)
+        for sus in sustains[:1]:
+            for burst in bursts[:2]:
+                add(sus, burst, "heal_then_burst_aggro")
+
+        # Debuff -> finisher
+        debuff_sk = [s for s in all_sk if s.data.get("efeito") in
+                     ("VULNERAVEL", "FRACO", "MALDITO", "CORROENDO", "MARCADO", "EXPOSTO")]
+        for deb in debuff_sk:
+            for fin in finishers:
+                add(deb, fin, "debuff_execute_BONUS_DMG")
+            for burst in bursts[:2]:
+                add(deb, burst, "debuff_burst")
+
+        # Channel -> burst (concentra e libera)
+        channels = self.skills_por_tipo.get("CHANNEL", [])
+        for ch in channels:
+            for burst in bursts[:1]:
+                add(ch, burst, "channel_charge_burst")
+
+        self.plano.combos = combos[:20]
+
     # =========================================================================
     # EXECUÇÃO DO PLANO
     # =========================================================================

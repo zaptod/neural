@@ -1,6 +1,17 @@
 """
 =============================================================================
-NEURAL FIGHTS - Cérebro da IA v10.0 WEAPON PERCEPTION EDITION
+NEURAL FIGHTS - Cérebro da IA v11.0 WEAPON REWORK EDITION
+=============================================================================
+CHANGELOG v11.0:
+- Reformulação da IA para Mangual: spin acumulativo, distância de zona de spin,
+  detecção de zona morta expandida, arquétipo BERSERKER
+- Reformulação da IA para Adagas Gêmeas: alcance ideal reduzido (0.50x),
+  modo combo colado, dash agressivo para manter combo ativo
+- Percepção de armas inimigas: lógica contra Mangual (entrar na zona morta)
+  e contra Adagas Gêmeas (manter distância, punir aproximação)
+- Bugfix: lógica de fallback para estilo de arma None/vazio
+- Bugfix: detecção de alcance_agressao para Adagas Gêmeas
+- Compatível com novos campos anim_* em armas.json
 =============================================================================
 Sistema de inteligência artificial com comportamento humano realista,
 consciência espacial avançada e percepção de armas.
@@ -504,12 +515,22 @@ class AIBrain:
             p.alcance_ideal = alcance_max * 0.7
             
         elif "Corrente" in tipo:
-            self.arquetipo = "ACROBATA"
-            # Correntes têm ZONA MORTA - IA deve ficar na distância média
+            estilo_arma = getattr(arma, 'estilo', '')
             min_range_ratio = perfil.get("min_range_ratio", 0.25)
             zona_morta = alcance_max * min_range_ratio
-            # Alcance ideal = meio termo entre zona morta e máximo
-            p.alcance_ideal = (alcance_max + zona_morta) / 2
+            
+            if estilo_arma == "Mangual":
+                # v3.0 Mangual: zona morta 40%, spin zone 40-72% do alcance
+                # Zona morta grande, mas tem bônus quando acumula momentum
+                self.arquetipo = "BERSERKER"  # Mangual é um Berserker de corrente
+                # Alcance ideal = ponto de spin máximo (55% do alcance máximo)
+                p.alcance_ideal = alcance_max * 0.55
+                p.zona_morta_mangual = zona_morta  # Salva para uso na IA
+                p.mangual_momentum = 0.0            # Estado de momentum acumulado
+            else:
+                self.arquetipo = "ACROBATA"
+                # Outras correntes: meio termo entre zona morta e máximo
+                p.alcance_ideal = (alcance_max + zona_morta) / 2
             
         elif "Arremesso" in tipo:
             self.arquetipo = "LANCEIRO"
@@ -518,8 +539,16 @@ class AIBrain:
             
         elif "Dupla" in tipo:
             self.arquetipo = "ASSASSINO"
-            # Adagas: fica BEM PERTO para maximizar dano rápido
-            p.alcance_ideal = alcance_max * 0.7  # Bem perto!
+            estilo_arma = getattr(arma, 'estilo', '')
+            if estilo_arma == "Adagas Gêmeas":
+                # v3.1: Adagas têm lâminas longas — combate próximo mas não colado
+                # Range ideal é 70% do alcance max: perto suficiente para o combo,
+                # longe suficiente para ter tempo de reagir/esquivar
+                p.alcance_ideal = alcance_max * 0.70
+                p.alcance_agressao = alcance_max * 0.85  # começa a pressionar aqui
+            else:
+                # Outras armas duplas: perto mas não tão colado
+                p.alcance_ideal = alcance_max * 0.70
             
         elif "Transformável" in tipo:
             self.arquetipo = "GUERREIRO"
@@ -858,11 +887,14 @@ class AIBrain:
         leitura["ataque_iminente"] = ataque_prep
         
         # Calcula direção provável do ataque
-        if inimigo.vel[0] != 0 or inimigo.vel[1] != 0:
+        if hasattr(inimigo, 'vel') and (inimigo.vel[0] != 0 or inimigo.vel[1] != 0):
             leitura["direcao_provavel"] = math.degrees(math.atan2(inimigo.vel[1], inimigo.vel[0]))
         
         # Registra padrão de movimento
-        mov_atual = (inimigo.vel[0], inimigo.vel[1], inimigo.z)
+        vel_x = inimigo.vel[0] if hasattr(inimigo, 'vel') else 0
+        vel_y = inimigo.vel[1] if hasattr(inimigo, 'vel') else 0
+        z_val = inimigo.z if hasattr(inimigo, 'z') else 0
+        mov_atual = (vel_x, vel_y, z_val)
         leitura["padrao_movimento"].append(mov_atual)
         if len(leitura["padrao_movimento"]) > 15:
             leitura["padrao_movimento"].pop(0)
@@ -2106,6 +2138,13 @@ class AIBrain:
         perc = self.percepcao_arma
         p = self.parent
         
+        # Variáveis locais necessárias para cálculos baseados em arma
+        alcance_efetivo = self._calcular_alcance_efetivo()
+        roll = random.random()
+        arma_inimigo = None
+        if hasattr(inimigo, 'dados') and hasattr(inimigo.dados, 'arma_obj'):
+            arma_inimigo = inimigo.dados.arma_obj
+        
         estrategia = perc.get("estrategia_recomendada", "neutro")
         matchup = perc.get("matchup_favoravel", 0.0)
         
@@ -2150,10 +2189,37 @@ class AIBrain:
                 self.acao_atual = random.choice(["APROXIMAR", "CIRCULAR"])
         
         # === COMPORTAMENTOS ESPECÍFICOS POR TIPO DE ARMA INIMIGA ===
+        # v2.0: inclui lógica contra Mangual e Adagas Gêmeas reformulados
         tipo_ini = perc.get("arma_inimigo_tipo", "")
+        arma_inimigo_estilo = ""
+        if arma_inimigo and hasattr(arma_inimigo, 'estilo'):
+            arma_inimigo_estilo = arma_inimigo.estilo
+        
+        # Contra Adagas Gêmeas: são muito rápidas, não deixar entrar no combo
+        if tipo_ini == "Dupla" and arma_inimigo_estilo == "Adagas Gêmeas":
+            # Adagas Gêmeas são letais de perto mas frágeis
+            # Manter distância e punir a aproximação
+            dist_segura = alcance_efetivo * 1.2  # Fica além do alcance das adagas
+            if distancia < dist_segura and roll < 0.45:
+                self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "CIRCULAR"])
         
         if tipo_ini == "Corrente":
-            # Contra correntes: entrar na zona morta ou manter distância
+            arma_ini_estilo = arma_inimigo.estilo if arma_inimigo and hasattr(arma_inimigo, 'estilo') else ''
+            
+            if arma_ini_estilo == "Mangual":
+                # v2.0 CONTRA MANGUAL: o Mangual tem zona morta enorme
+                # Estratégia: entrar NA ZONA MORTA (muito perto) para anular o spin
+                # OU ficar MUITO LONGE fora do alcance total
+                alcance_mangual = perc.get("alcance_inimigo", 4.0)
+                zona_morta_estimada = alcance_mangual * 0.40  # v3.0: zona morta 40%
+                
+                if distancia > alcance_mangual * 0.9:
+                    pass  # Fora do alcance: mantém distância segura
+                elif distancia > zona_morta_estimada * 2:
+                    # Na zona de perigo: tenta entrar na zona morta para anular
+                    self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "FLANQUEAR"])
+                # Se dentro da zona morta: o Mangual é ineficaz → ataca!
+            # Contra correntes normais: entrar na zona morta ou manter distância
             if distancia < perc.get("distancia_segura", 3.0) * 0.5:
                 # Estou na zona morta - vantagem!
                 if random.random() < 0.6:
@@ -2447,7 +2513,7 @@ class AIBrain:
         if acao == "PREPARAR_ATAQUE":
             self.modo_burst = True
             self.adrenalina = min(1.0, self.adrenalina + 0.05)
-            self.acao_atual = "APROXIMAR_LENTO" if distancia > 4.0 else "BLOQUEAR"
+            self.acao_atual = "APROXIMAR" if distancia > 4.0 else "BLOQUEAR"
             return True
         
         if acao == "FUGIR_DRAMATICO":
@@ -2520,7 +2586,7 @@ class AIBrain:
                 self.bait_state["ativo"] = True
                 self.bait_state["tipo"] = "finta_coreografada"
                 self.bait_state["timer"] = 0.4
-            self.acao_atual = random.choice(["APROXIMAR_LENTO", "CIRCULAR", "COMBATE"])
+            self.acao_atual = random.choice(["APROXIMAR", "CIRCULAR", "COMBATE"])
             return True
         
         if acao in acoes:
@@ -2852,7 +2918,7 @@ class AIBrain:
             self.cd_pulo = random.uniform(0.8, 2.0)
             
             if self.arquetipo in ["ASSASSINO", "NINJA", "BERSERKER", "ACROBATA"]:
-                self.acao_atual = "ATAQUE_AEREO"
+                self.acao_atual = "ATAQUE_RAPIDO"
             else:
                 self.acao_atual = "RECUAR"
             
@@ -3010,88 +3076,358 @@ class AIBrain:
         return False
     
     def _processar_skills_estrategico(self, distancia, inimigo):
-        """Processa skills usando o sistema de estratégia inteligente"""
+        """
+        IA de Skills v4.0 — ESTRATÉGIA TÁTICA CONSCIENTE
+        ===================================================
+        A IA lê o estado real do combate e toma decisões contextuais:
+
+        CONTEXTO ANALISADO:
+          • HP/Mana próprios e do inimigo
+          • Estado do inimigo: stunado, debuffado, queimando, congelado
+          • Distância e mobilidade
+          • Fase do combate (início, neutro, vantagem, crítico, finalização)
+          • Sinergias de combo entre skills
+          • Padrão recente do inimigo (ataque iminente, reposicionando)
+
+        HIERARQUIA (verificadas em ordem, retorna True ao usar):
+          1. SOBREVIVÊNCIA  — HP < 28%: cura, escudo, invencibilidade, escape
+          2. JANELA DE CC   — inimigo exposto/longe: CC para abrir combo
+          3. REAÇÃO CC      — inimigo vai atacar: CC preventivo / dash de escape
+          4. COMBO SINÉRGICO— setup + payload em sequência
+          5. EXECUÇÃO       — inimigo < 30% HP: skill de dano máximo
+          6. BURST WINDOW   — inimigo stunado/debuffado: máximo dano
+          7. OPENER         — primeiros 8s: buffs, summons, preparação
+          8. POKE/ZONING    — fase neutra: pressão segura de distância
+          9. ROTAÇÃO NORMAL — melhor skill disponível da fase atual
+        """
         p = self.parent
         strategy = self.skill_strategy
-        
-        # Atualiza timers do sistema
-        strategy.atualizar(0.016)  # ~60fps
-        
-        # Cria situação de combate atual
+        if strategy is None:
+            return False
+
+        strategy.atualizar(0.016)
+
+        # ── Estado de combate ──
+        hp_pct          = p.vida / p.vida_max if p.vida_max > 0 else 1.0
+        inimigo_hp_pct  = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
+        mana_pct        = p.mana / p.mana_max if p.mana_max > 0 else 1.0
+        tempo_combate   = self.tempo_combate
+        role            = strategy.role_principal.value
+        plano           = strategy.plano
+        skills          = strategy.skills
+
+        # ── Estado do inimigo ──
+        inimigo_stunado       = self._verificar_inimigo_stunado(inimigo)
+        inimigo_debuffado     = self._verificar_inimigo_debuffado(inimigo)
+        inimigo_queimando     = any(getattr(e,'nome','').lower() in ('queimando','burning')
+                                     for e in getattr(inimigo, 'status_effects', []))
+        inimigo_congelado     = any(getattr(e,'nome','').lower() in ('congelado','frozen')
+                                     for e in getattr(inimigo, 'status_effects', []))
+        inimigo_reposicionando = self.leitura_oponente.get("reposicionando", False)
+        inimigo_atk_iminente  = self.leitura_oponente.get("ataque_iminente", False)
+        encurralado           = self.consciencia_espacial.get("encurralado", False)
+        oponente_encurralado  = self.consciencia_espacial.get("oponente_contra_parede", False)
+        inimigo_mana_baixa    = getattr(inimigo, 'mana', 999) < getattr(inimigo, 'mana_max', 999) * 0.2
+        buffs_ativos          = len(getattr(p, 'buffs_ativos', []))
+        tenho_summons         = self._contar_summons_ativos() > 0
+
+        # ── Helpers ──
+        def pode_usar(nome):
+            if nome not in skills:
+                return False
+            sk = skills[nome]
+            if p.mana < sk.custo:
+                return False
+            if nome in p.cd_skills and p.cd_skills[nome] > 0:
+                return False
+            if sk.tipo in strategy.cd_por_tipo and strategy.cd_por_tipo[sk.tipo] > 0:
+                return False
+            return True
+
+        def tentar(nome, motivo=""):
+            if pode_usar(nome):
+                if self._executar_skill_por_nome(nome):
+                    strategy.registrar_uso_skill(nome)
+                    self._pos_uso_skill_estrategica(skills[nome])
+                    return True
+            return False
+
+        def alcance_ok(nome, margem=1.25):
+            sk = skills.get(nome)
+            if not sk or sk.alcance_efetivo <= 0:
+                return True
+            return distancia <= sk.alcance_efetivo * margem
+
+        # ================================================================
+        # PRIORIDADE 1: SOBREVIVÊNCIA — HP crítico
+        # ================================================================
+        if hp_pct < 0.28:
+            # 1a. Invencibilidade ou transformação defensiva
+            for nome in list(plano.sustains) + list(plano.escapes):
+                sk = skills.get(nome)
+                if sk and (sk.data.get("invencivel") or sk.data.get("intangivel")):
+                    if tentar(nome, "emergencia_invencivel"):
+                        return True
+            # 1b. Curas diretas (prioriza a de maior valor)
+            cura_candidatos = [
+                (nome, skills[nome].data.get("cura", 0) + skills[nome].data.get("cura_por_segundo", 0) * 3)
+                for nome in plano.rotacao_critical
+                if nome in skills and skills[nome].tipo == "BUFF"
+                and (skills[nome].data.get("cura") or skills[nome].data.get("cura_por_segundo"))
+            ]
+            for nome, _ in sorted(cura_candidatos, key=lambda x: -x[1]):
+                if tentar(nome, "emergencia_cura"):
+                    return True
+            # 1c. Escudo mágico
+            for nome in plano.sustains:
+                sk = skills.get(nome)
+                if sk and sk.data.get("escudo"):
+                    if tentar(nome, "emergencia_escudo"):
+                        return True
+            # 1d. Escape / dash (prioritário se inimigo atacando)
+            if inimigo_atk_iminente or hp_pct < 0.18:
+                for nome in plano.escapes:
+                    if tentar(nome, "emergencia_escape"):
+                        return True
+            # 1e. Skill de controle defensivo (stun para criar espaço)
+            if hp_pct < 0.22 and distancia < 3.0:
+                for nome in plano.controls:
+                    if alcance_ok(nome, 1.1) and tentar(nome, "emergencia_cc_defensivo"):
+                        return True
+
+        # ================================================================
+        # PRIORIDADE 2: REAÇÃO A ATAQUE IMINENTE
+        # ================================================================
+        if inimigo_atk_iminente and hp_pct > 0.28:
+            # 2a. CC preventivo para interromper o ataque
+            for nome in plano.controls:
+                if alcance_ok(nome, 1.1) and mana_pct > 0.20:
+                    if tentar(nome, "cc_preventivo"):
+                        return True
+            # 2b. Dash de escape se role é kite
+            if role in ("artillery", "control_mage") or self.medo > 0.5:
+                for nome in plano.escapes:
+                    if tentar(nome, "escape_preemptivo"):
+                        return True
+
+        # ================================================================
+        # PRIORIDADE 3: JANELA DE CC — inimigo exposto
+        # Momentos ideais: longe (projétil alcança), reposicionando, encurralado
+        # ================================================================
+        condicao_cc = (
+            inimigo_reposicionando            or
+            distancia > 4.5                   or
+            (oponente_encurralado and distancia < 7.0)
+        )
+        if condicao_cc and mana_pct > 0.22 and not inimigo_stunado:
+            for nome in plano.controls:
+                sk = skills.get(nome)
+                if not sk:
+                    continue
+                # Não usar CC lento se inimigo está muito perto e se movendo
+                if inimigo_reposicionando and distancia < 2.5 and sk.cooldown > 8:
+                    continue
+                if alcance_ok(nome, 1.15):
+                    if tentar(nome, "janela_cc"):
+                        return True
+
+        # ================================================================
+        # PRIORIDADE 4: COMBO SINÉRGICO — setup → payload
+        # Ex: Congelar → Shatter / Queimar → Detonar / Buff → Burst
+        # ================================================================
+        if mana_pct > 0.40:
+            # 4a. Se inimigo já está queimando, prioriza detonate (payload)
+            if inimigo_queimando:
+                det_skills = [n for n, sk in skills.items()
+                              if sk.data.get("condicao") == "ALVO_QUEIMANDO" and alcance_ok(n)]
+                for nome in det_skills:
+                    if tentar(nome, "payload_queimando"):
+                        return True
+
+            # 4b. Se inimigo congelado, prioriza shatter
+            if inimigo_congelado:
+                sht_skills = [n for n, sk in skills.items()
+                              if sk.data.get("condicao") == "ALVO_CONGELADO" and alcance_ok(n)]
+                for nome in sht_skills:
+                    if tentar(nome, "payload_congelado"):
+                        return True
+
+            # 4c. Inicia um combo sinérgico se tiver mana suficiente
+            combo = strategy.get_combo_recomendado()
+            if combo:
+                sk1, sk2, razao = combo
+                custo_total = (skills[sk1].custo if sk1 in skills else 9999) +                               (skills[sk2].custo if sk2 in skills else 9999)
+                if p.mana >= custo_total * 0.88:
+                    # Chance aumenta se inimigo está parado (stunado/encurralado)
+                    chance_combo = 0.75 if (inimigo_stunado or oponente_encurralado) else 0.50
+                    if random.random() < chance_combo:
+                        if alcance_ok(sk1, 1.15) and tentar(sk1, f"combo_setup_{razao}"):
+                            self.combo_state["em_combo"] = True
+                            self.combo_state["pode_followup"] = True
+                            self.combo_state["timer_followup"] = 0.5
+                            self._proximo_skill_combo = sk2
+                            return True
+
+        # ================================================================
+        # PRIORIDADE 5: EXECUÇÃO — inimigo HP baixo
+        # Gasta mais recursos quando pode confirmar kill
+        # ================================================================
+        if inimigo_hp_pct < 0.32:
+            # 5a. Finisher dedicado
+            for nome in sorted(plano.finishers,
+                               key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
+                               reverse=True):
+                sk = skills.get(nome)
+                if not sk:
+                    continue
+                if alcance_ok(nome, 1.30):
+                    if tentar(nome, "execucao_finisher"):
+                        return True
+            # 5b. Burst de maior dano
+            for nome in sorted(plano.bursts,
+                               key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
+                               reverse=True):
+                sk = skills.get(nome)
+                if sk and alcance_ok(nome, 1.25):
+                    if tentar(nome, "execucao_burst"):
+                        return True
+            # 5c. Se inimigo HP < 15%, usa QUALQUER skill disponível
+            if inimigo_hp_pct < 0.15:
+                for nome in skills:
+                    sk = skills[nome]
+                    if sk.dano_total > 0 and alcance_ok(nome, 1.2):
+                        if tentar(nome, "execucao_desesperada"):
+                            return True
+
+        # ================================================================
+        # PRIORIDADE 6: BURST WINDOW — inimigo stunado/debuffado
+        # Janela de oportunidade para dano máximo
+        # ================================================================
+        if (inimigo_stunado or inimigo_debuffado) and mana_pct > 0.25:
+            chance_burst = 0.95 if inimigo_stunado else 0.80
+            # Usa burst com mais dano primeiro
+            for nome in sorted(plano.bursts,
+                               key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
+                               reverse=True):
+                sk = skills.get(nome)
+                if sk and alcance_ok(nome, 1.30):
+                    if random.random() < chance_burst:
+                        if tentar(nome, "burst_window"):
+                            return True
+            # Se stunado: usa area também
+            if inimigo_stunado:
+                for nome in [n for n, sk in skills.items() if sk.tipo == "AREA" and alcance_ok(n)]:
+                    if tentar(nome, "area_sobre_stunado"):
+                        return True
+
+        # ================================================================
+        # PRIORIDADE 7: OPENER — primeiros 8 segundos
+        # Estabelecer vantagem: buffs de dano, summons, transformações
+        # ================================================================
+        if tempo_combate < 8.0:
+            for nome in plano.rotacao_opening:
+                sk = skills.get(nome)
+                if not sk:
+                    continue
+                if sk.tipo == "BUFF" and sk.data.get("buff_dano") and buffs_ativos == 0:
+                    if tentar(nome, "opener_buff_dano"):
+                        return True
+                elif sk.tipo == "SUMMON" and not tenho_summons and strategy.cd_por_tipo.get("SUMMON", 0) <= 0:
+                    if tentar(nome, "opener_summon"):
+                        return True
+                elif sk.tipo == "TRANSFORM":
+                    if tentar(nome, "opener_transform"):
+                        return True
+                elif sk.tipo == "BUFF" and sk.data.get("escudo") and hp_pct < 0.7:
+                    if tentar(nome, "opener_escudo"):
+                        return True
+
+        # ================================================================
+        # PRIORIDADE 8: POKE / ZONING — fase neutra
+        # Manter pressão sem se expor. Mais importante para ranged/arty.
+        # ================================================================
+        poke_dist_ok = distancia > 3.0 if role in ("artillery", "control_mage", "burst_mage") else distancia > 5.0
+        if poke_dist_ok and mana_pct > 0.30:
+            chance_poke = {
+                "artillery": 0.88, "control_mage": 0.80, "burst_mage": 0.70,
+                "summoner": 0.60, "battle_mage": 0.45,
+            }.get(role, 0.38)
+            if "SPAMMER" in self.tracos:
+                chance_poke = min(0.96, chance_poke + 0.14)
+            if "CALCULISTA" in self.tracos:
+                chance_poke *= 0.80
+            if random.random() < chance_poke:
+                for nome in plano.pokes:
+                    if alcance_ok(nome, 1.12) and tentar(nome, "poke"):
+                        return True
+                # Traps como zoning
+                for nome in [n for n, sk in skills.items() if sk.tipo == "TRAP"]:
+                    if tentar(nome, "trap_zoning"):
+                        return True
+
+        # ================================================================
+        # PRIORIDADE 9: SUMMON MANUTENÇÃO
+        # Re-invocar summons quando não há nenhum ativo
+        # ================================================================
+        if not tenho_summons and mana_pct > 0.45 and tempo_combate > 5.0:
+            for nome in [n for n, sk in skills.items()
+                         if sk.tipo == "SUMMON" and strategy.cd_por_tipo.get("SUMMON", 0) <= 0]:
+                if tentar(nome, "manutencao_summon"):
+                    return True
+
+        # ================================================================
+        # PRIORIDADE 10: BUFF MANUTENÇÃO
+        # Renovar buffs que expiraram durante o combate
+        # ================================================================
+        if buffs_ativos == 0 and mana_pct > 0.35 and tempo_combate > 6.0:
+            for nome in [n for n, sk in skills.items()
+                         if sk.tipo == "BUFF" and sk.data.get("buff_dano")]:
+                if tentar(nome, "manutencao_buff"):
+                    return True
+
+        # ================================================================
+        # PRIORIDADE 11: ROTAÇÃO GERAL — usa o sistema de battle plan
+        # ================================================================
+        from ai.skill_strategy import CombatSituation
         situacao = CombatSituation(
             distancia=distancia,
-            meu_hp_percent=p.vida / p.vida_max if p.vida_max > 0 else 1.0,
-            inimigo_hp_percent=inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0,
-            meu_mana_percent=p.mana / p.mana_max if p.mana_max > 0 else 1.0,
-            estou_encurralado=self.consciencia_espacial.get("encurralado", False),
-            inimigo_encurralado=self.consciencia_espacial.get("oponente_contra_parede", False),
-            inimigo_atacando=self.leitura_oponente.get("ataque_iminente", False),
+            meu_hp_percent=hp_pct,
+            inimigo_hp_percent=inimigo_hp_pct,
+            meu_mana_percent=mana_pct,
+            estou_encurralado=encurralado,
+            inimigo_encurralado=oponente_encurralado,
+            inimigo_atacando=inimigo_atk_iminente,
             tenho_summons_ativos=self._contar_summons_ativos(),
             tenho_traps_ativos=self._contar_traps_ativos(),
-            tenho_buffs_ativos=len(getattr(p, 'buffs_ativos', [])),
-            inimigo_debuffado=self._verificar_inimigo_debuffado(inimigo),
+            tenho_buffs_ativos=buffs_ativos,
+            inimigo_debuffado=inimigo_debuffado,
             momentum=self.momentum,
-            tempo_combate=self.tempo_combate
+            tempo_combate=tempo_combate
         )
-        
-        # Verifica se tem combo disponível e usa
-        combo = strategy.get_combo_recomendado()
-        if combo and random.random() < 0.4:
-            skill1_nome, skill2_nome, razao = combo
-            print(f"[STRATEGY] {p.dados.nome} tentando combo: {skill1_nome} -> {skill2_nome}")
-            if self._executar_skill_por_nome(skill1_nome):
-                # Marca para usar segunda skill logo em seguida
-                self.combo_state["em_combo"] = True
-                self.combo_state["pode_followup"] = True
-                self.combo_state["timer_followup"] = 0.5
-                self._proximo_skill_combo = skill2_nome
-                return True
-        
-        # Obtém melhor skill para a situação
         resultado = strategy.obter_melhor_skill(situacao)
-        
         if resultado:
-            skill_profile, razao = resultado
-            
-            # Debug - mostrar escolha (10% de chance)
-            if random.random() < 0.1:
-                print(f"[STRATEGY] {p.dados.nome} fase={strategy.fase_atual.value}, skill={skill_profile.nome}, razao={razao}, mana={p.mana:.0f}")
-            
-            # Chance baseada no role - magos usam skills muito mais frequentemente
-            role = strategy.role_principal.value
-            if role in ["artillery", "burst_mage", "control_mage", "summoner", "buffer", "channeler"]:
-                chance_usar = 0.85  # Magos: 85% de chance base
-            else:
-                chance_usar = 0.6   # Melee: 60% de chance base
-            
-            # Modificadores de personalidade
+            sk_profile, razao = resultado
+            chance = {
+                "artillery": 0.88, "burst_mage": 0.85, "control_mage": 0.83,
+                "summoner": 0.80, "buffer": 0.78, "channeler": 0.80,
+                "battle_mage": 0.65, "dasher": 0.60, "transformer": 0.60,
+            }.get(role, 0.52)
             if "SPAMMER" in self.tracos:
-                chance_usar = min(0.95, chance_usar + 0.15)
+                chance = min(0.96, chance + 0.12)
             if "CALCULISTA" in self.tracos:
-                chance_usar *= 0.85
+                chance *= 0.82
             if self.modo_burst:
-                chance_usar = 0.95
-            
-            # Summons/Traps são mais estratégicos
-            if skill_profile.tipo in ["SUMMON", "TRAP", "TRANSFORM"]:
-                chance_usar *= 0.9  # Menos redução que antes
-            
-            if random.random() < chance_usar:
-                if self._executar_skill_por_nome(skill_profile.nome):
-                    # Registra uso
-                    strategy.registrar_uso_skill(skill_profile.nome)
-                    
-                    # Ação pós-skill baseada no tipo
-                    self._pos_uso_skill_estrategica(skill_profile)
+                chance = 0.96
+            if not alcance_ok(sk_profile.nome, 1.40):
+                chance *= 0.22
+            if random.random() < chance:
+                if self._executar_skill_por_nome(sk_profile.nome):
+                    strategy.registrar_uso_skill(sk_profile.nome)
+                    self._pos_uso_skill_estrategica(sk_profile)
                     return True
-        else:
-            # Debug - sem skill disponível (5% de chance de logar)
-            if random.random() < 0.05:
-                cds = {k: f"{v:.1f}" for k, v in p.cd_skills.items() if v > 0}
-                print(f"[STRATEGY] {p.dados.nome} sem skill (mana={p.mana:.0f}, dist={distancia:.1f}, cds={cds})")
-        
+
         return False
-    
+
     def _executar_skill_por_nome(self, nome_skill):
         """Executa uma skill pelo nome"""
         p = self.parent
@@ -3182,6 +3518,21 @@ class AIBrain:
             return len(p.buffer_traps)
         return 0
     
+    def _verificar_inimigo_stunado(self, inimigo):
+        """Verifica se o inimigo esta stunado/incapacitado (janela de burst)"""
+        if hasattr(inimigo, 'stun_timer') and inimigo.stun_timer > 0:
+            return True
+        if hasattr(inimigo, 'root_timer') and inimigo.root_timer > 0:
+            return True
+        # Status effects que impedem movimento ou acao
+        for eff in getattr(inimigo, 'status_effects', []):
+            nome = getattr(eff, 'nome', '').lower()
+            if any(w in nome for w in ['atordoa', 'paralisi', 'congela', 'sono ', 'medo', 'charme']):
+                return True
+            if not getattr(eff, 'pode_mover', True) or not getattr(eff, 'pode_atacar', True):
+                return True
+        return False
+
     def _verificar_inimigo_debuffado(self, inimigo):
         """Verifica se o inimigo tem debuffs ativos"""
         if hasattr(inimigo, 'dots_ativos') and len(inimigo.dots_ativos) > 0:
@@ -3190,6 +3541,14 @@ class AIBrain:
             return True
         if hasattr(inimigo, 'stun_timer') and inimigo.stun_timer > 0:
             return True
+        # Qualquer status effect com mod negativo
+        for eff in getattr(inimigo, 'status_effects', []):
+            if getattr(eff, 'mod_velocidade', 1.0) < 0.9:
+                return True
+            if getattr(eff, 'mod_dano_causado', 1.0) < 0.9:
+                return True
+            if getattr(eff, 'dano_por_tick', 0) > 0:
+                return True
         return False
 
     def _tentar_dash_ofensivo(self, distancia, inimigo):
@@ -3647,46 +4006,212 @@ class AIBrain:
                 self.acao_atual = "MATAR"
             return
         
-        # CORRENTE (zona morta!)
+        # ── CORRENTE / MANGUAL (zona morta!) ──
+        # v2.0: lógica separada para Mangual vs outras correntes
         if arma_tipo == "Corrente":
-            # Correntes têm zona morta - precisa manter distância média
-            from core.hitbox import HITBOX_PROFILES
-            perfil = HITBOX_PROFILES.get("Corrente", {})
-            zona_morta_ratio = perfil.get("min_range_ratio", 0.25)
+            arma_estilo = getattr(arma, 'estilo', '') if arma else ''
+            try:
+                from core.hitbox import HITBOX_PROFILES
+                perfil_hb = HITBOX_PROFILES.get("Corrente", {})
+                zona_morta_ratio = perfil_hb.get("min_range_ratio", 0.25)
+            except:
+                zona_morta_ratio = 0.25
             zona_morta = alcance_efetivo * zona_morta_ratio
             
-            if distancia < zona_morta:
-                # Dentro da zona morta - PRECISA sair!
-                self.acao_atual = "RECUAR"
-            elif distancia < alcance_ideal:
-                # Na zona ideal - ataca!
-                self.acao_atual = random.choice(["MATAR", "ESMAGAR", "FLANQUEAR"])
-            elif no_alcance:
-                # Ainda no alcance
-                self.acao_atual = random.choice(["MATAR", "CIRCULAR", "COMBATE"])
+            # MANGUAL v3.0: Heavy Flail Momentum AI
+            # Três zonas de combate com comportamento distinto:
+            #   ZONA MORTA  (0 → 40% alcance): corrente enrolada, ineficaz → RECUAR
+            #   ZONA DE SPIN (40% → 70%): distância ideal para girar → ACUMULAR + ATACAR
+            #   ZONA LONGA  (70% → 100%): bola no limite da corrente → ATACAR ou APROXIMAR
+            if arma_estilo == "Mangual":
+                # ─────────────────────────────────────────────────────────
+                # MANGUAL v3.1 — HEAVY SLAM & COMBO AI
+                # Mecânica central: GOLPES PESADOS que tremem o chão.
+                # Sem ficar rodando. 3 padrões de golpe em ciclo:
+                #   OVERHEAD SLAM  → levanta alto e desce com tudo
+                #   SIDE SWEEP     → arco lateral largo
+                #   GROUND POUND   → diagonal para baixo, ricochete
+                #
+                # ZONAS:
+                #   ZONA MORTA   (0→30%): corrente enrolada → RECUA
+                #   ZONA IDEAL   (30→75%): distância de slam → ATACAR
+                #   ZONA LONGA   (75→110%): bola no limite → SWEEP
+                #   FORA         (>110%): APROXIMAR circulando
+
+                zona_morta     = alcance_efetivo * 0.30
+                zona_ideal_max = alcance_efetivo * 0.75
+                zona_longa_max = alcance_efetivo * 1.10
+
+                em_zona_morta = distancia < zona_morta
+                em_zona_ideal = zona_morta <= distancia <= zona_ideal_max
+                em_zona_longa = zona_ideal_max < distancia <= zona_longa_max
+                fora_alcance  = distancia > zona_longa_max
+
+                slam_combo = getattr(self.parent, 'mangual_slam_combo', 0)
+                em_combo   = slam_combo >= 2
+
+                if em_zona_morta:
+                    # Zona morta: bola enrolada — recua imediatamente
+                    urgencia = 1.0 - (distancia / zona_morta)
+                    if urgencia > 0.4 or roll < 0.88:
+                        self.acao_atual = "RECUAR"
+                    else:
+                        self.acao_atual = random.choice(["RECUAR", "COMBATE", "RECUAR"])
+                    if hasattr(self.parent, 'mangual_slam_combo'):
+                        self.parent.mangual_slam_combo = 0
+
+                elif em_zona_ideal:
+                    # ZONA IDEAL: golpes pesados
+                    if inimigo_hp_pct < 0.20:
+                        self.acao_atual = random.choice(["MATAR", "ESMAGAR", "MATAR"])
+                    elif em_combo:
+                        if roll < 0.70:
+                            self.acao_atual = random.choice(["ESMAGAR", "MATAR"])
+                        else:
+                            # Pausa tática: muda ângulo antes do próximo slam
+                            self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR"])
+                        if hasattr(self.parent, 'mangual_slam_combo'):
+                            self.parent.mangual_slam_combo = min(5, slam_combo + 1)
+                    else:
+                        if roll < 0.55:
+                            self.acao_atual = random.choice(["ESMAGAR", "MATAR", "ESMAGAR"])
+                        elif roll < 0.80:
+                            self.acao_atual = random.choice(["FLANQUEAR", "ESMAGAR"])
+                        else:
+                            self.acao_atual = random.choice(["PRESSIONAR", "ESMAGAR"])
+                        if hasattr(self.parent, 'mangual_slam_combo'):
+                            self.parent.mangual_slam_combo = 1
+
+                elif em_zona_longa:
+                    # ZONA LONGA: sweep lateral eficaz, avança para entrar na ideal
+                    if roll < 0.55:
+                        self.acao_atual = random.choice(["MATAR", "ESMAGAR"])
+                    elif roll < 0.80:
+                        self.acao_atual = random.choice(["PRESSIONAR", "MATAR"])
+                    else:
+                        self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR"])
+
+                else:  # fora_alcance
+                    # FORA: aproxima circulando (nunca em linha reta)
+                    if roll < 0.60:
+                        self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "APROXIMAR"])
+                    else:
+                        self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR", "APROXIMAR"])
+
             else:
-                self.acao_atual = "APROXIMAR"
+                # Outras correntes (Chicote, Meteor Hammer, etc.)
+                if distancia < zona_morta:
+                    self.acao_atual = "RECUAR"
+                elif distancia < alcance_ideal:
+                    self.acao_atual = random.choice(["MATAR", "ESMAGAR", "FLANQUEAR"])
+                elif no_alcance:
+                    self.acao_atual = random.choice(["MATAR", "CIRCULAR", "COMBATE"])
+                else:
+                    self.acao_atual = "APROXIMAR"
             return
         
-        # ADAGAS (Dupla) - agressivo e perto
+        # ── ADAGAS GÊMEAS (Dupla) - combo agressivo ──
+        # v2.0: IA adaptada para o sistema de combo L/R das Adagas
         if arma_tipo == "Dupla":
-            if muito_longe:
-                # Longe - aproxima rápido
-                self.acao_atual = "APROXIMAR"
-            elif longe:
-                # Médio - flanqueia
-                self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR", "PRESSIONAR"])
-            elif no_alcance:
-                # No alcance - ATACA MUITO!
-                if inimigo_hp_pct < 0.3:
-                    self.acao_atual = "MATAR"
-                elif roll < 0.7:
-                    self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO", "MATAR"])
+            arma_estilo = getattr(arma, 'estilo', '') if arma else ''
+            
+            if arma_estilo == "Adagas Gêmeas":
+                # ───────────────────────────────────────────────────────────
+                # ADAGAS GÊAMEAS v3.1 — IA repaginada para alcance real
+                # ───────────────────────────────────────────────────────────
+                # Com lâminas mais longas (alcance ~70% do max), a IA tem
+                # QUATRO faixas comportamentais claras:
+                #
+                #   ENGAJAMENTO  (≤ alcance_ideal):    ATACAR E COMBINAR
+                #   PRESSÃO      (ideal → 130%):     MANTER PRESSÃO, não deixar respirar
+                #   APROXIMAÇÃO  (130% → 220%):     DASH LATERAL (não frontal)
+                #   REPOSICIONAMENTO (> 220%):         CÍRCULO + FLANQUEAR
+                #
+                # Princípio: nunca recua a menos que HP crítico. Sabe que
+                # precisa estar perto, então investe no approach com cuidado.
+
+                engajamento = alcance_ideal           # alcance real de combate
+                pressao     = alcance_ideal * 1.30    # quasi-alcance: um passo
+                dash_curto  = alcance_ideal * 2.20    # dash normal alcança aqui
+
+                em_engajamento = distancia <= engajamento
+                em_pressao     = engajamento < distancia <= pressao
+                em_dash        = pressao < distancia <= dash_curto
+                muito_longe    = distancia > dash_curto
+
+                combo_hits   = getattr(self.parent, 'combo_atual', 0)
+                combo_ativo  = combo_hits > 2
+                combo_frenzy = combo_hits > 5
+
+                if em_engajamento:
+                    # ── No alcance: agressividade e variação de ângulo ──
+                    if hp_pct < 0.20 and roll < 0.50:
+                        # HP crítico: saída lateral antes de morrer
+                        self.acao_atual = random.choice(["FLANQUEAR", "RECUAR", "FLANQUEAR"])
+                    elif inimigo_hp_pct < 0.25:
+                        # Inimigo quase morto: finalizador direto
+                        self.acao_atual = random.choice(["MATAR", "MATAR", "ATAQUE_RAPIDO"])
+                    elif combo_frenzy:
+                        # Frenzy: rotação rápida, não deixa reagir
+                        self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO",
+                                                          "ATAQUE_RAPIDO", "MATAR",
+                                                          "COMBATE"])
+                    elif combo_ativo:
+                        if roll < 0.65:
+                            self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO", "ESMAGAR"])
+                        else:
+                            # Muda ângulo para confundir bloqueio
+                            self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR"])
+                    else:
+                        if roll < 0.60:
+                            self.acao_atual = random.choice(["MATAR", "ESMAGAR", "COMBATE"])
+                        else:
+                            self.acao_atual = random.choice(["ATAQUE_RAPIDO", "FLANQUEAR"])
+
+                elif em_pressao:
+                    # ── Zona de pressão: um passo do alcance ──
+                    # Prefere PRESSIONAR ou FLANQUEAR (não APROXIMAR passivo)
+                    if inimigo_hp_pct < 0.30:
+                        self.acao_atual = random.choice(["PRESSIONAR", "MATAR", "PRESSIONAR"])
+                    elif roll < 0.55:
+                        self.acao_atual = random.choice(["PRESSIONAR", "ATAQUE_RAPIDO"])
+                    elif roll < 0.80:
+                        self.acao_atual = random.choice(["FLANQUEAR", "PRESSIONAR"])
+                    else:
+                        self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR"])
+
+                elif em_dash:
+                    # ── Zona de dash: fecha distância com movimento lateral ──
+                    # Nunca corre em linha reta — chega pelo flanco
+                    if roll < 0.45:
+                        self.acao_atual = random.choice(["FLANQUEAR", "PRESSIONAR"])
+                    elif roll < 0.75:
+                        self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR"])
+                    else:
+                        self.acao_atual = random.choice(["CIRCULAR", "APROXIMAR"])
+
                 else:
-                    self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR"])
+                    # ── Muito longe: flankeia antes do dash longo ──
+                    if roll < 0.40:
+                        self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR"])
+                    else:
+                        self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR"])
+
             else:
-                # Quase no alcance
-                self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR"])
+                # Outras armas duplas (Garras, Tonfas, etc.)
+                if muito_longe:
+                    self.acao_atual = "APROXIMAR"
+                elif longe:
+                    self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR", "PRESSIONAR"])
+                elif no_alcance:
+                    if inimigo_hp_pct < 0.3:
+                        self.acao_atual = "MATAR"
+                    elif roll < 0.7:
+                        self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO", "MATAR"])
+                    else:
+                        self.acao_atual = random.choice(["FLANQUEAR", "CIRCULAR"])
+                else:
+                    self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR"])
             return
         
         # === LÓGICA PADRÃO PARA OUTRAS ARMAS ===
@@ -3875,9 +4400,10 @@ class AIBrain:
             return alcance_base + comp_total * 0.3
         
         elif tipo == "Dupla":
-            # Adagas: alcance curto mas zona de ataque ampla
+            # Adagas: alcance generoso (lâminas rápidas + extensão do braço)
+            # v3.1: aumentado comp * 0.75 para a IA ter espaço real de combate
             comp = getattr(arma, 'comp_lamina', 55) / PPM
-            return alcance_base + comp * 0.4
+            return alcance_base + comp * 0.75
         
         elif tipo == "Corrente":
             # Corrente: alcance longo mas zona morta grande
@@ -4224,13 +4750,13 @@ class AIBrain:
                 triggered = True
             elif trigger == "oponente_whiff" and self.janela_ataque.get("tipo") == "whiff":
                 triggered = True
-            elif trigger == "oponente_recuando" and getattr(inimigo, 'acao_atual', None) in ["RECUAR", "FUGIR"]:
+            elif trigger == "oponente_recuando" and hasattr(inimigo, 'ai') and inimigo.ai and inimigo.ai.acao_atual in ["RECUAR", "FUGIR"]:
                 triggered = True
             elif trigger == "vantagem_hp" and hp_pct > inimigo_hp_pct + 0.2:
                 triggered = True
             elif trigger == "dano_alto" and self.tempo_desde_dano < 0.3 and self.ultimo_dano_recebido > p.vida_max * 0.15:
                 triggered = True
-            elif trigger == "em_combo" and self.combo_state.get("sendo_combo", False):
+            elif trigger == "em_combo" and self.combo_state.get("em_combo", False):
                 triggered = True
             elif trigger == "pos_combo" and self.tempo_desde_dano < 0.5 and self.tempo_desde_dano > 0.3:
                 triggered = True
@@ -4271,7 +4797,6 @@ class AIBrain:
         elif acao == "auto_chase":
             # Persegue automaticamente
             self.acao_atual = "APROXIMAR"
-            self._executar_aproximar(distancia, inimigo)
             return True
         
         elif acao == "defensive_mode":
@@ -4340,6 +4865,6 @@ class AIBrain:
     
     def get_agressividade_efetiva(self):
         """Retorna agressividade com modificadores de ritmo"""
-        base = self.agressividade
+        base = self.agressividade_base
         ritmo_mod = self.ritmo_modificadores.get("agressividade", 0)
         return max(0.0, min(1.0, base + ritmo_mod))

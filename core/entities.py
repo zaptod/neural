@@ -295,6 +295,47 @@ class Lutador:
         
         self.mana -= custo_real
         
+        # === VFX v5.0: CHARGEUP DRAMÁTICO no cast ===
+        try:
+            from effects.magic_vfx import MagicVFXManager, get_element_from_skill
+            _vfx = MagicVFXManager.get_instance()
+            if _vfx:
+                _elem = get_element_from_skill(nome_skill, data)
+                _tipo_sk = data.get("tipo", "")
+                # Intensidade baseada no dano/cooldown da skill (mais poderosa = mais dramática)
+                _dano   = max(data.get("dano", 0), data.get("dano_maximo", 0))
+                _cd     = data.get("cooldown", 3.0)
+                _intens = min(3.0, max(0.7, (_dano / 18.0 + _cd / 6.0) * 0.65))
+                # Skills sem dano direto (buffs, summons) têm chargeup diferente
+                if _tipo_sk in ("BUFF", "TRANSFORM", "SUMMON"):
+                    _intens = max(1.4, _intens)
+                # Duração do chargeup: mais longa para skills pesadas/canalização
+                if _tipo_sk == "CHANNEL":
+                    _dur = 0.90
+                elif _tipo_sk in ("TRANSFORM", "SUMMON"):
+                    _dur = 0.70
+                elif _tipo_sk == "AREA":
+                    _dur = 0.55
+                elif _tipo_sk == "BUFF":
+                    _dur = 0.45
+                elif _tipo_sk in ("PROJETIL", "BEAM"):
+                    _dur = 0.30
+                else:
+                    _dur = 0.40
+                _cx = self.pos[0] * 50
+                _cy = self.pos[1] * 50
+                _vfx.spawn_chargeup(_cx, _cy, _elem, _dur, _intens)
+                # Para skills especiais: burst de impacto imediato ao lançar
+                if _tipo_sk in ("BUFF", "TRANSFORM"):
+                    _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.80)
+                elif _tipo_sk == "SUMMON":
+                    _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.65)
+                    _vfx.spawn_aura(_cx, _cy, 40, _elem, _intens * 0.5)
+                elif _tipo_sk == "AREA" and _dano > 30:
+                    _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.55)
+        except Exception:
+            pass
+        
         cd = data["cooldown"]
         if self.arma_passiva and self.arma_passiva.get("efeito") == "cooldown":
             cd *= (1 - self.arma_passiva.get("valor", 0) / 100.0)
@@ -473,7 +514,29 @@ class Lutador:
             return False
         
         self.mana -= custo
-        
+
+        # === VFX v5.0: CHARGEUP para skills de classe ===
+        try:
+            from effects.magic_vfx import MagicVFXManager, get_element_from_skill
+            _vfx = MagicVFXManager.get_instance()
+            if _vfx:
+                _elem = get_element_from_skill(skill_nome, data)
+                _dano = max(data.get("dano", 0), data.get("dano_maximo", 0))
+                _cd   = data.get("cooldown", 3.0)
+                _intens = min(2.8, max(0.7, (_dano / 18.0 + _cd / 6.0) * 0.60))
+                if tipo in ("BUFF", "TRANSFORM", "SUMMON"):
+                    _intens = max(1.3, _intens)
+                _dur = {"CHANNEL": 0.85, "TRANSFORM": 0.65, "SUMMON": 0.65,
+                        "AREA": 0.50, "BUFF": 0.40, "BEAM": 0.28}.get(tipo, 0.35)
+                _cx, _cy = self.pos[0] * 50, self.pos[1] * 50
+                _vfx.spawn_chargeup(_cx, _cy, _elem, _dur, _intens)
+                if tipo in ("BUFF", "TRANSFORM"):
+                    _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.75)
+                elif tipo == "SUMMON":
+                    _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.60)
+        except Exception:
+            pass
+
         cd = data.get("cooldown", 5.0)
         self.cd_skills[skill_nome] = cd
         

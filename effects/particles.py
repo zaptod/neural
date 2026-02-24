@@ -55,12 +55,14 @@ class HitSpark:
         for _ in range(int(12 * intensidade)):
             ang = direcao + random.uniform(-0.8, 0.8)
             vel = random.uniform(80, 200) * intensidade
+            vida = random.uniform(0.1, 0.2)
             self.sparks.append({
                 'x': x, 'y': y,
                 'vx': math.cos(ang) * vel,
                 'vy': math.sin(ang) * vel,
                 'comprimento': random.uniform(8, 20) * intensidade,
-                'vida': random.uniform(0.1, 0.2)
+                'vida': vida,
+                'max_vida': vida,
             })
     
     def update(self, dt):
@@ -77,15 +79,21 @@ class HitSpark:
             if s['vida'] <= 0:
                 continue
             sx, sy = cam.converter(s['x'], s['y'])
-            alpha = int(255 * (s['vida'] / 0.2))
+            alpha = int(255 * (s['vida'] / s['max_vida']))
             
             ang = math.atan2(s['vy'], s['vx'])
             comp = cam.converter_tam(s['comprimento'])
             ex = sx + math.cos(ang) * comp
             ey = sy + math.sin(ang) * comp
             
-            pygame.draw.line(tela, (255, 255, 255), (sx, sy), (int(ex), int(ey)), 2)
-            pygame.draw.line(tela, self.cor, (sx, sy), (int(ex), int(ey)), 3)
+            size = max(int(abs(ex - sx)) + 4, int(abs(ey - sy)) + 4, 4)
+            surf = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+            ox, oy = sx - size, sy - size
+            pygame.draw.line(surf, (255, 255, 255, alpha),
+                             (int(sx - ox), int(sy - oy)), (int(ex - ox), int(ey - oy)), 2)
+            pygame.draw.line(surf, (*self.cor[:3], alpha),
+                             (int(sx - ox), int(sy - oy)), (int(ex - ox), int(ey - oy)), 3)
+            tela.blit(surf, (ox, oy))
 
 
 class Shockwave:
@@ -147,10 +155,9 @@ class EncantamentoEffect:
                     
                 self.particulas.append(Particula(x, y, cor, vel_x, vel_y, 3, 0.5))
         
-        for p in self.particulas[:]:
+        for p in self.particulas:
             p.atualizar(dt)
-            if p.vida <= 0:
-                self.particulas.remove(p)
+        self.particulas = [p for p in self.particulas if p.vida > 0]
                 
     def draw(self, tela, cam):
         for p in self.particulas:

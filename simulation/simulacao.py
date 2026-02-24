@@ -440,16 +440,36 @@ class Simulador:
                     tipo_proj_str = str(getattr(proj, 'tipo', '')).lower()
                     nome_skill = str(getattr(proj, 'nome', '')).lower()
                     
-                    if any(w in nome_skill + tipo_proj_str for w in ["fogo", "fire", "chama", "meteoro"]):
+                    _combined = nome_skill + tipo_proj_str
+                    if any(w in _combined for w in ["fogo", "fire", "chama", "meteoro", "inferno", "brasas"]):
                         elemento = "FOGO"
-                    elif any(w in nome_skill + tipo_proj_str for w in ["gelo", "ice", "glacial"]):
+                    elif any(w in _combined for w in ["gelo", "ice", "glacial", "nevasca", "congelar"]):
                         elemento = "GELO"
-                    elif any(w in nome_skill + tipo_proj_str for w in ["raio", "lightning", "thunder"]):
+                    elif any(w in _combined for w in ["raio", "lightning", "thunder", "eletric", "relampago"]):
                         elemento = "RAIO"
-                    elif any(w in nome_skill + tipo_proj_str for w in ["trevas", "shadow", "dark"]):
+                    elif any(w in _combined for w in ["trevas", "shadow", "dark", "sombra", "necro"]):
                         elemento = "TREVAS"
-                    elif any(w in nome_skill + tipo_proj_str for w in ["luz", "light", "holy"]):
+                    elif any(w in _combined for w in ["luz", "light", "holy", "sagrado", "divino"]):
                         elemento = "LUZ"
+                    elif any(w in _combined for w in ["natureza", "nature", "veneno", "poison", "planta"]):
+                        elemento = "NATUREZA"
+                    elif any(w in _combined for w in ["arcano", "arcane", "mana"]):
+                        elemento = "ARCANO"
+                    elif any(w in _combined for w in ["sangue", "blood", "vampir"]):
+                        elemento = "SANGUE"
+                    elif any(w in _combined for w in ["void", "vazio"]):
+                        elemento = "VOID"
+                    # Também usa cor do projétil como dica
+                    elif hasattr(proj, 'cor') and proj.cor:
+                        r, g, b = proj.cor[:3]
+                        if r > 200 and g < 100:
+                            elemento = "FOGO"
+                        elif b > 200 and r < 150:
+                            elemento = "RAIO" if g > 150 else "GELO"
+                        elif g > 180 and r < 150 and b < 150:
+                            elemento = "NATUREZA"
+                        elif r > 180 and b > 180 and g < 100:
+                            elemento = "ARCANO"
                     
                     dano_proj = getattr(proj, 'dano', 10)
                     self.magic_vfx.spawn_explosion(
@@ -560,6 +580,13 @@ class Simulador:
         # Adiciona projéteis criados por split/duplicação/chain
         self.projeteis.extend(novos_projeteis)
         self.projeteis = [p for p in self.projeteis if p.ativo]
+        
+        # === BUG FIX: Remove trails órfãos de projéteis que morreram ===
+        if hasattr(self, 'magic_vfx') and self.magic_vfx:
+            ids_vivos = {id(proj) for proj in self.projeteis}
+            ids_trails = set(self.magic_vfx.trails.keys())
+            for trail_id in ids_trails - ids_vivos:
+                self.magic_vfx.remove_trail(trail_id)
 
         # === ATUALIZA ORBES MÁGICOS (colisões) ===
         for p in [self.p1, self.p2]:
@@ -887,43 +914,72 @@ class Simulador:
 
     def _criar_efeito_colisao_parede(self, lutador, intensidade_colisao: float):
         """
-        Cria efeitos visuais quando lutador colide com parede da arena.
+        Cria efeitos visuais e sonoros quando lutador colide com parede da arena.
         
         Args:
             lutador: O lutador que colidiu
             intensidade_colisao: Intensidade do impacto (velocidade perpendicular à parede)
                                  Valores típicos: 2-5 leve, 5-10 médio, 10-20+ forte
+        
+        BUGFIX v2.0:
+        - Threshold de som reduzido de 8 → 3 (impactos leves também tocam)
+        - Fallback para 'wall_hit' caso wall_impact_light/heavy não existam
+        - Cooldown reduzido de 0.3s → 0.2s para ser mais responsivo
+        - Limiar de efeitos visuais reduzido de 5 → 2 (mais responsivo)
         """
-        # Só cria efeito se a colisão foi em velocidade significativa (intensidade > 5)
-        # Valores baixos são deslizamentos ou toques leves
-        if intensidade_colisao < 5:
+        # Limiar mínimo para processar a colisão (muito leve = deslizamento)
+        if intensidade_colisao < 2:
             return
         
         # === COOLDOWN DE SOM POR LUTADOR ===
-        # Evita múltiplos sons em sequência rápida (ex: ao quicar na parede)
         lutador_id = id(lutador)
         if not hasattr(self, '_wall_sound_cooldown'):
             self._wall_sound_cooldown = {}
         
         sound_on_cooldown = self._wall_sound_cooldown.get(lutador_id, 0) > 0
         
-        # === ÁUDIO v10.0 - SOM DE COLISÃO COM PAREDE (APENAS IMPACTOS FORTES) ===
-        # Só toca som se impacto forte E não está em cooldown
-        if self.audio and intensidade_colisao >= 8 and not sound_on_cooldown:
-            # Volume varia de 0.4 (impacto médio) a 1.0 (impacto muito forte)
-            # intensidade 8 = volume 0.4, intensidade 20+ = volume 1.0
-            volume = 0.4 + (intensidade_colisao - 8) * 0.05
-            volume = max(0.4, min(1.0, volume))
+        # === ÁUDIO - BUGFIX: threshold reduzido + fallback de som ===
+        # BUG ANTERIOR: threshold de 8 era alto demais, maioria dos impactos eram silenciosos
+        # CORREÇÃO: qualquer impacto >= 3 toca som; usa fallback se sons específicos não carregados
+        if self.audio and self.audio.enabled and intensidade_colisao >= 2 and not sound_on_cooldown:
+            # Volume: intensidade 3 = 0.3, intensidade 15+ = 1.0
+            volume = 0.3 + (intensidade_colisao - 3) * 0.058
+            volume = max(0.3, min(1.0, volume))
             
-            # Usa som pesado para impactos muito fortes
-            if intensidade_colisao > 15:
-                self.audio.play("wall_impact_heavy", volume=volume)
+            # Tenta tocar som específico, com fallback em cadeia
+            som_tocado = False
+            if intensidade_colisao > 12:
+                # Impacto muito forte
+                for nome_som in ["wall_impact_heavy", "wall_impact_light", "wall_hit"]:
+                    if nome_som in self.audio.sounds:
+                        self.audio.play(nome_som, volume=volume)
+                        som_tocado = True
+                        break
+            elif intensidade_colisao > 5:
+                # Impacto médio
+                for nome_som in ["wall_impact_light", "wall_hit", "wall_impact_heavy"]:
+                    if nome_som in self.audio.sounds:
+                        self.audio.play(nome_som, volume=volume * 0.8)
+                        som_tocado = True
+                        break
             else:
-                self.audio.play("wall_impact_light", volume=volume)
+                # Impacto leve
+                for nome_som in ["wall_hit", "wall_impact_light"]:
+                    if nome_som in self.audio.sounds:
+                        self.audio.play(nome_som, volume=volume * 0.55)
+                        som_tocado = True
+                        break
             
-            # Aplica cooldown de 0.3 segundos para este lutador
-            self._wall_sound_cooldown[lutador_id] = 0.3
-            print(f"[AUDIO] Wall hit! intensidade={intensidade_colisao:.1f}, volume={volume:.2f}")
+            if som_tocado:
+                # Cooldown reduzido: 0.2s (era 0.3s)
+                self._wall_sound_cooldown[lutador_id] = 0.2
+                print(f"[AUDIO] Wall hit! intensidade={intensidade_colisao:.1f}, volume={volume:.2f}")
+            else:
+                print(f"[AUDIO] Wall hit sem som disponível (intensidade={intensidade_colisao:.1f})")
+        
+        # Só cria efeitos visuais se intensidade suficiente
+        if intensidade_colisao < 5:
+            return
         
         # Intensidade normalizada para efeitos visuais (0.0 a 1.0)
         intensidade = min(1.0, intensidade_colisao / 15)
@@ -2111,22 +2167,53 @@ class Simulador:
         lutadores.sort(key=lambda p: 0 if p.morto else 1)
         for l in lutadores: self.desenhar_lutador(l)
         
-        # === DESENHA PROJÉTEIS COM TRAIL DRAMÁTICO v11.0 ===
+        # === DESENHA PROJÉTEIS COM TRAIL ELEMENTAL v4.0 ===
         pulse_time = pygame.time.get_ticks() / 1000.0
-        for proj in self.projeteis:
-            # Trail dramático com glow
-            if hasattr(proj, 'trail') and len(proj.trail) > 1:
-                cor_trail = proj.cor if hasattr(proj, 'cor') else BRANCO
+        
+        # Trail via MagicVFXManager - elemento-específico
+        if hasattr(self, 'magic_vfx') and self.magic_vfx:
+            for proj in self.projeteis:
+                _nm = str(getattr(proj, 'nome', '')).lower()
+                _tp = str(getattr(proj, 'tipo', '')).lower()
+                _comb = _nm + _tp
+                if any(w in _comb for w in ["fogo","fire","chama","meteoro","inferno"]):
+                    _elem_trail = "FOGO"
+                elif any(w in _comb for w in ["gelo","ice","glacial","nevasca"]):
+                    _elem_trail = "GELO"
+                elif any(w in _comb for w in ["raio","lightning","thunder","eletric"]):
+                    _elem_trail = "RAIO"
+                elif any(w in _comb for w in ["trevas","shadow","dark","sombra","necro"]):
+                    _elem_trail = "TREVAS"
+                elif any(w in _comb for w in ["luz","light","holy","sagrado"]):
+                    _elem_trail = "LUZ"
+                elif any(w in _comb for w in ["sangue","blood"]):
+                    _elem_trail = "SANGUE"
+                elif any(w in _comb for w in ["arcano","arcane","mana"]):
+                    _elem_trail = "ARCANO"
+                elif any(w in _comb for w in ["veneno","poison","natureza","nature"]):
+                    _elem_trail = "NATUREZA"
+                else:
+                    _elem_trail = "ARCANO"  # default mágico
                 
+                # Usa VFX trail por elemento
+                trail_vfx = self.magic_vfx.get_or_create_trail(id(proj), _elem_trail)
+                # BUG FIX: usar dt real (não _trail_dt inexistente) e calcular vel do atributo correto
+                # Projetil usa self.vel escalar, não vel_x/vel_y
+                vel_proj = getattr(proj, 'vel', getattr(proj, 'vel_disparo', 10.0))
+                trail_vfx.update(dt, proj.x * PPM, proj.y * PPM, vel_proj * 0.1)
+        
+        for proj in self.projeteis:
+            # Trail legado como fallback (projéteis físicos não mágicos)
+            if hasattr(proj, 'trail') and len(proj.trail) > 1 and not any(
+                    w in str(getattr(proj, 'nome', '')).lower()
+                    for w in ["fogo","gelo","raio","trevas","luz","arcano","sangue","veneno","void"]):
+                cor_trail = proj.cor if hasattr(proj, 'cor') else BRANCO
                 for i in range(1, len(proj.trail)):
                     t = i / len(proj.trail)
                     alpha = int(255 * t * 0.7)
                     largura = max(1, int(proj.raio * PPM * self.cam.zoom * t))
-                    
                     p1 = self.cam.converter(proj.trail[i-1][0] * PPM, proj.trail[i-1][1] * PPM)
                     p2 = self.cam.converter(proj.trail[i][0] * PPM, proj.trail[i][1] * PPM)
-                    
-                    # Glow do trail (mais largo, semi-transparente)
                     if largura > 2:
                         s = pygame.Surface((abs(int(p2[0]-p1[0]))+largura*4, abs(int(p2[1]-p1[1]))+largura*4), pygame.SRCALPHA)
                         offset_x = min(p1[0], p2[0]) - largura*2
@@ -2214,9 +2301,149 @@ class Simulador:
                     pygame.draw.line(self.tela, (200, 200, 200), (int(x1), int(y1)), (int(fx), int(fy)), 1)
                 
             else:
-                # Projétil de skill (círculo padrão)
-                pygame.draw.circle(self.tela, cor, (int(px), int(py)), int(pr))
-                pygame.draw.circle(self.tela, BRANCO, (int(px), int(py)), max(1, int(pr)-2))
+                # Projétil de skill — visual por elemento (v4.0)
+                # Detecta elemento pelo nome/tipo do projétil
+                _nome_el = str(getattr(proj, 'nome', '')).lower() + str(getattr(proj, 'tipo', '')).lower()
+                if any(w in _nome_el for w in ["fogo","fire","chama","meteoro"]):
+                    _el_proj = "FOGO"
+                elif any(w in _nome_el for w in ["gelo","ice","glacial"]):
+                    _el_proj = "GELO"
+                elif any(w in _nome_el for w in ["raio","lightning","thunder"]):
+                    _el_proj = "RAIO"
+                elif any(w in _nome_el for w in ["trevas","shadow","dark","sombra"]):
+                    _el_proj = "TREVAS"
+                elif any(w in _nome_el for w in ["luz","light","holy","sagrado"]):
+                    _el_proj = "LUZ"
+                elif any(w in _nome_el for w in ["arcano","arcane","mana"]):
+                    _el_proj = "ARCANO"
+                elif any(w in _nome_el for w in ["sangue","blood"]):
+                    _el_proj = "SANGUE"
+                elif any(w in _nome_el for w in ["void","vazio"]):
+                    _el_proj = "VOID"
+                else:
+                    _el_proj = "DEFAULT"
+
+                _pkt = pulse_time + id(proj) % 100 * 0.1
+
+                if _el_proj == "FOGO":
+                    # Orbe de fogo: esfera central + chama acima
+                    pygame.draw.circle(self.tela, (255, 140, 0), (int(px), int(py)), int(pr))
+                    pygame.draw.circle(self.tela, (255, 220, 80), (int(px), int(py)), max(1, int(pr*0.6)))
+                    # Chama pulsante no topo
+                    flame_h = int(pr * 1.4 * (0.85 + 0.15 * math.sin(_pkt * 12)))
+                    try:
+                        _fs = pygame.Surface((int(pr*2)+4, flame_h+4), pygame.SRCALPHA)
+                        _flame_pts = [
+                            (int(pr)+2, 4),
+                            (int(pr*0.4)+2, flame_h+2),
+                            (int(pr*1.6)+2, flame_h+2),
+                        ]
+                        pygame.draw.polygon(_fs, (255, 80, 0, 160), _flame_pts)
+                        self.tela.blit(_fs, (int(px)-int(pr)-2, int(py)-flame_h-2))
+                    except Exception: pass
+
+                elif _el_proj == "GELO":
+                    # Cristal hexagonal
+                    hex_pts = []
+                    for _hi in range(6):
+                        _ha = ang_visual + math.radians(30) + _hi * (math.pi/3)
+                        hex_pts.append((px + math.cos(_ha)*pr, py + math.sin(_ha)*pr))
+                    try:
+                        pygame.draw.polygon(self.tela, (150, 220, 255), [(int(h[0]),int(h[1])) for h in hex_pts])
+                        pygame.draw.polygon(self.tela, (220, 250, 255), [(int(h[0]),int(h[1])) for h in hex_pts], 2)
+                    except Exception: pass
+                    pygame.draw.circle(self.tela, (255, 255, 255), (int(px), int(py)), max(1, int(pr*0.35)))
+
+                elif _el_proj == "RAIO":
+                    # Losango pulsante branco-azul elétrico
+                    _lr = pr * (0.9 + 0.1 * math.sin(_pkt * 25))
+                    _lpts = [(px, py - _lr), (px + _lr*0.6, py),
+                             (px, py + _lr), (px - _lr*0.6, py)]
+                    try:
+                        pygame.draw.polygon(self.tela, (200, 200, 255), [(int(p[0]),int(p[1])) for p in _lpts])
+                        pygame.draw.polygon(self.tela, (255,255,255), [(int(p[0]),int(p[1])) for p in _lpts], 1)
+                    except Exception: pass
+                    # Arcos secundários pulsantes
+                    if pr > 5:
+                        for _li in range(4):
+                            _la = _li * (math.pi/2) + _pkt * 5
+                            _lx = px + math.cos(_la) * pr * 1.3
+                            _ly = py + math.sin(_la) * pr * 1.3
+                            try:
+                                _ls = pygame.Surface((int(abs(_lx-px))+10, int(abs(_ly-py))+10), pygame.SRCALPHA)
+                                _lox, _loy = min(px, _lx)-4, min(py, _ly)-4
+                                pygame.draw.line(_ls, (255,255,150,160),
+                                                 (int(px-_lox),int(py-_loy)),
+                                                 (int(_lx-_lox),int(_ly-_loy)), 1)
+                                self.tela.blit(_ls, (int(_lox),int(_loy)))
+                            except Exception: pass
+
+                elif _el_proj == "TREVAS":
+                    # Esfera escura com halo roxo
+                    pygame.draw.circle(self.tela, (20, 0, 40), (int(px), int(py)), int(pr))
+                    pygame.draw.circle(self.tela, (100, 0, 150), (int(px), int(py)), int(pr), 2)
+                    # Wisps orbitando
+                    for _wi in range(3):
+                        _wa = _pkt * 3 + _wi * (math.pi * 2 / 3)
+                        _wx = int(px + math.cos(_wa) * pr * 1.4)
+                        _wy = int(py + math.sin(_wa) * pr * 1.4)
+                        pygame.draw.circle(self.tela, (150, 50, 200), (_wx, _wy), max(1, int(pr*0.3)))
+
+                elif _el_proj == "LUZ":
+                    # Estrela de 8 pontas brilhante
+                    pygame.draw.circle(self.tela, (255, 255, 255), (int(px), int(py)), int(pr))
+                    _star_pts = []
+                    for _si in range(16):
+                        _sa = ang_visual + _si * (math.pi/8)
+                        _sr = pr * (1.8 if _si % 2 == 0 else 0.8)
+                        _star_pts.append((px + math.cos(_sa)*_sr, py + math.sin(_sa)*_sr))
+                    try:
+                        pygame.draw.polygon(self.tela, (255, 255, 200), [(int(p[0]),int(p[1])) for p in _star_pts])
+                        pygame.draw.polygon(self.tela, (255,255,255), [(int(p[0]),int(p[1])) for p in _star_pts], 1)
+                    except Exception: pass
+
+                elif _el_proj == "ARCANO":
+                    # Orbe arcano: círculo com 3 anéis giratórios
+                    pygame.draw.circle(self.tela, (200, 100, 255), (int(px), int(py)), int(pr))
+                    pygame.draw.circle(self.tela, (255, 200, 255), (int(px), int(py)), max(1, int(pr*0.5)))
+                    for _ai in range(3):
+                        _aa = _pkt * (4 + _ai) + _ai * (math.pi * 2 / 3)
+                        _ar = pr * (1.2 + _ai * 0.15)
+                        _ax = int(px + math.cos(_aa) * _ar * 0.5)
+                        _ay = int(py + math.sin(_aa) * _ar * 0.5)
+                        pygame.draw.circle(self.tela, (255, 150, 255), (_ax, _ay), max(1, int(pr*0.25)))
+
+                elif _el_proj == "SANGUE":
+                    # Gota de sangue
+                    pygame.draw.circle(self.tela, (180, 0, 30), (int(px), int(py)), int(pr))
+                    pygame.draw.circle(self.tela, (255, 100, 100), (int(px-pr*0.25), int(py-pr*0.25)), max(1, int(pr*0.35)))
+                    try:
+                        _dtail = [(int(px-pr*0.3), int(py)),
+                                   (int(px+pr*0.3), int(py)),
+                                   (int(px), int(py+pr*1.8))]
+                        pygame.draw.polygon(self.tela, (180, 0, 30), _dtail)
+                    except Exception: pass
+
+                elif _el_proj == "VOID":
+                    # Buraco negro: preto com anel branco-roxo
+                    pygame.draw.circle(self.tela, (5, 0, 15), (int(px), int(py)), int(pr))
+                    pygame.draw.circle(self.tela, (80, 0, 120), (int(px), int(py)), int(pr), 3)
+                    # Distorção — pequenos arcos girando no exterior
+                    for _vi in range(4):
+                        _va = _pkt * (-2) + _vi * (math.pi/2)
+                        _vr = pr * 1.5
+                        try:
+                            _vx1 = int(px + math.cos(_va)*_vr)
+                            _vy1 = int(py + math.sin(_va)*_vr)
+                            _vx2 = int(px + math.cos(_va + 0.5)*_vr)
+                            _vy2 = int(py + math.sin(_va + 0.5)*_vr)
+                            pygame.draw.line(self.tela, (120, 50, 180), (_vx1, _vy1), (_vx2, _vy2), 2)
+                        except Exception: pass
+
+                else:
+                    # Padrão genérico mas com glow
+                    pygame.draw.circle(self.tela, cor, (int(px), int(py)), int(pr))
+                    pygame.draw.circle(self.tela, BRANCO, (int(px), int(py)), max(1, int(pr)-2))
 
         # === DESENHA ORBES MÁGICOS ===
         for p in [self.p1, self.p2]:
@@ -2660,105 +2887,345 @@ class Simulador:
                 glow_r = max(3, int(larg * 0.8 * (1 + pulso * 0.3)))
                 pygame.draw.circle(self.tela, cor_raridade, (int(lamina_end_x), int(lamina_end_y)), glow_r)
         
-        # === DUPLA (Adagas, Sai) ===
+        # === DUPLA - ADAGAS GÊMEAS v3.0 (Karambit Reverse-Grip) ===
         elif tipo == "Dupla":
-            cabo_len = getattr(arma, 'comp_cabo', 20) * base_scale * 1.3
-            lamina_len = getattr(arma, 'comp_lamina', 55) * base_scale * 1.8 * anim_scale
-            sep = getattr(arma, 'separacao', 25) * base_scale * 1.4
-            larg = max(5, int(larg_base * 1.3))
-            
-            for i, offset_deg in enumerate([-40, 40]):
-                r = rad + math.radians(offset_deg)
-                
-                # Offset lateral
-                lado = math.cos(rad + math.pi/2) * sep * (1 if i == 0 else -1)
-                lado_y = math.sin(rad + math.pi/2) * sep * (1 if i == 0 else -1)
-                
-                base_x = cx + lado * 0.5
-                base_y = cy + lado_y * 0.5
-                
-                cabo_end_x = base_x + math.cos(r) * cabo_len
-                cabo_end_y = base_y + math.sin(r) * cabo_len
-                lamina_end_x = base_x + math.cos(r) * (cabo_len + lamina_len)
-                lamina_end_y = base_y + math.sin(r) * (cabo_len + lamina_len)
-                
-                # Cabo
-                pygame.draw.line(self.tela, (80, 50, 30), 
-                               (int(base_x), int(base_y)), 
-                               (int(cabo_end_x), int(cabo_end_y)), larg)
-                
-                # Lâmina curva (adaga)
-                perp_x = math.cos(r + math.pi/2) * larg * 0.5
-                perp_y = math.sin(r + math.pi/2) * larg * 0.5
-                
-                pts = [
-                    (int(cabo_end_x - perp_x), int(cabo_end_y - perp_y)),
-                    (int(cabo_end_x + perp_x), int(cabo_end_y + perp_y)),
-                    (int(lamina_end_x), int(lamina_end_y)),
-                ]
-                pygame.draw.polygon(self.tela, cor, pts)
-                pygame.draw.polygon(self.tela, cor_clara, pts, 1)
-                
-                # Brilho na ponta
-                pygame.draw.circle(self.tela, cor_raridade, (int(lamina_end_x), int(lamina_end_y)), max(2, larg//2))
+            estilo_arma = getattr(arma, 'estilo', '')
+            sep = getattr(arma, 'separacao', 25) * base_scale * 1.6
+            larg = max(4, int(larg_base * 1.1))
+
+            if estilo_arma == "Adagas Gêmeas":
+                # ── ADAGAS GÊMEAS v3.1: Laterais do corpo, empunhadura normal apontando à frente ──
+                # Cada daga fica na mão do personagem (lateral), lâmina apontando na direção do ataque
+                cabo_len  = getattr(arma, 'comp_cabo', 8) * base_scale * 1.3
+                lamina_len = getattr(arma, 'comp_lamina', 50) * base_scale * 1.6 * anim_scale
+                pulso = 0.5 + 0.5 * math.sin(tempo / 180)
+                glow_alpha_base = int(100 + 70 * pulso) if atacando else int(35 + 20 * pulso)
+
+                for i, lado_sinal in enumerate([-1, 1]):
+                    # ── Posição da mão: lateral ao corpo, fora do centro ──
+                    # sep já dá a separação lateral adequada
+                    hand_x = cx + math.cos(rad + math.pi/2) * sep * lado_sinal * 0.85
+                    hand_y = cy + math.sin(rad + math.pi/2) * sep * lado_sinal * 0.85
+
+                    # Ângulo da daga: aponta para frente com leve abertura lateral
+                    spread_deg = 18 * lado_sinal  # abertura: esquerda vai -18°, direita vai +18°
+                    daga_ang = rad + math.radians(spread_deg)
+
+                    # ── Cabo (handle) ──
+                    cabo_ex = hand_x + math.cos(daga_ang) * cabo_len
+                    cabo_ey = hand_y + math.sin(daga_ang) * cabo_len
+                    # Sombra
+                    pygame.draw.line(self.tela, (30, 18, 8),
+                                     (int(hand_x)+1, int(hand_y)+1),
+                                     (int(cabo_ex)+1, int(cabo_ey)+1), larg + 3)
+                    # Madeira/grip
+                    pygame.draw.line(self.tela, (60, 38, 18),
+                                     (int(hand_x), int(hand_y)),
+                                     (int(cabo_ex), int(cabo_ey)), larg + 2)
+                    pygame.draw.line(self.tela, (100, 65, 30),
+                                     (int(hand_x), int(hand_y)),
+                                     (int(cabo_ex), int(cabo_ey)), max(1, larg))
+                    # Faixas de grip
+                    for gi in range(1, 4):
+                        gt = gi / 4
+                        gx = int(hand_x + (cabo_ex - hand_x) * gt)
+                        gy = int(hand_y + (cabo_ey - hand_y) * gt)
+                        gp_x = math.cos(daga_ang + math.pi/2) * (larg + 1)
+                        gp_y = math.sin(daga_ang + math.pi/2) * (larg + 1)
+                        pygame.draw.line(self.tela, (45, 28, 10),
+                                         (int(gx-gp_x), int(gy-gp_y)),
+                                         (int(gx+gp_x), int(gy+gp_y)), 1)
+
+                    # ── Guarda cruzada (finger guard) ──
+                    grd_x = math.cos(daga_ang + math.pi/2) * (larg + 3)
+                    grd_y = math.sin(daga_ang + math.pi/2) * (larg + 3)
+                    pygame.draw.line(self.tela, (150, 155, 165),
+                                     (int(cabo_ex - grd_x), int(cabo_ey - grd_y)),
+                                     (int(cabo_ex + grd_x), int(cabo_ey + grd_y)), max(2, larg))
+
+                    # ── Lâmina: reta com ponta levemente curvada para dentro ──
+                    # Divide em dois segmentos: corpo reto + curva terminal
+                    corpo_pct = 0.72  # 72% da lâmina é reta
+                    curva_pct = 0.28  # 28% final curva levemente
+
+                    corpo_end_x = cabo_ex + math.cos(daga_ang) * lamina_len * corpo_pct
+                    corpo_end_y = cabo_ey + math.sin(daga_ang) * lamina_len * corpo_pct
+
+                    # Curva da ponta (gira ligeiramente para o centro)
+                    curva_deg = -12 * lado_sinal  # curva para dentro
+                    curva_ang = daga_ang + math.radians(curva_deg)
+                    tip_x = corpo_end_x + math.cos(curva_ang) * lamina_len * curva_pct
+                    tip_y = corpo_end_y + math.sin(curva_ang) * lamina_len * curva_pct
+
+                    # Largura da lâmina (afunila até a ponta)
+                    lam_w_base = max(3, larg - 1)
+                    lam_w_tip  = max(1, larg // 3)
+
+                    # Sombra da lâmina
+                    pygame.draw.line(self.tela, (20, 20, 25),
+                                     (int(cabo_ex)+1, int(cabo_ey)+1),
+                                     (int(tip_x)+1,   int(tip_y)+1), lam_w_base + 2)
+
+                    # Corpo da lâmina (parte reta)
+                    perp_bx = math.cos(daga_ang + math.pi/2)
+                    perp_by = math.sin(daga_ang + math.pi/2)
+                    lam_poly = [
+                        (int(cabo_ex - perp_bx * lam_w_base), int(cabo_ey - perp_by * lam_w_base)),
+                        (int(cabo_ex + perp_bx * lam_w_base), int(cabo_ey + perp_by * lam_w_base)),
+                        (int(corpo_end_x + perp_bx * lam_w_tip), int(corpo_end_y + perp_by * lam_w_tip)),
+                        (int(tip_x), int(tip_y)),
+                        (int(corpo_end_x - perp_bx * lam_w_tip), int(corpo_end_y - perp_by * lam_w_tip)),
+                    ]
+                    try:
+                        pygame.draw.polygon(self.tela, cor_escura, lam_poly)
+                        pygame.draw.polygon(self.tela, cor, lam_poly, 1)
+                    except: pass
+                    # Fio da lâmina (highlight central)
+                    pygame.draw.line(self.tela, cor_clara,
+                                     (int(cabo_ex), int(cabo_ey)),
+                                     (int(corpo_end_x), int(corpo_end_y)), 1)
+
+                    # ── Glow de energia durante ataque ──
+                    if atacando or glow_alpha_base > 50:
+                        try:
+                            sz = max(8, int(lamina_len * 2))
+                            gs = pygame.Surface((sz * 2, sz * 2), pygame.SRCALPHA)
+                            mid_x = int((cabo_ex + tip_x) / 2) - sz
+                            mid_y = int((cabo_ey + tip_y) / 2) - sz
+                            local_s = (sz - int(cabo_ex - mid_x - sz), sz - int(cabo_ey - mid_y - sz))
+                            local_e = (sz - int(cabo_ex - mid_x - sz) + int(tip_x - cabo_ex),
+                                       sz - int(cabo_ey - mid_y - sz) + int(tip_y - cabo_ey))
+                            pygame.draw.line(gs, (*cor, glow_alpha_base),
+                                             (max(0,min(sz*2-1,local_s[0])), max(0,min(sz*2-1,local_s[1]))),
+                                             (max(0,min(sz*2-1,local_e[0])), max(0,min(sz*2-1,local_e[1]))),
+                                             max(4, lam_w_base + 3))
+                            self.tela.blit(gs, (mid_x, mid_y))
+                        except: pass
+
+                    # ── Runa na lâmina (raridade) ──
+                    if raridade not in ['Comum', 'Incomum']:
+                        rune_x = int((cabo_ex + corpo_end_x) / 2)
+                        rune_y = int((cabo_ey + corpo_end_y) / 2)
+                        rune_a = int(160 + 80 * math.sin(tempo / 120 + i * math.pi))
+                        try:
+                            rs = pygame.Surface((8, 8), pygame.SRCALPHA)
+                            pygame.draw.circle(rs, (*cor_raridade, rune_a), (4, 4), 3)
+                            self.tela.blit(rs, (rune_x - 4, rune_y - 4))
+                        except: pass
+
+                    # ── Ponta brilhante ──
+                    tip_r = max(2, larg - 1)
+                    tip_a = int(160 + 80 * math.sin(tempo / 90 + i))
+                    try:
+                        ts = pygame.Surface((tip_r * 5, tip_r * 5), pygame.SRCALPHA)
+                        pygame.draw.circle(ts, (*cor_clara, tip_a), (tip_r*2, tip_r*2), tip_r * 2)
+                        self.tela.blit(ts, (int(tip_x) - tip_r*2, int(tip_y) - tip_r*2))
+                    except: pass
+                    tip_cor = cor_raridade if raridade not in ['Comum'] else cor_clara
+                    pygame.draw.circle(self.tela, tip_cor, (int(tip_x), int(tip_y)), tip_r)
+
+            else:
+                # Outras armas Dupla (Sai, Garras, etc.)
+                cabo_len = getattr(arma, 'comp_cabo', 20) * base_scale * 1.3
+                lamina_len = getattr(arma, 'comp_lamina', 55) * base_scale * 1.8 * anim_scale
+                for i, offset_deg in enumerate([-35, 35]):
+                    r = rad + math.radians(offset_deg)
+                    lado = math.cos(rad + math.pi/2) * sep * (1 if i == 0 else -1)
+                    lado_y = math.sin(rad + math.pi/2) * sep * (1 if i == 0 else -1)
+                    bx = cx + lado * 0.5; by = cy + lado_y * 0.5
+                    cex = bx + math.cos(r) * cabo_len; cey = by + math.sin(r) * cabo_len
+                    lex = bx + math.cos(r) * (cabo_len + lamina_len)
+                    ley = by + math.sin(r) * (cabo_len + lamina_len)
+                    pygame.draw.line(self.tela, (80, 50, 30), (int(bx), int(by)), (int(cex), int(cey)), larg)
+                    px2 = math.cos(r + math.pi/2) * larg * 0.5; py2 = math.sin(r + math.pi/2) * larg * 0.5
+                    pts2 = [(int(cex-px2),int(cey-py2)),(int(cex+px2),int(cey+py2)),(int(lex),int(ley))]
+                    pygame.draw.polygon(self.tela, cor, pts2)
+                    pygame.draw.polygon(self.tela, cor_clara, pts2, 1)
+                    pygame.draw.circle(self.tela, cor_raridade, (int(lex), int(ley)), max(2, larg//2))
         
-        # === CORRENTE (Kusarigama, Chicote, Mangual) ===
+        # === CORRENTE - MANGUAL v3.0 (Heavy Flail com Física de Elos) ===
         elif tipo == "Corrente":
-            comp_total = getattr(arma, 'comp_corrente', 80) * base_scale * 2.5 * anim_scale
-            ponta_tam = max(6, int(raio_char * 0.25))
-            
-            # Gera pontos da corrente com física de onda
-            num_segs = 15
-            pts = []
-            
-            for i in range(num_segs + 1):
-                t = i / num_segs
-                # Onda senoidal que se propaga
-                wave_amp = raio_char * 0.15 * (1 - t * 0.5)  # Diminui amplitude no fim
-                wave = math.sin(t * math.pi * 4 + tempo / 150) * wave_amp
-                
-                # Posição base
-                px = cx + math.cos(rad) * (comp_total * t)
-                py = cy + math.sin(rad) * (comp_total * t)
-                
-                # Aplica onda perpendicular
-                perp_x = math.cos(rad + math.pi/2) * wave
-                perp_y = math.sin(rad + math.pi/2) * wave
-                
-                pts.append((int(px + perp_x), int(py + perp_y)))
-            
-            # Desenha corrente com elos
-            if len(pts) > 1:
+            estilo_arma = getattr(arma, 'estilo', '')
+
+            if estilo_arma == "Mangual":
+                # ── MANGUAL v3.0: Cabo pesado + Elos de ferro fundido + Bola espigada ──
+                cabo_tam  = getattr(arma, 'comp_cabo', 18) * base_scale * 1.0
+                corrente_comp = getattr(arma, 'comp_corrente', 60) * base_scale * 1.15 * anim_scale
+                ponta_tam = max(6, int(raio_char * 0.20 * anim_scale))
+                num_elos = 6
+                pulso = 0.5 + 0.5 * math.sin(tempo / 200)
+
+                # ── Cabo de madeira grossa ──
+                cabo_ex = cx + math.cos(rad) * cabo_tam
+                cabo_ey = cy + math.sin(rad) * cabo_tam
+                # Sombra do cabo
+                pygame.draw.line(self.tela, (30, 20, 10),
+                                 (int(cx)+2, int(cy)+2), (int(cabo_ex)+2, int(cabo_ey)+2), max(6, larg_base + 4))
+                # Madeira do cabo
+                pygame.draw.line(self.tela, (90, 55, 25),
+                                 (int(cx), int(cy)), (int(cabo_ex), int(cabo_ey)), max(6, larg_base + 4))
+                pygame.draw.line(self.tela, (130, 85, 40),
+                                 (int(cx), int(cy)), (int(cabo_ex), int(cabo_ey)), max(3, larg_base))
+                # Faixas de couro no cabo
+                for fi in range(1, 5):
+                    ft = fi / 5
+                    fx = int(cx + (cabo_ex - cx) * ft)
+                    fy = int(cy + (cabo_ey - cy) * ft)
+                    fperp_x = math.cos(rad + math.pi/2) * (larg_base + 2)
+                    fperp_y = math.sin(rad + math.pi/2) * (larg_base + 2)
+                    pygame.draw.line(self.tela, (55, 30, 10),
+                                     (int(fx - fperp_x), int(fy - fperp_y)),
+                                     (int(fx + fperp_x), int(fy + fperp_y)), 2)
+
+                # ── Argola de conexão ──
+                anel_r = max(4, larg_base + 1)
+                pygame.draw.circle(self.tela, (80, 80, 90), (int(cabo_ex), int(cabo_ey)), anel_r + 2)
+                pygame.draw.circle(self.tela, (160, 165, 175), (int(cabo_ex), int(cabo_ey)), anel_r, 3)
+                pygame.draw.circle(self.tela, (200, 205, 215), (int(cabo_ex), int(cabo_ey)), max(2, anel_r - 2), 1)
+
+                # ── Corrente com elos fundidos (pendular arc) ──
+                chain_pts = []
+                sag = corrente_comp * 0.08 * (1 + 0.08 * math.sin(tempo / 200))  # Sag gravitacional (reduzido v3.1)
+                for ei in range(num_elos + 1):
+                    t = ei / num_elos
+                    # Catenary approximation: arco para baixo
+                    base_px = cabo_ex + math.cos(rad) * corrente_comp * t
+                    base_py = cabo_ey + math.sin(rad) * corrente_comp * t
+                    # Curvatura gravitacional + ondulação de momentum
+                    gravity_y = sag * math.sin(t * math.pi) * math.sin(rad + math.pi/2) * -1
+                    wave = math.sin(t * math.pi * 2 + tempo / 200) * raio_char * 0.03 * (1 - t * 0.4)
+                    wave_x = math.cos(rad + math.pi/2) * wave
+                    wave_y = math.sin(rad + math.pi/2) * wave + gravity_y
+                    chain_pts.append((base_px + wave_x, base_py + wave_y))
+
                 # Sombra da corrente
-                shadow_pts = [(p[0]+2, p[1]+2) for p in pts]
-                pygame.draw.lines(self.tela, (30, 30, 30), False, shadow_pts, max(3, larg_base))
-                
-                # Corrente principal
-                pygame.draw.lines(self.tela, (120, 120, 130), False, pts, max(3, larg_base))
-                
-                # Elos individuais
-                for i, (px, py) in enumerate(pts):
-                    if i % 2 == 0:
-                        pygame.draw.circle(self.tela, (90, 90, 100), (px, py), max(2, larg_base//2))
-            
-            # Ponta da arma (peso/lâmina)
-            if pts:
-                end_x, end_y = pts[-1]
-                
-                # Desenha ponta como esfera com spikes ou lâmina
-                pygame.draw.circle(self.tela, cor, (end_x, end_y), ponta_tam)
-                pygame.draw.circle(self.tela, cor_escura, (end_x, end_y), ponta_tam, 2)
-                
-                # Spikes na ponta
-                for spike_ang in range(0, 360, 45):
-                    spike_r = math.radians(spike_ang + tempo/50)
-                    sx = end_x + math.cos(spike_r) * ponta_tam * 1.4
-                    sy = end_y + math.sin(spike_r) * ponta_tam * 1.4
-                    pygame.draw.line(self.tela, cor_clara, (end_x, end_y), (int(sx), int(sy)), max(2, larg_base//2))
-                
-                # Glow de raridade
-                if raridade not in ['Comum']:
-                    pygame.draw.circle(self.tela, cor_raridade, (end_x, end_y), ponta_tam + 3, 2)
+                shadow_chain = [(int(p[0]+3), int(p[1]+3)) for p in chain_pts]
+                if len(shadow_chain) > 1:
+                    try: pygame.draw.lines(self.tela, (20, 20, 22), False, shadow_chain, max(4, larg_base + 2))
+                    except: pass
+
+                # Elos individuais (alternando horizontal/vertical)
+                elo_w = max(5, larg_base + 2)
+                elo_h = max(3, larg_base - 1)
+                for ei in range(len(chain_pts)):
+                    ex, ey = chain_pts[ei]
+                    elo_ang = rad + math.pi/2 if ei % 2 == 0 else rad
+                    # Elo como elipse/retângulo rotacionado
+                    elo_perp_x = math.cos(elo_ang) * elo_w
+                    elo_perp_y = math.sin(elo_ang) * elo_w
+                    elo_fwd_x = math.cos(elo_ang + math.pi/2) * elo_h
+                    elo_fwd_y = math.sin(elo_ang + math.pi/2) * elo_h
+                    elo_pts = [
+                        (int(ex - elo_perp_x - elo_fwd_x), int(ey - elo_perp_y - elo_fwd_y)),
+                        (int(ex + elo_perp_x - elo_fwd_x), int(ey + elo_perp_y - elo_fwd_y)),
+                        (int(ex + elo_perp_x + elo_fwd_x), int(ey + elo_perp_y + elo_fwd_y)),
+                        (int(ex - elo_perp_x + elo_fwd_x), int(ey - elo_perp_y + elo_fwd_y)),
+                    ]
+                    try:
+                        pygame.draw.polygon(self.tela, (90, 92, 100), elo_pts)
+                        pygame.draw.polygon(self.tela, (145, 148, 160), elo_pts, 1)
+                    except: pass
+
+                # ── Bola espigada (iron flail head) ──
+                if chain_pts:
+                    end_x, end_y = chain_pts[-1]
+                    ball_r = ponta_tam
+
+                    # Glow de impacto (quando atacando)
+                    if atacando:
+                        glow_r = int(ball_r * 2.2)
+                        try:
+                            gs = pygame.Surface((glow_r * 2, glow_r * 2), pygame.SRCALPHA)
+                            glow_a = int(120 * anim_scale)
+                            pygame.draw.circle(gs, (*cor, min(255, glow_a)), (glow_r, glow_r), glow_r)
+                            self.tela.blit(gs, (int(end_x) - glow_r, int(end_y) - glow_r))
+                        except: pass
+
+                    # Sombra da bola
+                    pygame.draw.circle(self.tela, (15, 15, 18), (int(end_x) + 3, int(end_y) + 3), ball_r + 1)
+
+                    # Bola principal (esfera fundida)
+                    pygame.draw.circle(self.tela, cor_escura, (int(end_x), int(end_y)), ball_r)
+                    pygame.draw.circle(self.tela, cor, (int(end_x), int(end_y)), ball_r - 1)
+                    # Highlight da esfera
+                    hl_x = int(end_x - ball_r * 0.3)
+                    hl_y = int(end_y - ball_r * 0.3)
+                    pygame.draw.circle(self.tela, cor_clara, (hl_x, hl_y), max(2, ball_r // 3))
+
+                    # Spikes (6 espinhos fundidos)
+                    num_spikes = 6
+                    spike_len = ball_r * 0.7
+                    spike_base_w = max(2, ball_r // 4)
+                    spike_rot = tempo / 80  # Lenta rotação visual
+                    for si in range(num_spikes):
+                        s_ang = spike_rot + (si * math.pi * 2 / num_spikes)
+                        # Base do spike na superfície da bola
+                        s_base_x = end_x + math.cos(s_ang) * (ball_r - 1)
+                        s_base_y = end_y + math.sin(s_ang) * (ball_r - 1)
+                        # Ponta do spike
+                        s_tip_x = end_x + math.cos(s_ang) * (ball_r + spike_len)
+                        s_tip_y = end_y + math.sin(s_ang) * (ball_r + spike_len)
+                        # Spike como triângulo
+                        perp_sx = math.cos(s_ang + math.pi/2) * spike_base_w
+                        perp_sy = math.sin(s_ang + math.pi/2) * spike_base_w
+                        spike_pts = [
+                            (int(s_base_x - perp_sx), int(s_base_y - perp_sy)),
+                            (int(s_base_x + perp_sx), int(s_base_y + perp_sy)),
+                            (int(s_tip_x), int(s_tip_y)),
+                        ]
+                        try:
+                            pygame.draw.polygon(self.tela, cor, spike_pts)
+                            pygame.draw.polygon(self.tela, cor_clara, spike_pts, 1)
+                        except: pass
+
+                    # Anel de reforço na bola
+                    pygame.draw.circle(self.tela, (70, 72, 80), (int(end_x), int(end_y)), ball_r, 2)
+
+                    # Glow de raridade
+                    if raridade not in ['Comum']:
+                        rar_alpha = int(100 + 80 * pulso)
+                        try:
+                            rs = pygame.Surface((ball_r * 4, ball_r * 4), pygame.SRCALPHA)
+                            pygame.draw.circle(rs, (*cor_raridade, rar_alpha),
+                                               (ball_r * 2, ball_r * 2), ball_r + 4)
+                            self.tela.blit(rs, (int(end_x) - ball_r * 2, int(end_y) - ball_r * 2))
+                        except: pass
+
+            else:
+                # Outras correntes (Chicote, Kusarigama, etc.)
+                comp_total = getattr(arma, 'comp_corrente', 80) * base_scale * 2.5 * anim_scale
+                ponta_tam = max(6, int(raio_char * 0.25))
+                num_segs = 15
+                pts = []
+                for i in range(num_segs + 1):
+                    t = i / num_segs
+                    wave_amp = raio_char * 0.15 * (1 - t * 0.5)
+                    wave = math.sin(t * math.pi * 4 + tempo / 150) * wave_amp
+                    px2 = cx + math.cos(rad) * (comp_total * t)
+                    py2 = cy + math.sin(rad) * (comp_total * t)
+                    perp_x = math.cos(rad + math.pi/2) * wave
+                    perp_y = math.sin(rad + math.pi/2) * wave
+                    pts.append((int(px2 + perp_x), int(py2 + perp_y)))
+                if len(pts) > 1:
+                    shadow_pts = [(p[0]+2, p[1]+2) for p in pts]
+                    try: pygame.draw.lines(self.tela, (30, 30, 30), False, shadow_pts, max(3, larg_base))
+                    except: pass
+                    try: pygame.draw.lines(self.tela, (120, 120, 130), False, pts, max(3, larg_base))
+                    except: pass
+                    for i, (px2, py2) in enumerate(pts):
+                        if i % 2 == 0:
+                            pygame.draw.circle(self.tela, (90, 90, 100), (px2, py2), max(2, larg_base//2))
+                if pts:
+                    end_x, end_y = pts[-1]
+                    pygame.draw.circle(self.tela, cor, (end_x, end_y), ponta_tam)
+                    pygame.draw.circle(self.tela, cor_escura, (end_x, end_y), ponta_tam, 2)
+                    for spike_ang in range(0, 360, 45):
+                        spike_r = math.radians(spike_ang + tempo/50)
+                        sx = end_x + math.cos(spike_r) * ponta_tam * 1.4
+                        sy = end_y + math.sin(spike_r) * ponta_tam * 1.4
+                        pygame.draw.line(self.tela, cor_clara, (end_x, end_y), (int(sx), int(sy)), max(2, larg_base//2))
+                    if raridade not in ['Comum']:
+                        pygame.draw.circle(self.tela, cor_raridade, (end_x, end_y), ponta_tam + 3, 2)
         
         # === ARREMESSO (Facas, Chakram, Shuriken) ===
         elif tipo == "Arremesso":
