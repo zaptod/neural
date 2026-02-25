@@ -336,6 +336,32 @@ class Simulador:
         # === ATUALIZA MAGIC VFX v11.0 ===
         if hasattr(self, 'magic_vfx') and self.magic_vfx:
             self.magic_vfx.update(dt)
+            # === ATUALIZA TRAILS ELEMENTAIS v11.0 (movido de desenhar para ter acesso a dt) ===
+            for proj in self.projeteis:
+                _nm = str(getattr(proj, 'nome', '')).lower()
+                _tp = str(getattr(proj, 'tipo', '')).lower()
+                _comb = _nm + _tp
+                if any(w in _comb for w in ["fogo","fire","chama","meteoro","inferno"]):
+                    _elem_trail = "FOGO"
+                elif any(w in _comb for w in ["gelo","ice","glacial","nevasca"]):
+                    _elem_trail = "GELO"
+                elif any(w in _comb for w in ["raio","lightning","thunder","eletric"]):
+                    _elem_trail = "RAIO"
+                elif any(w in _comb for w in ["trevas","shadow","dark","sombra","necro"]):
+                    _elem_trail = "TREVAS"
+                elif any(w in _comb for w in ["luz","light","holy","sagrado"]):
+                    _elem_trail = "LUZ"
+                elif any(w in _comb for w in ["sangue","blood"]):
+                    _elem_trail = "SANGUE"
+                elif any(w in _comb for w in ["arcano","arcane","mana"]):
+                    _elem_trail = "ARCANO"
+                elif any(w in _comb for w in ["veneno","poison","natureza","nature"]):
+                    _elem_trail = "NATUREZA"
+                else:
+                    _elem_trail = "ARCANO"  # default mágico
+                trail_vfx = self.magic_vfx.get_or_create_trail(id(proj), _elem_trail)
+                vel_proj = getattr(proj, 'vel', getattr(proj, 'vel_disparo', 10.0))
+                trail_vfx.update(dt, proj.x * PPM, proj.y * PPM, vel_proj * 0.1)
 
         # === CLASH DE PROJÉTEIS (v7.0) ===
         self._verificar_clash_projeteis()
@@ -2170,37 +2196,7 @@ class Simulador:
         # === DESENHA PROJÉTEIS COM TRAIL ELEMENTAL v4.0 ===
         pulse_time = pygame.time.get_ticks() / 1000.0
         
-        # Trail via MagicVFXManager - elemento-específico
-        if hasattr(self, 'magic_vfx') and self.magic_vfx:
-            for proj in self.projeteis:
-                _nm = str(getattr(proj, 'nome', '')).lower()
-                _tp = str(getattr(proj, 'tipo', '')).lower()
-                _comb = _nm + _tp
-                if any(w in _comb for w in ["fogo","fire","chama","meteoro","inferno"]):
-                    _elem_trail = "FOGO"
-                elif any(w in _comb for w in ["gelo","ice","glacial","nevasca"]):
-                    _elem_trail = "GELO"
-                elif any(w in _comb for w in ["raio","lightning","thunder","eletric"]):
-                    _elem_trail = "RAIO"
-                elif any(w in _comb for w in ["trevas","shadow","dark","sombra","necro"]):
-                    _elem_trail = "TREVAS"
-                elif any(w in _comb for w in ["luz","light","holy","sagrado"]):
-                    _elem_trail = "LUZ"
-                elif any(w in _comb for w in ["sangue","blood"]):
-                    _elem_trail = "SANGUE"
-                elif any(w in _comb for w in ["arcano","arcane","mana"]):
-                    _elem_trail = "ARCANO"
-                elif any(w in _comb for w in ["veneno","poison","natureza","nature"]):
-                    _elem_trail = "NATUREZA"
-                else:
-                    _elem_trail = "ARCANO"  # default mágico
-                
-                # Usa VFX trail por elemento
-                trail_vfx = self.magic_vfx.get_or_create_trail(id(proj), _elem_trail)
-                # BUG FIX: usar dt real (não _trail_dt inexistente) e calcular vel do atributo correto
-                # Projetil usa self.vel escalar, não vel_x/vel_y
-                vel_proj = getattr(proj, 'vel', getattr(proj, 'vel_disparo', 10.0))
-                trail_vfx.update(dt, proj.x * PPM, proj.y * PPM, vel_proj * 0.1)
+        # (trail update movido para update())
         
         for proj in self.projeteis:
             # Trail legado como fallback (projéteis físicos não mágicos)
