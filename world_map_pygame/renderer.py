@@ -27,6 +27,7 @@ from .config import (
 )
 from .camera import Camera
 from .data_loader import Zone, God
+from .world_events import EventLog, EventType, EVENT_VFX, SEVERITY_COLOR
 
 
 class MapRenderer:
@@ -59,10 +60,12 @@ class MapRenderer:
 
     def draw(self, screen, ownership, selected_zone, hover_zone,
              ancient_seals, t: float, map_x: int, map_w: int,
-             active_filter: str = "all", map_h: int = 0):
+             active_filter: str = "all", map_h: int = 0,
+             event_log=None):
         """
         active_filter: "all" ou nome de natureza (ex: "fire").
         map_h: altura visível do mapa (desconta painel inferior se aberto).
+        event_log: EventLog opcional — desenha marcadores de eventos nas zonas.
         """
         cam   = self.cam
         map_y = cam.map_y
@@ -105,6 +108,10 @@ class MapRenderer:
         if ownership:
             self._draw_ownership(screen, ownership, clip)
 
+        # Marcadores de eventos — abaixo dos selos para não conflitar
+        if event_log is not None and event_log.events:
+            self._draw_event_markers(screen, event_log, t, clip)
+
         # Hover — borda espessa dourada com glow
         if hover_zone and hover_zone != selected_zone:
             self._draw_zone_overlay_indexed(
@@ -146,6 +153,89 @@ class MapRenderer:
         p = int(160 + math.sin(t * 1.8) * 50)
         gold_pulse = (p, int(p * 0.83), int(p * 0.38))
         pygame.draw.rect(screen, gold_pulse, clip, 2)
+
+    # ── Marcadores de eventos ─────────────────────────────────────────────
+    def _draw_event_markers(self, screen, event_log: EventLog, t: float,
+                             clip: pygame.Rect):
+        """
+        Desenha um pequeno indicador de severidade no canto superior-direito
+        do centróide de cada zona com evento.
+
+        Regras visuais:
+          - critical: triângulo vermelho pulsante rápido
+          - high:     losango laranja pulsante médio
+          - medium:   quadrado dourado estático
+          - low:      círculo cinza estático
+
+        Zonas de selo NÃO recebem marcador extra (o ícone de selo já os representa).
+        Visível em qualquer nível de zoom.
+        """
+        cam  = self.cam
+        surf = pygame.Surface((clip.width, clip.height), pygame.SRCALPHA)
+        ox, oy = clip.x, clip.y
+
+        PULSE = {"critical": 4.5, "high": 2.5, "medium": 0.0, "low": 0.0}
+        R_BASE = scaled(6)    # raio base do marcador
+        OFFSET = scaled(14)   # offset do centróide (direita + cima)
+
+        for zone in self.zones.values():
+            # Selos têm ícone próprio — marcadores seriam redundantes
+            if zone.ancient_seal:
+                continue
+
+            ev = event_log.worst_for_zone(zone.zone_id)
+            if ev is None:
+                continue
+
+            sx, sy = cam.w2s(*zone.centroid)
+            # Posição: canto superior-direito do centróide
+            mx = sx + OFFSET
+            my = sy - OFFSET
+            if not clip.collidepoint(mx, my):
+                continue
+
+            lx = mx - ox
+            ly = my - oy
+
+            col = SEVERITY_COLOR[ev.severity]
+            ps  = PULSE.get(ev.severity, 0.0)
+            if ps > 0:
+                a_fill   = int(140 + math.sin(t * ps) * 80)
+                a_border = int(220 + math.sin(t * ps + 0.8) * 35)
+            else:
+                a_fill   = 130
+                a_border = 200
+
+            r  = R_BASE
+            shape = EVENT_VFX.get(ev.type, {}).get("shape", "circle")
+            vc = EVENT_VFX.get(ev.type, {}).get("color", col)
+
+            if shape == "diamond":
+                pts = [(lx, ly - r), (lx + r, ly), (lx, ly + r), (lx - r, ly)]
+                pygame.draw.polygon(surf, (*col, a_fill),   pts)
+                pygame.draw.polygon(surf, (*vc,  a_border), pts, max(1, r // 3))
+            elif shape == "triangle":
+                pts = [(lx, ly - r), (lx + r, ly + r), (lx - r, ly + r)]
+                pygame.draw.polygon(surf, (*col, a_fill),   pts)
+                pygame.draw.polygon(surf, (*vc,  a_border), pts, max(1, r // 3))
+            elif shape == "square":
+                sr = pygame.Rect(lx - r, ly - r, r * 2, r * 2)
+                pygame.draw.rect(surf, (*col, a_fill),   sr, border_radius=2)
+                pygame.draw.rect(surf, (*vc,  a_border), sr, max(1, r // 3),
+                                 border_radius=2)
+            else:  # circle
+                pygame.draw.circle(surf, (*col, a_fill),   (lx, ly), r)
+                pygame.draw.circle(surf, (*vc,  a_border), (lx, ly), r,
+                                   max(1, r // 3))
+
+            # Ponto central brilhante para critical/high
+            if ev.severity in ("critical", "high"):
+                pygame.draw.circle(surf, (*vc, min(255, a_border)),
+                                   (lx, ly), max(2, r // 3))
+
+        screen.set_clip(clip)
+        screen.blit(surf, clip.topleft)
+        screen.set_clip(None)
 
     # ── Hover espesso dourado ─────────────────────────────────────────────
     def _draw_hover(self, screen, verts_world, clip, t):

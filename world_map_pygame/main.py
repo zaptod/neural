@@ -33,8 +33,9 @@ def run():
 
     # ── Loading ────────────────────────────────────────────────────────────
     ui.draw_loading(screen, "Carregando dados do mundo...", 0.05)
-    zones, gods, ownership, ancient_seals, global_stats = load_data()
-    print(f"[map] {len(zones)} zonas · {len(gods)} deuses · janela {SCREEN_W}×{SCREEN_H}")
+    zones, gods, ownership, ancient_seals, global_stats, event_log, ancient_gods = load_data()
+    print(f"[map] {len(zones)} zonas · {len(gods)} deuses · {len(ancient_gods)} deuses antigos · "
+          f"{len(event_log.events)} eventos · janela {SCREEN_W}×{SCREEN_H}")
 
     ui.draw_loading(screen, "Gerando heightmap procedural (fBm)...", 0.20)
     heightmap = generate_heightmap()
@@ -94,7 +95,7 @@ def run():
                     ui.notify("Visão Global")
                 elif ev.key == pygame.K_r:
                     ui.draw_loading(screen, "Recarregando dados...", 0.5)
-                    zones, gods, ownership, ancient_seals, global_stats = load_data()
+                    zones, gods, ownership, ancient_seals, global_stats, event_log, ancient_gods = load_data()
                     rend.zones = zones
                     rend.gods  = gods
                     ui.mark_minimap_dirty()
@@ -196,7 +197,8 @@ def run():
         rend.draw(screen, ownership, selected_zone, hover_zone,
                   ancient_seals, t_anim, ui.map_x, ui.map_w,
                   active_filter=ui.active_filter,
-                  map_h=ui.map_h)
+                  map_h=ui.map_h,
+                  event_log=event_log)
 
         # 2. Partículas
         part.draw(screen)
@@ -205,7 +207,9 @@ def run():
         ui.draw_filter_bar(screen, gods, zones, ownership, cam, fps, t_anim)
         ui.draw_bottom_panel_with_gods(screen, selected_zone, gods, zones,
                                        ownership, ancient_seals, global_stats,
-                                       t_anim)
+                                       t_anim,
+                                       event_log=event_log,
+                                       ancient_gods=ancient_gods)
         mx_cur, my_cur = pygame.mouse.get_pos()
         ui.draw_hover_tooltip(screen, hover_zone, gods, ownership,
                               ancient_seals, mx_cur, my_cur)

@@ -21,8 +21,9 @@ from .config import (
     GOLD, GOLD_DIM, CRIMSON, CYAN, TXT, TXT_DIM, TXT_MUTED,
     NATURE_COLOR, SEAL_COLOR, scaled,
 )
-from .data_loader import Zone, God
+from .data_loader import Zone, God, AncientGod
 from .camera import Camera
+from .world_events import EventLog, EventType, SEVERITY_COLOR, SEVERITY_LABEL, EVENT_VFX
 
 
 # ── Helpers de desenho ────────────────────────────────────────────────────────
@@ -296,7 +297,8 @@ class UI:
 
     def draw_bottom_panel(self, screen, selected_zone: Optional[Zone],
                           gods, zones, ownership, ancient_seals,
-                          global_stats, t: float):
+                          global_stats, t: float,
+                          event_log=None, ancient_gods=None):
         if self._panel_slide < 0.02:
             return
 
@@ -337,19 +339,26 @@ class UI:
                          (SW // 2, py + PH - scaled(8)))
 
         # ── Coluna 1: Zona selecionada ────────────────────────────────────
+        content_h = 0
         if selected_zone:
-            self._draw_zone_info(screen, selected_zone, gods, ownership,
-                                 ancient_seals, col1_x, py, col1_w, PH, t)
+            content_h = self._draw_zone_info(screen, selected_zone, gods, ownership,
+                                             ancient_seals, col1_x, py, col1_w, PH,
+                                             t, event_log=event_log,
+                                             ancient_gods=ancient_gods)
 
-        # ── Coluna 2: Deuses + Stats ──────────────────────────────────────
-        self._draw_gods_stats(screen, gods, zones, ownership, ancient_seals,
-                              col2_x, py, col2_w, PH)
+        # ── Coluna 2: Events + Stats ──────────────────────────────────────
+        col2_h = self._draw_events_panel(screen, event_log, gods, zones,
+                                         ownership, ancient_seals,
+                                         col2_x, py, col2_w, PH)
+        self._panel_content_h = max(content_h, col2_h)
 
         # ── Coluna 3: Minimap ─────────────────────────────────────────────
         self._draw_minimap(screen, zones, ownership, py, PH)
 
     def _draw_zone_info(self, screen, zone: Zone, gods, ownership,
-                         ancient_seals, x, py, w, PH, t):
+                         ancient_seals, x, py, w, PH, t,
+                         event_log=None, ancient_gods=None) -> int:
+        """Retorna a altura total do conteúdo desenhado (para scroll)."""
         pad   = scaled(10)
         y     = py + pad
         f_big = self._fc.get(scaled(18), bold=True, serif=True)
@@ -366,7 +375,6 @@ class UI:
         # Nome da zona (grande, serif, dourado)
         name_surf = f_big.render(zone.zone_name, True, GOLD)
         if name_surf.get_width() > w - pad:
-            # Fallback para fonte menor se nome for longo
             f_big2 = self._fc.get(scaled(14), bold=True, serif=True)
             name_surf = f_big2.render(zone.zone_name, True, GOLD)
         screen.blit(name_surf, (x + pad, y))
@@ -403,6 +411,7 @@ class UI:
                                  border_radius=1)
                 owner_name = f_med.render(god.god_name, True, (r2, g2, b2))
                 screen.blit(owner_name, (x + pad + scaled(7), y))
+                y += scaled(18)
         elif zone.ancient_seal:
             sd     = ancient_seals.get(zone.zone_id, {})
             status = sd.get("status", "sleeping")
@@ -421,80 +430,209 @@ class UI:
                                  (x + pad + scaled(80) + ci * scaled(14),
                                   y + scaled(2), scaled(11), scaled(10)),
                                  border_radius=2)
+            y += scaled(18)
+
+            # Lore do deus antigo associado (se disponível)
+            if ancient_gods:
+                ag = next(
+                    (a for a in ancient_gods.values() if a.seal_zone == zone.zone_id),
+                    None,
+                )
+                if ag and y + scaled(14) < py + PH - pad:
+                    ar, ag2, ab = ag.rgb()
+                    ag_lbl = f_xs.render("DEUS APRISIONADO", True, TXT_MUTED)
+                    screen.blit(ag_lbl, (x + pad, y))
+                    y += ag_lbl.get_height() + scaled(2)
+                    ag_name = f_med.render(ag.god_name, True, (ar, ag2, ab))
+                    screen.blit(ag_name, (x + pad, y))
+                    y += ag_name.get_height() + scaled(2)
+                    if ag.lore_description and y + scaled(10) < py + PH - pad:
+                        lore2 = _wrap(ag.lore_description, f_xs, w - pad * 2)
+                        for line in lore2[:1]:
+                            ls = f_xs.render(line, True, TXT_DIM)
+                            screen.blit(ls, (x + pad, y))
+                            y += ls.get_height() + scaled(2)
         else:
             uncl = f_med.render("NÃO REIVINDICADA", True, TXT_MUTED)
             screen.blit(uncl, (x + pad, y))
+            y += uncl.get_height() + scaled(6)
 
-    def _draw_gods_stats(self, screen, gods, zones, ownership,
-                          ancient_seals, x, py, w, PH):
+        # ── Eventos desta zona ────────────────────────────────────────────
+        if event_log and y + scaled(20) < py + PH - pad:
+            zone_evs = event_log.for_zone(zone.zone_id)
+            if zone_evs:
+                y += scaled(4)
+                pygame.draw.line(screen, (*UI_LINE, 120),
+                                 (x + pad, y), (x + pad + w - pad * 2, y))
+                y += scaled(5)
+                ev_hdr = f_xs.render("EVENTOS", True, TXT_MUTED)
+                screen.blit(ev_hdr, (x + pad, y))
+                y += ev_hdr.get_height() + scaled(3)
+
+                f_ev = self._fc.get(scaled(9))
+                for ev in zone_evs[:3]:
+                    if y + scaled(11) > py + PH - pad:
+                        break
+                    sev_col = SEVERITY_COLOR[ev.severity]
+                    sev_lbl = SEVERITY_LABEL.get(ev.severity, "")
+                    sl  = f_ev.render(sev_lbl, True, sev_col)
+                    desc_max = w - pad * 2 - sl.get_width() - scaled(5)
+                    desc_lines = _wrap(ev.description, f_ev, desc_max)
+                    dl = f_ev.render(desc_lines[0] if desc_lines else "", True, TXT_DIM)
+                    # Acento colorido
+                    pygame.draw.rect(screen, sev_col,
+                                     (x + pad, y + scaled(2), scaled(2),
+                                      sl.get_height() - scaled(2)),
+                                     border_radius=1)
+                    screen.blit(sl, (x + pad + scaled(5), y))
+                    screen.blit(dl, (x + pad + scaled(5) + sl.get_width() + scaled(4), y))
+                    y += sl.get_height() + scaled(3)
+
+        return y - py   # altura total do conteúdo
+
+    def _draw_events_panel(self, screen, event_log, gods, zones, ownership,
+                            ancient_seals, x, py, w, PH) -> int:
+        """
+        Coluna 2 do painel inferior:
+          - Stats globais compactos (topo)
+          - Feed de eventos recentes ordenado por severidade (corpo)
+          - Deuses ativos em cards compactos (fim, se sobrar espaço)
+
+        Retorna altura total do conteúdo para cálculo de scroll.
+        """
         pad   = scaled(10)
         y     = py + pad
         f_hdr = self._fc.get(scaled(11), bold=True)
         f_med = self._fc.get(scaled(11), serif=True)
         f_sm  = self._fc.get(scaled(10))
+        f_xs  = self._fc.get(scaled(9))
 
-        # ── Stats globais ─────────────────────────────────────────────────
+        # ── Stats globais compactos ───────────────────────────────────────
         n_claimed = sum(1 for v in ownership.values() if v)
         n_seals   = sum(1 for z in zones.values() if z.ancient_seal)
         n_active  = sum(1 for z in zones.values()
                         if z.ancient_seal and
                         ancient_seals.get(z.zone_id, {}).get("status") != "sleeping")
 
-        for lbl, val, col in [
-            ("Zonas:",   f"{n_claimed}/{len(zones)}", GOLD),
-            ("Selos:",   f"{n_active}/{n_seals} ativos", CRIMSON),
-            ("Deuses:",  str(len(gods)),                 CYAN),
-        ]:
-            ls = f_sm.render(lbl, True, TXT_MUTED)
-            vs = f_sm.render(val, True, col)
-            screen.blit(ls, (x, y))
-            screen.blit(vs, (x + ls.get_width() + scaled(5), y))
-            y += ls.get_height() + scaled(3)
+        stats_pairs = [
+            ("Zonas",  f"{n_claimed}/{len(zones)}", GOLD),
+            ("Selos",  f"{n_active}/{n_seals} ativos", CRIMSON),
+            ("Deuses", str(len(gods)), CYAN),
+        ]
+        sx = x
+        for lbl, val, col in stats_pairs:
+            ls = f_xs.render(lbl + ":", True, TXT_MUTED)
+            vs = f_xs.render(val,       True, col)
+            screen.blit(ls, (sx, y))
+            screen.blit(vs, (sx + ls.get_width() + scaled(3), y))
+            sx += ls.get_width() + vs.get_width() + scaled(14)
+        y += f_xs.get_height() + scaled(4)
 
-        y += scaled(6)
+        # ── Alerta de eventos críticos/high no topo ───────────────────────
+        if event_log:
+            crit = event_log.critical_count
+            high = event_log.high_count
+            if crit > 0:
+                alert = f_sm.render(
+                    f"! {crit} CRITICAL  {high} HIGH", True, CRIMSON)
+                screen.blit(alert, (x, y))
+                y += alert.get_height() + scaled(3)
+
         pygame.draw.line(screen, (*UI_LINE, 140),
                          (x, y), (x + w, y))
-        y += scaled(6)
+        y += scaled(5)
 
-        # ── Lista de deuses ───────────────────────────────────────────────
-        gods_sorted = sorted(gods.values(), key=lambda g: -sum(
-            1 for gid in ownership.values() if gid == g.god_id))
+        # ── Cabeçalho da feed ─────────────────────────────────────────────
+        hdr = f_hdr.render("WORLD EVENTS", True, TXT_DIM)
+        screen.blit(hdr, (x, y))
+        y += hdr.get_height() + scaled(4)
 
-        available_h = py + PH - y - pad
-        card_h      = scaled(28)
-        max_gods    = max(1, available_h // (card_h + scaled(3)))
+        # ── Feed de eventos ───────────────────────────────────────────────
+        if event_log:
+            events = event_log.recent
+        else:
+            events = []
 
-        for god in gods_sorted[:max_gods]:
-            r2, g2, b2 = god.rgb()
-            owned = sum(1 for gid in ownership.values() if gid == god.god_id)
-            pct   = owned / max(len(zones), 1)
+        ev_h  = f_xs.get_height() + scaled(5)   # altura por evento
+        avail = py + PH - y - pad - scaled(36)   # espaço disponível (reserva para god cards)
+        max_ev = max(1, avail // ev_h)
 
-            card_rect = pygame.Rect(x, y, w, card_h)
-            _rrect(screen, (r2, g2, b2), card_rect, r=3, alpha=18)
+        for ev in events[:max_ev]:
+            if y + ev_h > py + PH - pad:
+                break
 
-            # Barra de progresso de território
-            bar_w = max(0, int((w - 2) * pct))
-            if bar_w > 0:
-                _rrect(screen, (r2, g2, b2),
-                       pygame.Rect(x + 1, y, bar_w, card_h), r=3, alpha=32)
+            sev_col = SEVERITY_COLOR[ev.severity]
+            vfx_col = EVENT_VFX.get(ev.type, {}).get("color", sev_col)
+            shape   = EVENT_VFX.get(ev.type, {}).get("shape", "circle")
 
-            # Acento colorido lateral
-            pygame.draw.rect(screen, (r2, g2, b2),
-                             (x, y, scaled(3), card_h), border_radius=2)
+            # Ícone geométrico pequeno
+            icon_x = x + scaled(4)
+            icon_y = y + ev_h // 2
+            r = scaled(4)
+            if shape == "diamond":
+                pts = [(icon_x, icon_y - r), (icon_x + r, icon_y),
+                       (icon_x, icon_y + r), (icon_x - r, icon_y)]
+                pygame.draw.polygon(screen, vfx_col, pts)
+            elif shape == "triangle":
+                pts = [(icon_x, icon_y - r),
+                       (icon_x + r, icon_y + r),
+                       (icon_x - r, icon_y + r)]
+                pygame.draw.polygon(screen, vfx_col, pts)
+            elif shape == "square":
+                pygame.draw.rect(screen, vfx_col,
+                                 (icon_x - r, icon_y - r, r * 2, r * 2),
+                                 border_radius=1)
+            else:
+                pygame.draw.circle(screen, vfx_col, (icon_x, icon_y), r)
 
-            # Nome + natureza
-            name_s = f_med.render(god.god_name, True, (r2, g2, b2))
-            nat_s  = f_sm.render(f"[{god.nature}]", True,
-                                  NATURE_COLOR.get(god.nature, TXT_DIM))
-            screen.blit(name_s, (x + scaled(7), y + scaled(3)))
-            screen.blit(nat_s,  (x + scaled(7), y + card_h - nat_s.get_height() - scaled(3)))
+            # Linha colorida de severidade
+            pygame.draw.line(screen, sev_col,
+                             (x + scaled(10), y + ev_h - scaled(2)),
+                             (x + scaled(10) + scaled(20), y + ev_h - scaled(2)), 1)
 
-            # Contagem de zonas
-            zt = f_sm.render(f"{owned}z", True, TXT_MUTED)
-            screen.blit(zt, (x + w - zt.get_width() - scaled(5),
-                              y + (card_h - zt.get_height()) // 2))
+            # Descrição
+            max_desc_w = w - scaled(14)
+            desc_lines = _wrap(ev.description, f_xs, max_desc_w)
+            dl = f_xs.render(desc_lines[0] if desc_lines else "", True, TXT_DIM)
+            screen.blit(dl, (x + scaled(12), y + scaled(1)))
 
-            y += card_h + scaled(3)
+            # Timestamp compacto à direita
+            ts = ev.timestamp[11:16] if len(ev.timestamp) >= 16 else ""
+            if ts:
+                ts_s = f_xs.render(ts, True, TXT_MUTED)
+                screen.blit(ts_s, (x + w - ts_s.get_width(), y + scaled(1)))
+
+            y += ev_h
+
+        # ── God cards compactos (se sobrou espaço) ────────────────────────
+        y += scaled(4)
+        if y + scaled(22) < py + PH - pad:
+            pygame.draw.line(screen, (*UI_LINE, 100),
+                             (x, y), (x + w, y))
+            y += scaled(4)
+            gods_sorted = sorted(gods.values(), key=lambda g: -sum(
+                1 for gid in ownership.values() if gid == g.god_id))
+            card_h = scaled(20)
+            for god in gods_sorted:
+                if y + card_h > py + PH - pad:
+                    break
+                r2, g2, b2 = god.rgb()
+                owned = sum(1 for gid in ownership.values() if gid == god.god_id)
+                # Barra fina de território
+                bar_w = max(0, int(w * owned / max(len(zones), 1)))
+                if bar_w > 0:
+                    _rrect(screen, (r2, g2, b2),
+                           pygame.Rect(x, y, bar_w, card_h), r=2, alpha=25)
+                pygame.draw.rect(screen, (r2, g2, b2),
+                                 (x, y, scaled(2), card_h), border_radius=1)
+                ns = f_xs.render(god.god_name, True, (r2, g2, b2))
+                zt = f_xs.render(f"{owned}z", True, TXT_MUTED)
+                screen.blit(ns, (x + scaled(5), y + (card_h - ns.get_height()) // 2))
+                screen.blit(zt, (x + w - zt.get_width() - scaled(3),
+                                 y + (card_h - zt.get_height()) // 2))
+                y += card_h + scaled(2)
+
+        return y - py
 
     def _draw_minimap(self, screen, zones, ownership, py, PH):
         """
@@ -569,10 +707,12 @@ class UI:
         return surf
 
     def draw_bottom_panel_with_gods(self, screen, selected_zone, gods, zones,
-                                     ownership, ancient_seals, global_stats, t):
+                                     ownership, ancient_seals, global_stats, t,
+                                     event_log=None, ancient_gods=None):
         """
         Versão completa chamada pelo main.py.
         Reconstrói o minimap com cores reais dos deuses.
+        Passa event_log e ancient_gods para o painel.
         """
         if self._minimap_dirty or self._minimap_surf is None:
             mm_rect = self._minimap_rect()
@@ -581,9 +721,9 @@ class UI:
                     zones, ownership, gods, mm_rect.width, mm_rect.height)
                 self._minimap_dirty = False
 
-        # Chama o draw normal mas o minimap já está cacheado
         self.draw_bottom_panel(screen, selected_zone, gods, zones,
-                               ownership, ancient_seals, global_stats, t)
+                               ownership, ancient_seals, global_stats, t,
+                               event_log=event_log, ancient_gods=ancient_gods)
 
     # ── HUD topo (compat stub → chama filter bar) ─────────────────────────
 
