@@ -693,6 +693,8 @@ class Lutador:
             self.slow_timer -= dt
             if self.slow_timer <= 0:
                 self.slow_fator = 1.0
+        if getattr(self, 'cura_bloqueada', 0) > 0:
+            self.cura_bloqueada -= dt
         
         for skill_nome in list(self.cd_skills.keys()):
             if self.cd_skills[skill_nome] > 0:

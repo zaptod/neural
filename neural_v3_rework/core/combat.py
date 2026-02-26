@@ -479,9 +479,9 @@ class Projetil:
     def pode_atingir(self, alvo):
         """Verifica se pode atingir o alvo (para perfuração)"""
         if self.perfura:
-            if id(alvo) in self.alvos_perfurados:
+            if alvo in self.alvos_perfurados:
                 return False
-            self.alvos_perfurados.add(id(alvo))
+            self.alvos_perfurados.add(alvo)
         return True
     
     def chain_para(self, alvo):
@@ -800,8 +800,8 @@ class Buff:
     def atualizar(self, dt):
         self.vida -= dt
         
-        # Cura contínua
-        if self.cura_por_segundo > 0:
+        # Cura contínua — bloqueada se NECROSE ou outro efeito anti-heal estiver ativo
+        if self.cura_por_segundo > 0 and getattr(self.alvo, 'cura_bloqueada', 0) <= 0:
             self.alvo.vida = min(self.alvo.vida_max, self.alvo.vida + self.cura_por_segundo * dt)
         
         if self.vida <= 0:
@@ -841,11 +841,24 @@ class DotEffect:
         
         if self.tick_timer >= self.tick_interval:
             self.tick_timer = 0
-            # Aplica dano
+            # Aplica dano respeitando escudos e modificadores
             if not self.alvo.morto:
-                self.alvo.vida -= self.dano_por_tick
-                if self.alvo.vida <= 0:
-                    self.alvo.morrer()
+                dano = self.dano_por_tick
+
+                # Respeita vulnerabilidade e debuffs de dano recebido
+                dano *= getattr(self.alvo, 'vulnerabilidade', 1.0)
+
+                # Absorção por escudos de buff (ex: BLINDADO)
+                for buff in getattr(self.alvo, 'buffs_ativos', []):
+                    if getattr(buff, 'escudo_atual', 0) > 0:
+                        dano = buff.absorver_dano(dano)
+                        if dano <= 0:
+                            break
+
+                if dano > 0:
+                    self.alvo.vida -= dano
+                    if self.alvo.vida <= 0:
+                        self.alvo.morrer()
         
         if self.vida <= 0:
             self.ativo = False
@@ -1178,6 +1191,10 @@ class Channel:
         if not self.canalizando:
             self.ativo = False
             return resultados
+        
+        # Rastreia ângulo do dono a cada frame — beam segue para onde o caster olha
+        if hasattr(self.dono, 'angulo_olhar'):
+            self.angulo = self.dono.angulo_olhar
         
         self.vida -= dt
         self.tick_timer += dt

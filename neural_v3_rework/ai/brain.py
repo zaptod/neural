@@ -808,7 +808,7 @@ class AIBrain:
             return  # Instinto tomou controle
         
         # Hesitação humana - às vezes congela brevemente
-        if self._verificar_hesitacao(distancia, inimigo):
+        if self._verificar_hesitacao(dt, distancia, inimigo):
             return
         
         # Sistema de Coreografia
@@ -848,7 +848,7 @@ class AIBrain:
         
         if usa_skills_primeiro:
             # Magos: Skills primeiro, depois ataque básico
-            if self._processar_skills(distancia, inimigo):
+            if self._processar_skills(dt, distancia, inimigo):
                 return
             if self._avaliar_e_executar_ataque(dt, distancia, inimigo):
                 return
@@ -856,7 +856,7 @@ class AIBrain:
             # Melee: Ataque primeiro, skills como suporte
             if self._avaliar_e_executar_ataque(dt, distancia, inimigo):
                 return
-            if self._processar_skills(distancia, inimigo):
+            if self._processar_skills(dt, distancia, inimigo):
                 return
         
         self.timer_decisao -= dt
@@ -2331,11 +2331,11 @@ class AIBrain:
             self.descanso_timer = random.uniform(0.3, 0.8)
             self.burst_counter = 0
     
-    def _verificar_hesitacao(self, distancia, inimigo):
+    def _verificar_hesitacao(self, dt, distancia, inimigo):
         """Verifica se a IA hesita neste frame"""
         # Descanso forçado
         if self.descanso_timer > 0:
-            self.descanso_timer -= 0.016
+            self.descanso_timer -= dt
             self.acao_atual = "CIRCULAR"
             return True
         
@@ -3046,7 +3046,7 @@ class AIBrain:
     # SKILLS - SISTEMA INTELIGENTE v1.0
     # =========================================================================
     
-    def _processar_skills(self, distancia, inimigo):
+    def _processar_skills(self, dt, distancia, inimigo):
         """Processa uso de skills com sistema de estratégia inteligente"""
         p = self.parent
         
@@ -3061,7 +3061,7 @@ class AIBrain:
         
         # === USA SISTEMA DE ESTRATÉGIA SE DISPONÍVEL ===
         if self.skill_strategy is not None:
-            return self._processar_skills_estrategico(distancia, inimigo)
+            return self._processar_skills_estrategico(dt, distancia, inimigo)
         
         # === FALLBACK: Sistema legado ===
         if self._tentar_dash_ofensivo(distancia, inimigo):
@@ -3075,7 +3075,7 @@ class AIBrain:
         
         return False
     
-    def _processar_skills_estrategico(self, distancia, inimigo):
+    def _processar_skills_estrategico(self, dt, distancia, inimigo):
         """
         IA de Skills v4.0 — ESTRATÉGIA TÁTICA CONSCIENTE
         ===================================================
@@ -3105,7 +3105,7 @@ class AIBrain:
         if strategy is None:
             return False
 
-        strategy.atualizar(0.016)
+        strategy.atualizar(dt)
 
         # ── Estado de combate ──
         hp_pct          = p.vida / p.vida_max if p.vida_max > 0 else 1.0
