@@ -16,7 +16,8 @@ Todos os draws são clipados a essa área para não invadir painéis.
 import math
 import pygame
 import numpy as np
-from typing import Dict, Optional
+from scipy.ndimage import binary_erosion, binary_dilation
+from typing import Dict, Optional, Tuple
 
 from . import config
 from .config import (
@@ -40,6 +41,11 @@ class MapRenderer:
         self._lfonts:  Dict[tuple, pygame.font.Font] = {}
         self._ownership_surf: Optional[pygame.Surface] = None
         self._ownership_key  = None   # hash do estado de ownership para detectar mudanças
+        # Cache de máscaras de erosão/dilation por (zone_i, border_w) — evita recalcular todo frame
+        self._mask_cache: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]] = {}
+        # Cache do overlay de filtro por (active_filter, sel_id)
+        self._filter_surf: Optional[pygame.Surface] = None
+        self._filter_key  = None
 
     def _lf(self, size: int, serif: bool = False) -> pygame.font.Font:
         """Cache de fontes. serif=True usa Georgia/Times para o estilo pergaminho."""
@@ -183,32 +189,34 @@ class MapRenderer:
                                     fill_col, border_col, border_w):
         """
         Overlay de zona via zone_idx — fill e borda seguem o Voronoi real.
+        As máscaras de erosão/dilation são cacheadas por (zone_i, border_w)
+        para evitar recálculo caro a cada frame.
         """
         try:
             zone_i = self.zone_list.index(zone)
         except ValueError:
             return
 
-        import numpy as np
-        from scipy.ndimage import binary_erosion, binary_dilation
-
         cam   = self.cam
         map_y = cam.map_y
         map_h = clip.height
 
-        mask    = (self.zone_idx == zone_i)          # (H, W) bool
-        eroded  = binary_erosion(mask,  iterations=max(1, int(border_w)))
-        dilated = binary_dilation(mask, iterations=max(1, int(border_w // 2 + 1)))
-        border  = dilated & ~eroded
+        # Cache de máscara — erosion/dilation é caro, só roda quando necessário
+        cache_key = (zone_i, int(border_w))
+        if cache_key not in self._mask_cache:
+            mask    = (self.zone_idx == zone_i)          # (H, W) bool
+            eroded  = binary_erosion(mask,  iterations=max(1, int(border_w)))
+            dilated = binary_dilation(mask, iterations=max(1, int(border_w // 2 + 1)))
+            border  = dilated & ~eroded
+            # Armazena no espaço (W, H) — surfarray usa (W, H)
+            self._mask_cache[cache_key] = (mask.T.copy(), border.T.copy())
+
+        mask_t, border_t = self._mask_cache[cache_key]
 
         surf = pygame.Surface((TEX_W, TEX_H), pygame.SRCALPHA)
         surf.fill((0, 0, 0, 0))
         rgb_arr   = pygame.surfarray.pixels3d(surf)
         alpha_arr = pygame.surfarray.pixels_alpha(surf)
-
-        # Transpõe para (W, H) — espaço do surfarray
-        mask_t   = mask.T
-        border_t = border.T
 
         fa = fill_col[3]   if len(fill_col)   > 3 else 40
         ba = border_col[3] if len(border_col) > 3 else 200
@@ -295,10 +303,7 @@ class MapRenderer:
     def _build_ownership_texture(self, ownership) -> pygame.Surface:
         """
         Constrói textura RGBA (TEX_W × TEX_H) de ownership via zone_idx.
-        Usa pixels3d + pixels_alpha separadamente para compatibilidade
-        com pygame.surfarray em superfícies SRCALPHA.
         """
-        import numpy as np
 
         surf = pygame.Surface((TEX_W, TEX_H), pygame.SRCALPHA)
         surf.fill((0, 0, 0, 0))
@@ -349,12 +354,13 @@ class MapRenderer:
     # ── Ícone de Selo Antigo (rúnico procedural) ──────────────────────────
     def _draw_seal_icons(self, screen, ancient_seals, t, clip):
         """
-        [FASE 2] Símbolo rúnico desenhado proceduralmente: círculo externo +
-        círculo interno + 4 linhas diagonais cruzadas + brilho central.
-        Cor e intensidade refletem o status do selo.
+        [FASE 2] Símbolo rúnico desenhado proceduralmente.
+        Usa surface do tamanho do clip (não SCREEN_W×SCREEN_H) para economizar memória/tempo.
         """
         cam  = self.cam
-        surf = pygame.Surface((config.SCREEN_W, config.SCREEN_H), pygame.SRCALPHA)
+        # Surface do tamanho do clip, não da tela toda
+        surf = pygame.Surface((clip.width, clip.height), pygame.SRCALPHA)
+        ox, oy = clip.x, clip.y   # offset para converter coords de tela → surf local
 
         for zone in self.zones.values():
             if not zone.ancient_seal:
@@ -367,44 +373,41 @@ class MapRenderer:
             if not clip.collidepoint(sx, sy):
                 continue
 
-            # Raio base do ícone — escala com zoom mas tem limites
+            lx, ly = sx - ox, sy - oy  # coords locais na surf
+
             r = max(7, min(22, int(16 * cam.zoom)))
 
-            # Pulso: sleeping pulsa devagar, awakened pulsa rápido
             pulse_speed = {"sleeping": 1.2, "stirring": 2.2, "awakened": 3.5, "broken": 0.5}
             ps = pulse_speed.get(status, 1.5)
             a_outer = int(60  + math.sin(t * ps) * 40)
             a_inner = int(140 + math.sin(t * ps + 1.0) * 70)
             a_lines = int(100 + math.sin(t * ps + 0.5) * 50)
 
-            # Círculo externo (aura)
-            pygame.draw.circle(surf, (*col, a_outer), (sx, sy), r)
-            # Círculo interno
-            pygame.draw.circle(surf, (*col, a_inner), (sx, sy), max(3, r // 2), max(1, r // 5))
-            # 4 linhas diagonais cruzadas (runa)
+            pygame.draw.circle(surf, (*col, a_outer), (lx, ly), r)
+            pygame.draw.circle(surf, (*col, a_inner), (lx, ly), max(3, r // 2), max(1, r // 5))
             for angle_deg in [45, 135]:
                 angle = math.radians(angle_deg)
                 dx = math.cos(angle) * r * 0.75
                 dy = math.sin(angle) * r * 0.75
                 pygame.draw.line(surf, (*col, a_lines),
-                                 (int(sx - dx), int(sy - dy)),
-                                 (int(sx + dx), int(sy + dy)),
+                                 (int(lx - dx), int(ly - dy)),
+                                 (int(lx + dx), int(ly + dy)),
                                  max(1, r // 6))
-            # Brilho central
-            pygame.draw.circle(surf, (*col, min(255, a_inner + 40)), (sx, sy), max(2, r // 4))
+            pygame.draw.circle(surf, (*col, min(255, a_inner + 40)), (lx, ly), max(2, r // 4))
 
         screen.set_clip(clip)
-        screen.blit(surf, (0, 0))
+        screen.blit(surf, clip.topleft)
         screen.set_clip(None)
 
     # ── Indicador de dono (círculo com iniciais) ──────────────────────────
     def _draw_owner_badges(self, screen, ownership, clip):
         """
         [FASE 2] Círculo com 1-2 iniciais do nome do deus no centróide da zona.
-        Visível entre zoom 0.35 e 2.0 para não poluir zoom muito fechado.
+        Usa surface do tamanho do clip para melhor performance.
         """
         cam  = self.cam
-        surf = pygame.Surface((config.SCREEN_W, config.SCREEN_H), pygame.SRCALPHA)
+        surf = pygame.Surface((clip.width, clip.height), pygame.SRCALPHA)
+        ox, oy = clip.x, clip.y
 
         badge_r   = max(8, min(18, int(13 * cam.zoom)))
         font_size = max(7, min(14, int(10 * cam.zoom)))
@@ -419,28 +422,23 @@ class MapRenderer:
                 continue
 
             sx, sy = cam.w2s(*zone.centroid)
-            # Offset vertical para não sobrepor o label do nome da zona
             badge_y = sy + badge_r + scaled(4)
             if not clip.collidepoint(sx, badge_y):
                 continue
 
+            lx, ly = sx - ox, badge_y - oy  # coords locais
             r, g, b = god.rgb()
-
-            # Iniciais: até 2 letras do nome
             initials = "".join(w[0].upper() for w in god.god_name.split()[:2])
 
-            # Fill do círculo na cor do deus
-            pygame.draw.circle(surf, (r, g, b, 160), (sx, badge_y), badge_r)
-            # Borda dourada fina
-            pygame.draw.circle(surf, (*GOLD, 200), (sx, badge_y), badge_r, max(1, badge_r // 5))
+            pygame.draw.circle(surf, (r, g, b, 160), (lx, ly), badge_r)
+            pygame.draw.circle(surf, (*GOLD, 200), (lx, ly), badge_r, max(1, badge_r // 5))
 
-            # Texto das iniciais centralizado no círculo
             txt_surf = font.render(initials, True, (240, 235, 215))
-            txt_rect = txt_surf.get_rect(center=(sx, badge_y))
+            txt_rect = txt_surf.get_rect(center=(lx, ly))
             surf.blit(txt_surf, txt_rect)
 
         screen.set_clip(clip)
-        screen.blit(surf, (0, 0))
+        screen.blit(surf, clip.topleft)
         screen.set_clip(None)
 
     # ── Labels ────────────────────────────────────────────────────────────
@@ -509,15 +507,12 @@ class MapRenderer:
     def _draw_filter_overlay(self, screen, active_filter: str,
                               selected_zone, clip: pygame.Rect):
         """
-        [FASE 4] Escurece zonas fora do filtro usando zone_idx — mesma
-        abordagem da ownership, sem retângulos do JSON.
+        [FASE 4] Escurece zonas fora do filtro usando zone_idx.
+        Cacheado por (active_filter, sel_id) — só reconstrói quando filtro ou seleção mudam.
         """
-        cam  = self.cam
+        cam   = self.cam
         map_y = cam.map_y
         map_h = clip.height
-
-        # Constrói overlay no espaço da textura via surfarray
-        import numpy as np
 
         sel_id = None
         if selected_zone:
@@ -526,34 +521,27 @@ class MapRenderer:
             except ValueError:
                 pass
 
-        for i, zone in enumerate(self.zone_list):
-            if zone.base_nature == active_filter:
-                continue
-            if i == sel_id:
-                continue
-            mask = (self.zone_idx == i)
-            dark[mask, 0] = 12
-            dark[mask, 1] = 8
-            dark[mask, 2] = 4
-            dark[mask, 3] = 165
+        filter_key = (active_filter, sel_id)
+        if filter_key != self._filter_key or self._filter_surf is None:
+            surf = pygame.Surface((TEX_W, TEX_H), pygame.SRCALPHA)
+            surf.fill((0, 0, 0, 0))
+            rgb_arr   = pygame.surfarray.pixels3d(surf)
+            alpha_arr = pygame.surfarray.pixels_alpha(surf)
 
-        surf = pygame.Surface((TEX_W, TEX_H), pygame.SRCALPHA)
-        surf.fill((0, 0, 0, 0))
-        rgb_arr   = pygame.surfarray.pixels3d(surf)
-        alpha_arr = pygame.surfarray.pixels_alpha(surf)
+            for i, zone in enumerate(self.zone_list):
+                if zone.base_nature == active_filter:
+                    continue
+                if i == sel_id:
+                    continue
+                mask_t = (self.zone_idx == i).T   # (W, H)
+                rgb_arr[mask_t, 0] = 12
+                rgb_arr[mask_t, 1] = 8
+                rgb_arr[mask_t, 2] = 4
+                alpha_arr[mask_t]  = 165
 
-        for i, zone in enumerate(self.zone_list):
-            if zone.base_nature == active_filter:
-                continue
-            if i == sel_id:
-                continue
-            mask_t = (self.zone_idx == i).T   # (W, H)
-            rgb_arr[mask_t, 0] = 12
-            rgb_arr[mask_t, 1] = 8
-            rgb_arr[mask_t, 2] = 4
-            alpha_arr[mask_t]  = 165
-
-        del rgb_arr, alpha_arr
+            del rgb_arr, alpha_arr
+            self._filter_surf = surf
+            self._filter_key  = filter_key
 
         # Escala e blit no viewport atual
         wl, wt = cam.s2w(clip.x, map_y)
@@ -573,7 +561,7 @@ class MapRenderer:
         dw = max(1, int((wr - wl) * cam.zoom))
         dh = max(1, int((wb - wt) * cam.zoom))
 
-        chunk = surf.subsurface(src)
+        chunk = self._filter_surf.subsurface(src)
         scaled_f = pygame.transform.smoothscale(chunk, (dw, dh))
         screen.set_clip(clip)
         screen.blit(scaled_f, (sx0, sy0))
