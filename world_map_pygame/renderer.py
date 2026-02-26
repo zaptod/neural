@@ -47,6 +47,14 @@ class MapRenderer:
         # Cache do overlay de filtro por (active_filter, sel_id)
         self._filter_surf: Optional[pygame.Surface] = None
         self._filter_key  = None
+        # Superfície de trabalho para _draw_zone_overlay_indexed — alocada uma vez.
+        self._zone_work_surf: Optional[pygame.Surface] = None
+        # Superfícies pré-alocadas para marcadores, selos e badges.
+        # Reutilizadas todo frame — zero alocações por frame nesses métodos.
+        _sw, _sh = config.SCREEN_W, config.SCREEN_H
+        self._marker_surf = pygame.Surface((_sw, _sh), pygame.SRCALPHA)
+        self._seal_surf   = pygame.Surface((_sw, _sh), pygame.SRCALPHA)
+        self._badge_surf  = pygame.Surface((_sw, _sh), pygame.SRCALPHA)
 
     def _lf(self, size: int, serif: bool = False) -> pygame.font.Font:
         """Cache de fontes. serif=True usa Georgia/Times para o estilo pergaminho."""
@@ -158,44 +166,33 @@ class MapRenderer:
     def _draw_event_markers(self, screen, event_log: EventLog, t: float,
                              clip: pygame.Rect):
         """
-        Desenha um pequeno indicador de severidade no canto superior-direito
-        do centróide de cada zona com evento.
-
-        Regras visuais:
-          - critical: triângulo vermelho pulsante rápido
-          - high:     losango laranja pulsante médio
-          - medium:   quadrado dourado estático
-          - low:      círculo cinza estático
-
-        Zonas de selo NÃO recebem marcador extra (o ícone de selo já os representa).
-        Visível em qualquer nível de zoom.
+        Marcador pequeno no canto superior-direito do centróide de zonas com evento.
+        Usa _marker_surf pré-alocada — zero alocações por frame.
         """
         cam  = self.cam
-        surf = pygame.Surface((clip.width, clip.height), pygame.SRCALPHA)
+        surf = self._marker_surf
+        surf.fill((0, 0, 0, 0), clip)   # limpa só a região do clip
         ox, oy = clip.x, clip.y
 
-        PULSE = {"critical": 4.5, "high": 2.5, "medium": 0.0, "low": 0.0}
-        R_BASE = scaled(6)    # raio base do marcador
-        OFFSET = scaled(14)   # offset do centróide (direita + cima)
+        PULSE  = {"critical": 4.5, "high": 2.5, "medium": 0.0, "low": 0.0}
+        R_BASE = scaled(6)
+        OFFSET = scaled(14)
 
         for zone in self.zones.values():
-            # Selos têm ícone próprio — marcadores seriam redundantes
             if zone.ancient_seal:
                 continue
-
             ev = event_log.worst_for_zone(zone.zone_id)
             if ev is None:
                 continue
 
             sx, sy = cam.w2s(*zone.centroid)
-            # Posição: canto superior-direito do centróide
             mx = sx + OFFSET
             my = sy - OFFSET
             if not clip.collidepoint(mx, my):
                 continue
 
-            lx = mx - ox
-            ly = my - oy
+            lx = mx
+            ly = my
 
             col = SEVERITY_COLOR[ev.severity]
             ps  = PULSE.get(ev.severity, 0.0)
@@ -203,12 +200,11 @@ class MapRenderer:
                 a_fill   = int(140 + math.sin(t * ps) * 80)
                 a_border = int(220 + math.sin(t * ps + 0.8) * 35)
             else:
-                a_fill   = 130
-                a_border = 200
+                a_fill, a_border = 130, 200
 
-            r  = R_BASE
+            r     = R_BASE
             shape = EVENT_VFX.get(ev.type, {}).get("shape", "circle")
-            vc = EVENT_VFX.get(ev.type, {}).get("color", col)
+            vc    = EVENT_VFX.get(ev.type, {}).get("color", col)
 
             if shape == "diamond":
                 pts = [(lx, ly - r), (lx + r, ly), (lx, ly + r), (lx - r, ly)]
@@ -223,54 +219,15 @@ class MapRenderer:
                 pygame.draw.rect(surf, (*col, a_fill),   sr, border_radius=2)
                 pygame.draw.rect(surf, (*vc,  a_border), sr, max(1, r // 3),
                                  border_radius=2)
-            else:  # circle
+            else:
                 pygame.draw.circle(surf, (*col, a_fill),   (lx, ly), r)
                 pygame.draw.circle(surf, (*vc,  a_border), (lx, ly), r,
                                    max(1, r // 3))
 
-            # Ponto central brilhante para critical/high
             if ev.severity in ("critical", "high"):
                 pygame.draw.circle(surf, (*vc, min(255, a_border)),
                                    (lx, ly), max(2, r // 3))
 
-        screen.set_clip(clip)
-        screen.blit(surf, clip.topleft)
-        screen.set_clip(None)
-
-    # ── Hover espesso dourado ─────────────────────────────────────────────
-    def _draw_hover(self, screen, verts_world, clip, t):
-        """[FASE 2] Borda 5px dourada com glow externo — era 1.5px branca."""
-        cam  = self.cam
-        surf = pygame.Surface((config.SCREEN_W, config.SCREEN_H), pygame.SRCALPHA)
-        verts = [cam.w2s(wx, wy) for wx, wy in verts_world]
-        if len(verts) < 3:
-            return
-
-        # Fill suave
-        pygame.draw.polygon(surf, (*GOLD, 22), verts)
-
-        # Glow externo (borda mais grossa e semi-transparente)
-        glow_w = max(8, int(9 * cam.zoom))
-        pygame.draw.polygon(surf, (*GOLD, 55), verts, glow_w)
-
-        # Borda principal
-        border_w = max(3, int(5 * cam.zoom))
-        pygame.draw.polygon(surf, (*GOLD, 200), verts, border_w)
-
-        screen.set_clip(clip)
-        screen.blit(surf, (0, 0))
-        screen.set_clip(None)
-
-    # ── Ownership ─────────────────────────────────────────────────────────
-    def _draw_poly_overlay(self, screen, verts_world, clip,
-                            fill_col, border_col, border_w):
-        """Mantido para compatibilidade — usado só onde zone_idx não se aplica."""
-        cam   = self.cam
-        surf  = pygame.Surface((config.SCREEN_W, config.SCREEN_H), pygame.SRCALPHA)
-        verts = [cam.w2s(wx, wy) for wx, wy in verts_world]
-        if len(verts) >= 3:
-            pygame.draw.polygon(surf, fill_col,   verts)
-            pygame.draw.polygon(surf, border_col, verts, border_w)
         screen.set_clip(clip)
         screen.blit(surf, (0, 0))
         screen.set_clip(None)
@@ -278,9 +235,14 @@ class MapRenderer:
     def _draw_zone_overlay_indexed(self, screen, zone, clip,
                                     fill_col, border_col, border_w):
         """
-        Overlay de zona via zone_idx — fill e borda seguem o Voronoi real.
-        As máscaras de erosão/dilation são cacheadas por (zone_i, border_w)
-        para evitar recálculo caro a cada frame.
+        Overlay de zona via zone_idx.
+
+        Estratégia de performance:
+          - Máscaras (erosion/dilation): cacheadas por (zone_i, border_w) — calculadas uma vez.
+          - Superfície de trabalho: UMA superfície TEX_W×TEX_H pré-alocada, reutilizada.
+            → Zero alocações por frame (elimina o custo de ~12MB/frame).
+          - Fill + pixel ops: operam APENAS na região do viewport (tx0:tx1, ty0:ty1),
+            que a zoom ≥ 1.0 é tipicamente ~3MB em vez de 12MB.
         """
         try:
             zone_i = self.zone_list.index(zone)
@@ -291,39 +253,7 @@ class MapRenderer:
         map_y = cam.map_y
         map_h = clip.height
 
-        # Cache de máscara — erosion/dilation é caro, só roda quando necessário
-        cache_key = (zone_i, int(border_w))
-        if cache_key not in self._mask_cache:
-            mask    = (self.zone_idx == zone_i)          # (H, W) bool
-            eroded  = binary_erosion(mask,  iterations=max(1, int(border_w)))
-            dilated = binary_dilation(mask, iterations=max(1, int(border_w // 2 + 1)))
-            border  = dilated & ~eroded
-            # Armazena no espaço (W, H) — surfarray usa (W, H)
-            self._mask_cache[cache_key] = (mask.T.copy(), border.T.copy())
-
-        mask_t, border_t = self._mask_cache[cache_key]
-
-        surf = pygame.Surface((TEX_W, TEX_H), pygame.SRCALPHA)
-        surf.fill((0, 0, 0, 0))
-        rgb_arr   = pygame.surfarray.pixels3d(surf)
-        alpha_arr = pygame.surfarray.pixels_alpha(surf)
-
-        fa = fill_col[3]   if len(fill_col)   > 3 else 40
-        ba = border_col[3] if len(border_col) > 3 else 200
-
-        rgb_arr[mask_t, 0]   = fill_col[0]
-        rgb_arr[mask_t, 1]   = fill_col[1]
-        rgb_arr[mask_t, 2]   = fill_col[2]
-        alpha_arr[mask_t]    = fa
-
-        rgb_arr[border_t, 0]  = border_col[0]
-        rgb_arr[border_t, 1]  = border_col[1]
-        rgb_arr[border_t, 2]  = border_col[2]
-        alpha_arr[border_t]   = ba
-
-        del rgb_arr, alpha_arr
-
-        # Viewport → escala e blit
+        # ── Viewport em coords de textura ────────────────────────────────
         wl, wt = cam.s2w(clip.x, map_y)
         wr, wb = cam.s2w(clip.x + clip.width, map_y + map_h)
         wl = max(0.0, wl); wt = max(0.0, wt)
@@ -336,7 +266,60 @@ class MapRenderer:
         ty0 = int(wt / WORLD_H * TEX_H)
         tx1 = min(TEX_W, int(wr / WORLD_W * TEX_W) + 1)
         ty1 = min(TEX_H, int(wb / WORLD_H * TEX_H) + 1)
-        src  = pygame.Rect(tx0, ty0, max(1, tx1 - tx0), max(1, ty1 - ty0))
+        vw, vh = tx1 - tx0, ty1 - ty0
+        if vw <= 0 or vh <= 0:
+            return
+
+        # ── Cache de máscara (erosion/dilation) ──────────────────────────
+        bw_key   = int(border_w)
+        mask_key = (zone_i, bw_key)
+        if mask_key not in self._mask_cache:
+            mask    = (self.zone_idx == zone_i)
+            eroded  = binary_erosion(mask,  iterations=max(1, bw_key))
+            dilated = binary_dilation(mask, iterations=max(1, bw_key // 2 + 1))
+            border  = dilated & ~eroded
+            self._mask_cache[mask_key] = (mask.T.copy(), border.T.copy())
+
+        mask_t, border_t = self._mask_cache[mask_key]
+
+        # ── Superfície de trabalho pré-alocada (zero alocação por frame) ─
+        if self._zone_work_surf is None:
+            self._zone_work_surf = pygame.Surface((TEX_W, TEX_H), pygame.SRCALPHA)
+
+        surf = self._zone_work_surf
+
+        # Limpa APENAS a região do viewport (vw×vh pixels, não 2048×1434)
+        surf.fill((0, 0, 0, 0), pygame.Rect(tx0, ty0, vw, vh))
+
+        # ── Pixel ops apenas no viewport ─────────────────────────────────
+        # Slice das máscaras para a região do viewport (view numpy, zero cópia)
+        vp_mask   = mask_t  [tx0:tx1, ty0:ty1]
+        vp_border = border_t[tx0:tx1, ty0:ty1]
+
+        fa = fill_col[3]   if len(fill_col)   > 3 else 40
+        ba = border_col[3] if len(border_col) > 3 else 200
+
+        # Loca a superfície inteira mas acessa apenas a subregião
+        rgb_arr   = pygame.surfarray.pixels3d(surf)
+        alpha_arr = pygame.surfarray.pixels_alpha(surf)
+
+        sub_rgb   = rgb_arr  [tx0:tx1, ty0:ty1]   # view, sem cópia
+        sub_alpha = alpha_arr[tx0:tx1, ty0:ty1]
+
+        sub_rgb  [vp_mask,   0] = fill_col[0]
+        sub_rgb  [vp_mask,   1] = fill_col[1]
+        sub_rgb  [vp_mask,   2] = fill_col[2]
+        sub_alpha[vp_mask]      = fa
+
+        sub_rgb  [vp_border, 0] = border_col[0]
+        sub_rgb  [vp_border, 1] = border_col[1]
+        sub_rgb  [vp_border, 2] = border_col[2]
+        sub_alpha[vp_border]    = ba
+
+        del rgb_arr, alpha_arr  # libera lock antes do subsurface
+
+        # ── Scale e blit do viewport ──────────────────────────────────────
+        src  = pygame.Rect(tx0, ty0, vw, vh)
         sx0, sy0 = cam.w2s(wl, wt)
         dw = max(1, int((wr - wl) * cam.zoom))
         dh = max(1, int((wb - wt) * cam.zoom))
@@ -445,12 +428,11 @@ class MapRenderer:
     def _draw_seal_icons(self, screen, ancient_seals, t, clip):
         """
         [FASE 2] Símbolo rúnico desenhado proceduralmente.
-        Usa surface do tamanho do clip (não SCREEN_W×SCREEN_H) para economizar memória/tempo.
+        Usa _seal_surf pré-alocada — zero alocações por frame.
         """
         cam  = self.cam
-        # Surface do tamanho do clip, não da tela toda
-        surf = pygame.Surface((clip.width, clip.height), pygame.SRCALPHA)
-        ox, oy = clip.x, clip.y   # offset para converter coords de tela → surf local
+        surf = self._seal_surf
+        surf.fill((0, 0, 0, 0), clip)   # limpa só o clip
 
         for zone in self.zones.values():
             if not zone.ancient_seal:
@@ -463,8 +445,6 @@ class MapRenderer:
             if not clip.collidepoint(sx, sy):
                 continue
 
-            lx, ly = sx - ox, sy - oy  # coords locais na surf
-
             r = max(7, min(22, int(16 * cam.zoom)))
 
             pulse_speed = {"sleeping": 1.2, "stirring": 2.2, "awakened": 3.5, "broken": 0.5}
@@ -473,31 +453,31 @@ class MapRenderer:
             a_inner = int(140 + math.sin(t * ps + 1.0) * 70)
             a_lines = int(100 + math.sin(t * ps + 0.5) * 50)
 
-            pygame.draw.circle(surf, (*col, a_outer), (lx, ly), r)
-            pygame.draw.circle(surf, (*col, a_inner), (lx, ly), max(3, r // 2), max(1, r // 5))
+            pygame.draw.circle(surf, (*col, a_outer), (sx, sy), r)
+            pygame.draw.circle(surf, (*col, a_inner), (sx, sy), max(3, r // 2), max(1, r // 5))
             for angle_deg in [45, 135]:
                 angle = math.radians(angle_deg)
                 dx = math.cos(angle) * r * 0.75
                 dy = math.sin(angle) * r * 0.75
                 pygame.draw.line(surf, (*col, a_lines),
-                                 (int(lx - dx), int(ly - dy)),
-                                 (int(lx + dx), int(ly + dy)),
+                                 (int(sx - dx), int(sy - dy)),
+                                 (int(sx + dx), int(sy + dy)),
                                  max(1, r // 6))
-            pygame.draw.circle(surf, (*col, min(255, a_inner + 40)), (lx, ly), max(2, r // 4))
+            pygame.draw.circle(surf, (*col, min(255, a_inner + 40)), (sx, sy), max(2, r // 4))
 
         screen.set_clip(clip)
-        screen.blit(surf, clip.topleft)
+        screen.blit(surf, (0, 0))
         screen.set_clip(None)
 
     # ── Indicador de dono (círculo com iniciais) ──────────────────────────
     def _draw_owner_badges(self, screen, ownership, clip):
         """
         [FASE 2] Círculo com 1-2 iniciais do nome do deus no centróide da zona.
-        Usa surface do tamanho do clip para melhor performance.
+        Usa _badge_surf pré-alocada — zero alocações por frame.
         """
         cam  = self.cam
-        surf = pygame.Surface((clip.width, clip.height), pygame.SRCALPHA)
-        ox, oy = clip.x, clip.y
+        surf = self._badge_surf
+        surf.fill((0, 0, 0, 0), clip)   # limpa só o clip
 
         badge_r   = max(8, min(18, int(13 * cam.zoom)))
         font_size = max(7, min(14, int(10 * cam.zoom)))
@@ -516,19 +496,18 @@ class MapRenderer:
             if not clip.collidepoint(sx, badge_y):
                 continue
 
-            lx, ly = sx - ox, badge_y - oy  # coords locais
             r, g, b = god.rgb()
             initials = "".join(w[0].upper() for w in god.god_name.split()[:2])
 
-            pygame.draw.circle(surf, (r, g, b, 160), (lx, ly), badge_r)
-            pygame.draw.circle(surf, (*GOLD, 200), (lx, ly), badge_r, max(1, badge_r // 5))
+            pygame.draw.circle(surf, (r, g, b, 160), (sx, badge_y), badge_r)
+            pygame.draw.circle(surf, (*GOLD, 200), (sx, badge_y), badge_r, max(1, badge_r // 5))
 
             txt_surf = font.render(initials, True, (240, 235, 215))
-            txt_rect = txt_surf.get_rect(center=(lx, ly))
+            txt_rect = txt_surf.get_rect(center=(sx, badge_y))
             surf.blit(txt_surf, txt_rect)
 
         screen.set_clip(clip)
-        screen.blit(surf, clip.topleft)
+        screen.blit(surf, (0, 0))
         screen.set_clip(None)
 
     # ── Labels ────────────────────────────────────────────────────────────

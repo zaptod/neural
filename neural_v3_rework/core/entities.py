@@ -132,6 +132,7 @@ class Lutador:
         # Efeitos ativos
         self.buffs_ativos = []
         self.dots_ativos = []
+        self.status_effects = []  # Lista unificada para brain.py e magic_system
 
         # Estado de combate
         self.morto = False
@@ -245,14 +246,14 @@ class Lutador:
                 continue
             
             if efeito == "burn":
-                dot = DotEffect("Queimadura", alvo, dano_tick=5, duracao=3.0)
+                dot = DotEffect("Queimando", alvo, 5, 3.0, (255, 100, 0))
                 alvo.dots_ativos.append(dot)
             elif efeito == "slow":
                 alvo.slow_timer = 2.0
                 alvo.slow_fator = 0.5
             elif efeito == "poison":
-                dot = DotEffect("Veneno", alvo, dano_tick=enc.get("dot_dano", 3), 
-                               duracao=enc.get("dot_duracao", 5.0))
+                dot = DotEffect("Envenenado", alvo, enc.get("dot_dano", 3),
+                               enc.get("dot_duracao", 5.0), (100, 255, 100))
                 alvo.dots_ativos.append(dot)
             elif efeito == "lifesteal":
                 percent = enc.get("lifesteal_percent", 10) / 100.0
@@ -684,6 +685,8 @@ class Lutador:
             self.flash_timer -= dt
         if self.stun_timer > 0:
             self.stun_timer -= dt
+            if self.stun_timer <= 0 and getattr(self, 'congelado', False):
+                self.congelado = False
         if self.cd_skill_arma > 0:
             self.cd_skill_arma -= dt
         if self.slow_timer > 0:
@@ -754,6 +757,33 @@ class Lutador:
             dot.atualizar(dt)
             if not dot.ativo:
                 self.dots_ativos.remove(dot)
+        # Sincroniza status_effects com dots_ativos para brain.py / magic_system
+        # Cria objetos leves com atributos esperados pelo brain
+        self.status_effects = [
+            type('SE', (), {
+                'nome': dot.tipo,
+                'mod_velocidade': 1.0,
+                'mod_dano_causado': 1.0,
+                'mod_dano_recebido': 1.0,
+                'pode_mover': True,
+                'pode_atacar': True,
+                'dano_por_tick': dot.dano_por_tick,
+            })()
+            for dot in self.dots_ativos
+        ]
+        # Adiciona CCs ativos (stun, slow, congelado)
+        if self.stun_timer > 0:
+            self.status_effects.append(type('SE', (), {
+                'nome': 'congelado' if getattr(self, 'congelado', False) else 'atordoado',
+                'mod_velocidade': 0.0, 'mod_dano_causado': 1.0, 'mod_dano_recebido': 1.0,
+                'pode_mover': False, 'pode_atacar': False, 'dano_por_tick': 0,
+            })())
+        elif self.slow_timer > 0:
+            self.status_effects.append(type('SE', (), {
+                'nome': 'lento',
+                'mod_velocidade': self.slow_fator, 'mod_dano_causado': 1.0, 'mod_dano_recebido': 1.0,
+                'pode_mover': True, 'pode_atacar': True, 'dano_por_tick': 0,
+            })())
     
     def _atualizar_dash_trail(self, dt):
         """Fade do trail de dash"""

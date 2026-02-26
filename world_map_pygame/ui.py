@@ -185,29 +185,48 @@ class UI:
     def mark_minimap_dirty(self):
         self._minimap_dirty = True
 
+    # ── Helpers de layout ─────────────────────────────────────────────────
+
+    def _filter_btn_rects(self, natures_available: list, title_surf=None):
+        """
+        Retorna lista de (nat, pygame.Rect) dos botões de filtro.
+        Usado por draw_filter_bar (desenho) e handle_filter_click (detecção)
+        para garantir que as coordenadas sejam IDÊNTICAS.
+
+        title_surf: já renderizado em draw_filter_bar para reusar a largura.
+        Se None, renderiza aqui para calcular o X de início.
+        """
+        FH    = self.HUD_H
+        pad   = scaled(8)
+        f_btn = self._fc.get(scaled(11), bold=True)
+
+        if title_surf is None:
+            f_title = self._fc.get(scaled(13), bold=True, serif=True)
+            title_surf = f_title.render("⚔ AETHERMOOR", True, GOLD)
+
+        x = scaled(12) + title_surf.get_width() + scaled(20)
+
+        rects = []
+        for nat in (["all"] + list(natures_available)):
+            lbl = "TODOS" if nat == "all" else nat.upper()
+            w   = f_btn.size(lbl)[0] + pad * 2
+            rects.append((nat, pygame.Rect(x, 3, w, FH - 6)))
+            x += w + scaled(4)
+        return rects
+
     # ── Handle events externos ────────────────────────────────────────────
 
     def handle_filter_click(self, mx: int, my: int, natures_available: list) -> bool:
         """
         Verifica clique na barra de filtros.
-        Retorna True se o clique foi consumido.
+        Usa _filter_btn_rects para garantir coordenadas idênticas ao draw.
         """
         if my >= self.HUD_H:
             return False
-        SW  = config.SCREEN_W
-        FH  = self.HUD_H
-        pad = scaled(8)
-        x   = scaled(80)   # após o título
-
-        for nat in (["all"] + sorted(natures_available)):
-            lbl  = nat.upper() if nat != "all" else "TODOS"
-            font = self._fc.get(scaled(11), bold=True)
-            w    = font.size(lbl)[0] + pad * 2
-            btn  = pygame.Rect(x, 3, w, FH - 6)
+        for nat, btn in self._filter_btn_rects(natures_available):
             if btn.collidepoint(mx, my):
                 self.active_filter = nat
                 return True
-            x += w + scaled(4)
         return False
 
     def handle_minimap_click(self, mx: int, my: int,
@@ -260,20 +279,15 @@ class UI:
         title = f_title.render("⚔ AETHERMOOR", True, GOLD)
         screen.blit(title, (scaled(12), (FH - title.get_height()) // 2))
 
-        # Botões de filtro por natureza
+        # Botões de filtro — rects calculados pelo mesmo helper usado no click handler
         natures_available = sorted(set(z.base_nature for z in zones.values()))
-        pad = scaled(8)
-        x   = scaled(12) + title.get_width() + scaled(20)
+        f_btn = self._fc.get(scaled(11), bold=True)
 
-        for nat in (["all"] + natures_available):
+        for nat, btn in self._filter_btn_rects(natures_available, title_surf=title):
             lbl    = "TODOS" if nat == "all" else nat.upper()
             col    = NATURE_COLOR.get(nat, TXT_DIM) if nat != "all" else TXT
             active = (self.active_filter == nat)
 
-            w   = f_btn.size(lbl)[0] + pad * 2
-            btn = pygame.Rect(x, 3, w, FH - 6)
-
-            # Fundo do botão
             if active:
                 _rrect(screen, col, btn, r=3, alpha=55)
                 pygame.draw.rect(screen, col, btn, 1, border_radius=3)
@@ -282,7 +296,6 @@ class UI:
 
             lbl_s = f_btn.render(lbl, True, col if active else TXT_MUTED)
             screen.blit(lbl_s, lbl_s.get_rect(center=btn.center))
-            x += w + scaled(4)
 
         # Info direita: stats + zoom + fps
         n_claimed = sum(1 for v in ownership.values() if v)

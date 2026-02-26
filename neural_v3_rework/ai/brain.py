@@ -3119,10 +3119,19 @@ class AIBrain:
         # ── Estado do inimigo ──
         inimigo_stunado       = self._verificar_inimigo_stunado(inimigo)
         inimigo_debuffado     = self._verificar_inimigo_debuffado(inimigo)
-        inimigo_queimando     = any(getattr(e,'nome','').lower() in ('queimando','burning')
-                                     for e in getattr(inimigo, 'status_effects', []))
-        inimigo_congelado     = any(getattr(e,'nome','').lower() in ('congelado','frozen')
-                                     for e in getattr(inimigo, 'status_effects', []))
+        # Verifica queimando: usa dots_ativos (sistema real) + status_effects (sync)
+        inimigo_queimando     = any(
+            getattr(d, 'tipo', getattr(d, 'nome', '')).upper() in ('QUEIMANDO', 'QUEIMAR', 'BURNING')
+            for d in getattr(inimigo, 'dots_ativos', [])
+        ) or any(
+            getattr(e, 'nome', '').lower() in ('queimando', 'burning')
+            for e in getattr(inimigo, 'status_effects', [])
+        )
+        # Verifica congelado: usa flag direta (sistema real) + status_effects (sync)
+        inimigo_congelado     = getattr(inimigo, 'congelado', False) or any(
+            getattr(e, 'nome', '').lower() in ('congelado', 'frozen')
+            for e in getattr(inimigo, 'status_effects', [])
+        )
         inimigo_reposicionando = self.leitura_oponente.get("reposicionando", False)
         inimigo_atk_iminente  = self.leitura_oponente.get("ataque_iminente", False)
         encurralado           = self.consciencia_espacial.get("encurralado", False)
@@ -3873,7 +3882,13 @@ class AIBrain:
         
         if skill_info["fonte"] == "arma":
             if hasattr(p, 'usar_skill_arma'):
-                return p.usar_skill_arma()
+                # Encontra o índice correto da skill na lista de skills da arma
+                nome = skill_info["nome"]
+                for idx, sk in enumerate(getattr(p, 'skills_arma', [])):
+                    if sk.get("nome") == nome:
+                        return p.usar_skill_arma(skill_idx=idx)
+                # Fallback: tenta pelo índice 0 se não encontrar (compatibilidade legada)
+                return p.usar_skill_arma(skill_idx=0)
         elif skill_info["fonte"] == "classe":
             if hasattr(p, 'usar_skill_classe'):
                 return p.usar_skill_classe(skill_info["nome"])
