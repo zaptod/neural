@@ -1,0 +1,49 @@
+[
+    {
+        "nome": "1",
+        "tipo": "Reta",
+        "dano": 10.0,
+        "peso": 5.0,
+        "raridade": "Comum",
+        "comp_cabo": 60.0,
+        "comp_lamina": 75.0,
+        "largura": 15.0,
+        "distancia": 0.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "quantidade": 1,
+        "tamanho_arco": 0.0,
+        "forca_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "quantidade_orbitais": 1,
+        "tamanho": 15.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 200,
+        "g": 200,
+        "b": 200,
+        "estilo": "",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Meteoro",
+                "custo": 40.0
+            }
+        ],
+        "encantamentos": [],
+        "passiva": null,
+        "critico": 0.0,
+        "velocidade_ataque": 1.0,
+        "afinidade_elemento": null,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Meteoro",
+        "custo_mana": 40.0
+    }
+]

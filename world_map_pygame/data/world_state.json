@@ -1,0 +1,60 @@
+{
+  "_meta": {
+    "last_updated": "2026-02-26T17:37:16.650544"
+  },
+  "zone_ownership": {
+    "shattered_peak": null,
+    "ashen_wastes": null,
+    "dead_crown": null,
+    "elderwood_grove": null,
+    "thornwall": null,
+    "misty_highlands": null,
+    "iron_gate": null,
+    "anvil_plains": null,
+    "warriors_rest": null,
+    "char_fields": null,
+    "cinder_pit": null,
+    "dragonfault": null,
+    "bleached_path": null,
+    "grave_hollow": null,
+    "widows_pass": null,
+    "slum_district": "caleb_01",
+    "merchant_quarter": null,
+    "high_citadel": null,
+    "drowned_shore": null,
+    "salt_flats": null,
+    "deep_current": null,
+    "gilded_road": null,
+    "dusthaven": null,
+    "old_crossing": null,
+    "seal_of_fear": null,
+    "seal_of_balance": null,
+    "seal_of_greed": null
+  },
+  "contested_borders": [],
+  "ancient_seals": {
+    "seal_of_balance": {
+      "crack_level": 3,
+      "max_cracks": 5,
+      "status": "awakened"
+    },
+    "seal_of_fear": {
+      "crack_level": 0,
+      "max_cracks": 5,
+      "status": "sleeping"
+    },
+    "seal_of_greed": {
+      "crack_level": 1,
+      "max_cracks": 5,
+      "status": "stirring"
+    }
+  },
+  "global_stats": {
+    "total_gods": 1,
+    "total_followers": 0,
+    "zones_claimed": 1,
+    "zones_contested": 0,
+    "war_intensity": 0.0
+  },
+  "world_events": []
+}

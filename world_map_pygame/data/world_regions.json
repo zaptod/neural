@@ -1,0 +1,363 @@
+{
+  "_meta": {
+    "world_name": "Aethermoor",
+    "world_width": 2000,
+    "world_height": 1400,
+    "total_zones": 27,
+    "total_regions": 9
+  },
+  "regions": [
+    {
+      "region_id": "void_ridge",
+      "region_name": "The Void Ridge",
+      "description": "The brutal northern wastes. Unclaimed and chaotic.",
+      "base_nature": "chaos",
+      "zones": [
+        {
+          "zone_id": "shattered_peak",
+          "zone_name": "The Shattered Peak",
+          "lore": "Where the sky splits and storms are born.",
+          "vertices": [[0,0],[660,0],[700,80],[640,220],[0,190]],
+          "centroid": [400, 98],
+          "neighboring_zones": ["ashen_wastes","elderwood_grove"],
+          "ancient_seal": false,
+          "base_nature": "void"
+        },
+        {
+          "zone_id": "ashen_wastes",
+          "zone_name": "The Ashen Wastes",
+          "lore": "A dead plain blanketed in the ash of a forgotten war.",
+          "vertices": [[660,0],[1340,0],[1360,80],[1300,220],[640,220],[700,80]],
+          "centroid": [1000, 100],
+          "neighboring_zones": ["shattered_peak","dead_crown","iron_gate","elderwood_grove"],
+          "ancient_seal": false,
+          "base_nature": "chaos"
+        },
+        {
+          "zone_id": "dead_crown",
+          "zone_name": "The Dead Crown",
+          "lore": "Ruins of a kingdom that tried to rule the Void.",
+          "vertices": [[1340,0],[2000,0],[2000,190],[1960,220],[1300,220],[1360,80]],
+          "centroid": [1660, 118],
+          "neighboring_zones": ["ashen_wastes","char_fields"],
+          "ancient_seal": false,
+          "base_nature": "void"
+        }
+      ]
+    },
+    {
+      "region_id": "verdant_reach",
+      "region_name": "The Verdant Reach",
+      "description": "Ancient forests. Nature gods thrive here.",
+      "base_nature": "nature",
+      "zones": [
+        {
+          "zone_id": "elderwood_grove",
+          "zone_name": "The Elderwood Grove",
+          "lore": "Trees older than the gods. They remember everything.",
+          "vertices": [[0,190],[640,220],[610,440],[15,415]],
+          "centroid": [316, 316],
+          "neighboring_zones": ["shattered_peak","ashen_wastes","thornwall","iron_gate"],
+          "ancient_seal": false,
+          "base_nature": "nature"
+        },
+        {
+          "zone_id": "thornwall",
+          "zone_name": "The Thornwall",
+          "lore": "A living wall of razor thorns that grows overnight.",
+          "vertices": [[15,415],[610,440],[580,660],[10,635]],
+          "centroid": [304, 538],
+          "neighboring_zones": ["elderwood_grove","misty_highlands","iron_gate","anvil_plains"],
+          "ancient_seal": false,
+          "base_nature": "nature"
+        },
+        {
+          "zone_id": "misty_highlands",
+          "zone_name": "The Misty Highlands",
+          "lore": "Fog so thick mortals forget their own names.",
+          "vertices": [[10,635],[580,660],[545,790],[0,770]],
+          "centroid": [284, 714],
+          "neighboring_zones": ["thornwall","bleached_path","warriors_rest","slum_district"],
+          "ancient_seal": false,
+          "base_nature": "arcane"
+        }
+      ]
+    },
+    {
+      "region_id": "iron_heartlands",
+      "region_name": "The Iron Heartlands",
+      "description": "The central military zone. Where armies clash.",
+      "base_nature": "balanced",
+      "zones": [
+        {
+          "zone_id": "iron_gate",
+          "zone_name": "The Iron Gate",
+          "lore": "The great passage through the north. Every conqueror starts here.",
+          "vertices": [[640,220],[1300,220],[1315,395],[655,405]],
+          "centroid": [978, 310],
+          "neighboring_zones": ["ashen_wastes","elderwood_grove","thornwall","anvil_plains","char_fields"],
+          "ancient_seal": false,
+          "base_nature": "balanced"
+        },
+        {
+          "zone_id": "anvil_plains",
+          "zone_name": "The Anvil Plains",
+          "lore": "Flat lands perfect for battle. The gods use it as a proving ground.",
+          "vertices": [[655,405],[1315,395],[1322,572],[652,582]],
+          "centroid": [986, 489],
+          "neighboring_zones": ["iron_gate","thornwall","warriors_rest"],
+          "ancient_seal": false,
+          "base_nature": "balanced"
+        },
+        {
+          "zone_id": "warriors_rest",
+          "zone_name": "The Warrior's Rest",
+          "lore": "Where champions go after their last battle. Not all of them die.",
+          "vertices": [[652,582],[1322,572],[1312,705],[642,710]],
+          "centroid": [982, 642],
+          "neighboring_zones": ["anvil_plains","misty_highlands","slum_district","dragonfault","drowned_shore"],
+          "ancient_seal": false,
+          "base_nature": "balanced"
+        }
+      ]
+    },
+    {
+      "region_id": "ember_barrens",
+      "region_name": "The Ember Barrens",
+      "description": "Volcanic east. The soil itself is hot.",
+      "base_nature": "fire",
+      "zones": [
+        {
+          "zone_id": "char_fields",
+          "zone_name": "The Char Fields",
+          "lore": "Nothing grows here. The soil is pure carbon from ancient fires.",
+          "vertices": [[1300,220],[2000,190],[2000,435],[1332,448]],
+          "centroid": [1658, 323],
+          "neighboring_zones": ["dead_crown","ashen_wastes","iron_gate","cinder_pit"],
+          "ancient_seal": false,
+          "base_nature": "fire"
+        },
+        {
+          "zone_id": "cinder_pit",
+          "zone_name": "The Cinder Pit",
+          "lore": "A great wound in the earth that never stops burning.",
+          "vertices": [[1332,448],[2000,435],[2000,648],[1358,662]],
+          "centroid": [1673, 548],
+          "neighboring_zones": ["char_fields","dragonfault"],
+          "ancient_seal": false,
+          "base_nature": "fire"
+        },
+        {
+          "zone_id": "dragonfault",
+          "zone_name": "The Dragonfault",
+          "lore": "A rift where something massive once crashed through the earth.",
+          "vertices": [[1358,662],[2000,648],[2000,800],[1382,800]],
+          "centroid": [1685, 728],
+          "neighboring_zones": ["cinder_pit","warriors_rest","drowned_shore"],
+          "ancient_seal": false,
+          "base_nature": "fire"
+        }
+      ]
+    },
+    {
+      "region_id": "bone_marches",
+      "region_name": "The Bone Marches",
+      "description": "Cursed western lowlands. Death follows you here.",
+      "base_nature": "darkness",
+      "zones": [
+        {
+          "zone_id": "bleached_path",
+          "zone_name": "The Bleached Path",
+          "lore": "A road paved with the bones of those who tried to flee.",
+          "vertices": [[0,770],[545,790],[518,958],[0,942]],
+          "centroid": [266, 865],
+          "neighboring_zones": ["misty_highlands","grave_hollow","slum_district"],
+          "ancient_seal": false,
+          "base_nature": "darkness"
+        },
+        {
+          "zone_id": "grave_hollow",
+          "zone_name": "The Grave Hollow",
+          "lore": "A valley so silent even prayers don't echo here.",
+          "vertices": [[0,942],[518,958],[508,1098],[0,1080]],
+          "centroid": [257, 1020],
+          "neighboring_zones": ["bleached_path","widows_pass","merchant_quarter"],
+          "ancient_seal": false,
+          "base_nature": "darkness"
+        },
+        {
+          "zone_id": "widows_pass",
+          "zone_name": "The Widow's Pass",
+          "lore": "Where the war widows built their own city. None are welcome.",
+          "vertices": [[0,1080],[508,1098],[490,1162],[0,1162]],
+          "centroid": [250, 1126],
+          "neighboring_zones": ["grave_hollow","high_citadel","gilded_road"],
+          "ancient_seal": false,
+          "base_nature": "darkness"
+        }
+      ]
+    },
+    {
+      "region_id": "crown_districts",
+      "region_name": "The Crown Districts",
+      "description": "The center of the world. The most contested land in Aethermoor.",
+      "base_nature": "balanced",
+      "zones": [
+        {
+          "zone_id": "slum_district",
+          "zone_name": "The Slum District",
+          "lore": "Where Caleb was born, beaten, and thrown into the abyss to die. Where the God War truly began.",
+          "vertices": [[642,710],[1312,705],[1308,858],[648,868]],
+          "centroid": [978, 785],
+          "neighboring_zones": ["warriors_rest","misty_highlands","bleached_path","merchant_quarter","drowned_shore"],
+          "ancient_seal": false,
+          "base_nature": "balanced",
+          "is_origin": true
+        },
+        {
+          "zone_id": "merchant_quarter",
+          "zone_name": "The Merchant Quarter",
+          "lore": "Gold changes hands here faster than prayers reach the gods.",
+          "vertices": [[648,868],[1308,858],[1298,1005],[652,1012]],
+          "centroid": [977, 936],
+          "neighboring_zones": ["slum_district","high_citadel","grave_hollow","drowned_shore"],
+          "ancient_seal": false,
+          "base_nature": "balanced"
+        },
+        {
+          "zone_id": "high_citadel",
+          "zone_name": "The High Citadel",
+          "lore": "The throne of a dead king. Whoever controls this controls the world's memory.",
+          "vertices": [[652,1012],[1298,1005],[1288,1128],[658,1128]],
+          "centroid": [974, 1068],
+          "neighboring_zones": ["merchant_quarter","widows_pass","dusthaven","salt_flats"],
+          "ancient_seal": false,
+          "base_nature": "balanced"
+        }
+      ]
+    },
+    {
+      "region_id": "tidal_expanse",
+      "region_name": "The Tidal Expanse",
+      "description": "The eastern coast. Calm on the surface. Deadly underneath.",
+      "base_nature": "void",
+      "zones": [
+        {
+          "zone_id": "drowned_shore",
+          "zone_name": "The Drowned Shore",
+          "lore": "A coast where ships go to die. The water here remembers every storm.",
+          "vertices": [[1382,800],[2000,800],[2000,965],[1405,975]],
+          "centroid": [1697, 885],
+          "neighboring_zones": ["dragonfault","warriors_rest","slum_district","merchant_quarter","salt_flats"],
+          "ancient_seal": false,
+          "base_nature": "void"
+        },
+        {
+          "zone_id": "salt_flats",
+          "zone_name": "The Salt Flats",
+          "lore": "Endless white plains. Nothing rots here. Nothing heals either.",
+          "vertices": [[1405,975],[2000,965],[2000,1105],[1415,1112]],
+          "centroid": [1705, 1040],
+          "neighboring_zones": ["drowned_shore","high_citadel","deep_current"],
+          "ancient_seal": false,
+          "base_nature": "void"
+        },
+        {
+          "zone_id": "deep_current",
+          "zone_name": "The Deep Current",
+          "lore": "An inland sea that drains to nowhere. The water flows down and never returns.",
+          "vertices": [[1415,1112],[2000,1105],[2000,1162],[1418,1162]],
+          "centroid": [1708, 1135],
+          "neighboring_zones": ["salt_flats","old_crossing"],
+          "ancient_seal": false,
+          "base_nature": "void"
+        }
+      ]
+    },
+    {
+      "region_id": "golden_reaches",
+      "region_name": "The Golden Reaches",
+      "description": "The southern trade roads. Wealth and rot in equal measure.",
+      "base_nature": "greed",
+      "zones": [
+        {
+          "zone_id": "gilded_road",
+          "zone_name": "The Gilded Road",
+          "lore": "The ancient trade road. Every stone is worth more than a peasant's life.",
+          "vertices": [[0,1162],[660,1162],[648,1298],[0,1298]],
+          "centroid": [327, 1230],
+          "neighboring_zones": ["widows_pass","dusthaven","seal_of_fear"],
+          "ancient_seal": false,
+          "base_nature": "greed"
+        },
+        {
+          "zone_id": "dusthaven",
+          "zone_name": "The Dusthaven",
+          "lore": "A crossroads city built on debt. Everyone here owes someone something.",
+          "vertices": [[660,1162],[1382,1162],[1372,1298],[648,1298]],
+          "centroid": [1016, 1230],
+          "neighboring_zones": ["gilded_road","old_crossing","high_citadel","seal_of_balance"],
+          "ancient_seal": false,
+          "base_nature": "greed"
+        },
+        {
+          "zone_id": "old_crossing",
+          "zone_name": "The Old Crossing",
+          "lore": "Where the first human bargained with a god. The deal is still unpaid.",
+          "vertices": [[1372,1162],[2000,1162],[2000,1298],[1372,1298]],
+          "centroid": [1686, 1230],
+          "neighboring_zones": ["dusthaven","deep_current","seal_of_greed"],
+          "ancient_seal": false,
+          "base_nature": "greed"
+        }
+      ]
+    },
+    {
+      "region_id": "sunken_archive",
+      "region_name": "The Sunken Archive",
+      "description": "WHERE THE ANCIENT GODS SLEEP. THESE ZONES CANNOT BE CLAIMED.",
+      "base_nature": "ancient",
+      "zones": [
+        {
+          "zone_id": "seal_of_fear",
+          "zone_name": "Seal of Fear",
+          "lore": "The God of Fear sleeps here. The ground breathes. Mortals who approach report hearing their own deaths.",
+          "vertices": [[0,1298],[648,1298],[638,1400],[0,1400]],
+          "centroid": [322, 1349],
+          "neighboring_zones": ["gilded_road","seal_of_balance"],
+          "ancient_seal": true,
+          "sealed_god": "god_of_fear",
+          "crack_level": 0,
+          "max_cracks": 5,
+          "base_nature": "fear"
+        },
+        {
+          "zone_id": "seal_of_balance",
+          "zone_name": "Seal of Balance",
+          "lore": "The God of Balance was the first to wake. The seal here is cracked and weeping light from one side, darkness from the other.",
+          "vertices": [[648,1298],[1372,1298],[1362,1400],[638,1400]],
+          "centroid": [1005, 1349],
+          "neighboring_zones": ["seal_of_fear","seal_of_greed","dusthaven"],
+          "ancient_seal": true,
+          "sealed_god": "god_of_balance",
+          "crack_level": 3,
+          "max_cracks": 5,
+          "base_nature": "balanced"
+        },
+        {
+          "zone_id": "seal_of_greed",
+          "zone_name": "Seal of Greed",
+          "lore": "The God of Greed sleeps on a mountain of offerings mortals left trying to bribe it back to sleep.",
+          "vertices": [[1362,1298],[2000,1298],[2000,1400],[1362,1400]],
+          "centroid": [1681, 1349],
+          "neighboring_zones": ["seal_of_balance","old_crossing"],
+          "ancient_seal": true,
+          "sealed_god": "god_of_greed",
+          "crack_level": 1,
+          "max_cracks": 5,
+          "base_nature": "greed"
+        }
+      ]
+    }
+  ]
+}

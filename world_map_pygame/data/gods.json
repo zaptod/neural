@@ -1,0 +1,85 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "description": "Neural Fights - God Registry. Each entry is a God claiming territory in Aethermoor.",
+    "nature_elements": [
+      "balanced",
+      "fire",
+      "ice",
+      "darkness",
+      "nature",
+      "chaos",
+      "void",
+      "greed",
+      "fear",
+      "arcane",
+      "blood",
+      "time",
+      "gravity"
+    ]
+  },
+  "gods": [
+    {
+      "god_id": "caleb_01",
+      "god_name": "Caleb",
+      "nature": "Balance",
+      "nature_element": "balanced",
+      "follower_count": 0,
+      "color_primary": "#00d9ff",
+      "color_secondary": "#e94560",
+      "champion_character_id": null,
+      "owned_zones": [
+        "slum_district"
+      ],
+      "is_ancient": false,
+      "is_player_god": false,
+      "is_protagonist": true,
+      "registered_at": "2026-02-24T00:00:00",
+      "source": "lore",
+      "api_source": null,
+      "border_style": "balance",
+      "lore_description": "Born in the Slum District. Thrown into an abyss. Chose to stand back up. Champion of the God of Balance \u2014 but the cost of his power breeds chaos wherever he wins."
+    }
+  ],
+  "ancient_gods": [
+    {
+      "god_id": "ancient_balance",
+      "god_name": "The God of Balance",
+      "nature": "Balance",
+      "nature_element": "balanced",
+      "color_primary": "#00d9ff",
+      "color_secondary": "#e94560",
+      "seal_zone": "seal_of_balance",
+      "crack_level": 3,
+      "is_ancient": true,
+      "status": "awakened",
+      "lore_description": "A corrupted Athena. First to wake. She does not speak \u2014 she tilts."
+    },
+    {
+      "god_id": "ancient_fear",
+      "god_name": "The God of Fear",
+      "nature": "Fear",
+      "nature_element": "fear",
+      "color_primary": "#2d0040",
+      "color_secondary": "#7a00aa",
+      "seal_zone": "seal_of_fear",
+      "crack_level": 0,
+      "is_ancient": true,
+      "status": "sleeping",
+      "lore_description": "Still asleep. But the nightmares have been getting louder."
+    },
+    {
+      "god_id": "ancient_greed",
+      "god_name": "The God of Greed",
+      "nature": "Greed",
+      "nature_element": "greed",
+      "color_primary": "#b8860b",
+      "color_secondary": "#ffd700",
+      "seal_zone": "seal_of_greed",
+      "crack_level": 1,
+      "is_ancient": true,
+      "status": "stirring",
+      "lore_description": "One eye has opened. It immediately looked at what others owned."
+    }
+  ]
+}

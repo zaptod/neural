@@ -1,0 +1,56 @@
+{
+    "gods": {
+        "god_balance": {
+            "name": "The Goddess of Balance",
+            "nature": "Balance",
+            "color": [
+                180,
+                160,
+                255
+            ],
+            "followers": 1,
+            "territories": []
+        },
+        "god_fear": {
+            "name": "The God of Fear",
+            "nature": "Fear",
+            "color": [
+                80,
+                0,
+                0
+            ],
+            "followers": 0,
+            "territories": []
+        },
+        "god_greed": {
+            "name": "The God of Greed",
+            "nature": "Greed",
+            "color": [
+                255,
+                200,
+                0
+            ],
+            "followers": 0,
+            "territories": []
+        }
+    },
+    "territories": {
+        "warriors_rest": {
+            "name": "Warriors Rest",
+            "owner_god_id": "caleb_01",
+            "visual_theme": {}
+        }
+    },
+    "world_events": [
+        {
+            "type": "awakening",
+            "god_id": "god_balance",
+            "trigger": "Caleb cursed the world's unfairness"
+        },
+        {
+            "type": "territory_claimed",
+            "god_id": "caleb_01",
+            "territory_id": "warriors_rest"
+        }
+    ]
+}
