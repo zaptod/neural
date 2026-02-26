@@ -2,6 +2,12 @@
 world_map_pygame/terrain.py
 Geração procedural do heightmap via fBm Perlin (numpy puro)
 e construção da textura cartográfica base.
+
+[FASE 1] Mudanças:
+  - Paleta da textura atualizada: oceano azul-noite sépia, terra pergaminho quente
+  - Fronteiras de zona: tracejado sépia (era azul-claro)
+  - Rios: azul-sépia suave (era azul-cyan)
+  - Ruído de textura aumentado levemente (mais "pergaminho")
 """
 import math, random
 import numpy as np
@@ -10,7 +16,7 @@ from scipy.ndimage import binary_dilation
 
 from .config import (
     TEX_W, TEX_H, SEA_LEVEL, TERRAIN_SEED,
-    OCEAN_PALETTE, C_SHORE, C_LAND, C_LAND_HI, C_RIVER,
+    OCEAN_PALETTE, C_SHORE, C_LAND, C_LAND_HI, C_RIVER, C_BORDER,
 )
 
 
@@ -55,8 +61,7 @@ def fbm(px, py, perm, octaves=8, lac=2.0, gain=0.48):
 
 def generate_heightmap(seed: int = TERRAIN_SEED) -> np.ndarray:
     """
-    Retorna heightmap normalizado (TEX_H, TEX_W) float32 ∈ [0,1].
-    ~39% terra, ~61% oceano — proporcional à imagem de referência.
+    Retorna heightmap normalizado (TEX_H, TEX_W) float32 em [0,1].
     """
     H, W = TEX_H, TEX_W
     perm = _make_perm(seed)
@@ -75,7 +80,7 @@ def generate_heightmap(seed: int = TERRAIN_SEED) -> np.ndarray:
     island = np.clip(1.0 - dist * 1.25, 0, 1) ** 0.7
     h = h * 0.5 + island * 0.6
 
-    # Suavização por FFT (remove artefatos de alta frequência)
+    # Suavização por FFT
     H_f = fft2(h)
     fy  = np.fft.fftfreq(H).reshape(-1, 1).astype(np.float32)
     fx  = np.fft.fftfreq(W).reshape(1, -1).astype(np.float32)
@@ -89,10 +94,6 @@ def generate_heightmap(seed: int = TERRAIN_SEED) -> np.ndarray:
 # ─── RIOS ─────────────────────────────────────────────────────────────────────
 def trace_rivers(h: np.ndarray, land_mask: np.ndarray,
                  n_seeds: int = 70, seed: int = 99) -> np.ndarray:
-    """
-    Traça rios seguindo gradiente descendente a partir de pontos altos.
-    Retorna máscara booleana (H, W).
-    """
     H, W  = h.shape
     mask  = np.zeros((H, W), dtype=bool)
     rng   = random.Random(seed)
@@ -125,19 +126,16 @@ def trace_rivers(h: np.ndarray, land_mask: np.ndarray,
                 break
 
         if length < 12:
-            # rio muito curto — apaga
             mask[max(0, sy-2):sy+3, max(0, sx-2):sx+3] = False
 
     return mask
 
 
 # ─── TEXTURA BASE ─────────────────────────────────────────────────────────────
-def build_base_texture(h: np.ndarray,
-                       border_mask: np.ndarray) -> np.ndarray:
+def build_base_texture(h: np.ndarray, border_mask: np.ndarray) -> np.ndarray:
     """
-    Constrói o array (H, W, 3) uint8 do mapa base (sem tints de zona).
-    border_mask: máscara booleana das fronteiras de zona a desenhar.
-    Retorna img_u8.
+    Constrói o array (H, W, 3) uint8 do mapa base.
+    [FASE 1] Paleta atualizada para sépia/pergaminho.
     """
     H, W = h.shape
     img  = np.zeros((H, W, 3), dtype=np.float32)
@@ -158,26 +156,29 @@ def build_base_texture(h: np.ndarray,
     img[shore] = C_SHORE
 
     # ── Terra com gradiente de elevação ───────────────────────────────────
-    elev  = np.where(land_mask, (h - SEA_LEVEL) / (1 - SEA_LEVEL + 1e-9), 0.0)
-    lc    = (C_LAND[np.newaxis, np.newaxis, :]   * (1 - elev[:, :, np.newaxis]) +
-             C_LAND_HI[np.newaxis, np.newaxis, :] *      elev[:, :, np.newaxis])
+    elev = np.where(land_mask, (h - SEA_LEVEL) / (1 - SEA_LEVEL + 1e-9), 0.0)
+    lc   = (C_LAND[np.newaxis, np.newaxis, :]    * (1 - elev[:, :, np.newaxis]) +
+            C_LAND_HI[np.newaxis, np.newaxis, :] *      elev[:, :, np.newaxis])
     img[land_mask] = lc[land_mask]
 
-    # ── Ruído de textura pontilhado ───────────────────────────────────────
+    # ── Ruído de textura pontilhado (mais denso = mais "pergaminho") ──────
     rng2  = np.random.default_rng(7)
     noise = rng2.uniform(0, 1, (H, W)).astype(np.float32)
-    dots  = land_mask & (noise < 0.014)
-    img[dots] = np.clip(img[dots] - 18, 0, 255)
+    # Pontilhado claro e escuro para imitar fibra de papel envelhecido
+    dots_dark  = land_mask & (noise < 0.018)
+    dots_light = land_mask & (noise > 0.984)
+    img[dots_dark]  = np.clip(img[dots_dark]  - 22, 0, 255)
+    img[dots_light] = np.clip(img[dots_light] + 14, 0, 255)
 
     img_u8 = np.clip(img, 0, 255).astype(np.uint8)
 
-    # ── Rios ──────────────────────────────────────────────────────────────
+    # ── Rios (azul-sépia) ─────────────────────────────────────────────────
     rivers = trace_rivers(h, land_mask)
     img_u8[rivers & land_mask] = np.array(C_RIVER, dtype=np.uint8)
 
-    # ── Fronteiras de zona (tracejadas) ───────────────────────────────────
+    # ── Fronteiras de zona (tracejado sépia em vez de azul-claro) ────────
     ys_b, xs_b = np.where(border_mask & land_mask)
     dash = (xs_b + ys_b) % 4 < 2
-    img_u8[ys_b[dash], xs_b[dash]] = np.array([170, 200, 226], dtype=np.uint8)
+    img_u8[ys_b[dash], xs_b[dash]] = np.array(C_BORDER, dtype=np.uint8)
 
     return img_u8

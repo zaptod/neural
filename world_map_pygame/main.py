@@ -1,12 +1,19 @@
 """
 world_map_pygame/main.py
-Ponto de entrada. A janela é criada com o tamanho real detectado em config.py.
+Ponto de entrada.
+
+[FASE 3] Integração com nova UI:
+  - draw_filter_bar, draw_bottom_panel_with_gods substituem painéis antigos
+  - Cliques na filter bar e no minimap tratados antes do mapa
+  - selected_zone passado para ui.open_panel()
+  - Tecla F: toggle da barra de filtros (fecha/abre)
+  - Minimap marca dirty quando ownership muda
 """
 import sys, time
 import pygame
 
-# config.py já detectou SCREEN_W/SCREEN_H baseado na tela real
-from .config        import SCREEN_W, SCREEN_H, FPS
+from .config        import SCREEN_W, SCREEN_H, FPS, GOLD, scaled
+from . import config
 from .data_loader   import load_data
 from .terrain       import generate_heightmap, build_base_texture
 from .territories   import build_territory_maps, extract_border_mask, zone_at_pixel, world_to_tex
@@ -18,9 +25,6 @@ from .particles     import Particles
 
 def run():
     pygame.init()
-
-    # Cria janela exatamente no tamanho detectado pelo config.py
-    # (SCREEN_W/SCREEN_H já respeitam o tamanho físico da tela)
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
     pygame.display.set_caption("Neural Fights — Aethermoor")
     clock = pygame.time.Clock()
@@ -30,8 +34,7 @@ def run():
     # ── Loading ────────────────────────────────────────────────────────────
     ui.draw_loading(screen, "Carregando dados do mundo...", 0.05)
     zones, gods, ownership, ancient_seals, global_stats = load_data()
-    print(f"[map] {len(zones)} zonas · {len(gods)} deuses · "
-          f"janela {SCREEN_W}×{SCREEN_H}")
+    print(f"[map] {len(zones)} zonas · {len(gods)} deuses · janela {SCREEN_W}×{SCREEN_H}")
 
     ui.draw_loading(screen, "Gerando heightmap procedural (fBm)...", 0.20)
     heightmap = generate_heightmap()
@@ -48,7 +51,7 @@ def run():
     pygame.surfarray.blit_array(map_surf, img_u8.swapaxes(0, 1))
 
     ui.draw_loading(screen, "Inicializando câmera...", 0.92)
-    cam  = Camera(map_x=ui.map_x, map_w=ui.map_w)
+    cam  = Camera(map_x=ui.map_x, map_w=ui.map_w, map_y=ui.map_y)
     rend = MapRenderer(map_surf, zone_idx, zone_list, zones, gods, cam)
     part = Particles()
 
@@ -68,8 +71,10 @@ def run():
         t_anim += dt
         fps    = clock.get_fps()
 
+        # Sincroniza câmera com layout (map_y muda quando painel abre/fecha)
         cam.map_x = ui.map_x
-        cam.map_w = ui.map_w
+        cam.map_w = config.SCREEN_W   # sempre full-width
+        cam.map_y = ui.map_y
 
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
@@ -77,30 +82,52 @@ def run():
 
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_ESCAPE:
-                    running = False
+                    if selected_zone:
+                        selected_zone = None
+                        ui.open_panel(None)
+                    else:
+                        running = False
                 elif ev.key in (pygame.K_h, pygame.K_HOME):
                     cam.fly_home()
                     selected_zone = None
+                    ui.open_panel(None)
                     ui.notify("Visão Global")
                 elif ev.key == pygame.K_r:
                     ui.draw_loading(screen, "Recarregando dados...", 0.5)
                     zones, gods, ownership, ancient_seals, global_stats = load_data()
                     rend.zones = zones
                     rend.gods  = gods
+                    ui.mark_minimap_dirty()
                     ui.notify("Dados recarregados ✓")
 
             elif ev.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = ev.pos
-                on_panel = mx < ui.panel_w
-                on_map   = mx >= ui.map_x and my >= ui.map_y
 
+                # ── 1. Clique na barra de filtros ─────────────────────────
+                if my < ui.HUD_H:
+                    if ev.button == 1:
+                        nats = sorted(set(z.base_nature for z in zones.values()))
+                        ui.handle_filter_click(mx, my, nats)
+                    continue
+
+                # ── 2. Clique no minimap ───────────────────────────────────
+                if ev.button == 1:
+                    if ui.handle_minimap_click(mx, my, cam, zones):
+                        continue
+
+                # ── 3. Scroll no painel inferior ──────────────────────────
+                on_panel = my >= ui._panel_y and ui._panel_slide > 0.1
                 if on_panel:
                     if ev.button == 4:
-                        ui.scroll_panel(-32)
+                        ui.scroll_panel(-scaled(24))
                     elif ev.button == 5:
-                        ui.scroll_panel(32)
+                        ui.scroll_panel(scaled(24))
+                    continue
 
-                elif on_map:
+                # ── 4. Interação com o mapa ───────────────────────────────
+                on_map = mx >= ui.map_x and ui.map_y <= my < ui._panel_y
+
+                if on_map:
                     if ev.button == 1:
                         wx, wy = cam.s2w(mx, my)
                         tx, ty = world_to_tex(wx, wy)
@@ -111,16 +138,18 @@ def run():
                             ui.notify(f"✈  {z.zone_name}")
                         else:
                             selected_zone = z
+                            ui.open_panel(z)
                             if z:
                                 ui.notify(z.zone_name)
                                 sx, sy = cam.w2s(*z.centroid)
-                                part.emit(sx, sy, (255, 220, 60), n=22)
+                                part.emit(sx, sy, GOLD, n=22)
                         last_click_z = z
                         last_click_t = now
                         cam.start_drag(mx, my)
 
                     elif ev.button == 3:
                         selected_zone = None
+                        ui.open_panel(None)
 
                     elif ev.button == 4:
                         cam.zoom_at(mx, my, Camera.ZOOM_STEP)
@@ -135,7 +164,7 @@ def run():
                 mx, my = ev.pos
                 if cam.dragging:
                     cam.update_drag(mx, my)
-                if mx >= ui.map_x and my >= ui.map_y:
+                if ui.map_y <= my < ui._panel_y and mx >= ui.map_x:
                     wx, wy = cam.s2w(mx, my)
                     tx, ty = world_to_tex(wx, wy)
                     hover_zone = zone_at_pixel(zone_idx, zone_list, tx, ty)
@@ -144,7 +173,7 @@ def run():
 
             elif ev.type == pygame.MOUSEWHEEL:
                 mx2, my2 = pygame.mouse.get_pos()
-                if mx2 >= ui.map_x and my2 >= ui.map_y:
+                if ui.map_y <= my2 < ui._panel_y and mx2 >= ui.map_x:
                     f = Camera.ZOOM_STEP if ev.y > 0 else 1 / Camera.ZOOM_STEP
                     cam.zoom_at(mx2, my2, f)
 
@@ -161,25 +190,29 @@ def run():
         ui.update(dt)
 
         # ── Render ─────────────────────────────────────────────────────────
-        screen.fill((6, 12, 28))
+        screen.fill((18, 14, 10))
 
-        # 1. Mapa (clipado à área do mapa)
+        # 1. Mapa
         rend.draw(screen, ownership, selected_zone, hover_zone,
-                  ancient_seals, t_anim, ui.map_x, ui.map_w)
+                  ancient_seals, t_anim, ui.map_x, ui.map_w,
+                  active_filter=ui.active_filter,
+                  map_h=ui.map_h)
 
-        # 2. UI sobre o mapa — ordem: painel, HUD, extras
-        ui.draw_left_panel(screen, gods, zones, ownership,
-                           selected_zone, ancient_seals, global_stats)
-        ui.draw_top_hud(screen, gods, zones, ownership, cam, fps, t_anim)
-        ui.draw_seals_panel(screen, zones, ancient_seals, t_anim)
+        # 2. Partículas
         part.draw(screen)
+
+        # 3. UI — ordem: filtros (topo), painel inferior, tooltip, notif, cantos
+        ui.draw_filter_bar(screen, gods, zones, ownership, cam, fps, t_anim)
+        ui.draw_bottom_panel_with_gods(screen, selected_zone, gods, zones,
+                                       ownership, ancient_seals, global_stats,
+                                       t_anim)
         mx_cur, my_cur = pygame.mouse.get_pos()
         ui.draw_hover_tooltip(screen, hover_zone, gods, ownership,
                               ancient_seals, mx_cur, my_cur)
         ui.draw_notif(screen)
         ui.draw_corners(screen)
 
-        # 3. Intro fade
+        # 4. Intro fade
         if intro_alpha > 0:
             fade = pygame.Surface((SCREEN_W, SCREEN_H))
             fade.fill((0, 0, 0))

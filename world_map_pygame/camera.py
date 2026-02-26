@@ -1,13 +1,16 @@
 """
 world_map_pygame/camera.py
 Câmera estilo Google Maps: pan com inércia, zoom ancorado no cursor, fly-to animado.
-Agora considera map_y (offset do HUD) nas conversões de coordenada.
+
+[FASE 1 — Bug Fix] MAP_Y_OFFSET removido.
+  ANTES: MAP_Y_OFFSET = 40 hardcoded aqui E em renderer.py sem comunicação.
+         Qualquer diferença entre os dois quebrava s2w/w2s e causava o bug de clique.
+  DEPOIS: map_y é recebido dinamicamente via cam.map_y (atualizado pelo main loop
+          a partir de ui.map_y). A câmera sempre sabe exatamente onde o mapa começa.
 """
 import math
 from . import config
 from .config import WORLD_W, WORLD_H
-
-MAP_Y_OFFSET = 40  # deve bater com UI.HUD_H
 
 
 class Camera:
@@ -17,16 +20,16 @@ class Camera:
     FRICTION  = 0.78
     FLY_SPEED = 0.10
 
-    def __init__(self, map_x: int, map_w: int):
+    def __init__(self, map_x: int, map_w: int, map_y: int = 0):
         self.map_x = map_x
         self.map_w = map_w
-        self.map_y = MAP_Y_OFFSET
-        map_h      = config.SCREEN_H - MAP_Y_OFFSET
+        self.map_y = map_y          # [FIX] recebido dinamicamente, não hardcoded
 
-        fit = min(map_w / WORLD_W, map_h / WORLD_H) * 0.90
+        map_h = config.SCREEN_H - map_y
+        fit   = min(map_w / WORLD_W, map_h / WORLD_H) * 0.90
         self.zoom     = fit
-        self.offset_x = WORLD_W / 2 - (map_w  / 2) / fit
-        self.offset_y = WORLD_H / 2 - (map_h  / 2) / fit
+        self.offset_x = WORLD_W / 2 - (map_w / 2) / fit
+        self.offset_y = WORLD_H / 2 - (map_h / 2) / fit
 
         self.vx = self.vy = 0.0
         self.dragging = False
@@ -49,7 +52,7 @@ class Camera:
         """Pixel de tela → world-units."""
         return (
             (sx - self.map_x) / self.zoom + self.offset_x,
-            (sy - self.map_y) / self.zoom + self.offset_y,
+            (sy - self.map_y) / self.zoom + self.offset_y,   # [FIX] usa self.map_y real
         )
 
     # ── Zoom ──────────────────────────────────────────────────────────────
@@ -60,7 +63,7 @@ class Camera:
             return
         self.zoom     = nz
         self.offset_x = wx - (sx - self.map_x) / self.zoom
-        self.offset_y = wy - (sy - self.map_y) / self.zoom
+        self.offset_y = wy - (sy - self.map_y) / self.zoom   # [FIX]
         self.vx = self.vy = 0.0
 
     # ── Pan ───────────────────────────────────────────────────────────────
