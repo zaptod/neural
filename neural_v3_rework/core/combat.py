@@ -74,8 +74,7 @@ class FlechaProjetil(ArmaProjetil):
                         velocidade=35.0 + forca * 20.0,  # MUITO mais rápido!
                         tamanho=0.6, cor=cor)  # Raio maior para colisão generosa
         self.forca = forca
-        self.gravidade = 0.0  # SEM gravidade - voa em linha reta!
-        self.vel_y_extra = 0
+        # CM-03: gravidade=0.0 e vel_y_extra=0 removidos — nunca eram lidos
         self.vida = 5.0  # Vive 5 segundos (alcança ~200m)
         self.perfurante = forca > 0.5  # Flechas médias+ perfuram
     
@@ -282,9 +281,8 @@ class Projetil:
         
         # Elemento
         self.elemento = data.get("elemento", None)
-        
-        # Multi-shot support
-        self.multi_shot = data.get("multi_shot", 1)
+        # CM-04: multi_shot não é necessário como atributo de instância —
+        # os callers (entities.py) lêem data diretamente antes de criar o Projetil
         
         # === NOVOS ATRIBUTOS v2.0 ===
         
@@ -781,12 +779,12 @@ class Buff:
     def __init__(self, nome_skill, alvo):
         self.nome = nome_skill
         data = get_skill_data(nome_skill)
-        
+
         self.alvo = alvo
         self.duracao = data.get("duracao", 5.0)
         self.vida = self.duracao
         self.cor = data.get("cor", BRANCO)
-        
+
         # Efeitos possíveis
         self.escudo = data.get("escudo", 0)
         self.escudo_atual = self.escudo
@@ -794,18 +792,37 @@ class Buff:
         self.buff_velocidade = data.get("buff_velocidade", 1.0)
         self.refletir = data.get("refletir", 0)
         self.cura_por_segundo = data.get("regen", 0)
-        
+
+        # BUG-04 fix: Sobrecarga e outros buffs com stats de velocidade/dano recebido
+        self.bonus_velocidade_ataque  = data.get("bonus_velocidade_ataque", 1.0)
+        self.bonus_velocidade_movimento = data.get("bonus_velocidade_movimento", 1.0)
+        self.dano_recebido_bonus      = data.get("dano_recebido_bonus", 1.0)
+
+        # Aplica imediatamente os modificadores de velocidade na entidade
+        if self.bonus_velocidade_ataque != 1.0 and hasattr(alvo, 'arma_vel_ataque'):
+            alvo.arma_vel_ataque *= self.bonus_velocidade_ataque
+        if self.bonus_velocidade_movimento != 1.0 and hasattr(alvo, 'velocidade'):
+            alvo.velocidade *= self.bonus_velocidade_movimento
+
         self.ativo = True
 
     def atualizar(self, dt):
         self.vida -= dt
-        
+
         # Cura contínua — bloqueada se NECROSE ou outro efeito anti-heal estiver ativo
         if self.cura_por_segundo > 0 and getattr(self.alvo, 'cura_bloqueada', 0) <= 0:
             self.alvo.vida = min(self.alvo.vida_max, self.alvo.vida + self.cura_por_segundo * dt)
-        
+
         if self.vida <= 0:
+            self._reverter_stats()
             self.ativo = False
+
+    def _reverter_stats(self):
+        """BUG-04 fix: reverte modificadores de velocidade ao expirar"""
+        if self.bonus_velocidade_ataque != 1.0 and hasattr(self.alvo, 'arma_vel_ataque'):
+            self.alvo.arma_vel_ataque /= self.bonus_velocidade_ataque
+        if self.bonus_velocidade_movimento != 1.0 and hasattr(self.alvo, 'velocidade'):
+            self.alvo.velocidade /= self.bonus_velocidade_movimento
     
     def absorver_dano(self, dano):
         """Tenta absorver dano com escudo, retorna dano restante"""
@@ -911,8 +928,8 @@ class Summon:
         self.aura_dano = data.get("aura_dano", 0)
         self.aura_raio = data.get("aura_raio", 0)
         
-        # Projectile buffer (para summons que atiram)
-        self.buffer_projeteis = []
+        # CM-05: buffer_projeteis removido — Summon nunca dispara projéteis,
+        # usa resultados de 'ataque' direto via atualizar()
     
     def atualizar(self, dt, alvos):
         """Atualiza comportamento do summon"""

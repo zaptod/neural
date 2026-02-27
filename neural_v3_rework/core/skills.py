@@ -77,7 +77,7 @@ SKILL_DB = {
         "descricao": "Invoca uma fênix que ataca e revive uma vez"
     },
     "Combustão Espontânea": {
-        "tipo": "PROJETIL", "dano": 80.0, "velocidade": 0, "raio": 0.3,
+        "tipo": "PROJETIL", "dano": 80.0, "velocidade": 0.5, "raio": 0.3,  # B3 fix: era 0 → projétil ficava parado
         "vida": 0.1, "cor": (255, 50, 50), "custo": 50.0, "cooldown": 20.0,
         "efeito": "EXPLOSAO", "elemento": "FOGO",
         "condicao": "ALVO_QUEIMANDO", "dano_bonus_condicao": 2.0,
@@ -102,7 +102,7 @@ SKILL_DB = {
     "Lança de Gelo": {
         "tipo": "PROJETIL", "dano": 28.0, "velocidade": 22.0, "raio": 0.35,
         "vida": 1.5, "cor": (100, 200, 255), "custo": 18.0, "cooldown": 4.0,
-        "efeito": "PERFURAR", "elemento": "GELO", "perfura": True,
+        "efeito": "LENTO", "elemento": "GELO", "perfura": True,  # B4 fix: era "PERFURAR" (comportamento, não status) → "LENTO"
         "descricao": "Lança perfurante de gelo puro"
     },
     "Nevasca": {
@@ -166,7 +166,7 @@ SKILL_DB = {
     "Corrente Elétrica": {
         "tipo": "PROJETIL", "dano": 12.0, "velocidade": 30.0, "raio": 0.2,
         "vida": 0.8, "cor": (255, 255, 150), "custo": 8.0, "cooldown": 1.0,
-        "efeito": "NORMAL", "elemento": "RAIO",
+        "elemento": "RAIO",  # B5 fix: removido "efeito": "NORMAL" (status inexistente)
         "descricao": "Disparo elétrico ultra-rápido"
     },
     "Tempestade": {
@@ -190,7 +190,7 @@ SKILL_DB = {
         "tipo": "BUFF", "cor": (255, 255, 100), "custo": 20.0, "cooldown": 15.0,
         "duracao": 6.0, "elemento": "RAIO",
         "bonus_velocidade_ataque": 1.5, "bonus_velocidade_movimento": 1.3,
-        "dano_recebido_bonus": 1.2,
+        "dano_recebido_bonus": 1.2,  # FP9: não processado em entities.py → tomar_dano() ignora este campo
         "descricao": "Acelera drasticamente mas recebe mais dano"
     },
     "Campo Elétrico": {
@@ -279,7 +279,7 @@ SKILL_DB = {
         "tipo": "PROJETIL", "dano": 0.0, "velocidade": 12.0, "raio": 0.4,
         "vida": 2.0, "cor": (100, 0, 100), "custo": 50.0, "cooldown": 35.0,
         "efeito": "POSSESSO", "elemento": "TREVAS",
-        "duracao_controle": 3.0,
+        "duracao_controle": 3.0,  # FP7: possesso_timer setado mas sem lógica de IA invertida em entities.py
         "descricao": "Controla a mente do inimigo brevemente"
     },
     "Colheita de Almas": {
@@ -346,7 +346,7 @@ SKILL_DB = {
     },
     "Ressurreição": {
         "tipo": "BUFF", "cor": (255, 255, 255), "custo": 80.0, "cooldown": 120.0,
-        "elemento": "LUZ", "revive_hp_percent": 0.3,
+        "elemento": "LUZ", "revive_hp_percent": 0.3,  # FP2: campo não lido em entities.py → não revive
         "descricao": "Revive aliado com 30% HP (ou self se morrer)"
     },
     
@@ -477,7 +477,7 @@ SKILL_DB = {
     "Conjuração Perfeita": {
         "tipo": "BUFF", "cor": (255, 200, 255), "custo": 50.0, "cooldown": 60.0,
         "duracao": 10.0, "elemento": "ARCANO",
-        "sem_cooldown": True, "custo_mana_metade": True,
+        "sem_cooldown": True, "custo_mana_metade": True,  # FP4: não implementado em entities.py → buff sem efeito real
         "descricao": "Skills sem cooldown por 10s"
     },
     
@@ -498,7 +498,7 @@ SKILL_DB = {
     },
     "Reverter": {
         "tipo": "BUFF", "cor": (200, 150, 255), "custo": 40.0, "cooldown": 30.0,
-        "elemento": "TEMPO", "reverte_estado": 3.0,
+        "elemento": "TEMPO", "reverte_estado": 3.0,  # FP3: snapshot não armazenado em entities.py → sem reversão real
         "descricao": "Volta ao estado de 3s atrás (HP, posição)"
     },
     "Parar o Tempo": {
@@ -510,7 +510,7 @@ SKILL_DB = {
     "Previsão": {
         "tipo": "BUFF", "cor": (180, 180, 255), "custo": 15.0, "cooldown": 20.0,
         "duracao": 4.0, "elemento": "TEMPO",
-        "esquiva_garantida": 2, "ve_ataques": True,
+        "esquiva_garantida": 2, "ve_ataques": True,  # FP5: não implementado em entities.py → buff sem contador de esquiva
         "descricao": "Vê o futuro - esquiva 2 ataques"
     },
     "Eco Temporal": {
@@ -544,7 +544,7 @@ SKILL_DB = {
     "Campo de Gravidade": {
         "tipo": "AREA", "dano": 5.0, "raio_area": 4.0, "cor": (80, 40, 120),
         "custo": 30.0, "cooldown": 15.0, "efeito": "LENTO", "elemento": "GRAVITACAO",
-        "duracao": 5.0, "gravidade_aumentada": 3.0,
+        "duracao": 5.0, "gravidade_aumentada": 3.0,  # FP8: area effect sem alterar GRAVIDADE_Z dos alvos afetados
         "descricao": "Área com gravidade tripla - slow e sem pulo"
     },
     "Levitar": {
@@ -675,7 +675,7 @@ SKILL_DB = {
     },
     "Último Suspiro": {
         "tipo": "BUFF", "cor": (255, 100, 100), "custo": 0, "cooldown": 90.0,
-        "ativa_ao_morrer": True, "cura_percent": 0.5,
+        "ativa_ao_morrer": True, "cura_percent": 0.5,  # FP1: entities.py nunca verifica este buff no método morrer()
         "descricao": "Ao morrer, revive com 50% HP (passivo)"
     },
     
@@ -700,7 +700,7 @@ SKILL_DB = {
     },
     "Cópia Sombria": {
         "tipo": "SUMMON", "cor": (100, 100, 100), "custo": 45.0, "cooldown": 30.0,
-        "duracao": 8.0, "copia_caster": True,
+        "duracao": 8.0, "copia_caster": True,  # FP6: SUMMON genérico criado, mas sem lógica de cópia de ataques
         "descricao": "Cria uma cópia que imita seus ataques"
     },
     "Link de Vida": {

@@ -1,107 +1,117 @@
 {
   "_meta": {
-    "last_updated": "2026-02-26T17:37:16.650544"
+    "last_updated": "2026-02-27T01:42:10.435956"
   },
   "zone_ownership": {
-    "shattered_peak":    null,
-    "ashen_wastes":      null,
-    "dead_crown":        null,
-    "elderwood_grove":   null,
-    "thornwall":         null,
-    "misty_highlands":   null,
-    "iron_gate":         null,
-    "anvil_plains":      null,
-    "warriors_rest":     null,
-    "char_fields":       null,
-    "cinder_pit":        null,
-    "dragonfault":       null,
-    "bleached_path":     null,
-    "grave_hollow":      null,
-    "widows_pass":       null,
-    "slum_district":     "caleb_01",
-    "merchant_quarter":  null,
-    "high_citadel":      null,
-    "drowned_shore":     null,
-    "salt_flats":        null,
-    "deep_current":      null,
-    "gilded_road":       null,
-    "dusthaven":         null,
-    "old_crossing":      null,
-    "seal_of_fear":      null,
-    "seal_of_balance":   null,
-    "seal_of_greed":     null
+    "shattered_peak": null,
+    "ashen_wastes": null,
+    "dead_crown": null,
+    "elderwood_grove": null,
+    "thornwall": null,
+    "misty_highlands": null,
+    "iron_gate": null,
+    "anvil_plains": null,
+    "warriors_rest": "caleb_01",
+    "char_fields": null,
+    "cinder_pit": null,
+    "dragonfault": null,
+    "bleached_path": null,
+    "grave_hollow": null,
+    "widows_pass": null,
+    "slum_district": "caleb_01",
+    "merchant_quarter": null,
+    "high_citadel": null,
+    "drowned_shore": null,
+    "salt_flats": null,
+    "deep_current": null,
+    "gilded_road": null,
+    "dusthaven": null,
+    "old_crossing": null,
+    "seal_of_fear": null,
+    "seal_of_balance": null,
+    "seal_of_greed": null
   },
   "contested_borders": [],
   "ancient_seals": {
     "seal_of_balance": {
       "crack_level": 3,
-      "max_cracks":  5,
-      "status":      "awakened"
+      "max_cracks": 5,
+      "status": "awakened"
     },
     "seal_of_fear": {
       "crack_level": 0,
-      "max_cracks":  5,
-      "status":      "sleeping"
+      "max_cracks": 5,
+      "status": "sleeping"
     },
     "seal_of_greed": {
       "crack_level": 1,
-      "max_cracks":  5,
-      "status":      "stirring"
+      "max_cracks": 5,
+      "status": "stirring"
     }
   },
   "global_stats": {
-    "total_gods":      1,
+    "total_gods": 1,
     "total_followers": 0,
-    "zones_claimed":   1,
+    "zones_claimed": 1,
     "zones_contested": 0,
-    "war_intensity":   0.0
+    "war_intensity": 0.0
   },
   "world_events": [
     {
-      "event_id":    "evt_001",
-      "type":        "seal_awakened",
-      "timestamp":   "2026-02-25T06:12:00",
+      "event_id": "evt_001",
+      "type": "seal_awakened",
+      "timestamp": "2026-02-25T06:12:00",
       "description": "The God of Balance has awakened — the seal of balance fractures from within",
-      "severity":    "critical",
-      "zone_id":     "seal_of_balance",
-      "ancient_id":  "ancient_balance"
+      "severity": "critical",
+      "zone_id": "seal_of_balance",
+      "ancient_id": "ancient_balance"
     },
     {
-      "event_id":    "evt_002",
-      "type":        "seal_stirring",
-      "timestamp":   "2026-02-24T18:30:00",
+      "event_id": "evt_002",
+      "type": "seal_stirring",
+      "timestamp": "2026-02-24T18:30:00",
       "description": "The God of Greed stirs in its prison — one crack opens in the seal of greed",
-      "severity":    "high",
-      "zone_id":     "seal_of_greed",
-      "ancient_id":  "ancient_greed"
+      "severity": "high",
+      "zone_id": "seal_of_greed",
+      "ancient_id": "ancient_greed"
     },
     {
-      "event_id":    "evt_003",
-      "type":        "zone_conquered",
-      "timestamp":   "2026-02-24T00:00:00",
+      "event_id": "evt_003",
+      "type": "zone_conquered",
+      "timestamp": "2026-02-24T00:00:00",
       "description": "Caleb claimed the Slum District — his first foothold in Aethermoor",
-      "severity":    "medium",
-      "zone_id":     "slum_district",
-      "god_id":      "caleb_01"
+      "severity": "medium",
+      "zone_id": "slum_district",
+      "god_id": "caleb_01"
     },
     {
-      "event_id":    "evt_004",
-      "type":        "ancient_stirs",
-      "timestamp":   "2026-02-23T03:00:00",
+      "event_id": "evt_004",
+      "type": "ancient_stirs",
+      "timestamp": "2026-02-23T03:00:00",
       "description": "Nightmares spread outward from the Seal of Fear — something stirs beneath",
-      "severity":    "medium",
-      "zone_id":     "seal_of_fear",
-      "ancient_id":  "ancient_fear"
+      "severity": "medium",
+      "zone_id": "seal_of_fear",
+      "ancient_id": "ancient_fear"
     },
     {
-      "event_id":    "evt_005",
-      "type":        "seal_cracked",
-      "timestamp":   "2026-02-22T14:00:00",
+      "event_id": "evt_005",
+      "type": "seal_cracked",
+      "timestamp": "2026-02-22T14:00:00",
       "description": "Caleb's first victory sent tremors through the Seal of Balance — 3 cracks now visible",
-      "severity":    "high",
-      "zone_id":     "seal_of_balance",
-      "ancient_id":  "ancient_balance",
-      "god_id":      "caleb_01"
+      "severity": "high",
+      "zone_id": "seal_of_balance",
+      "ancient_id": "ancient_balance",
+      "god_id": "caleb_01"
+    },
+    {
+      "type": "territory_conquered",
+      "god_id": "caleb_01",
+      "champion": "dad",
+      "defeated": "sla",
+      "zone_id": "warriors_rest",
+      "duration": 776.24,
+      "ko_type": "KO",
+      "timestamp": "2026-02-27T01:42:10.443953"
     }
   ]
 }

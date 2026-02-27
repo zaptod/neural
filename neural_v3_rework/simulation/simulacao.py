@@ -526,9 +526,20 @@ class Simulador:
                 self.hit_stop_timer = 0.03  # Micro hit-stop
                 
                 # === v11.0: PERFURAÇÃO - não desativa projétil ===
-                if hasattr(proj, 'perfura') and proj.perfura:
+                # BUG-01 fix: FlechaProjetil usa .perfurante; Projetil genérico usa .perfura
+                eh_perfurante = (
+                    (hasattr(proj, 'perfura') and proj.perfura) or
+                    (hasattr(proj, 'perfurante') and proj.perfurante)
+                )
+                if eh_perfurante:
                     if hasattr(proj, 'pode_atingir') and not proj.pode_atingir(alvo):
                         continue  # Já atingiu esse alvo
+                    # Controla alvos atingidos para FlechaProjetil sem alvos_perfurados
+                    if not hasattr(proj, 'alvos_perfurados') or proj.alvos_perfurados is None:
+                        proj.alvos_perfurados = set()
+                    if id(alvo) in proj.alvos_perfurados:
+                        continue
+                    proj.alvos_perfurados.add(id(alvo))
                     # Não desativa - continua voando
                 else:
                     proj.ativo = False
@@ -757,20 +768,25 @@ class Simulador:
                 beam.atualizar(dt)
                 if beam.ativo and not beam.hit_aplicado:
                     alvo = self.p2 if beam.dono == self.p1 else self.p1
-                    # Verifica se beam cruza com alvo
                     if self._beam_colide_alvo(beam, alvo):
                         beam.hit_aplicado = True
-                        
-                        # === ÁUDIO v10.0 - SOM DE BEAM ===
+
                         if self.audio:
                             listener_x = self.cam.x / PPM
                             skill_name = getattr(beam, 'nome_skill', '')
                             self.audio.play_skill("BEAM", skill_name, beam.dono.pos[0], listener_x, phase="impact")
-                        
+
                         dano = beam.dono.get_dano_modificado(beam.dano) if hasattr(beam.dono, 'get_dano_modificado') else beam.dano
                         dx = alvo.pos[0] - beam.dono.pos[0]
                         dy = alvo.pos[1] - beam.dono.pos[1]
                         dist = math.hypot(dx, dy) or 1
+
+                        # CM-07 fix: implementa penetra_escudo — zera escudos antes do dano
+                        if getattr(beam, 'penetra_escudo', False):
+                            for buff in getattr(alvo, 'buffs_ativos', []):
+                                if getattr(buff, 'escudo_atual', 0) > 0:
+                                    buff.escudo_atual = 0
+
                         if alvo.tomar_dano(dano, dx/dist, dy/dist, beam.tipo_efeito):
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                             self.ativar_slow_motion()
@@ -1787,11 +1803,25 @@ class Simulador:
             vx = defensor.pos[0] - atacante.pos[0]
             vy = defensor.pos[1] - atacante.pos[1]
             mag = math.hypot(vx, vy) or 1
-            
+
             # Usa o novo sistema de dano modificado
             dano_base = arma.dano * (atacante.dados.forca / 2.0)
             dano, is_critico = atacante.calcular_dano_ataque(dano_base) if hasattr(atacante, 'calcular_dano_ataque') else (dano_base, False)
-            
+
+            # CM-09 fix: desgasta durabilidade da arma a cada hit confirmado
+            if hasattr(arma, 'durabilidade'):
+                desgaste = 0.5 if not is_critico else 1.0
+                arma.durabilidade = max(0.0, arma.durabilidade - desgaste)
+                # Arma quebrada: aplica penalidade de 50% no dano
+                if arma.durabilidade <= 0:
+                    dano *= 0.5
+                    if not getattr(arma, '_aviso_quebrada_exibido', False):
+                        self.textos.append(FloatingText(
+                            atacante.pos[0] * PPM, atacante.pos[1] * PPM - 70,
+                            "ARMA QUEBRADA!", (200, 50, 50), 22
+                        ))
+                        arma._aviso_quebrada_exibido = True
+
             # === ÁUDIO v10.0 - SOM DE ATAQUE (baseado no dano) ===
             tipo_ataque = arma.tipo if arma else "SOCO"
             if self.audio:
@@ -1904,6 +1934,9 @@ class Simulador:
                         self.cam.zoom_punch(impact_result['zoom_punch'], 0.15)
             
             if defensor.tomar_dano(dano, kb_x, kb_y, "NORMAL", atacante=atacante):
+                # === PASSIVA em hit — processa lifesteal, execute, double_hit, etc (BUG-03) ===
+                if hasattr(atacante, 'aplicar_passiva_em_hit'):
+                    atacante.aplicar_passiva_em_hit(dano, defensor)
                 # === ÁUDIO v10.0 - SOM DE MORTE ===
                 if self.audio:
                     self.audio.play_special("ko", volume=1.0)

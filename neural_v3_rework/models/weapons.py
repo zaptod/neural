@@ -64,6 +64,11 @@ class Arma:
         rar_data = get_raridade_data(raridade)
         self.dano = self.dano_base * rar_data["mod_dano"]
         self.peso = self.peso_base * rar_data["mod_peso"]
+
+        # Aplica modificadores de TIPO da arma (BUG-02: antes ignorado)
+        tipo_data = get_tipo_arma_data(tipo)
+        self.dano *= tipo_data.get("mod_dano", 1.0)
+        self.peso *= tipo_data.get("mod_peso", 1.0)
         
         # Geometria básica (Reta/Orbital)
         self.comp_cabo = float(comp_cabo)
@@ -100,7 +105,8 @@ class Arma:
         self.forma1_lamina = float(forma1_lamina)
         self.forma2_cabo = float(forma2_cabo)
         self.forma2_lamina = float(forma2_lamina)
-        self.forma_atual = 1
+        # BUG-08 fix: restaura forma salva (padrão = 1)
+        self.forma_atual = int(kwargs.get('forma_atual', 1))
 
         # Comportamento
         self.estilo = estilo
@@ -232,6 +238,7 @@ class Arma:
             "forma1_lamina": self.forma1_lamina,
             "forma2_cabo": self.forma2_cabo,
             "forma2_lamina": self.forma2_lamina,
+            "forma_atual": self.forma_atual,  # BUG-08 fix
             "r": self.r, "g": self.g, "b": self.b,
             "estilo": self.estilo,
             "cabo_dano": self.cabo_dano,
@@ -413,16 +420,21 @@ def sugerir_tamanho_arma(personagem, tipo_arma="Reta"):
 def get_escala_visual_arma(arma, personagem):
     """
     Retorna um fator de escala para renderização visual da arma.
+
+    CM-10 nota: esta função está definida e exportada mas NUNCA é chamada
+    pelo renderer atual. Mantida para uso futuro pelo sistema de renderização
+    de armas — quando implementado, chamar em render/weapon_renderer.py.
+    TODO: integrar no pipeline de renderização ou remover se não necessário.
     """
     if arma is None or personagem is None:
         return 1.0
-    
+
     validacao = validar_arma_personagem(arma, personagem)
     proporcao = validacao["proporcao"]
-    
+
     if proporcao < 0.4:
         return 0.4 / proporcao
     elif proporcao > 1.5:
         return 1.5 / proporcao
-    
+
     return 1.0

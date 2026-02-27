@@ -210,25 +210,101 @@ class Lutador:
         return self.skills_arma[self.skill_atual_idx]
     
     def calcular_dano_ataque(self, dano_base):
-        """Calcula dano final com crítico e encantamentos"""
+        """Calcula dano final com crítico, encantamentos e PASSIVA da arma (BUG-03 fix)"""
         from models import ENCANTAMENTOS
-        
+
         dano = dano_base * self.mod_dano
-        
+
+        # === PASSIVA: dano_bonus ===
+        passiva = self.arma_passiva or {}
+        if passiva.get("efeito") == "dano_bonus":
+            dano *= 1.0 + passiva.get("valor", 0) / 100.0
+
+        # === PASSIVA: berserk (dano extra quando HP baixo) ===
+        if passiva.get("efeito") == "berserk":
+            if self.vida / max(self.vida_max, 1) < 0.30:
+                dano *= 1.0 + passiva.get("valor", 0) / 100.0
+
+        # === PASSIVA: all_stats (bonus de dano incluso) ===
+        if passiva.get("efeito") == "all_stats":
+            dano *= 1.0 + passiva.get("valor", 0) / 100.0
+
+        # Chance crítica base da arma + classe + PASSIVA: crit_chance
         critico_chance = self.arma_critico
         if "Assassino" in self.classe_nome:
-            critico_chance += 0.20  # Reduzido de 0.25
-        
+            critico_chance += 0.20
+        if passiva.get("efeito") == "crit_chance":
+            critico_chance += passiva.get("valor", 0) / 100.0
+
         is_critico = random.random() < critico_chance
         if is_critico:
-            dano *= 1.5  # Reduzido de 2.0
-        
+            mult_critico = 1.5
+            # === PASSIVA: crit_damage (aumenta multiplicador crítico) ===
+            if passiva.get("efeito") == "crit_damage":
+                mult_critico += passiva.get("valor", 0) / 100.0
+            dano *= mult_critico
+
         for enc_nome in self.arma_encantamentos:
             if enc_nome in ENCANTAMENTOS:
                 enc = ENCANTAMENTOS[enc_nome]
                 dano += enc.get("dano_bonus", 0)
-        
+
         return dano, is_critico
+
+    def aplicar_passiva_em_hit(self, dano_aplicado, alvo, pos_impacto_px=None):
+        """
+        Processa efeitos de passiva de arma disparados ao acertar um golpe.
+        BUG-03 fix: lifesteal, execute, double_hit, aoe_damage, teleport, random_element.
+        Retorna dict com flags para simulacao.py processar efeitos visuais.
+        """
+        passiva = self.arma_passiva or {}
+        efeito = passiva.get("efeito")
+        valor = passiva.get("valor", 0)
+        resultado = {}
+
+        # === PASSIVA: lifesteal ===
+        if efeito == "lifesteal":
+            cura = dano_aplicado * (valor / 100.0)
+            self.vida = min(self.vida_max, self.vida + cura)
+            resultado["lifesteal"] = cura
+
+        # === PASSIVA: execute (golpe final em HP baixo) ===
+        if efeito == "execute":
+            if alvo.vida / max(alvo.vida_max, 1) < (valor / 100.0):
+                alvo.vida = 0
+                resultado["execute"] = True
+
+        # === PASSIVA: double_hit (chance de aplicar dano novamente) ===
+        if efeito == "double_hit" and random.random() < (valor / 100.0):
+            if not alvo.morto:
+                dano_eco = dano_aplicado * 0.5
+                alvo.vida = max(0, alvo.vida - dano_eco)
+                resultado["double_hit"] = dano_eco
+
+        # === PASSIVA: aoe_damage (porcentagem do dano em área ao redor do alvo) ===
+        if efeito == "aoe_damage":
+            resultado["aoe_damage"] = {"dano": dano_aplicado * (valor / 100.0),
+                                       "x": alvo.pos[0], "y": alvo.pos[1]}
+
+        # === PASSIVA: teleport (chance de teleportar atrás do inimigo) ===
+        if efeito == "teleport" and random.random() < (valor / 100.0):
+            ang = math.atan2(alvo.pos[1] - self.pos[1], alvo.pos[0] - self.pos[0])
+            self.pos[0] = alvo.pos[0] - math.cos(ang) * 1.2
+            self.pos[1] = alvo.pos[1] - math.sin(ang) * 1.2
+            resultado["teleport"] = True
+
+        # === PASSIVA: random_element (adiciona efeito elemental aleatório) ===
+        if efeito == "random_element":
+            from core.combat import DotEffect
+            elemento = random.choice(["QUEIMANDO", "ENVENENADO", "CONGELADO", "PARALISIA"])
+            cores = {"QUEIMANDO": (255, 100, 0), "ENVENENADO": (100, 255, 100),
+                     "CONGELADO": (150, 220, 255), "PARALISIA": (255, 255, 100)}
+            dot = DotEffect(elemento, alvo, dano_aplicado * 0.1, 3.0, cores.get(elemento, (255, 255, 255)))
+            if not alvo.morto:
+                alvo.dots_ativos.append(dot)
+            resultado["random_element"] = elemento
+
+        return resultado
     
     def aplicar_efeitos_encantamento(self, alvo):
         """Aplica efeitos de encantamentos no alvo"""
@@ -404,7 +480,16 @@ class Lutador:
                 area.dano = dano
                 area.raio = 1.5
                 self.buffer_areas.append(area)
-            
+
+            # BUG-05 fix: aplica dano_chegada no ponto de destino do dash
+            dano_chegada = data.get("dano_chegada", 0)
+            if dano_chegada > 0:
+                area_chegada = AreaEffect(nome_skill, self.pos[0], self.pos[1], self)
+                area_chegada.dano = dano_chegada
+                area_chegada.raio = 1.0
+                area_chegada.duracao = 0.15
+                self.buffer_areas.append(area_chegada)
+
             if data.get("invencivel"):
                 self.invencivel_timer = 0.3
         
@@ -1118,7 +1203,9 @@ class Lutador:
                     base_cd *= 0.7
                 elif "Colosso" in self.brain.arquetipo:
                     base_cd *= 1.3
-                self.cooldown_ataque = base_cd
+                # BUG-06 fix: velocidade_ataque da arma reduz o cooldown
+                vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
+                self.cooldown_ataque = base_cd / vel_ataque
     
     def _disparar_arremesso(self, alvo):
         """Dispara projéteis de arma de arremesso"""
@@ -1267,13 +1354,19 @@ class Lutador:
             return False
         
         dano_final = dano
-        
+
         if "Cavaleiro" in self.classe_nome:
             dano_final *= 0.75
-        
+
         if "Ladino" in self.classe_nome and random.random() < 0.2:
             return False
-        
+
+        # CM-08 fix: aplica dano_recebido_bonus de buffs (ex: Sobrecarga recebe mais dano)
+        for buff in self.buffs_ativos:
+            dano_recebido = getattr(buff, 'dano_recebido_bonus', 1.0)
+            if dano_recebido != 1.0:
+                dano_final *= dano_recebido
+
         for buff in self.buffs_ativos:
             if buff.escudo_atual > 0:
                 dano_final = buff.absorver_dano(dano_final)
@@ -1295,6 +1388,13 @@ class Lutador:
         
         self.vida -= dano_final
         self.invencivel_timer = 0.3
+
+        # === PASSIVA: sobreviver — uma vez por luta sobrevive com 1 HP (BUG-03 fix) ===
+        passiva = getattr(self, 'arma_passiva', None) or {}
+        if passiva.get("efeito") == "sobreviver" and self.vida <= 0:
+            if not getattr(self, '_sobreviver_usado', False):
+                self.vida = 1
+                self._sobreviver_usado = True
         
         # Flash de dano mais longo e visível (proporcional ao dano)
         self.flash_timer = min(0.25, 0.1 + dano_final * 0.005)
@@ -1652,19 +1752,20 @@ class Lutador:
         return (cx, cy), dist_base_px + raio_char_px, self.angulo_arma_visual, arma.largura
     
     def get_dano_modificado(self, dano_base):
-        """Retorna dano com todos os modificadores"""
+        """Retorna dano com todos os modificadores (buffs, classe, passivas)"""
         dano = dano_base * self.mod_dano
-        
+
         for buff in self.buffs_ativos:
             dano *= buff.buff_dano
-        
+            # CM-08 fix: bonus_velocidade_ataque não afeta dano — mas buff_dano sim
+
         if "Berserker" in self.classe_nome:
             hp_pct = self.vida / self.vida_max
             dano *= 1.0 + (1.0 - hp_pct) * 0.5
-        
+
         if "Assassino" in self.classe_nome and random.random() < 0.25:
             dano *= 2.0
-        
+
         return dano
 
     # =========================================================================

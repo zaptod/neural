@@ -24,7 +24,7 @@
       "god_name": "Caleb",
       "nature": "Balance",
       "nature_element": "balanced",
-      "follower_count": 0,
+      "follower_count": 1,
       "color_primary": "#00d9ff",
       "color_secondary": "#e94560",
       "champion_character_id": null,
@@ -38,7 +38,7 @@
       "source": "lore",
       "api_source": null,
       "border_style": "balance",
-      "lore_description": "Born in the Slum District. Thrown into an abyss. Chose to stand back up. Champion of the God of Balance \u2014 but the cost of his power breeds chaos wherever he wins."
+      "lore_description": "Born in the Slum District. Thrown into an abyss. Chose to stand back up. Champion of the God of Balance — but the cost of his power breeds chaos wherever he wins."
     }
   ],
   "ancient_gods": [
@@ -53,7 +53,7 @@
       "crack_level": 3,
       "is_ancient": true,
       "status": "awakened",
-      "lore_description": "A corrupted Athena. First to wake. She does not speak \u2014 she tilts."
+      "lore_description": "A corrupted Athena. First to wake. She does not speak — she tilts."
     },
     {
       "god_id": "ancient_fear",

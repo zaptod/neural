@@ -1,16 +1,16 @@
 {
-  "name": "Campeonato Neural Fights",
-  "participants": [],
-  "state": "waiting",
-  "champion": null,
-  "current_round": 0,
-  "current_match": 0,
-  "bracket": [],
-  "stats": {
-    "total_fights": 0,
-    "total_kos": 0,
-    "fastest_ko": null,
-    "longest_fight": null,
-    "most_aggressive": null
-  }
+    "name": "Campeonato Neural Fights",
+    "participants": [],
+    "state": "waiting",
+    "champion": null,
+    "current_round": 0,
+    "current_match": 0,
+    "bracket": [],
+    "stats": {
+        "total_fights": 15,
+        "total_kos": 15,
+        "fastest_ko": 0,
+        "longest_fight": 0,
+        "most_aggressive": null
+    }
 }

@@ -244,23 +244,26 @@ class SistemaHitbox:
         # === ARMAS DE CORRENTE (colisão por arco/varredura) ===
         if self._eh_arma_corrente(tipo):
             return self._calcular_hitbox_corrente(lutador, arma, cx, cy, rad, fator, raio_char)
-        
-        # === ARMAS DE LÂMINA (colisão por linha) ===
+
+        # === ARMAS DE LÂMINA (colisão por linha/arco de varredura) ===
         elif self._eh_arma_lamina(tipo):
             return self._calcular_hitbox_lamina(lutador, arma, cx, cy, rad, fator, raio_char)
-        
-        # === ARMAS RANGED (Arremesso/Arco) - Usam projéteis, não hitbox direta ===
-        elif self._eh_arma_ranged(tipo):
-            return self._calcular_hitbox_ranged(lutador, arma, cx, cy, rad, fator, raio_char)
-        
-        # === ARMAS DE ÁREA (Mágica) ===
+
+        # === ARMAS DE ÁREA (Mágica) — DEVE vir antes de ranged ===
+        # M-05 fix: Mágica é capturada aqui PRIMEIRO (área), por isso foi removida de
+        # _eh_arma_ranged. O dano real é aplicado via orbes/projéteis em entities.py;
+        # esta hitbox é visual/debug e apenas é marcada ativa durante o ataque.
         elif self._eh_arma_area(tipo):
             return self._calcular_hitbox_area(lutador, arma, cx, cy, rad, fator, raio_char)
-        
+
+        # === ARMAS RANGED FÍSICAS (Arremesso/Arco) — Usam projéteis, não hitbox direta ===
+        elif self._eh_arma_ranged(tipo):
+            return self._calcular_hitbox_ranged(lutador, arma, cx, cy, rad, fator, raio_char)
+
         # === ARMAS ORBITAIS (colisão especial) ===
         elif "Orbital" in tipo:
             return self._calcular_hitbox_orbital(lutador, arma, cx, cy, fator, raio_char)
-        
+
         # === FALLBACK ===
         else:
             debug_log(f"{lutador.dados.nome}: Tipo de arma desconhecido: {tipo}", "WARN")
@@ -275,8 +278,10 @@ class SistemaHitbox:
         return any(t in tipo for t in ["Reta", "Dupla", "Transformável"])
     
     def _eh_arma_ranged(self, tipo: str) -> bool:
-        """Verifica se é arma ranged (usa projéteis) - inclui Mágica"""
-        return any(t in tipo for t in ["Arremesso", "Arco", "Mágica"])
+        """Verifica se é arma ranged física (usa projéteis de arma).
+        FP-01 fix: Mágica foi removida daqui — ela é capturada ANTES por _eh_arma_area,
+        portanto listá-la aqui era código unreachable e causava confusão."""
+        return any(t in tipo for t in ["Arremesso", "Arco"])
     
     def _eh_arma_area(self, tipo: str) -> bool:
         """Verifica se é arma de área (usa colisão de distância) - Apenas Mágica"""
@@ -498,27 +503,29 @@ class SistemaHitbox:
         )
     
     def _calcular_hitbox_area(self, lutador, arma, cx, cy, rad, fator, raio_char) -> HitboxInfo:
-        """Calcula hitbox para armas de área (Mágica)"""
+        """Calcula hitbox de debug visual para armas de área (Mágica).
+        FP-02 fix: ativo agora reflete se o lutador está atacando, não sempre True.
+        O dano real de Mágica acontece via orbes/projéteis — esta hitbox é APENAS visual."""
         tipo = arma.tipo
-        
+
         if "Mágica" in tipo:
-            # Mágica: 2.5x o raio
             fator_arma = 2.5
         else:
             fator_arma = 2.0
-        
+
         alcance_px = raio_char * fator_arma
-        largura_ang = max(60.0, arma.largura * 2)  # Arco mais generoso
-        
+        largura_ang = max(60.0, arma.largura * 2)
+
         debug_log(f"  Área: raio_char={raio_char:.1f} fator={fator_arma} alcance_px={alcance_px:.1f} largura={largura_ang}°", "CALC")
-        
+
         return HitboxInfo(
             tipo=tipo,
             centro=(cx, cy),
             alcance=alcance_px,
             angulo=math.degrees(rad),
             largura_angular=largura_ang,
-            ativo=True  # Armas de área sempre ativas quando equipadas
+            # FP-02 fix: só marca ativo durante ataque (é puramente visual/debug)
+            ativo=lutador.atacando
         )
     
     def _calcular_hitbox_orbital(self, lutador, arma, cx, cy, fator, raio_char) -> HitboxInfo:
@@ -571,9 +578,9 @@ class SistemaHitbox:
                     t_anticipation_end = profile.anticipation_time
                     t_attack_end = t_anticipation_end + profile.attack_time
                     t_impact_end = t_attack_end + profile.impact_time
-                    t_follow_end = t_impact_end + profile.follow_through_time
-                    
-                    # JANELA GENEROSA: 
+                    # CM-06: t_follow_end removido — nunca era referenciado aqui
+
+                    # JANELA GENEROSA:
                     # Começa bem no início da fase de ataque (50% da anticipation)
                     # Vai até 90% do follow_through
                     janela_inicio = t_anticipation_end * 0.5
@@ -691,81 +698,55 @@ class SistemaHitbox:
             return acertou, motivo
         
         # Armas de lâmina ATACANDO: usa colisão de ARCO (varredura)
+        # PATH A — activo durante ataque e hitbox sem pontos explícitos (fase ATTACK/IMPACT)
         elif hitbox.ativo and hitbox.pontos is None:
-            # Novo sistema: durante ataque, lâminas usam colisão de arco
-            # Verifica janela de animação
             tipo_arma = hitbox.tipo if hitbox.tipo else "Reta"
             hit_window_ok = self._verificar_janela_hit(atacante, tipo_arma)
             if not hit_window_ok:
                 debug_log(f"  {atacante.dados.nome}: Fora da janela de hit (arco)", "MISS")
                 return False, "fora da janela de hit"
-            
-            # Usa colisão de área com margem interna zero (lâminas podem acertar de perto)
+
             acertou, motivo = self._colisao_lamina_arco(hitbox, (dx, dy), raio_def)
-            
-            # Para armas duplas, segunda chance com offset
+
+            # FP-03 fix: segunda chance Dupla centralizada no helper
             if not acertou and "Dupla" in hitbox.tipo:
-                # Tenta com offsets angulares
-                for offset in [-25, 25]:
-                    hitbox_offset = HitboxInfo(
-                        tipo=hitbox.tipo,
-                        centro=hitbox.centro,
-                        alcance=hitbox.alcance,
-                        angulo=hitbox.angulo + offset,
-                        largura_angular=hitbox.largura_angular,
-                        ativo=True
-                    )
-                    acertou, motivo = self._colisao_lamina_arco(hitbox_offset, (dx, dy), raio_def)
-                    if acertou:
-                        break
-            
+                acertou, motivo = self._colisao_dupla_offsets_arco(hitbox, (dx, dy), raio_def)
+
             if acertou:
                 debug_log(f"  HIT! {atacante.dados.nome} -> {defensor.dados.nome} (Lâmina Arco)", "HIT")
-                self.hits_registrados.append({
-                    'atacante': atacante.dados.nome,
-                    'defensor': defensor.dados.nome,
-                    'tipo': hitbox.tipo
-                })
+                self.hits_registrados.append({'atacante': atacante.dados.nome,
+                                              'defensor': defensor.dados.nome, 'tipo': hitbox.tipo})
             else:
                 debug_log(f"  MISS (arco): {motivo}", "MISS")
-            
             return acertou, motivo
-        
+
         # Armas de lâmina NÃO atacando ou com pontos definidos: usa linha
+        # PATH B — fallback com pontos explícitos (fase FOLLOW_THROUGH ou idle com hitbox precisa)
         elif hitbox.pontos and len(hitbox.pontos) == 2:
-            # Verifica se está atacando (para armas de swing)
             if not hitbox.ativo:
                 debug_log(f"  {atacante.dados.nome}: Arma de lâmina mas não está atacando", "MISS")
                 return False, "não está atacando"
-            
-            # Verifica janela de animação usando o novo sistema de fases
+
             tipo_arma = hitbox.tipo if hitbox.tipo else "Reta"
             hit_window_ok = self._verificar_janela_hit(atacante, tipo_arma)
             if not hit_window_ok:
                 debug_log(f"  {atacante.dados.nome}: Fora da janela de hit", "MISS")
                 return False, "fora da janela de hit"
-            
+
             acertou, motivo = self._colisao_linha_circulo(
-                hitbox.pontos[0], hitbox.pontos[1],
-                (dx, dy), raio_def
+                hitbox.pontos[0], hitbox.pontos[1], (dx, dy), raio_def
             )
-            
-            # Para armas duplas, verifica segunda lâmina
+
+            # FP-03 fix: segunda chance Dupla centralizada no mesmo helper
             if not acertou and "Dupla" in hitbox.tipo:
-                acertou, motivo = self._verificar_segunda_lamina(
-                    atacante, arma, (dx, dy), raio_def
-                )
-            
+                acertou, motivo = self._verificar_segunda_lamina(atacante, arma, (dx, dy), raio_def)
+
             if acertou:
                 debug_log(f"  HIT! {atacante.dados.nome} -> {defensor.dados.nome}", "HIT")
-                self.hits_registrados.append({
-                    'atacante': atacante.dados.nome,
-                    'defensor': defensor.dados.nome,
-                    'tipo': hitbox.tipo
-                })
+                self.hits_registrados.append({'atacante': atacante.dados.nome,
+                                              'defensor': defensor.dados.nome, 'tipo': hitbox.tipo})
             else:
                 debug_log(f"  MISS: {motivo}", "MISS")
-            
             return acertou, motivo
         
         # Armas de área: verifica distância e ângulo
@@ -816,6 +797,28 @@ class SistemaHitbox:
             return True, f"colisão em t={t:.2f}"
         return False, f"sem colisão (dist={dist:.1f} > raio={raio:.1f})"
     
+    def _colisao_dupla_offsets_arco(self, hitbox: HitboxInfo, alvo: Tuple[float, float],
+                                     raio_alvo: float) -> Tuple[bool, str]:
+        """
+        FP-03 fix: helper centralizado para a segunda chance de colisão de armas Duplas
+        no path de arco (PATH A). Evita duplicação com _verificar_segunda_lamina (PATH B).
+        Testa offsets angulares -25° e +25° para cobrir ambas as lâminas.
+        """
+        for offset in [-25, 25]:
+            hitbox_offset = HitboxInfo(
+                tipo=hitbox.tipo,
+                centro=hitbox.centro,
+                alcance=hitbox.alcance,
+                angulo=hitbox.angulo + offset,
+                largura_angular=hitbox.largura_angular,
+                ativo=True
+            )
+            acertou, motivo = self._colisao_lamina_arco(hitbox_offset, alvo, raio_alvo)
+            if acertou:
+                debug_log(f"    Dupla offset arco ({offset:+}°) acertou!", "HIT")
+                return True, f"Dupla segunda lâmina arco offset={offset}°"
+        return False, "Dupla ambas lâminas falharam (arco)"
+
     def _verificar_segunda_lamina(self, atacante, arma, alvo: Tuple[float, float], 
                                    raio: float) -> Tuple[bool, str]:
         """Verifica segunda lâmina de armas duplas"""
@@ -959,41 +962,33 @@ class SistemaHitbox:
                       raio_alvo: float) -> Tuple[bool, str]:
         """
         Verifica colisão de arco (para correntes/mangual).
-        A corrente varre um arco, então verifica:
-        1. Se o alvo está dentro do alcance da corrente
-        2. Se o alvo está dentro do arco angular da varredura
+        BUG-07 fix: usa hitbox.alcance_minimo definido pelo perfil, sem recalcular.
         """
         cx, cy = hitbox.centro
         ax, ay = alvo
-        
-        # Distância do centro do atacante ao centro do alvo
+
         dist = math.hypot(ax - cx, ay - cy)
-        
-        # A corrente tem um "anel" de área de hit
-        # Margem interna reduzida: 25% do alcance (para correntes menores)
-        # Margem externa: alcance + raio do alvo + margem generosa
-        alcance_min = hitbox.alcance * 0.25  # Reduzido de 0.4 para 0.25
-        alcance_max = hitbox.alcance + raio_alvo * 1.5  # Margem extra
-        
+
+        # BUG-07 fix: usa zona morta calculada centralmente no perfil
+        alcance_min = hitbox.alcance_minimo
+        alcance_max = hitbox.alcance + raio_alvo * 1.5
+
         debug_log(f"    Arco: dist={dist:.1f} alcance_min={alcance_min:.1f} alcance_max={alcance_max:.1f}", "GEOM")
-        
+
         if dist < alcance_min:
             return False, f"muito perto para corrente (dist={dist:.1f} < min={alcance_min:.1f})"
-        
+
         if dist > alcance_max:
             return False, f"fora de alcance (dist={dist:.1f} > max={alcance_max:.1f})"
-        
-        # Ângulo para o alvo
+
         ang_para_alvo = math.degrees(math.atan2(ay - cy, ax - cx))
-        
-        # Diferença angular
         diff_ang = self._normalizar_angulo(ang_para_alvo - hitbox.angulo)
-        
+
         debug_log(f"    Arco ang: para_alvo={ang_para_alvo:.1f}° hitbox={hitbox.angulo:.1f}° diff={diff_ang:.1f}° margem={hitbox.largura_angular/2:.1f}°", "GEOM")
-        
+
         if abs(diff_ang) > hitbox.largura_angular / 2:
             return False, f"fora do arco (diff={diff_ang:.1f}° > margem={hitbox.largura_angular/2:.1f}°)"
-        
+
         return True, "colisão de arco (corrente)"
     
     def _normalizar_angulo(self, ang: float) -> float:

@@ -51,6 +51,11 @@
             "type": "territory_claimed",
             "god_id": "caleb_01",
             "territory_id": "warriors_rest"
+        },
+        {
+            "type": "territory_claimed",
+            "god_id": "caleb_01",
+            "territory_id": "warriors_rest"
         }
     ]
 }

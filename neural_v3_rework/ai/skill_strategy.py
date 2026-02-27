@@ -363,6 +363,27 @@ class SkillStrategySystem:
                 propositos.append(SkillPurpose.ENGAGE)
             if data.get("refletir"):
                 propositos.append(SkillPurpose.SUSTAIN)
+
+            # B7 fix: mapear efeito_buff → propósitos (antes ignorado → skills caíam no default UTILITY)
+            efeito_buff = data.get("efeito_buff", "")
+            if efeito_buff in ("FURIA", "DETERMINADO", "SOBRECARGA"):
+                propositos.append(SkillPurpose.OPENER)
+                propositos.append(SkillPurpose.BURST)
+            if efeito_buff in ("ACELERADO", "HASTE"):
+                propositos.append(SkillPurpose.ESCAPE)
+                propositos.append(SkillPurpose.ENGAGE)
+            if efeito_buff in ("ABENÇOADO", "REGENERANDO", "ESCUDO_SAGRADO"):
+                propositos.append(SkillPurpose.SUSTAIN)
+                perfil.hp_proprio_max = 0.6
+            if efeito_buff in ("INVENCIVEL", "ESPECTRAL"):
+                propositos.append(SkillPurpose.SUSTAIN)
+                propositos.append(SkillPurpose.OPENER)
+            # bonus_velocidade_ataque e similar → engage/burst
+            if data.get("bonus_velocidade_ataque"):
+                propositos.append(SkillPurpose.BURST)
+            if data.get("sem_cooldown") or data.get("custo_mana_metade"):
+                propositos.append(SkillPurpose.OPENER)
+                propositos.append(SkillPurpose.BURST)
         
         # SUMMON
         elif tipo == "SUMMON":
@@ -871,10 +892,17 @@ class SkillStrategySystem:
         # Obtém rotação da fase
         rotacao = self.obter_rotacao_atual(fase)
         
-        # Procura skill disponível na rotação (ignora condições ideais para ser mais agressivo)
+        # Procura skill disponível na rotação
+        # B8 fix: agora filtra por _condicoes_ideais() como verificação secundária
         for skill_nome in rotacao:
             if self._pode_usar_skill(skill_nome, situacao):
-                return (self.skills[skill_nome], f"rotacao_{fase.value}")
+                if self._condicoes_ideais(skill_nome, situacao):
+                    return (self.skills[skill_nome], f"rotacao_{fase.value}")
+        
+        # Segunda passagem sem condições ideais (permite uso mesmo fora do ideal)
+        for skill_nome in rotacao:
+            if self._pode_usar_skill(skill_nome, situacao):
+                return (self.skills[skill_nome], f"rotacao_{fase.value}_relaxed")
         
         # Fallback: qualquer skill disponível
         for skill in self.skills.values():

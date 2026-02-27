@@ -584,7 +584,7 @@ def _distancia(a, b):
 def _esta_nas_costas(caster, alvo):
     """Verifica se caster está nas costas do alvo"""
     ang_para_caster = math.atan2(caster.pos[1] - alvo.pos[1], caster.pos[0] - alvo.pos[0])
-    ang_olhar = getattr(alvo, 'angulo_olhar', 0)
+    ang_olhar = math.radians(getattr(alvo, 'angulo_olhar', 0))  # B1 fix: graus → radianos
     diff = abs(ang_para_caster - ang_olhar)
     if diff > math.pi:
         diff = 2 * math.pi - diff
@@ -674,8 +674,8 @@ COMBOS_MAGICOS = {
         "cura_caster": 0.2,
         "visual": "divine_judgment"
     },
-    # Natureza -> Veneno -> Natureza = Praga
-    ("NATUREZA", "VENENO", "NATUREZA"): {
+    # Natureza -> Natureza -> Natureza = Praga  (B2 fix: "VENENO" não existe como elemento)
+    ("NATUREZA", "NATUREZA", "NATUREZA"): {
         "nome": "PRAGA",
         "bonus_dano": 1.3,
         "efeito_bonus": "ENVENENADO",
