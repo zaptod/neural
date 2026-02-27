@@ -121,7 +121,7 @@ TIPOS_ARMA = {
     "Dupla": {
         "categoria": "Melee",
         "descricao": "Par de armas que alternam ataques",
-        "estilos": ["Adagas Gêmeas", "Kamas", "Sai", "Garras"],
+        "estilos": ["Adagas Gêmeas", "Kamas", "Sai", "Garras", "Tonfas", "Facas Táticas"],
         "geometria": ["comp_cabo", "comp_lamina", "largura", "separacao"],
         "mod_dano": 0.7,
         "mod_velocidade": 1.5,

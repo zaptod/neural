@@ -180,6 +180,24 @@ class Lutador:
         self.dash_timer = 0.0
         self.pos_historico = []
 
+        # EFF-2: Timers de debuffs declarados no __init__ — elimina hasattr em hot paths
+        self.enraizado_timer = 0.0
+        self.silenciado_timer = 0.0
+        self.cego_timer = 0.0
+        self.medo_timer = 0.0
+        self.charme_timer = 0.0
+        self.exausto_timer = 0.0
+        self.fraco_timer = 0.0
+        self.vulnerabilidade_timer = 0.0
+        self.dano_reduzido = 1.0
+        self.vulnerabilidade = 1.0
+        self.cura_bloqueada = 0.0
+        self.congelado = False
+        self.dormindo = False
+        self.sendo_puxado = False
+        self.tempo_parado = False
+        self.marcado = False
+
         # IA
         self.brain = AIBrain(self)
 
@@ -214,6 +232,10 @@ class Lutador:
         from models import ENCANTAMENTOS
 
         dano = dano_base * self.mod_dano
+
+        # FP-2: aplica penalidade de FRACO se ativa (antes era setado mas nunca lido)
+        if getattr(self, 'dano_reduzido', 1.0) != 1.0:
+            dano *= self.dano_reduzido
 
         # === PASSIVA: dano_bonus ===
         passiva = self.arma_passiva or {}
@@ -306,7 +328,7 @@ class Lutador:
 
         return resultado
     
-    def aplicar_efeitos_encantamento(self, alvo):
+    def aplicar_efeitos_encantamento(self, alvo, dano_aplicado=0):
         """Aplica efeitos de encantamentos no alvo"""
         from models import ENCANTAMENTOS
         from core.combat import DotEffect
@@ -332,15 +354,20 @@ class Lutador:
                                enc.get("dot_duracao", 5.0), (100, 255, 100))
                 alvo.dots_ativos.append(dot)
             elif efeito == "lifesteal":
+                # BUG-F3: lifesteal deve ser baseado no dano aplicado, não no HP do alvo
                 percent = enc.get("lifesteal_percent", 10) / 100.0
-                cura = alvo.vida * 0.1 * percent
+                cura = dano_aplicado * percent
                 self.vida = min(self.vida_max, self.vida + cura)
 
     def usar_skill_arma(self, skill_idx=None):
         """Usa a skill equipada na arma"""
         from core.combat import Projetil, AreaEffect, Beam, Buff, Summon, Trap, Transform, Channel
         from effects.audio import AudioManager
-        
+
+        # BUG-C4: Silenciado impede uso de skills
+        if getattr(self, 'silenciado_timer', 0) > 0:
+            return False
+
         if skill_idx is not None and skill_idx < len(self.skills_arma):
             skill_info = self.skills_arma[skill_idx]
         elif self.skills_arma:
@@ -569,7 +596,11 @@ class Lutador:
         """Usa uma skill de classe específica"""
         from core.combat import Projetil, AreaEffect, Beam, Buff, Summon, Trap, Transform, Channel
         from effects.audio import AudioManager
-        
+
+        # BUG-C4: Silenciado impede uso de skills
+        if getattr(self, 'silenciado_timer', 0) > 0:
+            return False
+
         skill_info = None
         for sk in self.skills_classe:
             if sk["nome"] == skill_nome:
@@ -780,7 +811,38 @@ class Lutador:
                 self.slow_fator = 1.0
         if getattr(self, 'cura_bloqueada', 0) > 0:
             self.cura_bloqueada -= dt
-        
+
+        # BUG-C3: Decrementar timers de debuffs que antes nunca expiravam
+        for attr in ['silenciado_timer', 'cego_timer', 'medo_timer', 'charme_timer']:
+            val = getattr(self, attr, 0)
+            if val > 0:
+                setattr(self, attr, val - dt)
+
+        # FP-4: enraizado_timer decrementado separadamente para restaurar slow_fator ao expirar
+        enraizado_val = getattr(self, 'enraizado_timer', 0)
+        if enraizado_val > 0:
+            self.enraizado_timer = enraizado_val - dt
+            if self.enraizado_timer <= 0 and self.slow_fator == 0.0:
+                self.slow_fator = 1.0  # Restaura velocidade ao sair do enraizamento
+
+        # FP-2: Decrementar fraco_timer e restaurar dano_reduzido ao expirar
+        if getattr(self, 'fraco_timer', 0) > 0:
+            self.fraco_timer -= dt
+            if self.fraco_timer <= 0:
+                self.dano_reduzido = 1.0
+
+        # FP-3: Decrementar vulnerabilidade_timer e restaurar ao expirar
+        if getattr(self, 'vulnerabilidade_timer', 0) > 0:
+            self.vulnerabilidade_timer -= dt
+            if self.vulnerabilidade_timer <= 0:
+                self.vulnerabilidade = 1.0
+
+        # BUG-C2: Decrementar exausto_timer e restaurar regen_mana_base ao expirar
+        if getattr(self, 'exausto_timer', 0) > 0:
+            self.exausto_timer -= dt
+            if self.exausto_timer <= 0:
+                self.regen_mana_base = self.class_data.get("regen_mana", 3.0)
+
         for skill_nome in list(self.cd_skills.keys()):
             if self.cd_skills[skill_nome] > 0:
                 self.cd_skills[skill_nome] -= dt
@@ -806,6 +868,8 @@ class Lutador:
             return
 
         mana_regen = self.regen_mana_base
+        if getattr(self, 'exausto_timer', 0) > 0:
+            mana_regen *= 0.3  # BUG-C2: penalidade temporária enquanto EXAUSTO estiver ativo
         if "Mago" in self.classe_nome:
             mana_regen *= 1.5
         self.mana = min(self.mana_max, self.mana + mana_regen * dt)
@@ -1367,6 +1431,10 @@ class Lutador:
             if dano_recebido != 1.0:
                 dano_final *= dano_recebido
 
+        # FP-3: aplica vulnerabilidade se ativa (antes era setada mas nunca lida)
+        if getattr(self, 'vulnerabilidade', 1.0) != 1.0:
+            dano_final *= self.vulnerabilidade
+
         for buff in self.buffs_ativos:
             if buff.escudo_atual > 0:
                 dano_final = buff.absorver_dano(dano_final)
@@ -1519,17 +1587,15 @@ class Lutador:
             # Necrose: DoT que impede cura
             dot = DotEffect("NECROSE", self, 3.0 * intensidade, duracao or 5.0, (50, 50, 50))
             self.dots_ativos.append(dot)
-            if not hasattr(self, 'cura_bloqueada'):
-                self.cura_bloqueada = 0
             self.cura_bloqueada = duracao or 5.0
             
         elif efeito == "MALDITO":
             # Maldição: DoT + dano recebido aumentado
             dot = DotEffect("MALDITO", self, 1.0 * intensidade, duracao or 6.0, (100, 0, 100))
             self.dots_ativos.append(dot)
-            if not hasattr(self, 'vulnerabilidade'):
-                self.vulnerabilidade = 1.0
             self.vulnerabilidade = 1.3
+            # FP-3: timer para expirar o bônus de vulnerabilidade junto com o DoT
+            self.vulnerabilidade_timer = duracao or 6.0
         
         # =================================================================
         # CONTROLE DE GRUPO (CC)
@@ -1538,8 +1604,6 @@ class Lutador:
             self.stun_timer = max(self.stun_timer, duracao or 2.0)
             self.slow_timer = max(self.slow_timer, (duracao or 2.0) + 1.0)
             self.slow_fator = 0.3
-            if not hasattr(self, 'congelado'):
-                self.congelado = False
             self.congelado = True
             
         elif efeito == "LENTO":
@@ -1557,43 +1621,31 @@ class Lutador:
             
         elif efeito == "ENRAIZADO":
             # Enraizado: Não pode mover mas pode atacar
-            if not hasattr(self, 'enraizado_timer'):
-                self.enraizado_timer = 0
             self.enraizado_timer = max(self.enraizado_timer, duracao or 2.5)
             self.slow_fator = 0.0  # Velocidade zero
             
         elif efeito == "SILENCIADO":
             # Silenciado: Não pode usar skills
-            if not hasattr(self, 'silenciado_timer'):
-                self.silenciado_timer = 0
             self.silenciado_timer = duracao or 3.0
             
         elif efeito == "CEGO":
             # Cego: Ângulo de visão prejudicado (IA afetada)
-            if not hasattr(self, 'cego_timer'):
-                self.cego_timer = 0
             self.cego_timer = duracao or 2.0
             self.flash_cor = (255, 255, 200)
             self.flash_timer = 0.5
             
         elif efeito == "MEDO":
             # Medo: Força a fugir
-            if not hasattr(self, 'medo_timer'):
-                self.medo_timer = 0
             self.medo_timer = duracao or 2.5
             if self.brain is not None:
                 self.brain.medo = 1.0  # Maximiza medo na IA
             
         elif efeito == "CHARME":
             # Charme: Inimigo te segue
-            if not hasattr(self, 'charme_timer'):
-                self.charme_timer = 0
             self.charme_timer = duracao or 2.0
             
         elif efeito == "SONO":
             # Sono: Stun longo que quebra com dano
-            if not hasattr(self, 'dormindo'):
-                self.dormindo = False
             self.dormindo = True
             self.stun_timer = max(self.stun_timer, duracao or 4.0)
             
@@ -1604,22 +1656,16 @@ class Lutador:
             
         elif efeito == "PUXADO":
             # Puxado: Atração gravitacional (implementado no efeito de área)
-            if not hasattr(self, 'sendo_puxado'):
-                self.sendo_puxado = False
             self.sendo_puxado = True
             
         elif efeito == "TEMPO_PARADO":
             # Tempo parado: Completamente imobilizado
             self.stun_timer = max(self.stun_timer, duracao or 2.0)
             self.slow_fator = 0.0
-            if not hasattr(self, 'tempo_parado'):
-                self.tempo_parado = False
             self.tempo_parado = True
             
         elif efeito == "VORTEX":
             # Vortex: Sendo puxado continuamente
-            if not hasattr(self, 'em_vortex'):
-                self.em_vortex = False
             self.em_vortex = True
         
         # =================================================================
@@ -1627,27 +1673,24 @@ class Lutador:
         # =================================================================
         elif efeito == "FRACO":
             # Fraco: Dano reduzido
-            if not hasattr(self, 'dano_reduzido'):
-                self.dano_reduzido = 1.0
             self.dano_reduzido = 0.7
+            # FP-2: adiciona timer para que o efeito expire
+            self.fraco_timer = duracao or 3.0
             
         elif efeito == "VULNERAVEL":
             # Vulnerável: Dano recebido aumentado
-            if not hasattr(self, 'vulnerabilidade'):
-                self.vulnerabilidade = 1.0
             self.vulnerabilidade = 1.5
+            # FP-3: adiciona timer para que o efeito expire
+            self.vulnerabilidade_timer = duracao or 3.0
             
         elif efeito == "EXAUSTO":
             # Exausto: Regen de stamina/mana reduzida
-            if not hasattr(self, 'exausto_timer'):
-                self.exausto_timer = 0
+            # BUG-C2: Não modificar regen_mana_base diretamente (era permanente).
+            # O timer é decrementado no update() e a penalidade é aplicada condicionalmente no cálculo de mana.
             self.exausto_timer = duracao or 5.0
-            self.regen_mana_base *= 0.3
             
         elif efeito == "MARCADO":
             # Marcado: Próximo ataque causa dano extra
-            if not hasattr(self, 'marcado'):
-                self.marcado = False
             self.marcado = True
             
         elif efeito == "EXPOSTO":

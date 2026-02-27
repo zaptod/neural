@@ -30,7 +30,9 @@ class TelaPersonagens(tk.Frame):
         
         # Estado do Wizard
         self.passo_atual = 1
-        self.total_passos = 7  # [PHASE 3] Passo 7: Aliança Divina
+        # MEL-C6: total_passos dinâmico — passo 7 (Divindade) só existe quando WorldMap está ativo.
+        # Quando inativo, o passo 6 é o último e "CRIAR!" realmente cria o personagem.
+        self.total_passos = 7 if database.is_worldmap_active() else 6
         
         # Dados do personagem sendo criado
         self.dados_char = {
@@ -45,6 +47,7 @@ class TelaPersonagens(tk.Frame):
             "cor_g": 50,
             "cor_b": 50,
             "god_id": None,  # [PHASE 3] Vínculo divino
+            "lore": "",      # MEL-C3: Background/história opcional
         }
         
         self.setup_ui()
@@ -55,6 +58,16 @@ class TelaPersonagens(tk.Frame):
     def _on_weapons_changed(self, _data=None):
         if hasattr(self, "atualizar_dados"):
             self.atualizar_dados()
+
+    def destroy(self):
+        """MEL-C5: Cancela o subscribe ao destruir o frame, evitando memory leak."""
+        AppState.get().unsubscribe_all(self._on_weapons_changed)
+        super().destroy()
+
+    def on_hide(self):
+        """MEL-C4: Cancela bind de mousewheel ao esconder a tela."""
+        if hasattr(self, "canvas_wizard"):
+            self.canvas_wizard.unbind("<MouseWheel>")
 
     def setup_ui(self):
         """Configura a interface principal"""
@@ -196,7 +209,8 @@ class TelaPersonagens(tk.Frame):
             # Caso contrário, rola o canvas principal
             self.canvas_wizard.yview_scroll(int(-1*(event.delta/120)), "units")
         
-        self.canvas_wizard.bind_all("<MouseWheel>", _on_mousewheel)
+        # MEL-C4: bind escoped ao canvas — bind_all interceptava eventos em toda a aplicação
+        self.canvas_wizard.bind("<MouseWheel>", _on_mousewheel)
         
         # Botões de navegação
         frame_nav = tk.Frame(self.frame_wizard, bg=COR_BG_SECUNDARIO)
@@ -255,27 +269,33 @@ class TelaPersonagens(tk.Frame):
         self.lbl_classe_passiva.pack(pady=5)
 
     def criar_resumo_stats(self):
-        """Cria o resumo de stats do personagem"""
+        """Cria o resumo de stats do personagem.
+        
+        BUG-C1/BUG-C2/MEL-C1: Usa instância temporária de Personagem para garantir
+        que HP, Velocidade e Mana mostrados no preview usem EXATAMENTE as mesmas
+        fórmulas do motor de combate — sem fórmulas inline duplicadas.
+        """
         for widget in self.frame_stats.winfo_children():
             widget.destroy()
         
-        # Calcula stats derivados
-        classe_data = get_class_data(self.dados_char["classe"])
-        vida_base = 100 + (self.dados_char["forca"] * 10)
-        vida_mod = vida_base * classe_data.get("mod_vida", 1.0)
-        mana_base = 50 + (self.dados_char["mana"] * 10)
-        mana_mod = mana_base * classe_data.get("mod_mana", 1.0)
-        velocidade = (10 - self.dados_char["tamanho"] * 2) * classe_data.get("mod_velocidade", 1.0)
-        dano_mod = self.dados_char["forca"] * classe_data.get("mod_forca", 1.0)
+        # Instância temporária — delega todos os cálculos ao modelo real
+        p_temp = Personagem(
+            self.dados_char["nome"] or "?",
+            self.dados_char["tamanho"],
+            self.dados_char["forca"],
+            self.dados_char["mana"],
+            classe=self.dados_char["classe"]
+        )
+        dano_mod = p_temp.forca * p_temp.class_data.get("mod_forca", 1.0)
         
         stats = [
             ("Nome", self.dados_char["nome"] or "???"),
             ("Classe", self.dados_char["classe"].split(" (")[0]),  # Pega só o nome
             ("Altura", f"{self.dados_char['tamanho']:.2f}m"),
-            ("HP", f"{vida_mod:.0f}"),
-            ("Mana", f"{mana_mod:.0f}"),
+            ("HP", f"{p_temp.get_vida_max():.0f}"),
+            ("Mana", f"{p_temp.get_mana_max():.0f}"),
             ("Dano", f"{dano_mod:.1f}"),
-            ("Velocidade", f"{velocidade:.1f}"),
+            ("Velocidade", f"{p_temp.velocidade:.1f}"),
             ("Arma", self.dados_char["arma"] or "Nenhuma"),
         ]
         
@@ -388,14 +408,11 @@ class TelaPersonagens(tk.Frame):
         # Atualiza botões
         self.btn_anterior.config(state="normal" if passo > 1 else "disabled")
         
-        # Texto do botão baseado no contexto
-        if passo == 7:
+        # BUG-C6/MEL-C6: texto do botão baseado em self.total_passos (dinâmico).
+        # Quando WorldMap inativo (total_passos=6), o passo 6 é o último e realmente salva.
+        # Quando ativo (total_passos=7), passo 6 avança para Divindade e passo 7 salva.
+        if passo == self.total_passos:
             self.btn_proximo.config(text="⚡ SALVAR CAMPEÃO", bg=COR_WARNING)
-        elif passo == 6:
-            if self.indice_em_edicao is not None:
-                self.btn_proximo.config(text="⚡ SALVAR CAMPEÃO", bg=COR_WARNING)
-            else:
-                self.btn_proximo.config(text="CRIAR!", bg="#00ff88")
         else:
             self.btn_proximo.config(text="Próximo >", bg=COR_ACCENT)
         
@@ -416,7 +433,7 @@ class TelaPersonagens(tk.Frame):
                 messagebox.showwarning("Atenção", "Digite um nome para o personagem!")
                 return
         
-        if self.passo_atual < 7:
+        if self.passo_atual < self.total_passos:
             self.mostrar_passo(self.passo_atual + 1)
         else:
             self.salvar_personagem()
@@ -460,19 +477,29 @@ class TelaPersonagens(tk.Frame):
             font=("Arial", 9, "italic"), bg=COR_BG_SECUNDARIO, fg=COR_WARNING
         ).pack(anchor="w")
         
-        # História/Background (placeholder)
+        # História/Background — campo funcional (MEL-C3: removido placeholder inútil)
         frame_lore = tk.Frame(self.frame_conteudo_passo, bg=COR_BG)
         frame_lore.pack(fill="x", pady=20)
         
         tk.Label(
-            frame_lore, text="ORIGEM (Em breve)", 
+            frame_lore, text="ORIGEM (opcional)", 
             font=("Arial", 10, "bold"), bg=COR_BG, fg=COR_TEXTO_DIM
-        ).pack(anchor="w", padx=10, pady=5)
+        ).pack(anchor="w", padx=10, pady=(0, 4))
+        
+        self.text_lore = tk.Text(
+            frame_lore, height=4, width=40,
+            font=("Arial", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
+            insertbackground=COR_TEXTO, relief="flat", bd=4,
+            wrap="word"
+        )
+        self.text_lore.insert("1.0", self.dados_char.get("lore", ""))
+        self.text_lore.pack(fill="x", padx=10, pady=(0, 5))
+        self.text_lore.bind("<KeyRelease>", lambda e: self.dados_char.update({"lore": self.text_lore.get("1.0", "end-1c")}))
         
         tk.Label(
-            frame_lore, text="Futuramente você poderá criar a história do seu personagem aqui...", 
-            font=("Arial", 9), bg=COR_BG, fg=COR_TEXTO_DIM, wraplength=380
-        ).pack(anchor="w", padx=10, pady=(0, 10))
+            frame_lore, text="A história do seu campeão aparecerá no perfil de combate.",
+            font=("Arial", 8, "italic"), bg=COR_BG, fg=COR_TEXTO_DIM, wraplength=380
+        ).pack(anchor="w", padx=10)
 
     def _on_nome_change(self, event=None):
         """Callback quando o nome muda"""
@@ -1393,7 +1420,12 @@ class TelaPersonagens(tk.Frame):
         """Atualiza o preview do personagem"""
         self.canvas_preview.delete("all")
         
-        cx, cy = 150, 150
+        # MEL-C2: coordenadas dinâmicas — canvas cresce com a janela,
+        # personagem sempre centralizado em vez de fixo em (150, 150)
+        self.canvas_preview.update_idletasks()
+        w = self.canvas_preview.winfo_width() or 300
+        h = self.canvas_preview.winfo_height() or 300
+        cx, cy = w // 2, h // 2
         
         # Cor do personagem
         r = max(0, min(255, self.dados_char["cor_r"]))
@@ -1518,9 +1550,10 @@ class TelaPersonagens(tk.Frame):
                 p.nome, classe_curta, p.nome_arma or "Nenhuma"
             ))
         
-        # Atualiza preview se estiver no passo de equipamento
-        if self.passo_atual == 5:
-            self.mostrar_passo(5)
+        # BUG-C3: era passo 5 (Aparência) — corrigido para passo 6 (Equipamento),
+        # onde a lista de armas é exibida e precisa ser atualizada após weapons_changed.
+        if self.passo_atual == 6:
+            self.mostrar_passo(6)
 
     def salvar_personagem(self):
         """Salva o personagem atual"""
@@ -1556,6 +1589,7 @@ class TelaPersonagens(tk.Frame):
                 self.dados_char["classe"],
                 self.dados_char["personalidade"],
                 self.dados_char.get("god_id"),  # [PHASE 3]
+                self.dados_char.get("lore", ""),  # MEL-C3: Background opcional
             )
             
             _state = AppState.get()
@@ -1595,7 +1629,13 @@ class TelaPersonagens(tk.Frame):
         
         idx = self.tree.index(sel[0])
         p = self.controller.lista_personagens[idx]
-        
+
+        # INC-4: recalcula status com o peso da arma atual (calcular_status só é chamado no __init__)
+        if p.nome_arma:
+            arma_obj = next((a for a in self.controller.lista_armas if a.nome == p.nome_arma), None)
+            if arma_obj:
+                p.recalcular_com_arma(arma_obj)
+
         # Carrega dados
         self.indice_em_edicao = idx
         self.dados_char = {
@@ -1610,10 +1650,10 @@ class TelaPersonagens(tk.Frame):
             "cor_g": p.cor_g,
             "cor_b": p.cor_b,
             "god_id": getattr(p, "god_id", None),  # [PHASE 3]
+            "lore": getattr(p, "lore", ""),         # MEL-C3: Background opcional
         }
         
-        # Atualiza UI
-        self.btn_proximo.config(text="⚡ SALVAR CAMPEÃO", bg=COR_WARNING)
+        # Atualiza UI — mostrar_passo definirá o texto do botão via self.total_passos
         self.mostrar_passo(self.passo_atual)
 
     def editar_personagem(self):

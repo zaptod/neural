@@ -347,6 +347,11 @@ class TelaLuta(tk.Frame):
         if not self.personagem_p1 or not self.personagem_p2:
             messagebox.showwarning("Atenção", "Selecione dois campeões!")
             return
+
+        # BUG-F4: Impede personagem de lutar contra si mesmo
+        if self.personagem_p1.nome == self.personagem_p2.nome:
+            messagebox.showwarning("Atenção", "Selecione dois campeões diferentes!")
+            return
         
         match_data = {
             "p1_nome": self.personagem_p1.nome,

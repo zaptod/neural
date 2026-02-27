@@ -396,6 +396,9 @@ class AppState:
     # ═══════════════════════════════════════════════════════════════════════════
 
     def _load_all(self):
+        # ATENÇÃO (MEL-C8): _load_weapons DEVE ser chamado antes de _load_characters.
+        # _load_characters consulta self._weapons para resolver peso_arma de cada personagem.
+        # Alterar esta ordem fará com que todos os personagens tenham peso_arma = 0.
         self._weapons    = self._load_weapons()
         self._characters = self._load_characters()
         self._match      = self._load_json(FILE_MATCH,      DEFAULT_MATCH_CONFIG)
@@ -449,6 +452,7 @@ class AppState:
                     item.get("classe", "Guerreiro (Força Bruta)"),
                     item.get("personalidade", "Aleatório"),
                     item.get("god_id", None),
+                    item.get("lore", ""),   # MEL-C3: Background opcional (compatível com JSONs antigos)
                 )
                 result.append(p)
             return result

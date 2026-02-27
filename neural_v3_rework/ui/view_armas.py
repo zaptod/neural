@@ -438,13 +438,50 @@ class TelaArmas(tk.Frame):
         frame_tipos.columnconfigure(0, weight=1)
         frame_tipos.columnconfigure(1, weight=1)
 
+        # ── Seletor de Estilo (atualiza dinamicamente ao escolher o tipo) ──
+        tk.Label(
+            self.frame_conteudo_passo, text="Estilo / Variante:",
+            font=("Arial", 10, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
+        ).pack(anchor="w", pady=(14, 4))
+
+        frame_estilo_t1 = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
+        frame_estilo_t1.pack(fill="x")
+
+        self.combo_estilo_t1 = ttk.Combobox(frame_estilo_t1, state="readonly", font=("Arial", 11))
+        self.combo_estilo_t1.pack(fill="x", ipady=4)
+
+        def _atualizar_estilos_t1(tipo):
+            estilos = TIPOS_ARMA[tipo]["estilos"]
+            self.combo_estilo_t1["values"] = estilos
+            estilo_atual = self.dados_arma.get("estilo") or estilos[0]
+            self.combo_estilo_t1.set(estilo_atual if estilo_atual in estilos else estilos[0])
+            self.dados_arma["estilo"] = self.combo_estilo_t1.get()
+            self.atualizar_preview()
+            self.criar_resumo_stats()
+
+        self.combo_estilo_t1.bind("<<ComboboxSelected>>", lambda e: (
+            self.dados_arma.update({"estilo": self.combo_estilo_t1.get()}),
+            self.atualizar_preview(),
+            self.criar_resumo_stats(),
+        ))
+
+        # Popula com o tipo já selecionado
+        _atualizar_estilos_t1(self.dados_arma["tipo"])
+
+        # Guarda referência para que selecionar_tipo() possa atualizar o combo
+        self._atualizar_estilos_t1 = _atualizar_estilos_t1
+
     def selecionar_tipo(self, tipo):
         """Atualiza o tipo selecionado"""
         self.dados_arma["tipo"] = tipo
         dados_tipo = TIPOS_ARMA[tipo]
         self.dados_arma["estilo"] = dados_tipo["estilos"][0]
+        # Atualiza o combo de estilo do Passo 1 se ele existir
+        if hasattr(self, "_atualizar_estilos_t1"):
+            self._atualizar_estilos_t1(tipo)
         self.atualizar_preview()
         self.criar_resumo_stats()
+
 
     # -------------------------------------------------------------------------
     # PASSO 2: RARIDADE
@@ -522,8 +559,12 @@ class TelaArmas(tk.Frame):
         )
         self.combo_estilo.pack(fill="x", pady=5)
         self.combo_estilo.set(self.dados_arma.get("estilo") or dados_tipo["estilos"][0])
-        self.combo_estilo.bind("<<ComboboxSelected>>", 
-            lambda e: self.atualizar_dado("estilo", self.combo_estilo.get()))
+        def _on_estilo_p3(e):
+            self.atualizar_dado("estilo", self.combo_estilo.get())
+            if hasattr(self, "combo_estilo_t1"):
+                try: self.combo_estilo_t1.set(self.combo_estilo.get())
+                except Exception: pass
+        self.combo_estilo.bind("<<ComboboxSelected>>", _on_estilo_p3)
         
         # Botão de sugestão
         btn_sugerir = tk.Button(
@@ -988,24 +1029,25 @@ class TelaArmas(tk.Frame):
         geo = self.dados_arma["geometria"]
         cor_hex = f"#{cores['r']:02x}{cores['g']:02x}{cores['b']:02x}"
         cor_raridade = CORES_RARIDADE[self.dados_arma["raridade"]]
+        estilo = self.dados_arma.get("estilo", "")
         
-        # Renderiza baseado no tipo
+        # Renderiza baseado no tipo — todos recebem estilo para diferenciar variantes
         if tipo == "Reta":
-            self.desenhar_arma_reta(cx, cy, raio_char, geo, cor_hex, cor_raridade)
+            self.desenhar_arma_reta(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
         elif tipo == "Dupla":
-            self.desenhar_arma_dupla(cx, cy, raio_char, geo, cor_hex, cor_raridade)
+            self.desenhar_arma_dupla(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
         elif tipo == "Corrente":
-            self.desenhar_arma_corrente(cx, cy, raio_char, geo, cor_hex, cor_raridade)
+            self.desenhar_arma_corrente(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
         elif tipo == "Arremesso":
-            self.desenhar_arma_arremesso(cx, cy, raio_char, geo, cor_hex, cor_raridade)
+            self.desenhar_arma_arremesso(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
         elif tipo == "Arco":
-            self.desenhar_arma_arco(cx, cy, raio_char, geo, cor_hex, cor_raridade)
+            self.desenhar_arma_arco(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
         elif tipo == "Orbital":
-            self.desenhar_arma_orbital(cx, cy, raio_char, geo, cor_hex, cor_raridade)
+            self.desenhar_arma_orbital(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
         elif tipo == "Mágica":
-            self.desenhar_arma_magica(cx, cy, raio_char, geo, cor_hex, cor_raridade)
+            self.desenhar_arma_magica(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
         elif tipo == "Transformável":
-            self.desenhar_arma_transformavel(cx, cy, raio_char, geo, cor_hex, cor_raridade)
+            self.desenhar_arma_transformavel(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
         
         # Borda de raridade
         self.canvas_preview.create_rectangle(
@@ -1018,261 +1060,788 @@ class TelaArmas(tk.Frame):
             font=("Arial", 10, "bold"), fill=cor_raridade, anchor="e"
         )
 
-    def desenhar_arma_reta(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Reta"""
-        cabo = geo.get("comp_cabo", 20)
-        lamina = geo.get("comp_lamina", 50)
-        largura = geo.get("largura", 5)
-        
-        # Cabo
-        self.canvas_preview.create_rectangle(
-            cx + raio, cy - largura*0.3,
-            cx + raio + cabo, cy + largura*0.3,
-            fill="#8B4513", outline="#5C3317"
-        )
-        
-        # Lamina
-        self.canvas_preview.create_rectangle(
-            cx + raio + cabo, cy - largura/2,
-            cx + raio + cabo + lamina, cy + largura/2,
-            fill=cor, outline=cor_rar, width=2
-        )
-
-    def desenhar_arma_dupla(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Dupla - Adagas Gêmeas (karambit style)"""
+    def desenhar_arma_reta(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+        """Desenha arma do tipo Reta por estilo.
+        Estilos: Corte (Espada), Estocada (Lança), Contusão (Maça), Misto.
+        """
         import math as _math
-        cabo = geo.get("comp_cabo", 15)
-        lamina = geo.get("comp_lamina", 35)
-        largura = geo.get("largura", 4)
-        sep = geo.get("separacao", 20)
-        
-        for i, offset in enumerate([-sep * 0.7, sep * 0.7]):
-            lado = -1 if i == 0 else 1
-            bx = cx + raio + 10
-            by = cy + offset
-            # Anel de polegar
-            self.canvas_preview.create_oval(
-                bx - 4, by - 4, bx + 4, by + 4,
-                outline="#C8C8D0", width=2
+        cabo  = geo.get("comp_cabo",  20)
+        lam   = geo.get("comp_lamina", 50)
+        larg  = max(3, int(geo.get("largura", 5)))
+        cv    = self.canvas_preview
+        bx    = cx + raio  # base X (encosta no personagem)
+
+        # ── ESTOCADA (Lança) — haste longa, ponta fina triangular ──────────
+        if "Lança" in estilo or "Estocada" in estilo:
+            # Haste de madeira
+            cv.create_rectangle(bx, cy - max(2, larg//3),
+                                 bx + cabo, cy + max(2, larg//3),
+                                 fill="#6B3A1F", outline="#4A2810")
+            # Ponta de metal — triângulo estreito e longo
+            cv.create_polygon(
+                bx + cabo, cy - larg*0.6,
+                bx + cabo + lam * 0.15, cy - larg*0.25,
+                bx + cabo + lam, cy,
+                bx + cabo + lam * 0.15, cy + larg*0.25,
+                bx + cabo, cy + larg*0.6,
+                fill=cor, outline=cor_rar, width=1
             )
+            # Fio central
+            cv.create_line(bx + cabo, cy, bx + cabo + lam, cy, fill="#DDEEFF", width=1)
+            # Anel (virola)
+            cv.create_rectangle(bx + cabo - 3, cy - larg*0.7, bx + cabo + 3, cy + larg*0.7,
+                                 fill="#A0A5B0", outline="#C8C8D0")
+
+        # ── CONTUSÃO (Maça) — cabo curto, cabeça larga com espigões ───────
+        elif "Maça" in estilo or "Contusão" in estilo:
             # Cabo
-            cabo_ex = bx + cabo * 0.7
-            cabo_ey = by + cabo * 0.2 * lado
-            self.canvas_preview.create_line(
-                bx, by, cabo_ex, cabo_ey,
-                fill="#6B3A1F", width=max(2, int(largura))
-            )
-            # Lâmina curva (karambit arc) - arc de 90 graus
-            arc_r = lamina * 0.6
-            arc_cx = cabo_ex + arc_r * 0.3
-            arc_cy = cabo_ey - arc_r * lado * 0.5
-            self.canvas_preview.create_arc(
-                arc_cx - arc_r, arc_cy - arc_r,
-                arc_cx + arc_r, arc_cy + arc_r,
-                start=150 if lado < 0 else 180,
-                extent=100,
-                style="arc", outline=cor, width=max(2, int(largura))
-            )
-            # Ponta com glow
-            tip_x = arc_cx + _math.cos(_math.radians(240 if lado < 0 else 280)) * arc_r
-            tip_y = arc_cy + _math.sin(_math.radians(240 if lado < 0 else 280)) * arc_r
-            self.canvas_preview.create_oval(
-                tip_x - 3, tip_y - 3, tip_x + 3, tip_y + 3,
-                fill=cor_rar, outline=cor_rar
-            )
+            cv.create_rectangle(bx, cy - max(2, larg//3),
+                                 bx + cabo, cy + max(2, larg//3),
+                                 fill="#5C3317", outline="#4A2810")
+            # Cabeça da maça — cilindro largo
+            head_w = larg * 1.6
+            cv.create_rectangle(bx + cabo, cy - head_w,
+                                 bx + cabo + lam * 0.55, cy + head_w,
+                                 fill=cor, outline=cor_rar, width=2)
+            # Espigões (4 faces)
+            spike_x = bx + cabo + lam * 0.28
+            for sy_off in [-head_w - 6, head_w + 6]:
+                cv.create_polygon(
+                    spike_x - 5, cy + sy_off * 0.5,
+                    spike_x + 5, cy + sy_off * 0.5,
+                    spike_x, cy + sy_off,
+                    fill=cor_rar, outline=cor_rar
+                )
+            # Highlight
+            cv.create_rectangle(bx + cabo + 2, cy - head_w + 2,
+                                 bx + cabo + lam * 0.25, cy - head_w//2,
+                                 fill="#FFFFFF", outline="")
 
-    def desenhar_arma_corrente(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Corrente - Mangual (heavy flail) v3.0"""
+        # ── CORTE (Espada) — lâmina larga com guarda e fio ─────────────────
+        elif "Espada" in estilo or "Corte" in estilo:
+            # Cabo com faixas de grip
+            cv.create_rectangle(bx, cy - max(2, larg//3),
+                                 bx + cabo, cy + max(2, larg//3),
+                                 fill="#6B3A1F", outline="#4A2810")
+            for gi in range(1, 4):
+                gx = bx + cabo * gi // 4
+                cv.create_line(gx, cy - larg//2, gx, cy + larg//2, fill="#3A1A08", width=1)
+            # Guarda (crossguard)
+            cv.create_rectangle(bx + cabo - 2, cy - larg - 3,
+                                 bx + cabo + 5, cy + larg + 3,
+                                 fill="#A0A5B0", outline="#C8C8D0", width=1)
+            # Lâmina com fio
+            cv.create_polygon(
+                bx + cabo + 5, cy - larg,
+                bx + cabo + 5 + lam * 0.9, cy - larg * 0.25,
+                bx + cabo + 5 + lam, cy,
+                bx + cabo + 5 + lam * 0.9, cy + larg * 0.25,
+                bx + cabo + 5, cy + larg,
+                fill=cor, outline=cor_rar, width=2
+            )
+            cv.create_line(bx + cabo + 5, cy, bx + cabo + 5 + lam * 0.85, cy, fill="#DDEEFF", width=1)
+
+        # ── MISTO — cabo médio, lâmina levemente curva, sem guarda ─────────
+        else:
+            cv.create_rectangle(bx, cy - max(2, larg//3),
+                                 bx + cabo, cy + max(2, larg//3),
+                                 fill="#6B3A1F", outline="#4A2810")
+            # Lâmina curva (bezier aproximado 5 pontos)
+            ctrl_y = cy - larg * 0.6
+            cv.create_polygon(
+                bx + cabo, cy - larg * 0.7,
+                bx + cabo + lam * 0.5, ctrl_y,
+                bx + cabo + lam, cy,
+                bx + cabo + lam * 0.5, cy + larg * 0.2,
+                bx + cabo, cy + larg * 0.7,
+                smooth=True, fill=cor, outline=cor_rar, width=1
+            )
+            cv.create_line(bx + cabo, cy, bx + cabo + lam * 0.85, cy - larg*0.2, fill="#DDEEFF", width=1)
+
+        # Ponta brilhante comum
+        tip_x = bx + cabo + lam if "Maça" not in estilo and "Contusão" not in estilo else bx + cabo + lam * 0.55
+        cv.create_oval(tip_x - 3, cy - 3, tip_x + 3, cy + 3, fill=cor_rar, outline=cor_rar)
+
+
+    def desenhar_arma_dupla(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+        """Desenha arma do tipo Dupla — renderizador por estilo.
+        
+        Estilos: Adagas Gêmeas (karambit), Kamas (foice), Sai (tridente),
+                 Garras (garra), Tonfas (bastão-L), Facas Táticas (faca militar).
+        """
         import math as _math
-        comp = geo.get("comp_corrente", 100) * 0.7
-        ponta_tam = max(12, int(geo.get("comp_ponta", 20) * 0.8))
-        
-        # Cabo de madeira
-        cabo_tam = geo.get("comp_cabo", 18) * 0.5
-        self.canvas_preview.create_rectangle(
-            cx + raio, cy - 5, cx + raio + cabo_tam, cy + 5,
-            fill="#6B3A1F", outline="#4A2810"
-        )
-        # Argola de conexão
-        self.canvas_preview.create_oval(
-            cx + raio + cabo_tam - 4, cy - 5, cx + raio + cabo_tam + 4, cy + 5,
-            outline="#A0A5B0", width=2
-        )
-        
-        # Elos da corrente (retângulos alternados horizontal/vertical)
-        num_elos = 8
-        elo_start_x = cx + raio + cabo_tam + 4
-        for i in range(num_elos):
-            t = i / num_elos
-            ex = elo_start_x + comp * t
-            ey = cy + _math.sin(t * _math.pi) * 15  # Catenary sag
-            ew = 8 if i % 2 == 0 else 5
-            eh = 4 if i % 2 == 0 else 7
-            self.canvas_preview.create_rectangle(
-                ex - ew//2, ey - eh//2, ex + ew//2, ey + eh//2,
-                fill="#6A6C78", outline="#9A9CA8"
-            )
-        
-        # Bola espigada no final
-        ball_x = elo_start_x + comp + 4
-        ball_y = cy + _math.sin(_math.pi * 0.9) * 15
-        # Bola principal
-        self.canvas_preview.create_oval(
-            ball_x - ponta_tam, ball_y - ponta_tam,
-            ball_x + ponta_tam, ball_y + ponta_tam,
-            fill=cor, outline=cor_rar, width=2
-        )
-        # Spikes (4 visíveis no preview)
-        for sa in [0, 90, 180, 270]:
-            s_r = _math.radians(sa)
-            sx1 = ball_x + _math.cos(s_r) * (ponta_tam - 1)
-            sy1 = ball_y + _math.sin(s_r) * (ponta_tam - 1)
-            sx2 = ball_x + _math.cos(s_r) * (ponta_tam + 7)
-            sy2 = ball_y + _math.sin(s_r) * (ponta_tam + 7)
-            self.canvas_preview.create_line(sx1, sy1, sx2, sy2,
-                                            fill=cor, width=3)
-        # Highlight da bola
-        self.canvas_preview.create_oval(
-            ball_x - ponta_tam//3, ball_y - ponta_tam//3,
-            ball_x, ball_y,
-            fill="#FFFFFF", outline=""
-        )
+        cabo  = geo.get("comp_cabo",  15)
+        lam   = geo.get("comp_lamina", 35)
+        larg  = max(2, int(geo.get("largura", 4)))
+        sep   = geo.get("separacao",  20)
 
-    def desenhar_arma_arremesso(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Arremesso"""
+        cv = self.canvas_preview
+
+        # Posições base: duas armas lado a lado (superior / inferior)
+        offsets = [-sep * 0.65, sep * 0.65]
+
+        # ── ADAGAS GÊMEAS (karambit) ─────────────────────────────────────
+        if estilo == "Adagas Gêmeas":
+            for i, offset in enumerate(offsets):
+                lado = -1 if i == 0 else 1
+                bx = cx + raio + 10
+                by = cy + offset
+                cv.create_oval(bx-4, by-4, bx+4, by+4, outline="#C8C8D0", width=2)
+                cabo_ex = bx + cabo * 0.7
+                cabo_ey = by + cabo * 0.2 * lado
+                cv.create_line(bx, by, cabo_ex, cabo_ey, fill="#6B3A1F", width=larg)
+                arc_r  = lam * 0.6
+                arc_cx = cabo_ex + arc_r * 0.3
+                arc_cy = cabo_ey - arc_r * lado * 0.5
+                cv.create_arc(
+                    arc_cx-arc_r, arc_cy-arc_r, arc_cx+arc_r, arc_cy+arc_r,
+                    start=150 if lado < 0 else 180, extent=100,
+                    style="arc", outline=cor, width=larg
+                )
+                tip_x = arc_cx + _math.cos(_math.radians(240 if lado < 0 else 280)) * arc_r
+                tip_y = arc_cy + _math.sin(_math.radians(240 if lado < 0 else 280)) * arc_r
+                cv.create_oval(tip_x-3, tip_y-3, tip_x+3, tip_y+3, fill=cor_rar, outline=cor_rar)
+
+        # ── KAMAS (foice japonesa — cabo + lâmina curva perpendicular) ────
+        elif estilo == "Kamas":
+            for i, offset in enumerate(offsets):
+                lado = -1 if i == 0 else 1
+                bx = cx + raio + 8
+                by = cy + offset
+                # Cabo vertical
+                cv.create_line(bx, by, bx + cabo, by, fill="#6B3A1F", width=larg)
+                # Lâmina curva partindo do final do cabo para cima/baixo
+                # Arco em 180°: retrato de foice
+                arc_r = lam * 0.5
+                arc_ox = bx + cabo
+                arc_oy = by - arc_r * lado * 0.4
+                cv.create_arc(
+                    arc_ox - arc_r * 0.5, arc_oy - arc_r,
+                    arc_ox + arc_r * 0.5, arc_oy + arc_r,
+                    start=270 if lado < 0 else 90,
+                    extent=(-160 if lado < 0 else 160),
+                    style="arc", outline=cor, width=larg
+                )
+                # Guarda (crossguard) no topo do cabo
+                cv.create_line(bx + cabo - 2, by - 5, bx + cabo - 2, by + 5,
+                                fill="#A0A5B0", width=larg)
+                # Ponta da foice
+                tip_x = arc_ox + arc_r * 0.4 * lado
+                tip_y = by - arc_r * lado * 0.9
+                cv.create_oval(tip_x-3, tip_y-3, tip_x+3, tip_y+3, fill=cor_rar, outline=cor_rar)
+
+        # ── SAI (tridente japonês — foinha central + duas guardas laterais) ─
+        elif estilo == "Sai":
+            for i, offset in enumerate(offsets):
+                lado = -1 if i == 0 else 1
+                bx = cx + raio + 8
+                by = cy + offset
+                tip_main = bx + cabo + lam
+                # Cabo
+                cv.create_line(bx, by, bx + cabo, by, fill="#6B3A1F", width=larg)
+                # Lâmina central (foinha principal)
+                cv.create_line(bx + cabo, by, tip_main, by, fill=cor, width=larg)
+                # Ponta
+                cv.create_oval(tip_main-3, by-3, tip_main+3, by+3, fill=cor_rar, outline=cor_rar)
+                # Guardas laterais (asas do Sai)
+                asa = lam * 0.35
+                cv.create_line(bx + cabo, by, bx + cabo + asa * 0.7, by - asa * lado,
+                                fill="#A0A5B0", width=max(1, larg-1))
+                cv.create_line(bx + cabo, by, bx + cabo + asa * 0.7, by + asa * lado,
+                                fill="#A0A5B0", width=max(1, larg-1))
+                # Ponta das guardas
+                cv.create_oval(bx + cabo + asa*0.7 - 2, by - asa*lado - 2,
+                                bx + cabo + asa*0.7 + 2, by - asa*lado + 2, fill="#C8C8D0")
+                cv.create_oval(bx + cabo + asa*0.7 - 2, by + asa*lado - 2,
+                                bx + cabo + asa*0.7 + 2, by + asa*lado + 2, fill="#C8C8D0")
+
+        # ── GARRAS (knuckle-duster com 3 lâminas curtas em leque) ──────────
+        elif estilo == "Garras":
+            for i, offset in enumerate(offsets):
+                lado = -1 if i == 0 else 1
+                bx = cx + raio + 8
+                by = cy + offset
+                # Base (knuckle): retângulo
+                cv.create_rectangle(bx, by - larg - 2, bx + cabo, by + larg + 2,
+                                    fill="#4A2810", outline="#6B3A1F", width=1)
+                # 3 garras em leque: central, acima, abaixo
+                for ang_deg in [-30 * lado, 0, 30 * lado]:
+                    ang = _math.radians(ang_deg)
+                    gx  = bx + cabo + _math.cos(ang) * lam * 0.8
+                    gy  = by + _math.sin(ang) * lam * 0.8
+                    cv.create_line(bx + cabo, by, gx, gy, fill=cor, width=max(1, larg-1))
+                    cv.create_oval(gx-2, gy-2, gx+2, gy+2, fill=cor_rar, outline=cor_rar)
+                # Nós dos dedos (estética)
+                for k in range(3):
+                    kx = bx + cabo * (k+1) / 4
+                    cv.create_oval(kx-2, by-2, kx+2, by+2, fill="#8B6040", outline="")
+
+        # ── TONFAS (bastão-L: cabo curto perpendicular + braço longo) ──────
+        elif estilo == "Tonfas":
+            for i, offset in enumerate(offsets):
+                lado = -1 if i == 0 else 1
+                bx = cx + raio + 8
+                by = cy + offset
+                # Braço horizontal principal
+                cv.create_line(bx, by, bx + lam, by, fill=cor, width=larg)
+                # Cabo perpendicular (bastão-L — desce a partir de 1/4 do braço)
+                pivot_x = bx + lam * 0.25
+                cv.create_line(pivot_x, by, pivot_x, by + cabo * lado,
+                                fill="#6B3A1F", width=max(2, larg-1))
+                # Ponta brilhante do braço
+                cv.create_oval(bx + lam - 3, by - 3, bx + lam + 3, by + 3,
+                                fill=cor_rar, outline=cor_rar)
+                # Ponta do cabo
+                cv.create_oval(pivot_x - 2, by + cabo*lado - 2,
+                                pivot_x + 2, by + cabo*lado + 2,
+                                fill="#A0A5B0", outline="")
+                # Faixa de grip no cabo
+                for fi in [0.3, 0.6]:
+                    fy = by + cabo * lado * fi
+                    cv.create_line(pivot_x - larg, fy, pivot_x + larg, fy,
+                                   fill="#3A1A08", width=1)
+
+        # ── FACAS TÁTICAS (lâmina militarista reta, serrilhada) ────────────
+        else:  # "Facas Táticas" ou fallback genérico
+            for i, offset in enumerate(offsets):
+                lado = -1 if i == 0 else 1
+                bx = cx + raio + 8
+                by = cy + offset
+                # Cabo texturizado
+                cv.create_rectangle(bx, by - larg - 1, bx + cabo, by + larg + 1,
+                                    fill="#3A1A08", outline="#6B3A1F", width=1)
+                # Guarda
+                cv.create_line(bx + cabo, by - larg - 3, bx + cabo, by + larg + 3,
+                                fill="#A0A5B0", width=2)
+                # Lâmina principal reta
+                tip_x = bx + cabo + lam
+                cv.create_polygon(
+                    bx + cabo, by - larg,
+                    bx + cabo + lam * 0.85, by - max(1, larg//2),
+                    tip_x, by,
+                    bx + cabo + lam * 0.85, by + max(1, larg//2),
+                    bx + cabo, by + larg,
+                    fill=cor, outline=cor_rar
+                )
+                # Fio (highlight central)
+                cv.create_line(bx + cabo, by, tip_x, by, fill="#DDEEFF", width=1)
+                # Serrilha no dorso (3 dentes)
+                for si in range(1, 4):
+                    sx = bx + cabo + lam * si / 4.5
+                    cv.create_line(sx, by - larg, sx - 3, by - larg - 4,
+                                   fill="#B0B5C0", width=1)
+                # Ponta brilhante
+                cv.create_oval(tip_x-3, by-3, tip_x+3, by+3, fill=cor_rar, outline=cor_rar)
+
+
+    def desenhar_arma_corrente(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+        """Desenha arma do tipo Corrente por estilo.
+        Estilos: Kusarigama, Flail (Mangual), Chicote, Corrente com Peso.
+        """
+        import math as _math
+        cv   = self.canvas_preview
+        bx   = cx + raio
+
+        # ── KUSARIGAMA — foice pequena + corrente + peso ────────────────────
+        if "Kusarigama" in estilo:
+            comp   = geo.get("comp_corrente", 80) * 0.55
+            ponta  = max(10, int(geo.get("comp_ponta", 18) * 0.7))
+            cabo_t = geo.get("comp_cabo", 15) * 0.4
+            # Cabo curto da foice
+            cv.create_rectangle(bx, cy - 3, bx + cabo_t, cy + 3, fill="#6B3A1F", outline="#4A2810")
+            # Lâmina da foice (arco)
+            cv.create_arc(bx + cabo_t - 5, cy - ponta, bx + cabo_t + ponta, cy + ponta,
+                           start=90, extent=180, style="arc", outline=cor, width=3)
+            # Corrente (linha ondulada)
+            chain_pts = []
+            for i in range(12):
+                t = i / 11
+                ex = bx + cabo_t + 6 + comp * t
+                ey = cy + _math.sin(t * _math.pi * 3) * 8
+                chain_pts.append((ex, ey))
+            if len(chain_pts) > 1:
+                for j in range(0, len(chain_pts)-1, 2):
+                    cv.create_oval(chain_pts[j][0]-3, chain_pts[j][1]-2,
+                                   chain_pts[j][0]+3, chain_pts[j][1]+2,
+                                   outline="#8A8C98", width=1)
+            # Peso (bola pequena)
+            wx = bx + cabo_t + 6 + comp
+            wy = cy
+            cv.create_oval(wx - 7, wy - 7, wx + 7, wy + 7, fill=cor, outline=cor_rar, width=2)
+
+        # ── FLAIL (MANGUAL) — cabo + corrente + bola espigada ──────────────
+        elif "Mangual" in estilo or "Flail" in estilo:
+            comp   = geo.get("comp_corrente", 80) * 0.6
+            ponta  = max(12, int(geo.get("comp_ponta", 20) * 0.8))
+            cabo_t = geo.get("comp_cabo", 18) * 0.45
+            # Cabo
+            cv.create_rectangle(bx, cy - 5, bx + cabo_t, cy + 5, fill="#6B3A1F", outline="#4A2810")
+            cv.create_oval(bx + cabo_t - 4, cy - 5, bx + cabo_t + 4, cy + 5, outline="#A0A5B0", width=2)
+            # Elos da corrente
+            elo_x = bx + cabo_t + 4
+            for i in range(8):
+                t = i / 7
+                ex = elo_x + comp * t
+                ey = cy + _math.sin(t * _math.pi) * 14
+                ew, eh = (8, 4) if i % 2 == 0 else (5, 7)
+                cv.create_rectangle(ex - ew//2, ey - eh//2, ex + ew//2, ey + eh//2,
+                                     fill="#6A6C78", outline="#9A9CA8")
+            # Bola espigada
+            bx2 = elo_x + comp + 4
+            by2 = cy + _math.sin(_math.pi * 0.9) * 14
+            cv.create_oval(bx2 - ponta, by2 - ponta, bx2 + ponta, by2 + ponta, fill=cor, outline=cor_rar, width=2)
+            for sa in [0, 90, 180, 270]:
+                sr = _math.radians(sa)
+                cv.create_line(bx2 + _math.cos(sr) * (ponta-1), by2 + _math.sin(sr) * (ponta-1),
+                                bx2 + _math.cos(sr) * (ponta+7), by2 + _math.sin(sr) * (ponta+7),
+                                fill=cor, width=3)
+            cv.create_oval(bx2 - ponta//3, by2 - ponta//3, bx2, by2, fill="#FFFFFF", outline="")
+
+        # ── CHICOTE — longo, fino, sinuoso, sem ponta pesada ───────────────
+        elif "Chicote" in estilo:
+            comp = geo.get("comp_corrente", 120) * 0.65
+            cabo_t = geo.get("comp_cabo", 15) * 0.5
+            # Cabo de couro
+            cv.create_rectangle(bx, cy - 4, bx + cabo_t, cy + 4, fill="#3A1A08", outline="#5C3317")
+            # Ondas do chicote (afunilando)
+            num_seg = 20
+            pts = []
+            for i in range(num_seg + 1):
+                t = i / num_seg
+                ex = bx + cabo_t + comp * t
+                amplitude = 14 * (1 - t * 0.8)
+                ey = cy + _math.sin(t * _math.pi * 3.5) * amplitude
+                pts.append((ex, ey))
+            for j in range(len(pts) - 1):
+                thick = max(1, int(4 * (1 - j / num_seg)))
+                shade = int(80 + 60 * (j / num_seg))
+                color_str = f"#{shade:02x}{shade//2:02x}00"
+                cv.create_line(pts[j][0], pts[j][1], pts[j+1][0], pts[j+1][1],
+                                fill=color_str, width=thick)
+            # Ponta (nó)
+            if pts:
+                cv.create_oval(pts[-1][0]-3, pts[-1][1]-3, pts[-1][0]+3, pts[-1][1]+3, fill=cor_rar, outline="")
+
+        # ── CORRENTE COM PESO — corrente grossa + peso retangular ──────────
+        else:
+            comp   = geo.get("comp_corrente", 90) * 0.6
+            ponta  = max(10, int(geo.get("comp_ponta", 20) * 0.7))
+            cabo_t = geo.get("comp_cabo", 15) * 0.4
+            # Argola de pulso
+            cv.create_oval(bx, cy - 6, bx + 12, cy + 6, outline="#A0A5B0", width=2)
+            # Elos grandes e quadrados
+            for i in range(7):
+                t = i / 6
+                ex = bx + 12 + comp * t
+                ey = cy + _math.sin(t * _math.pi * 2) * 10
+                cv.create_rectangle(ex - 5, ey - 3, ex + 5, ey + 3, fill="#5A5C68", outline="#8A8C98")
+                cv.create_rectangle(ex - 3, ey - 5, ex + 3, ey + 5, fill="#5A5C68", outline="#8A8C98")
+            # Peso — bloco metálico
+            wx = bx + 12 + comp
+            wy = cy
+            cv.create_rectangle(wx - ponta, wy - ponta*0.8, wx + ponta, wy + ponta*0.8,
+                                  fill=cor, outline=cor_rar, width=2)
+            cv.create_rectangle(wx - ponta + 2, wy - ponta*0.8 + 2, wx - ponta//3, wy - ponta*0.3,
+                                  fill="#FFFFFF", outline="")
+
+
+    def desenhar_arma_arremesso(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+        """Desenha arma do tipo Arremesso por estilo.
+        Estilos: Machado (Não Retorna), Faca (Rápida), Chakram (Retorna), Bumerangue.
+        """
+        import math as _math
+        cv  = self.canvas_preview
         tam = geo.get("tamanho_projetil", 15)
-        largura = geo.get("largura", 10)
-        qtd = int(geo.get("quantidade", 3))
-        
-        for i in range(qtd):
-            offset_y = (i - qtd/2) * 25
-            # Projetil (forma de lamina de arremesso)
-            pts = [
-                cx + raio + 30, cy + offset_y,
-                cx + raio + 30 + tam, cy + offset_y - largura/2,
-                cx + raio + 30 + tam*1.5, cy + offset_y,
-                cx + raio + 30 + tam, cy + offset_y + largura/2,
-            ]
-            self.canvas_preview.create_polygon(pts, fill=cor, outline=cor_rar, width=2)
+        qtd = max(1, min(5, int(geo.get("quantidade", 3))))
 
-    def desenhar_arma_arco(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Arco"""
-        tam = geo.get("tamanho_arco", 60)
+        for i in range(qtd):
+            oy = cy + (i - (qtd - 1) / 2) * 28
+            bx = cx + raio + 20
+
+            # ── MACHADO (Não Retorna) — lâmina de machado assimétrica ──────
+            if "Machado" in estilo:
+                # Cabo
+                cv.create_line(bx, oy, bx + tam * 0.4, oy, fill="#6B3A1F", width=3)
+                # Cabeça de machado
+                head_x = bx + tam * 0.4
+                cv.create_polygon(
+                    head_x, oy - tam * 0.8,
+                    head_x + tam * 0.7, oy - tam * 0.4,
+                    head_x + tam * 0.8, oy,
+                    head_x + tam * 0.7, oy + tam * 0.2,
+                    head_x, oy + tam * 0.3,
+                    fill=cor, outline=cor_rar, width=1
+                )
+                cv.create_oval(head_x + tam*0.1, oy - tam*0.1, head_x + tam*0.35, oy + tam*0.1, fill="#FFFFFF", outline="")
+
+            # ── CHAKRAM (Retorna) — anel circular com fio interno ──────────
+            elif "Chakram" in estilo:
+                r = max(8, int(tam * 0.6))
+                # Anel exterior
+                cv.create_oval(bx - r, oy - r, bx + r, oy + r, outline=cor, width=max(3, r//3))
+                cv.create_oval(bx - r, oy - r, bx + r, oy + r, outline=cor_rar, width=1)
+                # Raios internos
+                for ang_d in [0, 60, 120]:
+                    ang_r = _math.radians(ang_d)
+                    cv.create_line(bx + _math.cos(ang_r)*r*0.4, oy + _math.sin(ang_r)*r*0.4,
+                                   bx - _math.cos(ang_r)*r*0.4, oy - _math.sin(ang_r)*r*0.4,
+                                   fill=cor_rar, width=1)
+                cv.create_oval(bx - 3, oy - 3, bx + 3, oy + 3, fill=cor_rar, outline="")
+
+            # ── BUMERANGUE — forma curvada em V assimétrico ─────────────────
+            elif "Bumerangue" in estilo:
+                cv.create_polygon(
+                    bx, oy,
+                    bx + tam * 0.5, oy - tam * 0.7,
+                    bx + tam * 0.7, oy - tam * 0.55,
+                    bx + tam * 0.35, oy + tam * 0.1,
+                    bx + tam * 0.85, oy + tam * 0.55,
+                    bx + tam * 0.65, oy + tam * 0.7,
+                    smooth=True, fill=cor, outline=cor_rar, width=2
+                )
+                cv.create_oval(bx - 2, oy - 2, bx + 4, oy + 4, fill=cor_rar, outline="")
+
+            # ── FACA (Rápida) — lâmina de throwing knife esbelta ───────────
+            else:
+                # Lâmina estreita e pontiaguda
+                cv.create_polygon(
+                    bx, oy - max(2, int(tam * 0.2)),
+                    bx + tam * 0.25, oy - max(2, int(tam * 0.15)),
+                    bx + tam * 1.2, oy,
+                    bx + tam * 0.25, oy + max(2, int(tam * 0.15)),
+                    bx, oy + max(2, int(tam * 0.2)),
+                    fill=cor, outline=cor_rar, width=1
+                )
+                # Cabo pequeno
+                cv.create_rectangle(bx - tam * 0.3, oy - max(2, int(tam * 0.18)),
+                                     bx, oy + max(2, int(tam * 0.18)),
+                                     fill="#3A1A08", outline="#6B3A1F")
+                cv.create_oval(bx + tam*1.1 - 2, oy - 2, bx + tam*1.2 + 2, oy + 2, fill=cor_rar, outline="")
+
+
+    def desenhar_arma_arco(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+        """Desenha arma do tipo Arco por estilo.
+        Estilos: Arco Curto, Arco Longo, Besta, Besta de Repetição.
+        """
+        import math as _math
+        cv    = self.canvas_preview
+        tam   = geo.get("tamanho_arco", 60)
         flecha = geo.get("tamanho_flecha", 40)
-        
-        # Arco (curva)
-        self.canvas_preview.create_arc(
-            cx - tam/2, cy - tam/2, cx + tam/2, cy + tam/2,
-            start=-60, extent=120, style="arc",
-            outline=cor, width=4
-        )
-        
-        # Corda
-        self.canvas_preview.create_line(
-            cx + tam/2 * math.cos(math.radians(60)), cy - tam/2 * math.sin(math.radians(60)),
-            cx + tam/2 * math.cos(math.radians(-60)), cy - tam/2 * math.sin(math.radians(-60)),
-            fill="#8B4513", width=2
-        )
-        
-        # Flecha
-        self.canvas_preview.create_line(
-            cx, cy, cx + raio + flecha, cy,
-            fill="#8B4513", width=2, arrow="last"
-        )
-        self.canvas_preview.create_polygon(
-            cx + raio + flecha, cy,
-            cx + raio + flecha - 10, cy - 5,
-            cx + raio + flecha - 10, cy + 5,
-            fill=cor_rar
-        )
 
-    def desenhar_arma_orbital(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Orbital"""
-        largura = geo.get("largura", 40)
+        # ── BESTA / BESTA DE REPETIÇÃO — horizontal, limbo e gatilho ───────
+        if "Besta" in estilo:
+            # Coronha (stock)
+            cv.create_rectangle(cx - tam*0.2, cy - 5, cx + tam*0.35, cy + 5, fill="#6B3A1F", outline="#4A2810")
+            # Limbo horizontal (os "braços" da besta)
+            mid_x = cx + tam * 0.28
+            cv.create_arc(mid_x - tam*0.35, cy - tam*0.38, mid_x + tam*0.35, cy + tam*0.38,
+                           start=80, extent=20, style="arc", outline=cor, width=4)
+            cv.create_arc(mid_x - tam*0.35, cy - tam*0.38, mid_x + tam*0.35, cy + tam*0.38,
+                           start=-100, extent=20, style="arc", outline=cor, width=4)
+            # Corda
+            cv.create_line(mid_x - tam*0.32, cy - tam*0.28, mid_x + flecha * 0.4, cy, fill="#C8B060", width=2)
+            cv.create_line(mid_x - tam*0.32, cy + tam*0.28, mid_x + flecha * 0.4, cy, fill="#C8B060", width=2)
+            # Virote (bolto)
+            bolt_end = cx + tam * 0.35 + flecha * 0.6
+            cv.create_line(cx + tam*0.35, cy, bolt_end, cy, fill="#8B4513", width=2)
+            cv.create_polygon(bolt_end, cy, bolt_end - 8, cy - 4, bolt_end - 8, cy + 4, fill=cor_rar)
+            # Pente (repetição)
+            if "Repetição" in estilo:
+                cv.create_rectangle(mid_x - 8, cy - 16, mid_x + 8, cy - 6,
+                                     fill="#5A3010", outline="#8B5020", width=1)
+                for ri in range(3):
+                    cv.create_line(mid_x - 5, cy - 14 + ri*3, mid_x + 5, cy - 14 + ri*3, fill="#8B5020", width=1)
+
+        # ── ARCO LONGO — alto, curvatura suave, sem decoração ──────────────
+        elif "Longo" in estilo:
+            span = tam * 0.85
+            cv.create_arc(cx - span*0.6, cy - span, cx + span*0.6, cy + span,
+                           start=55, extent=70, style="arc", outline=cor, width=5)
+            # Corda tensionada
+            y1 = cy - _math.sin(_math.radians(55)) * span
+            y2 = cy + _math.sin(_math.radians(55)) * span
+            x_str = cx - _math.cos(_math.radians(55)) * span * 0.6
+            cv.create_line(x_str, cy - abs(y1 - cy), x_str, cy + abs(y2 - cy), fill="#C8B060", width=2)
+            # Flecha
+            cv.create_line(cx, cy, cx + raio + flecha, cy, fill="#8B4513", width=2)
+            cv.create_polygon(cx + raio + flecha, cy, cx + raio + flecha - 10, cy - 5,
+                               cx + raio + flecha - 10, cy + 5, fill=cor_rar)
+            # Penas
+            px = cx + 18
+            cv.create_line(px, cy, px - 8, cy - 6, fill="#CC4444", width=2)
+            cv.create_line(px, cy, px - 8, cy + 6, fill="#CC4444", width=2)
+
+        # ── ARCO CURTO (default) — compacto, mais curvado ──────────────────
+        else:
+            span = tam * 0.55
+            cv.create_arc(cx - span, cy - span, cx + span, cy + span,
+                           start=-60, extent=120, style="arc", outline=cor, width=4)
+            # Corda
+            x1 = cx + span * _math.cos(_math.radians(60))
+            y1 = cy - span * _math.sin(_math.radians(60))
+            x2 = cx + span * _math.cos(_math.radians(-60))
+            y2 = cy - span * _math.sin(_math.radians(-60))
+            cv.create_line(x1, y1, x2, y2, fill="#C8B060", width=2)
+            # Flecha
+            cv.create_line(cx, cy, cx + raio + flecha, cy, fill="#8B4513", width=2)
+            cv.create_polygon(cx + raio + flecha, cy, cx + raio + flecha - 8, cy - 4,
+                               cx + raio + flecha - 8, cy + 4, fill=cor_rar)
+            px = cx + 14
+            cv.create_line(px, cy, px - 6, cy - 5, fill="#CC4444", width=2)
+            cv.create_line(px, cy, px - 6, cy + 5, fill="#CC4444", width=2)
+
+
+    def desenhar_arma_orbital(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+        """Desenha arma do tipo Orbital por estilo.
+        Estilos: Defensivo (Escudo), Ofensivo (Drone), Mágico (Orbe), Lâminas Orbitais.
+        """
+        import math as _math
+        cv   = self.canvas_preview
         dist = geo.get("distancia", 30)
-        qtd = int(geo.get("quantidade_orbitais", 1))
-        
-        # Orbita
-        raio_orbita = raio + dist
-        self.canvas_preview.create_oval(
-            cx - raio_orbita, cy - raio_orbita,
-            cx + raio_orbita, cy + raio_orbita,
-            outline="#333", dash=(2, 4)
-        )
-        
-        # Elementos orbitais
-        for i in range(qtd):
-            ang = (360 / qtd) * i
-            ox = cx + raio_orbita * math.cos(math.radians(ang))
-            oy = cy + raio_orbita * math.sin(math.radians(ang))
-            
-            if largura > 30:  # Escudo
-                self.canvas_preview.create_arc(
-                    ox - largura/2, oy - largura/2, ox + largura/2, oy + largura/2,
-                    start=ang - largura/2, extent=largura,
-                    style="arc", outline=cor, width=5
-                )
-            else:  # Drone/Orbe
-                self.canvas_preview.create_oval(
-                    ox - largura/4, oy - largura/4, ox + largura/4, oy + largura/4,
-                    fill=cor, outline=cor_rar, width=2
-                )
+        qtd  = max(1, min(6, int(geo.get("quantidade_orbitais", 2))))
+        raio_orb = raio + dist * 0.7
 
-    def desenhar_arma_magica(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Magica"""
-        qtd = int(geo.get("quantidade", 3))
-        tam = geo.get("tamanho", 15)
-        dist = geo.get("distancia_max", 60)
-        
-        for i in range(qtd):
-            ang = -30 + (60 / max(1, qtd-1)) * i if qtd > 1 else 0
-            d = raio + dist * (0.5 + i * 0.2)
-            ox = cx + d * math.cos(math.radians(ang))
-            oy = cy + d * math.sin(math.radians(ang))
-            
-            # Espada espectral
-            self.canvas_preview.create_polygon(
-                ox, oy - tam/2,
-                ox + tam*2, oy,
-                ox, oy + tam/2,
-                ox - tam/2, oy,
-                fill=cor, outline=cor_rar, width=1, stipple="gray50"
-            )
+        # Órbita pontilhada (comum a todos)
+        cv.create_oval(cx - raio_orb, cy - raio_orb, cx + raio_orb, cy + raio_orb,
+                        outline="#333344", dash=(3, 5))
 
-    def desenhar_arma_transformavel(self, cx, cy, raio, geo, cor, cor_rar):
-        """Desenha arma do tipo Transformavel (mostra ambas formas)"""
-        # Forma 1 (acima)
-        cabo1 = geo.get("forma1_cabo", 20)
-        lam1 = geo.get("forma1_lamina", 50)
-        largura = geo.get("largura", 5)
-        
-        self.canvas_preview.create_text(cx - 50, cy - 30, text="Forma 1", fill="#888", font=("Arial", 8))
-        self.canvas_preview.create_rectangle(
-            cx + raio, cy - 30 - largura*0.3,
-            cx + raio + cabo1, cy - 30 + largura*0.3,
-            fill="#8B4513"
-        )
-        self.canvas_preview.create_rectangle(
-            cx + raio + cabo1, cy - 30 - largura/2,
-            cx + raio + cabo1 + lam1, cy - 30 + largura/2,
-            fill=cor, outline=cor_rar, width=2
-        )
-        
-        # Forma 2 (abaixo)
-        cabo2 = geo.get("forma2_cabo", 80)
-        lam2 = geo.get("forma2_lamina", 30)
-        
-        self.canvas_preview.create_text(cx - 50, cy + 30, text="Forma 2", fill="#888", font=("Arial", 8))
-        self.canvas_preview.create_rectangle(
-            cx + raio, cy + 30 - largura*0.3,
-            cx + raio + cabo2, cy + 30 + largura*0.3,
-            fill="#8B4513"
-        )
-        self.canvas_preview.create_rectangle(
-            cx + raio + cabo2, cy + 30 - largura/2,
-            cx + raio + cabo2 + lam2, cy + 30 + largura/2,
-            fill=cor, outline=cor_rar, width=2
-        )
+        for i in range(qtd):
+            ang = _math.radians((360 / qtd) * i + 30)
+            ox  = cx + _math.cos(ang) * raio_orb
+            oy  = cy + _math.sin(ang) * raio_orb
+
+            # ── ESCUDO — arco sólido em volta da posição ─────────────────
+            if "Escudo" in estilo or "Defensivo" in estilo:
+                larg = geo.get("largura", 40)
+                arc_span = min(90, larg)
+                cv.create_arc(ox - larg*0.35, oy - larg*0.35, ox + larg*0.35, oy + larg*0.35,
+                               start=_math.degrees(ang) + 90 - arc_span/2,
+                               extent=arc_span, style="arc", outline=cor, width=6)
+                cv.create_arc(ox - larg*0.35, oy - larg*0.35, ox + larg*0.35, oy + larg*0.35,
+                               start=_math.degrees(ang) + 90 - arc_span/2,
+                               extent=arc_span, style="arc", outline=cor_rar, width=1)
+
+            # ── DRONE — forma hexagonal com propulsor ───────────────────
+            elif "Drone" in estilo or "Ofensivo" in estilo:
+                r2 = 9
+                pts = []
+                for j in range(6):
+                    a = _math.radians(j * 60 + ang * 30)
+                    pts.extend([ox + _math.cos(a)*r2, oy + _math.sin(a)*r2])
+                cv.create_polygon(pts, fill=cor, outline=cor_rar, width=1)
+                cv.create_oval(ox - 3, oy - 3, ox + 3, oy + 3, fill=cor_rar, outline="")
+                # Propulsor
+                cv.create_line(ox, oy, ox + _math.cos(ang + _math.pi)*14,
+                                oy + _math.sin(ang + _math.pi)*14, fill="#88CCFF", width=2)
+
+            # ── LÂMINAS ORBITAIS — mini espadas girando ──────────────────
+            elif "Lâminas" in estilo:
+                blade_len = geo.get("largura", 20) * 0.5
+                blade_ang = ang + _math.pi / 4
+                bx1 = ox + _math.cos(blade_ang) * blade_len
+                by1 = oy + _math.sin(blade_ang) * blade_len
+                bx2 = ox - _math.cos(blade_ang) * blade_len
+                by2 = oy - _math.sin(blade_ang) * blade_len
+                perp = blade_ang + _math.pi/2
+                w = max(2, int(blade_len * 0.3))
+                cv.create_polygon(
+                    int(bx1), int(by1),
+                    int(ox + _math.cos(perp)*w), int(oy + _math.sin(perp)*w),
+                    int(bx2), int(by2),
+                    int(ox - _math.cos(perp)*w), int(oy - _math.sin(perp)*w),
+                    fill=cor, outline=cor_rar, width=1
+                )
+                cv.create_oval(ox - 2, oy - 2, ox + 2, oy + 2, fill=cor_rar, outline="")
+
+            # ── ORBE MÁGICO (default) — esfera com glow ─────────────────
+            else:
+                r2 = max(6, int(geo.get("largura", 20) * 0.22))
+                cv.create_oval(ox - r2 - 3, oy - r2 - 3, ox + r2 + 3, oy + r2 + 3, fill="#222244", outline="")
+                cv.create_oval(ox - r2, oy - r2, ox + r2, oy + r2, fill=cor, outline=cor_rar, width=2)
+                cv.create_oval(ox - r2//2, oy - r2//2, ox, oy, fill="#FFFFFF", outline="")
+
+
+    def desenhar_arma_magica(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+        """Desenha arma do tipo Mágica por estilo.
+        Estilos: Espadas Espectrais, Runas Flutuantes, Tentáculos Sombrios, Cristais Arcanos.
+        """
+        import math as _math
+        cv   = self.canvas_preview
+        qtd  = max(1, min(5, int(geo.get("quantidade", 3))))
+        tam  = geo.get("tamanho", 15)
+        dist = geo.get("distancia_max", 60) * 0.55
+
+        for i in range(qtd):
+            if qtd > 1:
+                ang_d = -35 + (70 / (qtd - 1)) * i
+            else:
+                ang_d = 0
+            ang = _math.radians(ang_d)
+            d   = raio + dist * (0.6 + i * 0.12)
+            ox  = cx + d * _math.cos(ang)
+            oy  = cy + d * _math.sin(ang)
+
+            # ── ESPADAS ESPECTRAIS — mini espada translúcida ────────────
+            if "Espada" in estilo or "Espectral" in estilo:
+                blade = tam * 1.8
+                px = _math.cos(ang)
+                py = _math.sin(ang)
+                perp_x = _math.cos(ang + _math.pi/2) * tam * 0.35
+                perp_y = _math.sin(ang + _math.pi/2) * tam * 0.35
+                tip_x = ox + px * blade
+                tip_y = oy + py * blade
+                cv.create_polygon(
+                    int(ox - perp_x), int(oy - perp_y),
+                    int(ox + perp_x), int(oy + perp_y),
+                    int(tip_x + perp_x*0.2), int(tip_y + perp_y*0.2),
+                    int(tip_x), int(tip_y),
+                    int(tip_x - perp_x*0.2), int(tip_y - perp_y*0.2),
+                    fill=cor, outline=cor_rar, width=1, stipple="gray75"
+                )
+                # Guarda
+                cv.create_line(
+                    int(ox - perp_x*2), int(oy - perp_y*2),
+                    int(ox + perp_x*2), int(oy + perp_y*2),
+                    fill=cor_rar, width=2
+                )
+                cv.create_oval(int(tip_x)-2, int(tip_y)-2, int(tip_x)+2, int(tip_y)+2, fill=cor_rar, outline="")
+
+            # ── RUNAS FLUTUANTES — símbolo rúnico geométrico ────────────
+            elif "Runa" in estilo:
+                r2 = max(8, int(tam * 0.7))
+                cv.create_oval(ox-r2, oy-r2, ox+r2, oy+r2, outline=cor, width=2)
+                # Cruz rúnica interior
+                cv.create_line(ox, oy-r2+2, ox, oy+r2-2, fill=cor_rar, width=1)
+                cv.create_line(ox-r2+2, oy, ox+r2-2, oy, fill=cor_rar, width=1)
+                # Diagonais
+                d2 = int(r2 * 0.6)
+                cv.create_line(ox-d2, oy-d2, ox+d2, oy+d2, fill=cor, width=1)
+                cv.create_line(ox+d2, oy-d2, ox-d2, oy+d2, fill=cor, width=1)
+                cv.create_oval(ox-2, oy-2, ox+2, oy+2, fill=cor_rar, outline="")
+
+            # ── TENTÁCULOS SOMBRIOS — forma sinuosa com ventosas ─────────
+            elif "Tentáculo" in estilo:
+                length = tam * 2.2
+                px = _math.cos(ang)
+                py = _math.sin(ang)
+                pts = []
+                for s in range(8):
+                    t = s / 7
+                    wave = _math.sin(t * _math.pi * 2.5) * tam * 0.4 * (1 - t * 0.3)
+                    wx = ox + px * length * t + _math.cos(ang + _math.pi/2) * wave
+                    wy = oy + py * length * t + _math.sin(ang + _math.pi/2) * wave
+                    pts.extend([int(wx), int(wy)])
+                if len(pts) >= 4:
+                    cv.create_line(pts, fill=cor, width=max(2, int(tam*0.3)), smooth=True)
+                # Ventosas
+                for s in range(1, 4):
+                    t = s / 4
+                    wx = int(ox + px * length * t)
+                    wy = int(oy + py * length * t)
+                    cv.create_oval(wx-2, wy-2, wx+2, wy+2, fill=cor_rar, outline="")
+
+            # ── CRISTAIS ARCANOS — forma de gema multifacetada ──────────
+            else:
+                r2 = max(6, int(tam * 0.65))
+                cv.create_polygon(
+                    int(ox), int(oy - r2 * 1.4),
+                    int(ox + r2), int(oy - r2 * 0.3),
+                    int(ox + r2 * 0.6), int(oy + r2),
+                    int(ox - r2 * 0.6), int(oy + r2),
+                    int(ox - r2), int(oy - r2 * 0.3),
+                    fill=cor, outline=cor_rar, width=1
+                )
+                # Facetas
+                cv.create_line(int(ox), int(oy - r2*1.4), int(ox + r2*0.6), int(oy + r2), fill=cor_rar, width=1)
+                cv.create_line(int(ox), int(oy - r2*1.4), int(ox - r2*0.6), int(oy + r2), fill=cor_rar, width=1)
+                cv.create_line(int(ox - r2), int(oy - r2*0.3), int(ox + r2), int(oy - r2*0.3), fill="#FFFFFF", width=1)
+                cv.create_oval(ox-2, oy-r2//2-2, ox+2, oy-r2//2+2, fill="#FFFFFF", outline="")
+
+    def desenhar_arma_transformavel(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+        """Desenha arma do tipo Transformável — mostra ambas as formas com seta de transformação.
+        Estilos: Espada↔Lança, Compacta↔Estendida, Chicote↔Espada, Arco↔Lâminas.
+        """
+        import math as _math
+        cv   = self.canvas_preview
+        bx   = cx + raio
+        larg = max(3, int(geo.get("largura", 5)))
+
+        # Geometria das duas formas
+        cabo1 = geo.get("forma1_cabo",  20)
+        lam1  = geo.get("forma1_lamina", 50)
+        cabo2 = geo.get("forma2_cabo",  30)
+        lam2  = geo.get("forma2_lamina", 80)
+
+        # Seta de transformação no centro
+        cv.create_text(cx - 45, cy, text="⟳", fill=cor_rar, font=("Arial", 14, "bold"))
+        cv.create_line(cx - 30, cy - 22, cx - 30, cy + 22, fill="#555566", width=1, dash=(3,3))
+
+        # ── ESPADA ↔ LANÇA ─────────────────────────────────────────────────
+        if "Lança" in estilo and "Espada" in estilo:
+            # Forma 1: Espada (acima)
+            cv.create_text(bx + 2, cy - 35, text="Espada", fill="#888", font=("Arial", 7), anchor="w")
+            cv.create_rectangle(bx, cy-28-larg//3, bx+cabo1, cy-28+larg//3, fill="#6B3A1F", outline="#4A2810")
+            cv.create_rectangle(bx+cabo1-2, cy-28-larg-2, bx+cabo1+4, cy-28+larg+2, fill="#A0A5B0")
+            cv.create_polygon(bx+cabo1+4, cy-28-larg, bx+cabo1+4+lam1*0.9, cy-28-larg//3,
+                               bx+cabo1+4+lam1, cy-28, bx+cabo1+4+lam1*0.9, cy-28+larg//3,
+                               bx+cabo1+4, cy-28+larg, fill=cor, outline=cor_rar, width=1)
+            # Forma 2: Lança (abaixo)
+            cv.create_text(bx + 2, cy + 20, text="Lança", fill="#888", font=("Arial", 7), anchor="w")
+            cv.create_rectangle(bx, cy+26-larg//4, bx+cabo2, cy+26+larg//4, fill="#6B3A1F", outline="#4A2810")
+            cv.create_polygon(bx+cabo2, cy+26-larg*0.6, bx+cabo2+lam2*0.12, cy+26-larg*0.2,
+                               bx+cabo2+lam2, cy+26, bx+cabo2+lam2*0.12, cy+26+larg*0.2,
+                               bx+cabo2, cy+26+larg*0.6, fill=cor, outline=cor_rar, width=1)
+
+        # ── CHICOTE ↔ ESPADA ────────────────────────────────────────────────
+        elif "Chicote" in estilo and "Espada" in estilo:
+            cv.create_text(bx + 2, cy - 35, text="Espada", fill="#888", font=("Arial", 7), anchor="w")
+            cv.create_rectangle(bx, cy-28-larg//3, bx+cabo1, cy-28+larg//3, fill="#6B3A1F")
+            cv.create_polygon(bx+cabo1, cy-28-larg, bx+cabo1+lam1*0.9, cy-28-larg//3,
+                               bx+cabo1+lam1, cy-28, bx+cabo1+lam1*0.9, cy-28+larg//3,
+                               bx+cabo1, cy-28+larg, fill=cor, outline=cor_rar, width=1)
+            cv.create_text(bx + 2, cy + 20, text="Chicote", fill="#888", font=("Arial", 7), anchor="w")
+            cv.create_rectangle(bx, cy+26-larg//3, bx+cabo2*0.4, cy+26+larg//3, fill="#3A1A08")
+            # Chicote ondulado
+            num = 14
+            pts = []
+            for j in range(num+1):
+                t = j/num
+                ex = bx + cabo2*0.4 + lam2*0.9*t
+                amplitude = 10*(1-t*0.7)
+                ey = cy+26 + _math.sin(t*_math.pi*3)*amplitude
+                pts.extend([ex, ey])
+            cv.create_line(pts, fill=cor, width=max(1, larg-1), smooth=True)
+
+        # ── ARco ↔ LÂMINAS ──────────────────────────────────────────────────
+        elif "Arco" in estilo:
+            cv.create_text(bx + 2, cy - 35, text="Arco", fill="#888", font=("Arial", 7), anchor="w")
+            span = lam1 * 0.4
+            cv.create_arc(bx-span*0.4, cy-28-span, bx+span*0.4, cy-28+span,
+                           start=55, extent=70, style="arc", outline=cor, width=4)
+            cv.create_line(bx-span*0.35, cy-28-span*0.8, bx-span*0.35, cy-28+span*0.8,
+                           fill="#C8B060", width=2)
+            cv.create_line(bx-span*0.35+2, cy-28, bx+lam1*0.6, cy-28, fill="#8B4513", width=2)
+            cv.create_text(bx + 2, cy + 20, text="Lâminas", fill="#888", font=("Arial", 7), anchor="w")
+            for j, oy_off in enumerate([-8, 8]):
+                cv.create_polygon(bx, cy+26+oy_off-larg//2,
+                                   bx+lam2*0.8, cy+26+oy_off//2,
+                                   bx+lam2, cy+26+oy_off,
+                                   bx+lam2*0.8, cy+26+oy_off*1.5,
+                                   bx, cy+26+oy_off+larg//2,
+                                   fill=cor, outline=cor_rar, width=1)
+
+        # ── COMPACTA ↔ ESTENDIDA (generic) ─────────────────────────────────
+        else:
+            cv.create_text(bx + 2, cy - 35, text="Compacta", fill="#888", font=("Arial", 7), anchor="w")
+            cv.create_rectangle(bx, cy-28-larg//3, bx+cabo1, cy-28+larg//3, fill="#6B3A1F")
+            cv.create_rectangle(bx+cabo1, cy-28-larg//2, bx+cabo1+lam1, cy-28+larg//2, fill=cor, outline=cor_rar, width=2)
+            cv.create_text(bx + 2, cy + 20, text="Estendida", fill="#888", font=("Arial", 7), anchor="w")
+            cv.create_rectangle(bx, cy+26-larg//4, bx+cabo2, cy+26+larg//4, fill="#6B3A1F")
+            cv.create_polygon(bx+cabo2, cy+26-larg*0.6, bx+cabo2+lam2, cy+26, bx+cabo2, cy+26+larg*0.6,
+                               fill=cor, outline=cor_rar, width=1)
+            # Mecanismo (círculo no pivô)
+        cv.create_oval(bx+cabo1-4, cy-28-4, bx+cabo1+4, cy-28+4, outline=cor_rar, width=2)
+
 
     # =========================================================================
     # ACOES
@@ -1291,7 +1860,20 @@ class TelaArmas(tk.Frame):
         if not dados["nome"]:
             messagebox.showerror("Erro", "A arma precisa de um nome!")
             return
-        
+
+        # BUG-F1: Verificar duplicata de nome (salvar_personagem já faz isso, armas não tinham)
+        _state_check = AppState.get()
+        for i, a in enumerate(_state_check.lista_armas):
+            if a.nome.lower() == dados["nome"].lower():
+                if self.indice_em_edicao is None or self.indice_em_edicao != i:
+                    messagebox.showerror("Erro", f"Já existe uma arma chamada '{dados['nome']}'!")
+                    return
+
+        # DES-5: Validação de geometria mínima para armas que precisam ser renderizadas
+        geo = dados["geometria"]
+        if dados["tipo"] in ("Reta", "Dupla") and geo.get("comp_lamina", 0) <= 0:
+            messagebox.showwarning("Atenção", "Lâmina com comprimento zero — a arma pode não ser visível.")
+
         geo = dados["geometria"]
         cores = dados["cores"]
         

@@ -59,6 +59,7 @@ def carregar_personagens():
             item.get("classe", "Guerreiro (Força Bruta)"),
             item.get("personalidade", "Aleatório"),
             item.get("god_id", None),       # [PHASE 3] Carrega vínculo divino
+            item.get("lore", ""),           # INC-1: lore não estava sendo carregado
         )
         lista.append(p)
     return lista

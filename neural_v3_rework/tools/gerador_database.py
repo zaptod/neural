@@ -22,9 +22,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.constants import (
     LISTA_CLASSES, LISTA_RARIDADES, LISTA_TIPOS_ARMA, 
-    LISTA_ENCANTAMENTOS, TIPOS_ARMA, ENCANTAMENTOS, CLASSES_DATA
+    LISTA_ENCANTAMENTOS, TIPOS_ARMA, ENCANTAMENTOS, CLASSES_DATA, get_class_data
 )
-from ai.personalities import PERSONALIDADES_PRESETS
+from ai.personalities import PERSONALIDADES_PRESETS, LISTA_PERSONALIDADES  # LEG-C2: fonte única de personalidades
 
 # =============================================================================
 # SKILLS ORGANIZADAS POR ELEMENTO E TIPO
@@ -235,12 +235,7 @@ TITULOS = [
     "", "", "", "", "", "",
 ]
 
-LISTA_PERSONALIDADES = [
-    "Agressivo", "Defensivo", "Tático", "Equilibrado", "Berserker",
-    "Assassino", "Guardião", "Duelista", "Predador", "Sobrevivente",
-    "Caçador", "Protetor", "Vingador", "Provocador", "Calculista",
-    "Impulsivo", "Paciente", "Oportunista", "Dominador", "Evasivo",
-]
+# LEG-C2: LISTA_PERSONALIDADES importada de ai.personalities (fonte única de verdade)
 
 # =============================================================================
 # FUNÇÕES DE GERAÇÃO
@@ -464,35 +459,26 @@ def gerar_personagem(classe, personalidade, arma_nome, cor=None):
     forca_base = 5.0 + random.uniform(-2, 3)
     mana_base = 5.0 + random.uniform(-2, 3)
     
-    if "Mago" in classe or "Feiticeiro" in classe or "Bruxo" in classe:
-        mana_base += 3
-        forca_base -= 1
-    elif "Guerreiro" in classe or "Berserker" in classe or "Gladiador" in classe:
-        forca_base += 3
-        mana_base -= 1
-    elif "Assassino" in classe or "Ninja" in classe or "Ladino" in classe:
-        forca_base += 1
-        mana_base += 1
-    elif "Paladino" in classe or "Cavaleiro" in classe:
-        forca_base += 2
-        mana_base += 1
-    elif "Arqueiro" in classe or "Caçador" in classe:
-        forca_base += 2
-    elif "Monge" in classe:
-        forca_base += 2
-        mana_base += 2
+    # LEG-C3: Usa mod_forca/mod_mana de CLASSES_DATA em vez de lógica duplicada por substring.
+    # Cobre todas as 16 classes, inclusive Duelista, Druida, Piromante, etc.
+    cd = get_class_data(classe)
+    forca_bias = (cd.get("mod_forca", 1.0) - 1.0) * 4   # ex: mod_forca=1.5 → +2.0
+    mana_bias  = (cd.get("mod_mana",  1.0) - 1.0) * 4
+    forca_base += forca_bias
+    mana_base  += mana_bias
+    
+    # BUG-C5: clampar após todos os bônus — evita valores acima de 10 (fora do range do slider)
+    forca_base = max(1.0, min(10.0, forca_base))
+    mana_base  = max(1.0, min(10.0, mana_base))
     
     tamanho = random.uniform(1.4, 2.2)
-    resistencia = random.uniform(3, 8)
-    agilidade = random.uniform(3, 8)
+    # LEG-C1: campos "resistencia" e "agilidade" removidos — Personagem.__init__ nunca os lê
     
     personagem = {
         "nome": nome,
         "tamanho": round(tamanho, 2),
         "forca": round(forca_base, 1),
         "mana": round(mana_base, 1),
-        "resistencia": round(resistencia, 1),
-        "agilidade": round(agilidade, 1),
         "nome_arma": arma_nome,
         "cor_r": cor[0],
         "cor_g": cor[1],
@@ -506,6 +492,8 @@ def gerar_personagem(classe, personalidade, arma_nome, cor=None):
 
 def selecionar_arma_por_classe(classe, armas):
     """Seleciona armas apropriadas para uma classe"""
+    # BUG-C4: usa busca parcial (k in classe) para casar com nomes completos como
+    # "Guerreiro (Força Bruta)" — a busca exata preferencias.get(classe) sempre retornava None.
     preferencias = {
         "Guerreiro": ["Reta", "Transformável"],
         "Mago": ["Mágica", "Orbital"],
@@ -525,7 +513,10 @@ def selecionar_arma_por_classe(classe, armas):
         "Necromante": ["Mágica"],
     }
     
-    tipos_preferidos = preferencias.get(classe, LISTA_TIPOS_ARMA)
+    tipos_preferidos = next(
+        (v for k, v in preferencias.items() if k in classe),
+        LISTA_TIPOS_ARMA  # fallback: qualquer tipo
+    )
     return [a for a in armas if a["tipo"] in tipos_preferidos]
 
 
@@ -656,6 +647,15 @@ def salvar_database(armas, personagens, substituir=True):
     print(f"\n✅ Database salva:")
     print(f"   - {len(armas_final)} armas em {armas_file}")
     print(f"   - {len(personagens_final)} personagens em {personagens_file}")
+    
+    # LEG-C4: Notifica o AppState para recarregar, evitando dados stale em memória
+    # quando o launcher está aberto durante a execução do gerador.
+    try:
+        from data.app_state import AppState
+        AppState.get().reload_all()
+        print("   - AppState sincronizado.")
+    except Exception:
+        pass  # Gerador pode ser executado standalone sem AppState ativo; silenciar erro
     
     return armas_final, personagens_final
 
