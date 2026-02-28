@@ -1,6 +1,20 @@
 """
 NEURAL FIGHTS - Sistema de Emoções e Humor v8.0
 Gerencia estados emocionais e humor da IA.
+
+=============================================================================
+MEL-ARQ-01 (Sprint 5) — DECISÃO ARQUITETURAL: OPÇÃO B (REMOVER)
+=============================================================================
+Este arquivo é código morto. Toda a lógica de emoções foi replicada inline
+em AIBrain e nunca é instanciada a partir daqui.
+
+Decisão: Opção B — não instanciar, manter arquivo temporariamente para
+referência durante a refatoração, mas remover na próxima limpeza de repo.
+
+  git rm ai/emotions.py
+
+O arquivo NÃO deve ser editado nem referenciado em código novo.
+=============================================================================
 """
 
 import random

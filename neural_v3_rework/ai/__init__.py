@@ -22,12 +22,15 @@ from ai.personalities import (
     ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES
 )
 
-# Novos módulos v9.0
-from ai.spatial import SpatialAwarenessSystem
-from ai.emotions import EmotionSystem
-from ai.combat_tactics import CombatTacticsSystem
+# LEGADO-01 (Sprint 4): EmotionSystem, SpatialAwarenessSystem e CombatTacticsSystem
+# foram removidos dos exports públicos do pacote.
+# Esses módulos (ai/emotions.py, ai/spatial.py, ai/combat_tactics.py) contêm lógica
+# que foi replicada inline em AIBrain e nunca é instanciada externamente.
+# Exportá-los dava a falsa impressão de que faziam parte do sistema ativo.
+# A decisão arquitetural final (adoptar via composição ou remover os arquivos)
+# será tomada na Sprint 5 — MEL-ARQ-01.
 
-# Novo módulo v10.0 - Estratégia de Skills
+# Módulo v10.0 - Estratégia de Skills
 try:
     from ai.skill_strategy import SkillStrategySystem, CombatSituation, SkillPriority, StrategicRole
     SKILL_STRATEGY_AVAILABLE = True
@@ -49,10 +52,6 @@ __all__ = [
     'QUIRKS',
     'FILOSOFIAS',
     'HUMORES',
-    # Novos sistemas
-    'SpatialAwarenessSystem',
-    'EmotionSystem',
-    'CombatTacticsSystem',
     # Sistema de Estratégia de Skills
     'SkillStrategySystem',
     'CombatSituation',

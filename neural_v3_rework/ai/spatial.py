@@ -8,6 +8,19 @@ MELHORIAS v10.0:
 - Predição de colisão em movimento
 - Awareness de obstáculos durante ataques
 - Sistema de "zonas seguras" e "zonas perigosas"
+
+=============================================================================
+MEL-ARQ-01 (Sprint 5) — DECISÃO ARQUITETURAL: OPÇÃO B (REMOVER)
+=============================================================================
+Este arquivo é código morto. A lógica de consciência espacial foi replicada
+inline em AIBrain._atualizar_consciencia_espacial() e nunca é instanciada
+a partir daqui.
+
+Decisão: Opção B — manter para referência durante refatoração, remover em
+limpeza de repo posterior:   git rm ai/spatial.py
+
+O arquivo NÃO deve ser editado nem referenciado em código novo.
+=============================================================================
 """
 
 import math
@@ -75,10 +88,11 @@ class SpatialAwarenessSystem:
         esp = self.consciencia
         
         # Importa arena (com cache)
+        # MEL-ARQ-02: substituído bare except por Exception para não engolir KeyboardInterrupt
         try:
             from core.arena import get_arena
             self._arena_cache = get_arena()
-        except:
+        except Exception:
             return
         
         arena = self._arena_cache

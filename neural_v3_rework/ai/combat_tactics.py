@@ -1,6 +1,19 @@
 """
 NEURAL FIGHTS - Sistema de Táticas de Combate v8.0
 Gerencia leitura do oponente, janelas de oportunidade, baiting e momentum.
+
+=============================================================================
+MEL-ARQ-01 (Sprint 5) — DECISÃO ARQUITETURAL: OPÇÃO B (REMOVER)
+=============================================================================
+Este arquivo é código morto. Leitura do oponente, janelas de oportunidade,
+baiting e momentum estão todos implementados inline em AIBrain e nunca são
+instanciados a partir daqui.
+
+Decisão: Opção B — manter para referência, remover em limpeza posterior:
+  git rm ai/combat_tactics.py
+
+O arquivo NÃO deve ser editado nem referenciado em código novo.
+=============================================================================
 """
 
 import math
