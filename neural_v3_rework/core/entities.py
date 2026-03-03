@@ -1213,7 +1213,7 @@ class Lutador:
                 
                 # Margem de 30% para garantir ataque quando IA decide
                 alcance_ataque *= 1.3
-            except:
+            except Exception:
                 alcance_ataque = self.raio_fisico * 3.0  # Fallback generoso
             
             # Ajustes APENAS para armas ranged (não sobrescreve corpo-a-corpo!)

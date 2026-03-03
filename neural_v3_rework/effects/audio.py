@@ -111,7 +111,7 @@ class AudioManager:
         try:
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
             pygame.mixer.set_num_channels(32)  # 32 canais simultâneos
-        except:
+        except Exception:
             print("Aviso: Sistema de áudio não disponível")
             self.enabled = False
             return
@@ -135,7 +135,7 @@ class AudioManager:
                         if "master" in config["_volumes"]:
                             self.master_volume = config["_volumes"]["master"]
                     return config
-            except:
+            except Exception:
                 pass
         return {}
     

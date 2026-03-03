@@ -1065,7 +1065,7 @@ class WeaponTrailRenderer:
             try:
                 pygame.draw.line(surface, (int(cr*blend), int(cg*blend), int(cb*blend)),
                                (int(x1), int(y1)), (int(x2), int(y2)), width)
-            except: pass
+            except Exception: pass
 
     def _draw_mangual_trail(self, surface, positions, color):
         """v3.0 - Heavy Flail trail: rastro de bola com corona de impacto"""
@@ -1097,8 +1097,8 @@ class WeaponTrailRenderer:
                             pygame.draw.circle(gs, (*color, min(255, glow_a)),
                                                (ball_r * 2, ball_r * 2), ball_r * 2)
                             surface.blit(gs, (int(x1) - ball_r * 2, int(y1) - ball_r * 2))
-                        except: pass
-            except: pass
+                        except Exception: pass
+            except Exception: pass
 
     def _draw_dagger_trail(self, surface, positions, color):
         """v3.0 - Karambit trail: arco curvo + glow de energia + streak de velocidade"""
@@ -1134,7 +1134,7 @@ class WeaponTrailRenderer:
                     bright_c = (min(255, cr + 60), min(255, cg + 60), min(255, cb + 60))
                     pygame.draw.line(surface, bright_c,
                                      (int(x1), int(y1)), (int(x2), int(y2)), 1)
-            except: pass
+            except Exception: pass
 
     def _draw_magic_trail(self, surface, positions, color):
         for i, (x, y, a) in enumerate(positions):
@@ -1148,7 +1148,7 @@ class WeaponTrailRenderer:
                     s = pygame.Surface((gs*2, gs*2), pygame.SRCALPHA)
                     pygame.draw.circle(s, (*color, int(70*a)), (gs, gs), gs)
                     surface.blit(s, (int(x-gs), int(y-gs)))
-            except: pass
+            except Exception: pass
 
     def _draw_chain_trail(self, surface, positions, color):
         if len(positions) < 2: return
@@ -1166,7 +1166,7 @@ class WeaponTrailRenderer:
                                     int(min(255, color[1]*blend+20*blend)),
                                     int(color[2]*blend)),
                                    (int(x1), int(y1)), (int(x2), int(y2)), width)
-                except: pass
+                except Exception: pass
 
 
 @dataclass
@@ -1201,7 +1201,7 @@ class SlashEffect:
                 pygame.draw.polygon(s, (*self.color, alpha), pts)
             sp = camera.converter(self.x, self.y)
             surface.blit(s, (sp[0]-center, sp[1]-center))
-        except: pass
+        except Exception: pass
 
 
 @dataclass
@@ -1248,7 +1248,7 @@ class BowDrawEffect:
                     a = int(70 * self.draw_amount * (1 - i * 0.25))
                     pygame.draw.circle(s, (*self.color, a), (c, c), int(r))
                 surface.blit(s, (sp[0]-c, sp[1]-c))
-            except: pass
+            except Exception: pass
 
 
 class WeaponAnimationManager:
@@ -1336,7 +1336,7 @@ class WeaponAnimationManager:
             try:
                 pygame.draw.circle(surface, (int(color[0]*blend), int(color[1]*blend), int(color[2]*blend)),
                                   (int(x), int(y)), size)
-            except: pass
+            except Exception: pass
 
 
 _weapon_animation_manager = None

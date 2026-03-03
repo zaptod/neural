@@ -5,7 +5,7 @@ import pygame
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.config import PPM, LARGURA, ALTURA
 from core.arena import Arena, ARENAS, set_arena

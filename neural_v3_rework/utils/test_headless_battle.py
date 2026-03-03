@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 
 # Adiciona o diretório raiz ao path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Configurações de debug
 DEBUG_AI = True

@@ -38,8 +38,5 @@ __all__ = [
     'Arma', 'Personagem',
     # Funções
     'gerar_passiva_arma',
-    '',
     'validar_arma_personagem',
-    '',
-    '',
 ]

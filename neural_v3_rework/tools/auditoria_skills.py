@@ -10,7 +10,8 @@ Verifica:
 =============================================================================
 """
 import sys
-sys.path.insert(0, '.')
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.skills import SKILL_DB, contar_skills
 from core.combat import Projetil, AreaEffect, Beam, Buff, Summon, Trap, Transform, Channel

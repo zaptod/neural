@@ -1,7 +1,7 @@
 {
-    "p1_nome": "teste",
-    "p2_nome": "cu de puta",
-    "cenario": "Arena",
+    "p1_nome": "cu de puta",
+    "p2_nome": "teste",
+    "cenario": "Castelo",
     "best_of": 1,
-    "portrait_mode": false
+    "portrait_mode": true
 }

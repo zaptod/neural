@@ -739,7 +739,7 @@ def verificar_condicao(nome_condicao: str, caster, alvo) -> bool:
     
     try:
         return CONDICOES_SKILL[nome_condicao](caster, alvo)
-    except:
+    except Exception:
         return False
 
 

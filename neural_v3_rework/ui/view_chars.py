@@ -203,7 +203,7 @@ class TelaPersonagens(tk.Frame):
                     if armas_x1 <= mouse_x <= armas_x2 and armas_y1 <= mouse_y <= armas_y2:
                         self.canvas_armas.yview_scroll(int(-1*(event.delta/120)), "units")
                         return
-                except:
+                except Exception:
                     pass
             
             # Caso contrário, rola o canvas principal

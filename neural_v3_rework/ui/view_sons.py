@@ -174,7 +174,7 @@ class TelaSons(tk.Frame):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except:
+            except Exception:
                 pass
         return {}
     
@@ -281,7 +281,7 @@ class TelaSons(tk.Frame):
                 from effects.audio import AudioManager
                 audio = AudioManager.get_instance()
                 audio.set_category_volume(category, vol / 100.0)
-            except:
+            except Exception:
                 pass
 
     def _criar_interface(self):
@@ -564,7 +564,7 @@ class TelaSons(tk.Frame):
             from effects.audio import AudioManager
             audio = AudioManager.get_instance()
             audio.save_volume_config()
-        except:
+        except Exception:
             pass
         
         messagebox.showinfo("Sucesso", "Configuração de sons e volumes salva!")

@@ -6,7 +6,7 @@ import pygame
 import sys
 import os
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from simulation.simulacao import Simulador
 from utils.config import PPM, LARGURA, ALTURA

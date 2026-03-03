@@ -566,13 +566,13 @@ def salvar_database(armas, personagens, substituir=True):
         try:
             with open(armas_file, 'r', encoding='utf-8') as f:
                 armas_existentes = json.load(f)
-        except:
+        except Exception:
             armas_existentes = []
         
         try:
             with open(personagens_file, 'r', encoding='utf-8') as f:
                 personagens_existentes = json.load(f)
-        except:
+        except Exception:
             personagens_existentes = []
         
         nomes_armas = {a["nome"] for a in armas_existentes}
