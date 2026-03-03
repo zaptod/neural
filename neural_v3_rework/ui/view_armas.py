@@ -616,101 +616,617 @@ class TelaArmas(tk.Frame):
         self.atualizar_preview()
 
     # -------------------------------------------------------------------------
-    # PASSO 5: HABILIDADES
+    # PASSO 5: HABILIDADES (Visual Edition)
     # -------------------------------------------------------------------------
+
+    # ── Constantes de cor por elemento (hex) ──
+    _ELEMENTO_CORES = {
+        "FOGO": "#FF6400", "GELO": "#64D4FF", "RAIO": "#FFFF64",
+        "TREVAS": "#7800B4", "LUZ": "#FFFFC8", "NATUREZA": "#50DC50",
+        "ARCANO": "#C864FF", "CAOS": "#FF32C8", "SANGUE": "#B4001E",
+        "VOID": "#320050", "TEMPO": "#C8B4FF", "GRAVITACAO": "#6432C8",
+    }
+    _TIPO_ICONES = {
+        "PROJETIL": "\u27B3", "BEAM": "\u2588\u2588", "AREA": "\u25CE",
+        "DASH": "\u21E8", "BUFF": "\u2B06", "SUMMON": "\u2726",
+        "TRAP": "\u25A9", "TRANSFORM": "\u21BB", "CHANNEL": "\u223F",
+        "NADA": "\u2013",
+    }
+
     def passo_habilidades(self):
-        """Passo 5: Habilidades e encantamentos"""
+        """Passo 5: Habilidades e encantamentos — versão visual"""
         self.lbl_passo_titulo.config(text="5. HABILIDADES")
-        
+
         raridade = self.dados_arma["raridade"]
         rar_data = RARIDADES[raridade]
         max_slots = rar_data["slots_habilidade"]
         max_enc = rar_data["max_encantamentos"]
-        
+
         self.lbl_passo_desc.config(
             text=f"Raridade {raridade}: {max_slots} slot(s) de habilidade, {max_enc} encantamento(s)"
         )
-        
-        # === HABILIDADES ===
-        tk.Label(
-            self.frame_conteudo_passo, text="Habilidades:", 
-            font=("Arial", 11, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
-        ).pack(anchor="w", pady=(5, 5))
-        
-        # Lista de skills disponíveis
-        frame_skills = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
-        frame_skills.pack(fill="x")
-        
-        lista_skills = ["Nenhuma"] + list(SKILL_DB.keys())
-        
+
+        # ── Container principal: esquerda (slots) | direita (detalhes) ──
+        main = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
+        main.pack(fill="both", expand=True)
+        main.grid_columnconfigure(0, weight=1, minsize=220)
+        main.grid_columnconfigure(1, weight=2, minsize=300)
+        main.grid_rowconfigure(0, weight=1)
+
+        # ===============================================================
+        # COLUNA ESQUERDA — slots + filtros
+        # ===============================================================
+        left = tk.Frame(main, bg=COR_BG_SECUNDARIO)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        tk.Label(left, text="Habilidades:", font=("Arial", 11, "bold"),
+                 bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(anchor="w", pady=(5, 2))
+
+        # Filtro por elemento
+        filt_f = tk.Frame(left, bg=COR_BG_SECUNDARIO)
+        filt_f.pack(fill="x", pady=(0, 6))
+        tk.Label(filt_f, text="Filtro:", bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM,
+                 font=("Arial", 9)).pack(side="left")
+        elementos = ["Todos"] + sorted({v.get("elemento", "") for v in SKILL_DB.values() if v.get("elemento")})
+        self._filtro_elemento = ttk.Combobox(filt_f, values=elementos, state="readonly", width=14)
+        self._filtro_elemento.set("Todos")
+        self._filtro_elemento.pack(side="left", padx=4)
+
+        tipos = ["Todos"] + sorted({v.get("tipo", "") for v in SKILL_DB.values() if v.get("tipo") and v["tipo"] != "NADA"})
+        self._filtro_tipo = ttk.Combobox(filt_f, values=tipos, state="readonly", width=12)
+        self._filtro_tipo.set("Todos")
+        self._filtro_tipo.pack(side="left", padx=2)
+
+        self._filtro_elemento.bind("<<ComboboxSelected>>", lambda e: self._aplicar_filtro_skills())
+        self._filtro_tipo.bind("<<ComboboxSelected>>", lambda e: self._aplicar_filtro_skills())
+
+        # Slots de skill (comboboxes com preview ao hover/select)
         self.combos_skill = []
+        self._skill_custo_labels = []
         for i in range(max_slots):
-            frame = tk.Frame(frame_skills, bg=COR_BG_SECUNDARIO)
-            frame.pack(fill="x", pady=2)
-            
-            tk.Label(
-                frame, text=f"Slot {i+1}:", 
-                bg=COR_BG_SECUNDARIO, fg=COR_TEXTO, width=8
-            ).pack(side="left")
-            
-            combo = ttk.Combobox(frame, values=lista_skills, state="readonly", width=25)
-            combo.pack(side="left", padx=5)
-            
-            # Preenche com dados existentes
+            sf = tk.Frame(left, bg=COR_BG)
+            sf.pack(fill="x", pady=3, padx=2)
+
+            tk.Label(sf, text=f"Slot {i+1}:", bg=COR_BG, fg=COR_TEXTO,
+                     font=("Arial", 10, "bold"), width=6).pack(side="left", padx=(4, 2))
+
+            combo = ttk.Combobox(sf, values=self._lista_skills_filtrada(), state="readonly", width=22)
+            combo.pack(side="left", padx=2)
+
+            # preenche com dados existentes
             if i < len(self.dados_arma["habilidades"]):
                 hab = self.dados_arma["habilidades"][i]
-                # Suporta tanto string quanto dict
-                if isinstance(hab, dict):
-                    combo.set(hab.get("nome", "Nenhuma"))
-                else:
-                    combo.set(str(hab) if hab else "Nenhuma")
+                combo.set(hab.get("nome", "Nenhuma") if isinstance(hab, dict) else (str(hab) if hab else "Nenhuma"))
             else:
                 combo.set("Nenhuma")
-            
-            combo.bind("<<ComboboxSelected>>", lambda e, idx=i: self.atualizar_skill_slot(idx))
+
+            combo.bind("<<ComboboxSelected>>", lambda e, idx=i: self._on_skill_selected(idx))
             self.combos_skill.append(combo)
-            
-            # Label de custo
-            lbl_custo = tk.Label(
-                frame, text="", 
-                bg=COR_BG_SECUNDARIO, fg=COR_SUCCESS, font=("Arial", 9)
-            )
-            lbl_custo.pack(side="left", padx=5)
-        
-        # === ENCANTAMENTOS ===
+
+            lbl_custo = tk.Label(sf, text="", bg=COR_BG, fg=COR_SUCCESS,
+                                 font=("Arial", 9))
+            lbl_custo.pack(side="left", padx=4)
+            self._skill_custo_labels.append(lbl_custo)
+
+        # Atualiza labels de custo iniciais
+        for i in range(max_slots):
+            self._atualizar_custo_label(i)
+
+        # ── Encantamentos ──
         if max_enc > 0:
-            tk.Label(
-                self.frame_conteudo_passo, text="Encantamentos:", 
-                font=("Arial", 11, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
-            ).pack(anchor="w", pady=(15, 5))
-            
-            frame_enc = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
+            tk.Label(left, text="Encantamentos:", font=("Arial", 11, "bold"),
+                     bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(anchor="w", pady=(12, 4))
+
+            frame_enc = tk.Frame(left, bg=COR_BG_SECUNDARIO)
             frame_enc.pack(fill="x")
-            
+
             self.vars_encantamento = {}
-            for enc_nome in LISTA_ENCANTAMENTOS[:8]:  # Mostra 8 principais
+            for enc_nome in LISTA_ENCANTAMENTOS[:8]:
                 dados_enc = ENCANTAMENTOS[enc_nome]
-                
                 var = tk.BooleanVar(value=enc_nome in self.dados_arma["encantamentos"])
                 self.vars_encantamento[enc_nome] = var
-                
-                frame = tk.Frame(frame_enc, bg=COR_BG)
-                frame.pack(fill="x", pady=2)
-                
+
+                fr = tk.Frame(frame_enc, bg=COR_BG)
+                fr.pack(fill="x", pady=2)
+
                 cor = f"#{dados_enc['cor'][0]:02x}{dados_enc['cor'][1]:02x}{dados_enc['cor'][2]:02x}"
-                
                 chk = tk.Checkbutton(
-                    frame, text=enc_nome, variable=var,
+                    fr, text=enc_nome, variable=var,
                     bg=COR_BG, fg=cor, selectcolor=COR_BG_SECUNDARIO,
                     font=("Arial", 10),
                     command=lambda n=enc_nome: self.toggle_encantamento(n)
                 )
                 chk.pack(side="left")
-                
-                tk.Label(
-                    frame, text=dados_enc["descricao"],
-                    bg=COR_BG, fg=COR_TEXTO_DIM, font=("Arial", 8)
-                ).pack(side="left", padx=10)
+                tk.Label(fr, text=dados_enc["descricao"], bg=COR_BG,
+                         fg=COR_TEXTO_DIM, font=("Arial", 8)).pack(side="left", padx=8)
+
+        # ===============================================================
+        # COLUNA DIREITA — painel de detalhes da skill selecionada
+        # ===============================================================
+        self._skill_detail_frame = tk.Frame(main, bg=COR_BG, bd=2, relief="groove")
+        self._skill_detail_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        # Mostra o primeiro slot selecionado ou placeholder
+        first_skill = self.combos_skill[0].get() if self.combos_skill else "Nenhuma"
+        self._mostrar_detalhes_skill(first_skill)
+
+    # ─────────────────────────────────────────────────────
+    # Filtro de skills
+    # ─────────────────────────────────────────────────────
+    def _lista_skills_filtrada(self):
+        """Retorna lista de nomes de skills filtrada."""
+        elem = getattr(self, '_filtro_elemento', None)
+        tipo = getattr(self, '_filtro_tipo', None)
+        elem_val = elem.get() if elem else "Todos"
+        tipo_val = tipo.get() if tipo else "Todos"
+
+        resultado = ["Nenhuma"]
+        for nome, dados in SKILL_DB.items():
+            if nome == "Nenhuma":
+                continue
+            if elem_val != "Todos" and dados.get("elemento") != elem_val:
+                continue
+            if tipo_val != "Todos" and dados.get("tipo") != tipo_val:
+                continue
+            resultado.append(nome)
+        return resultado
+
+    def _aplicar_filtro_skills(self):
+        """Reaplica filtro a todos os combos."""
+        lista = self._lista_skills_filtrada()
+        for combo in self.combos_skill:
+            atual = combo.get()
+            combo["values"] = lista
+            if atual not in lista:
+                combo.set("Nenhuma")
+
+    # ─────────────────────────────────────────────────────
+    # Callbacks de seleção
+    # ─────────────────────────────────────────────────────
+    def _on_skill_selected(self, idx):
+        """Quando uma skill é escolhida no combobox."""
+        nome = self.combos_skill[idx].get()
+        self._atualizar_custo_label(idx)
+        self.atualizar_skill_slot(idx)
+        self._mostrar_detalhes_skill(nome)
+
+    def _atualizar_custo_label(self, idx):
+        """Atualiza label de custo de mana ao lado do combo."""
+        if idx >= len(self._skill_custo_labels):
+            return
+        nome = self.combos_skill[idx].get()
+        dados = SKILL_DB.get(nome, {})
+        custo = dados.get("custo", 0)
+        if custo > 0:
+            self._skill_custo_labels[idx].config(text=f"{custo:.0f} mana", fg=COR_SUCCESS)
+        else:
+            self._skill_custo_labels[idx].config(text="")
+
+    # ─────────────────────────────────────────────────────
+    # Painel de detalhes completo
+    # ─────────────────────────────────────────────────────
+    def _mostrar_detalhes_skill(self, nome):
+        """Constrói o painel de detalhes visuais de uma skill."""
+        frame = self._skill_detail_frame
+        for w in frame.winfo_children():
+            w.destroy()
+
+        dados = SKILL_DB.get(nome, {})
+        tipo = dados.get("tipo", "NADA")
+        elemento = dados.get("elemento", "")
+        descricao = dados.get("descricao", "Nenhuma habilidade selecionada.")
+        cor_elem = self._ELEMENTO_CORES.get(elemento, COR_TEXTO_DIM)
+        icone_tipo = self._TIPO_ICONES.get(tipo, "?")
+        cor_skill = dados.get("cor", (180, 180, 180))
+        if isinstance(cor_skill, (list, tuple)) and len(cor_skill) >= 3:
+            hex_skill = f"#{int(cor_skill[0]):02x}{int(cor_skill[1]):02x}{int(cor_skill[2]):02x}"
+        else:
+            hex_skill = COR_TEXTO_DIM
+
+        if nome == "Nenhuma" or tipo == "NADA":
+            tk.Label(frame, text="Selecione uma habilidade\npara ver os detalhes",
+                     font=("Arial", 12), bg=COR_BG, fg=COR_TEXTO_DIM,
+                     justify="center").pack(expand=True)
+            return
+
+        # ── Header: ícone + nome + badges ──
+        hdr = tk.Frame(frame, bg=COR_BG)
+        hdr.pack(fill="x", padx=12, pady=(12, 4))
+
+        # Ícone circular colorido
+        icon_cv = tk.Canvas(hdr, width=40, height=40, bg=COR_BG, highlightthickness=0)
+        icon_cv.pack(side="left", padx=(0, 8))
+        icon_cv.create_oval(4, 4, 36, 36, fill=hex_skill, outline=cor_elem, width=2)
+        icon_cv.create_text(20, 20, text=icone_tipo, fill="white",
+                            font=("Arial", 12, "bold"))
+
+        info_col = tk.Frame(hdr, bg=COR_BG)
+        info_col.pack(side="left", fill="x", expand=True)
+
+        tk.Label(info_col, text=nome, font=("Arial", 14, "bold"),
+                 bg=COR_BG, fg=COR_TEXTO, anchor="w").pack(anchor="w")
+
+        badges_f = tk.Frame(info_col, bg=COR_BG)
+        badges_f.pack(anchor="w")
+        # Tipo badge
+        self._criar_badge(badges_f, tipo, "#2a2a4e", COR_SUCCESS)
+        # Elemento badge
+        if elemento:
+            self._criar_badge(badges_f, elemento, "#2a2a4e", cor_elem)
+        # Efeito badge
+        efeito = dados.get("efeito", "")
+        if efeito and efeito != "NORMAL":
+            self._criar_badge(badges_f, efeito, "#2a2a4e", "#f39c12")
+
+        # ── Separador ──
+        tk.Frame(frame, bg=COR_TEXTO_DIM, height=1).pack(fill="x", padx=12, pady=6)
+
+        # ── Descrição ──
+        tk.Label(frame, text=descricao, font=("Arial", 10, "italic"),
+                 bg=COR_BG, fg=COR_TEXTO_DIM, wraplength=280,
+                 justify="left", anchor="w").pack(fill="x", padx=14, pady=(0, 8))
+
+        # ── Stats bars ──
+        stats_f = tk.Frame(frame, bg=COR_BG)
+        stats_f.pack(fill="x", padx=12)
+
+        dano = dados.get("dano", 0)
+        custo = dados.get("custo", 0)
+        cooldown = dados.get("cooldown", 0)
+        vel = dados.get("velocidade", 0)
+        raio = dados.get("raio_area", dados.get("raio", 0))
+        alcance = dados.get("alcance", dados.get("distancia", 0))
+
+        bars = []
+        if dano > 0:
+            bars.append(("Dano", dano, 150, "#e74c3c"))
+        if custo > 0:
+            bars.append(("Custo Mana", custo, 80, "#3498db"))
+        if cooldown > 0:
+            bars.append(("Cooldown", cooldown, 60, "#f39c12"))
+        if vel > 0:
+            bars.append(("Velocidade", vel, 30, "#2ecc71"))
+        if alcance > 0:
+            bars.append(("Alcance", alcance, 12, "#9b59b6"))
+        if raio > 0:
+            bars.append(("Raio", raio, 6, "#1abc9c"))
+
+        for label, valor, maximo, cor_bar in bars:
+            self._criar_stat_bar(stats_f, label, valor, maximo, cor_bar)
+
+        # ── Propriedades especiais ──
+        especiais = []
+        if dados.get("perfura"):
+            especiais.append("Perfurante")
+        if dados.get("homing"):
+            especiais.append("Teleguiado")
+        if dados.get("multi_shot"):
+            especiais.append(f"Multi-tiro x{dados['multi_shot']}")
+        if dados.get("canalizavel"):
+            especiais.append(f"Canalizável ({dados.get('duracao_max', '?')}s)")
+        if dados.get("lifesteal"):
+            especiais.append(f"Roubo de vida {dados['lifesteal']*100:.0f}%")
+        if dados.get("escudo"):
+            especiais.append(f"Escudo +{dados['escudo']:.0f}")
+        if dados.get("cura"):
+            especiais.append(f"Cura +{dados['cura']:.0f}")
+        if dados.get("buff_dano"):
+            especiais.append(f"Buff dano x{dados['buff_dano']}")
+        if dados.get("retorna"):
+            especiais.append("Retorna ao lançador")
+        if dados.get("condicao"):
+            cond = dados["condicao"].replace("ALVO_", "").replace("_", " ").title()
+            especiais.append(f"Condição: {cond}")
+        if dados.get("duracao"):
+            especiais.append(f"Duração: {dados['duracao']}s")
+        if dados.get("invencivel"):
+            especiais.append("Invencível durante uso")
+        if dados.get("chain"):
+            especiais.append(f"Cadeia: salta {dados['chain']}x")
+        if dados.get("bloqueia_movimento"):
+            especiais.append("Bloqueia movimento")
+        if dados.get("aura_slow"):
+            especiais.append(f"Aura slow {dados['aura_slow']*100:.0f}%")
+        if dados.get("reflete_projeteis"):
+            especiais.append("Reflete projéteis")
+        if dados.get("remove_todos_debuffs"):
+            especiais.append("Remove todos debuffs")
+        if dados.get("taunt"):
+            especiais.append("Provoca inimigos")
+        if dados.get("dano_contato"):
+            especiais.append(f"Dano contato: {dados['dano_contato']:.0f}")
+        if dados.get("dano_por_segundo"):
+            especiais.append(f"DPS: {dados['dano_por_segundo']:.0f}/s")
+
+        if especiais:
+            tk.Frame(frame, bg=COR_TEXTO_DIM, height=1).pack(fill="x", padx=12, pady=6)
+            esp_f = tk.Frame(frame, bg=COR_BG)
+            esp_f.pack(fill="x", padx=12)
+            tk.Label(esp_f, text="Propriedades Especiais:",
+                     font=("Arial", 9, "bold"), bg=COR_BG, fg=COR_TEXTO).pack(anchor="w")
+            for prop in especiais:
+                tk.Label(esp_f, text=f"  \u2022 {prop}", font=("Arial", 9),
+                         bg=COR_BG, fg=cor_elem, anchor="w").pack(anchor="w")
+
+        # ── Mini-preview animado ──
+        tk.Frame(frame, bg=COR_TEXTO_DIM, height=1).pack(fill="x", padx=12, pady=6)
+        tk.Label(frame, text="Preview Visual", font=("Arial", 9, "bold"),
+                 bg=COR_BG, fg=COR_TEXTO).pack(padx=12, anchor="w")
+
+        preview = tk.Canvas(frame, width=280, height=120, bg="#0d0d1a",
+                            highlightthickness=1, highlightbackground=COR_TEXTO_DIM)
+        preview.pack(padx=12, pady=(4, 12))
+        self._animar_skill_preview(preview, nome, dados)
+
+    # ─────────────────────────────────────────────────────
+    # Widgets auxiliares
+    # ─────────────────────────────────────────────────────
+    def _criar_badge(self, parent, texto, bg_badge, fg_badge):
+        """Cria um badge (tag) colorido."""
+        lbl = tk.Label(parent, text=f" {texto} ", font=("Arial", 8, "bold"),
+                       bg=bg_badge, fg=fg_badge, bd=1, relief="solid", padx=3, pady=1)
+        lbl.pack(side="left", padx=(0, 4), pady=1)
+
+    def _criar_stat_bar(self, parent, label, valor, maximo, cor_bar):
+        """Cria uma barra de stat horizontal com label e valor numérico."""
+        row = tk.Frame(parent, bg=COR_BG)
+        row.pack(fill="x", pady=2)
+
+        tk.Label(row, text=label, font=("Arial", 9), bg=COR_BG,
+                 fg=COR_TEXTO_DIM, width=10, anchor="w").pack(side="left")
+
+        bar_bg = tk.Canvas(row, width=140, height=14, bg="#1a1a2e",
+                           highlightthickness=0)
+        bar_bg.pack(side="left", padx=4)
+        pct = min(1.0, valor / maximo) if maximo > 0 else 0
+        bar_w = int(140 * pct)
+        if bar_w > 0:
+            bar_bg.create_rectangle(0, 0, bar_w, 14, fill=cor_bar, outline="")
+            # Brilho no topo
+            bar_bg.create_rectangle(0, 0, bar_w, 4, fill="", outline="")
+            bar_bg.create_line(0, 1, bar_w, 1, fill=self._lighten(cor_bar), width=1)
+
+        tk.Label(row, text=f"{valor:.1f}" if isinstance(valor, float) else str(valor),
+                 font=("Arial", 9, "bold"), bg=COR_BG, fg=COR_TEXTO, width=6,
+                 anchor="w").pack(side="left")
+
+    @staticmethod
+    def _lighten(hex_color, amt=60):
+        """Clareia uma cor hex."""
+        hex_color = hex_color.lstrip("#")
+        r = min(255, int(hex_color[0:2], 16) + amt)
+        g = min(255, int(hex_color[2:4], 16) + amt)
+        b = min(255, int(hex_color[4:6], 16) + amt)
+        return f"#{r:02x}{g:02x}{b:02x}"
+
+    # ─────────────────────────────────────────────────────
+    # Mini-preview animado (canvas estático representativo)
+    # ─────────────────────────────────────────────────────
+    def _animar_skill_preview(self, canvas, nome, dados):
+        """Desenha uma representação visual do comportamento da skill."""
+        import math as _m
+        import random as _r
+
+        canvas.delete("all")
+        w, h = 280, 120
+        cx, cy = w // 2, h // 2
+        tipo = dados.get("tipo", "NADA")
+        cor = dados.get("cor", (180, 180, 180))
+        if isinstance(cor, (list, tuple)) and len(cor) >= 3:
+            hex_c = f"#{int(cor[0]):02x}{int(cor[1]):02x}{int(cor[2]):02x}"
+            hex_dim = f"#{max(0,int(cor[0])//2):02x}{max(0,int(cor[1])//2):02x}{max(0,int(cor[2])//2):02x}"
+        else:
+            hex_c = "#b4b4b4"
+            hex_dim = "#5a5a5a"
+
+        elem = dados.get("elemento", "")
+        cor_elem = self._ELEMENTO_CORES.get(elem, "#888888")
+
+        # Personagem lançador (esquerda)
+        px, py = 40, cy
+        canvas.create_oval(px - 8, py - 8, px + 8, py + 8,
+                           fill="#4488ff", outline="#6699ff", width=2)
+        canvas.create_text(px, py, text="P", fill="white", font=("Arial", 8, "bold"))
+
+        # Inimigo (direita)
+        ex, ey = w - 40, cy
+        canvas.create_oval(ex - 8, ey - 8, ex + 8, ey + 8,
+                           fill="#ff4444", outline="#ff6666", width=2)
+        canvas.create_text(ex, ey, text="E", fill="white", font=("Arial", 8, "bold"))
+
+        if tipo == "PROJETIL":
+            # Projétil voando com trilha
+            multi = dados.get("multi_shot", 1)
+            for shot in range(min(multi, 5)):
+                offset_y = (shot - multi // 2) * 12
+                # Trilha
+                for i in range(6):
+                    t = i / 6
+                    tx = px + 20 + t * 130
+                    ty = py + offset_y
+                    alpha_r = max(3, int(8 * (1 - t)))
+                    canvas.create_oval(tx - alpha_r, ty - alpha_r,
+                                       tx + alpha_r, ty + alpha_r,
+                                       fill=hex_dim, outline="")
+                # Projétil principal
+                proj_x = px + 20 + 130 * 0.65
+                proj_y = py + offset_y
+                raio_p = max(4, int(dados.get("raio", 0.3) * 12))
+                canvas.create_oval(proj_x - raio_p, proj_y - raio_p,
+                                   proj_x + raio_p, proj_y + raio_p,
+                                   fill=hex_c, outline=cor_elem, width=2)
+                # Glow
+                canvas.create_oval(proj_x - raio_p - 3, proj_y - raio_p - 3,
+                                   proj_x + raio_p + 3, proj_y + raio_p + 3,
+                                   outline=hex_dim, width=1)
+            # Seta de direção
+            canvas.create_line(px + 16, py, px + 28, py,
+                               fill=hex_c, width=2, arrow="last")
+
+        elif tipo == "BEAM":
+            # Raio contínuo do lançador ao inimigo
+            canvas.create_line(px + 12, py, ex - 12, ey,
+                               fill=hex_c, width=4)
+            canvas.create_line(px + 12, py, ex - 12, ey,
+                               fill="white", width=1)
+            # Faíscas
+            for _ in range(8):
+                sx = _r.randint(px + 20, ex - 20)
+                sy = py + _r.randint(-10, 10)
+                canvas.create_line(sx, sy, sx + _r.randint(-6, 6),
+                                   sy + _r.randint(-6, 6),
+                                   fill=cor_elem, width=1)
+            # Impacto
+            canvas.create_oval(ex - 18, ey - 12, ex - 6, ey + 12,
+                               outline=hex_c, width=2)
+
+        elif tipo == "AREA":
+            # Área centrada no lançador ou no centro
+            raio_a = max(20, int(dados.get("raio_area", 2.0) * 10))
+            area_cx = cx if dados.get("delay") else px
+            area_cy = cy
+            # Ondas concêntricas
+            for ring in range(3):
+                r = raio_a - ring * 8
+                if r < 6:
+                    break
+                canvas.create_oval(area_cx - r, area_cy - r,
+                                   area_cx + r, area_cy + r,
+                                   outline=hex_c if ring == 0 else hex_dim,
+                                   width=2 - ring * 0.5, dash=(4, 3) if ring > 0 else ())
+            # Partículas dentro da área
+            for _ in range(12):
+                angle = _r.random() * _m.pi * 2
+                dist = _r.random() * raio_a * 0.8
+                ppx = area_cx + _m.cos(angle) * dist
+                ppy = area_cy + _m.sin(angle) * dist
+                sz = _r.randint(2, 4)
+                canvas.create_oval(ppx - sz, ppy - sz, ppx + sz, ppy + sz,
+                                   fill=hex_c, outline="")
+            # Label do raio
+            canvas.create_text(area_cx, area_cy + raio_a + 10,
+                               text=f"Raio: {dados.get('raio_area', '?')}m",
+                               fill=COR_TEXTO_DIM, font=("Arial", 7))
+
+        elif tipo == "DASH":
+            # Trilha de dash
+            dist_d = min(160, int(dados.get("distancia", 4) * 20))
+            # Afterimages
+            for i in range(5):
+                t = i / 5
+                dx = px + t * dist_d
+                canvas.create_oval(dx - 6, py - 6, dx + 6, py + 6,
+                                   outline=hex_dim, width=1, dash=(2, 2))
+            # Posição final
+            fx = px + dist_d
+            canvas.create_oval(fx - 8, py - 8, fx + 8, py + 8,
+                               fill="#4488ff", outline=cor_elem, width=2)
+            canvas.create_text(fx, py, text="P", fill="white",
+                               font=("Arial", 8, "bold"))
+            # Linha de trajeto
+            canvas.create_line(px, py, fx, py, fill=cor_elem,
+                               width=1, dash=(6, 3))
+            # Dano na chegada
+            if dados.get("dano_chegada") or dados.get("dano"):
+                canvas.create_oval(fx - 14, py - 14, fx + 14, py + 14,
+                                   outline=hex_c, width=1, dash=(3, 3))
+
+        elif tipo == "BUFF":
+            # Aura ao redor do lançador
+            for ring in range(4):
+                r = 14 + ring * 6
+                canvas.create_oval(px - r, py - r, px + r, py + r,
+                                   outline=hex_c if ring < 2 else hex_dim,
+                                   width=2 if ring == 0 else 1,
+                                   dash=() if ring == 0 else (3, 3))
+            # Setas para cima (buff)
+            for dx in [-6, 0, 6]:
+                ax = px + dx
+                canvas.create_line(ax, py - 16, ax, py - 28,
+                                   fill=cor_elem, width=2, arrow="first")
+            # Texto do efeito
+            buff_txt = dados.get("efeito_buff", "BUFF")
+            canvas.create_text(px, py + 30, text=buff_txt,
+                               fill=hex_c, font=("Arial", 8, "bold"))
+
+        elif tipo == "SUMMON":
+            # Círculo de invocação
+            summon_x = cx
+            canvas.create_oval(summon_x - 16, cy - 16, summon_x + 16, cy + 16,
+                               fill=hex_dim, outline=cor_elem, width=2)
+            canvas.create_text(summon_x, cy, text="\u2726",
+                               fill=hex_c, font=("Arial", 14))
+            # Pentagrama decorativo
+            for i in range(5):
+                a1 = _m.radians(i * 72 - 90)
+                a2 = _m.radians(((i + 2) % 5) * 72 - 90)
+                canvas.create_line(
+                    summon_x + _m.cos(a1) * 22, cy + _m.sin(a1) * 22,
+                    summon_x + _m.cos(a2) * 22, cy + _m.sin(a2) * 22,
+                    fill=hex_dim, width=1)
+            # Info
+            vida_s = dados.get("summon_vida", "?")
+            dano_s = dados.get("summon_dano", "?")
+            canvas.create_text(summon_x, cy + 34,
+                               text=f"HP:{vida_s}  DMG:{dano_s}",
+                               fill=COR_TEXTO_DIM, font=("Arial", 7))
+
+        elif tipo == "TRAP":
+            # Armadilha no chão
+            trap_x = cx + 20
+            # Zona de perigo
+            canvas.create_rectangle(trap_x - 18, cy - 18, trap_x + 18, cy + 18,
+                                    outline=hex_c, width=2, dash=(4, 4))
+            canvas.create_line(trap_x - 12, cy - 12, trap_x + 12, cy + 12,
+                               fill="#ff4444", width=1)
+            canvas.create_line(trap_x + 12, cy - 12, trap_x - 12, cy + 12,
+                               fill="#ff4444", width=1)
+            canvas.create_text(trap_x, cy, text="\u26A0",
+                               fill=hex_c, font=("Arial", 14))
+            canvas.create_text(trap_x, cy + 28,
+                               text="ARMADILHA", fill=COR_TEXTO_DIM,
+                               font=("Arial", 7, "bold"))
+
+        elif tipo == "TRANSFORM":
+            # Transformação com antes/depois
+            canvas.create_oval(px - 8, py - 8, px + 8, py + 8,
+                               outline="#4488ff", width=1, dash=(2, 2))
+            # Seta de transição
+            canvas.create_line(px + 16, py, cx - 8, py,
+                               fill=cor_elem, width=2, arrow="last")
+            # Forma transformada (maior, brilhante)
+            canvas.create_oval(cx - 14, cy - 14, cx + 14, cy + 14,
+                               fill=hex_c, outline=cor_elem, width=2)
+            canvas.create_text(cx, cy, text="\u21BB",
+                               fill="white", font=("Arial", 12, "bold"))
+            # Partículas de transformação
+            for _ in range(8):
+                a = _r.random() * _m.pi * 2
+                d = _r.randint(16, 30)
+                ptx = cx + _m.cos(a) * d
+                pty = cy + _m.sin(a) * d
+                canvas.create_oval(ptx - 2, pty - 2, ptx + 2, pty + 2,
+                                   fill=hex_c, outline="")
+
+        elif tipo == "CHANNEL":
+            # Canalização contínua
+            canvas.create_oval(px - 14, py - 14, px + 14, py + 14,
+                               outline=cor_elem, width=2)
+            # Ondas saindo
+            for ring in range(4):
+                r = 18 + ring * 10
+                canvas.create_arc(px - r, py - r, px + r, py + r,
+                                  start=_r.randint(0, 360), extent=60,
+                                  style="arc", outline=hex_dim, width=1)
+            # Linha de energia
+            canvas.create_line(px + 14, py, ex - 12, ey,
+                               fill=hex_c, width=2, dash=(6, 4))
+            canvas.create_text(cx, cy + 40,
+                               text=f"Duração: {dados.get('duracao_max', '?')}s",
+                               fill=COR_TEXTO_DIM, font=("Arial", 7))
+        else:
+            canvas.create_text(cx, cy, text="Sem preview",
+                               fill=COR_TEXTO_DIM, font=("Arial", 10))
 
     def atualizar_skill_slot(self, idx):
         """Atualiza um slot de habilidade"""
