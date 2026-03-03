@@ -17,7 +17,10 @@ A IA agora:
 
 import random
 import math
+import logging
 from enum import Enum
+
+_log = logging.getLogger("neural_ai.skill_strategy")
 from typing import Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass, field
 
@@ -998,7 +1001,8 @@ class SkillStrategySystem:
         if nome in self.skills:
             skill = self.skills[nome]
             if skill.tipo in self.cd_por_tipo:
-                self.cd_por_tipo[skill.tipo] = 3.0
+                # M-N03: usa metade do cooldown real — evita dead zones de 3s fixos
+                self.cd_por_tipo[skill.tipo] = max(0.5, skill.cooldown * 0.5)
             self.cd_global = 0.3  # Pequeno delay entre skills
     
     def registrar_uso_skill(self, nome: str):
@@ -1033,28 +1037,30 @@ class SkillStrategySystem:
         self.preferencias["distancia_preferida"] = self.plano.distancia_preferida
     
     def _log_plano(self):
-        """Loga o plano de batalha criado"""
+        """Loga o plano de batalha criado (L-N03: migrado de print() para logging.debug)"""
         p = self.parent
-        print(f"\n{'='*60}")
-        print(f"[BATTLE PLAN] {p.dados.nome}")
-        print(f"{'='*60}")
-        print(f"  Role: {self.role_principal.value.upper()}")
-        print(f"  Estilo: {self.plano.estilo} | Distância: {self.plano.distancia_preferida:.1f}m | Mana: {self.plano.foco_mana}")
-        print(f"\n  === SKILLS ANALISADAS ({len(self.skills)}) ===")
+        if not _log.isEnabledFor(logging.DEBUG):
+            return
+        _log.debug("=" * 60)
+        _log.debug("[BATTLE PLAN] %s", p.dados.nome)
+        _log.debug("=" * 60)
+        _log.debug("  Role: %s", self.role_principal.value.upper())
+        _log.debug("  Estilo: %s | Distância: %.1fm | Mana: %s",
+                   self.plano.estilo, self.plano.distancia_preferida, self.plano.foco_mana)
+        _log.debug("  === SKILLS ANALISADAS (%d) ===", len(self.skills))
         for skill in self.skills.values():
-            props = ", ".join([p.value for p in skill.propositos])
-            print(f"    [{skill.tipo:8}] {skill.nome:25} | Custo:{skill.custo:5.0f} | Dano:{skill.dano_total:5.0f} | {props}")
-        
+            props = ", ".join([p2.value for p2 in skill.propositos])
+            _log.debug("    [%8s] %-25s | Custo:%5.0f | Dano:%5.0f | %s",
+                       skill.tipo, skill.nome, skill.custo, skill.dano_total, props)
         if self.plano.combos:
-            print(f"\n  === COMBOS DESCOBERTOS ({len(self.plano.combos)}) ===")
+            _log.debug("  === COMBOS DESCOBERTOS (%d) ===", len(self.plano.combos))
             for s1, s2, razao in self.plano.combos[:5]:
-                print(f"    {s1} -> {s2} ({razao})")
-        
-        print(f"\n  === ROTAÇÕES ===")
-        print(f"    Opening:      {self.plano.rotacao_opening}")
-        print(f"    Neutral:      {self.plano.rotacao_neutral}")
-        print(f"    Advantage:    {self.plano.rotacao_advantage}")
-        print(f"    Disadvantage: {self.plano.rotacao_disadvantage}")
-        print(f"    Finishing:    {self.plano.rotacao_finishing}")
-        print(f"    Critical:     {self.plano.rotacao_critical}")
-        print(f"{'='*60}\n")
+                _log.debug("    %s -> %s (%s)", s1, s2, razao)
+        _log.debug("  === ROTAÇÕES ===")
+        _log.debug("    Opening:      %s", self.plano.rotacao_opening)
+        _log.debug("    Neutral:      %s", self.plano.rotacao_neutral)
+        _log.debug("    Advantage:    %s", self.plano.rotacao_advantage)
+        _log.debug("    Disadvantage: %s", self.plano.rotacao_disadvantage)
+        _log.debug("    Finishing:    %s", self.plano.rotacao_finishing)
+        _log.debug("    Critical:     %s", self.plano.rotacao_critical)
+        _log.debug("=" * 60)

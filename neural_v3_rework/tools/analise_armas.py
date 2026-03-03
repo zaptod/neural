@@ -117,9 +117,7 @@ def listar_armas_por_tipo():
             "raridade": arma.get("raridade", "?"),
             # Atributos específicos por tipo
             "quantidade": arma.get("quantidade", 1),
-            "tamanho_projetil": arma.get("tamanho_projetil", 0),
-            "distancia_max": arma.get("distancia_max", 0),
-        })
+                                })
     
     print("\n" + "="*70)
     print("ARMAS NO JOGO")
@@ -130,9 +128,9 @@ def listar_armas_por_tipo():
         for a in lista:
             extra = ""
             if tipo == "Arremesso":
-                extra = f" [qtd={a['quantidade']}, tam_proj={a['tamanho_projetil']}]"
+                extra = f" [qtd={a['quantidade']}]"
             elif tipo == "Mágica":
-                extra = f" [qtd={a['quantidade']}, dist_max={a['distancia_max']}]"
+                extra = f" [qtd={a['quantidade']}]"
             print(f"  • {a['nome']} ({a['raridade']}) - Dano: {a['dano']}{extra}")
     
     return por_tipo

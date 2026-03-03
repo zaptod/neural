@@ -1587,6 +1587,12 @@ class AIBrain:
             self.acao_atual = "MATAR"
             return True
         
+        elif tipo == "pos_bloqueio":
+            # CB-02: contra-ataque imediato após bloqueio/parry bem-sucedido
+            self.acao_atual = "CONTRA_ATAQUE"
+            self.confianca = min(1.0, self.confianca + 0.12)
+            return True
+        
         return False
     
     def _executar_ataque(self, distancia, inimigo):
@@ -2078,7 +2084,7 @@ class AIBrain:
                 flanqueia = random.random() < 0.6
             elif "TATICO" in self.tracos or "CALCULISTA" in self.tracos:
                 flanqueia = random.random() < 0.4
-            elif "ASSASSINO_NATO" in self.tracos or "NINJA" in self.arquetipo:
+            elif "ASSASSINO_NATO" in self.tracos or self.arquetipo == "NINJA":  # FP-N02: era substring
                 flanqueia = random.random() < 0.5
             else:
                 flanqueia = random.random() < 0.2
@@ -2487,7 +2493,7 @@ class AIBrain:
     def _atualizar_estados_humanos(self, dt, distancia, inimigo):
         """Atualiza hesitação, impulso e outros estados humanos"""
         p = self.parent
-        hp_pct = p.vida / p.vida_max
+        hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1.0  # FP-N01
         
         # === HESITAÇÃO ===
         # Aumenta quando: 
@@ -3036,7 +3042,7 @@ class AIBrain:
     def _processar_modos_especiais(self, dt, distancia, inimigo):
         """Processa modos especiais de combate"""
         p = self.parent
-        hp_pct = p.vida / p.vida_max
+        hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1.0  # FP-N01
         
         if "BERSERKER" in self.tracos or "BERSERKER_RAGE" in self.tracos:
             if hp_pct < 0.4 and self.raiva > 0.5:
@@ -3133,7 +3139,7 @@ class AIBrain:
             return False
         
         p = self.parent
-        hp_pct = p.vida / p.vida_max
+        hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1.0  # FP-N01
         
         if self._tentar_pulo_evasivo(distancia, hp_pct):
             return True
@@ -3398,22 +3404,28 @@ class AIBrain:
         plano           = strategy.plano
         skills          = strategy.skills
 
-        # ── Estado do inimigo ──
-        inimigo_stunado       = self._verificar_inimigo_stunado(inimigo)
-        inimigo_debuffado     = self._verificar_inimigo_debuffado(inimigo)
-        # Verifica queimando: usa dots_ativos (sistema real) + status_effects (sync)
-        inimigo_queimando     = any(
-            getattr(d, 'tipo', getattr(d, 'nome', '')).upper() in ('QUEIMANDO', 'QUEIMAR', 'BURNING')
-            for d in getattr(inimigo, 'dots_ativos', [])
-        ) or any(
-            getattr(e, 'nome', '').lower() in ('queimando', 'burning')
-            for e in getattr(inimigo, 'status_effects', [])
-        )
-        # Verifica congelado: usa flag direta (sistema real) + status_effects (sync)
-        inimigo_congelado     = getattr(inimigo, 'congelado', False) or any(
-            getattr(e, 'nome', '').lower() in ('congelado', 'frozen')
-            for e in getattr(inimigo, 'status_effects', [])
-        )
+        # ── Estado do inimigo (M-N04: calculado uma vez por frame, cacheado em self._estado_inimigo_cache) ──
+        _cache = getattr(self, '_estado_inimigo_cache', None)
+        _cache_frame = getattr(self, '_estado_inimigo_frame', -1)
+        if _cache is None or _cache_frame != id(inimigo) ^ int(self.tempo_combate * 10):
+            _stunado     = self._verificar_inimigo_stunado(inimigo)
+            _debuffado   = self._verificar_inimigo_debuffado(inimigo)
+            _queimando   = any(
+                getattr(d, 'tipo', getattr(d, 'nome', '')).upper() in ('QUEIMANDO', 'QUEIMAR', 'BURNING')
+                for d in getattr(inimigo, 'dots_ativos', [])
+            ) or any(
+                getattr(e, 'nome', '').lower() in ('queimando', 'burning')
+                for e in getattr(inimigo, 'status_effects', [])
+            )
+            _congelado   = getattr(inimigo, 'congelado', False) or any(
+                getattr(e, 'nome', '').lower() in ('congelado', 'frozen')
+                for e in getattr(inimigo, 'status_effects', [])
+            )
+            self._estado_inimigo_cache = (_stunado, _debuffado, _queimando, _congelado)
+            self._estado_inimigo_frame = id(inimigo) ^ int(self.tempo_combate * 10)
+
+        inimigo_stunado, inimigo_debuffado, inimigo_queimando, inimigo_congelado = self._estado_inimigo_cache
+
         inimigo_reposicionando = self.leitura_oponente.get("reposicionando", False)
         inimigo_atk_iminente  = self.leitura_oponente.get("ataque_iminente", False)
         encurralado           = self.consciencia_espacial.get("encurralado", False)
@@ -3679,7 +3691,7 @@ class AIBrain:
         # ================================================================
         # PRIORIDADE 11: ROTAÇÃO GERAL — usa o sistema de battle plan
         # ================================================================
-        from ai.skill_strategy import CombatSituation
+        # L-N01: CombatSituation já importada no nível de módulo (linha 98) — import inline removido
         situacao = CombatSituation(
             distancia=distancia,
             meu_hp_percent=hp_pct,
@@ -3809,10 +3821,10 @@ class AIBrain:
         return 0
     
     def _contar_traps_ativos(self):
-        """Conta quantas traps estão ativas"""
+        """Conta quantas traps estão ativas (CB-08: filtra traps expiradas)"""
         p = self.parent
         if hasattr(p, 'buffer_traps'):
-            return len(p.buffer_traps)
+            return sum(1 for t in p.buffer_traps if getattr(t, 'ativo', False))
         return 0
     
     def _verificar_inimigo_stunado(self, inimigo):
@@ -3913,7 +3925,7 @@ class AIBrain:
             return False
         
         p = self.parent
-        hp_pct = p.vida / p.vida_max
+        hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1.0  # FP-N01
         
         for skill in buff_skills:
             data = skill["data"]
@@ -4412,7 +4424,7 @@ class AIBrain:
             em_pressao     = engajamento < distancia <= pressao
             em_dash        = pressao < distancia <= dash_curto
 
-            combo_hits   = getattr(self.parent, 'combo_atual', 0)
+            combo_hits   = self.combo_atual  # CB-05: atributo pertence ao AIBrain (self), não ao parent
             combo_ativo  = combo_hits > 2
             combo_frenzy = combo_hits > 5
 
@@ -4495,7 +4507,7 @@ class AIBrain:
 
         # ── 2. TRAÇOS DE PERSONALIDADE ─────────────────────────────────────────
         if "COVARDE" in self.tracos and hp_pct < 0.35:
-            self.vezes_que_fugiu += 1
+            # CB-07: vezes_que_fugiu é incrementado apenas em _tentar_dash_emergencia (execução real)
             if self.vezes_que_fugiu > 4:
                 votar("MATAR", 2.0); self.raiva = 0.9
             else:
@@ -4574,12 +4586,24 @@ class AIBrain:
             tend_esq = leitura.get("tendencia_esquerda", 0.5)
             if tend_esq > 0.60: self.dir_circular = 1
             elif tend_esq < 0.40: self.dir_circular = -1
+
+            # M-N01: calcula posição futura real do oponente e armazena como alvo de intercepção
+            tempo_reacao = getattr(self, 'timer_decisao', 0.2)
+            vel_in = getattr(inimigo, 'vel', (0.0, 0.0))
+            pos_in = getattr(inimigo, 'pos', (0.0, 0.0))
+            self._pos_interceptacao = (
+                pos_in[0] + vel_in[0] * tempo_reacao,
+                pos_in[1] + vel_in[1] * tempo_reacao,
+            )
+
             if leitura["agressividade_percebida"] > 0.6:
                 votar("CONTRA_ATAQUE", 0.6)
             elif leitura.get("frequencia_pulo", 0) > 0.35 and distancia < 5.0:
                 votar("COMBATE", 0.5)
             else:
                 votar("PRESSIONAR", 0.4)
+        else:
+            self._pos_interceptacao = None  # sem previsão suficiente — não interceptar
         if leitura["agressividade_percebida"] > AI_AGRESSIVIDADE_ALTA:
             if "REATIVO" in self.tracos or "OPORTUNISTA" in self.tracos:
                 votar("CONTRA_ATAQUE", 0.4)
@@ -4615,106 +4639,8 @@ class AIBrain:
                 _log.debug("[DECISAO] %s → genérico | top3=%s", p.dados.nome, top3)
             self.acao_atual = acao_escolhida
     
-    def _aplicar_modificadores_momentum(self, distancia, inimigo_hp_pct):
-        """
-        [DEPRECIADO — Sprint 5 MEL-AI-03]
-        Lógica absorvida em _estrategia_generica (etapa 7 — momentum).
-        Mantido para compatibilidade caso código externo chame diretamente.
-        """
-        # Momentum positivo = mais agressivo
-        if self.momentum > AI_MOMENTUM_POSITIVO:
-            if self.acao_atual in ["CIRCULAR", "RECUAR", "BLOQUEAR"]:
-                if self._rand() < self.momentum * 0.5:  # QC-03
-                    self.acao_atual = random.choice(["PRESSIONAR", "MATAR", "APROXIMAR"])
-        
-        # Momentum negativo = mais cauteloso (mas não covarde)
-        elif self.momentum < -0.3:
-            if self.acao_atual in ["MATAR", "ESMAGAR"]:
-                if self._rand() < abs(self.momentum) * 0.3:  # QC-03
-                    self.acao_atual = random.choice(["COMBATE", "FLANQUEAR", "CIRCULAR"])
-        
-        # Pressão alta = decisões mais extremas
-        if self.pressao_aplicada > AI_PRESSAO_ALTA:
-            if self._rand() < 0.3:  # QC-03
-                self.acao_atual = random.choice(["MATAR", "ESMAGAR", "PRESSIONAR"])
-        
-        if self.pressao_recebida > 0.7:
-            if self._rand() < 0.25:  # QC-03
-                # Ou contra-ataca ou recua - decisão de momento
-                if self.raiva > self.medo:
-                    self.acao_atual = random.choice(["CONTRA_ATAQUE", "MATAR"])
-                else:
-                    self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "FLANQUEAR"])
-    
-    def _aplicar_modificadores_leitura(self, distancia, inimigo):
-        """
-        [DEPRECIADO — Sprint 5 MEL-AI-03 / MEL-AI-05]
-        Lógica de intercepção absorvida em _estrategia_generica (etapa 8 — leitura).
-        Mantido para compatibilidade caso código externo chame diretamente.
-        """
-        leitura = self.leitura_oponente
+    # L-N02: métodos [DEPRECIADO] removidos (Sprint 4) — lógica já absorvida em _estrategia_generica
 
-        # MEL-AI-05: Previsibilidade alta → estratégia de INTERCEPÇÃO.
-        # Em vez de simplesmente contra-atacar, a IA se posiciona onde o oponente
-        # ESTARÁ, antecipando o padrão de movimento detectado.
-        if leitura["previsibilidade"] > AI_PREVISIBILIDADE_ALTA:
-            tend_esq = leitura.get("tendencia_esquerda", 0.5)
-            freq_pulo = leitura.get("frequencia_pulo", 0.0)
-
-            # Posicionamento de intercepção: vai para o lado oposto à tendência lateral
-            if tend_esq > 0.60:
-                self.dir_circular = 1   # oponente vai para esquerda → intercepta pela direita
-            elif tend_esq < 0.40:
-                self.dir_circular = -1  # oponente vai para direita → intercepta pela esquerda
-
-            if leitura["agressividade_percebida"] > 0.6:
-                # Oponente previsível E agressivo: prepara contra com alta confiança
-                self.acao_atual = "CONTRA_ATAQUE"
-            elif freq_pulo > 0.35 and distancia < 5.0:
-                # Pula muito de forma previsível: espera a aterrissagem
-                self.acao_atual = "COMBATE"
-            elif distancia < 6.0 and self._rand() < 0.55:
-                # Posicionamento ofensivo: vai para onde o oponente vai estar
-                self.acao_atual = "PRESSIONAR"
-
-        # Se oponente é muito agressivo
-        if leitura["agressividade_percebida"] > AI_AGRESSIVIDADE_ALTA:
-            if "REATIVO" in self.tracos or "OPORTUNISTA" in self.tracos:
-                if self._rand() < 0.3:  # QC-03
-                    self.acao_atual = "CONTRA_ATAQUE"
-        
-        # Se oponente pula muito, posiciona melhor
-        if leitura["frequencia_pulo"] > 0.4:
-            if self._rand() < 0.2:  # QC-03
-                self.acao_atual = "COMBATE"  # Espera ele cair
-        
-        # Adapta à tendência lateral do oponente
-        if distancia < 4.0:
-            if leitura["tendencia_esquerda"] > 0.65:
-                if random.random() < 0.15:
-                    self.dir_circular = 1  # Vai pro outro lado
-            elif leitura["tendencia_esquerda"] < 0.35:
-                if random.random() < 0.15:
-                    self.dir_circular = -1
-    
-    def _evitar_repeticao_excessiva(self):
-        """Evita repetir a mesma ação muitas vezes seguidas"""
-        if len(self.historico_acoes) < 3:
-            return
-        
-        # Verifica repetição
-        ultimas_3 = self.historico_acoes[-3:]
-        if ultimas_3.count(self.acao_atual) >= 2:
-            # Está repetindo muito, varia
-            if self._rand() < 0.4:  # QC-03: consome do pool pré-gerado
-                acoes_alternativas = [
-                    "MATAR", "CIRCULAR", "FLANQUEAR", "COMBATE", 
-                    "APROXIMAR", "ATAQUE_RAPIDO", "PRESSIONAR"
-                ]
-                # Remove a ação atual das alternativas
-                acoes_alternativas = [a for a in acoes_alternativas if a != self.acao_atual]
-                self.acao_atual = random.choice(acoes_alternativas)
-    
     def _calcular_alcance_efetivo(self):
         """Calcula alcance real de ataque baseado na arma e hitbox profile v12.2"""
         p = self.parent
@@ -4737,23 +4663,16 @@ class AIBrain:
         alcance_base = raio * range_mult
         
         # Ajustes específicos por tipo
+        # Alcance = raio × range_mult (geometria removida)
         if tipo == "Reta":
-            # Lâminas: considera tamanho real da arma
-            comp_total = (getattr(arma, 'comp_cabo', 20) + getattr(arma, 'comp_lamina', 40)) / PPM
-            return alcance_base + comp_total * 0.3
+            return alcance_base
         
         elif tipo == "Dupla":
-            # Adagas: alcance generoso (lâminas rápidas + extensão do braço)
-            # v3.1: aumentado comp * 0.75 para a IA ter espaço real de combate
-            comp = getattr(arma, 'comp_lamina', 55) / PPM
-            return alcance_base + comp * 0.75
+            return alcance_base
         
         elif tipo == "Corrente":
-            # Corrente: alcance longo mas zona morta grande
-            comp = getattr(arma, 'comp_corrente', 80) / PPM
             zona_morta = alcance_base * profile.get("min_range_ratio", 0.25)
-            # Retorna distância ideal (entre zona morta e máximo)
-            return (alcance_base + zona_morta) / 2 + comp * 0.2
+            return (alcance_base + zona_morta) / 2
         
         elif tipo == "Arremesso":
             # Projéteis: mantém distância média
@@ -4773,164 +4692,9 @@ class AIBrain:
             return raio + dist_orbe * 0.8
         
         elif tipo == "Transformável":
-            # Transformável: depende da forma atual
-            forma = getattr(arma, 'forma_atual', 1)
-            if forma == 1:
-                comp = getattr(arma, 'forma1_lamina', 40) / PPM
-            else:
-                comp = getattr(arma, 'forma2_lamina', 60) / PPM
-            return alcance_base + comp * 0.3
+            return alcance_base
         
         return alcance_base
-
-    def _comportamento_estilo(self, distancia, roll, hp_pct, inimigo_hp_pct):
-        """
-        [DEPRECIADO — Sprint 5 MEL-AI-02 / MEL-AI-03]
-        Lógica absorvida em _estrategia_generica (etapa 3 — estilo de luta).
-        Mantido para compatibilidade.
-        """
-        # Usa alcance efetivo calculado, não o ideal
-        alcance = self._calcular_alcance_efetivo()
-        alcance_ideal = self.parent.alcance_ideal
-        
-        estilo_data = ESTILOS_LUTA.get(self.estilo_luta, ESTILOS_LUTA["BALANCED"])
-        agressividade = estilo_data.get("agressividade_base", 0.6)
-        
-        tempo_boost = min(0.2, self.tempo_combate / 60.0)
-        agressividade += tempo_boost
-        
-        if inimigo_hp_pct < 0.3:
-            agressividade += 0.25
-        elif inimigo_hp_pct < 0.5:
-            agressividade += 0.1
-            
-        hp_diff = hp_pct - inimigo_hp_pct
-        if hp_diff > 0.2:
-            agressividade += hp_diff * 0.3
-            
-        if hp_pct < 0.25 and "BERSERKER" not in self.tracos:
-            agressividade -= 0.1
-        
-        agressividade = max(0.3, min(1.0, agressividade))
-        
-        # Zonas baseadas no alcance efetivo
-        if distancia < alcance_ideal * 0.7:
-            zona = "perto"
-        elif distancia > alcance * 1.3:
-            zona = "longe"
-        else:
-            zona = "medio"
-        
-        if zona == "perto":
-            self.acao_atual = estilo_data["acao_perto"]
-        elif zona == "longe":
-            self.acao_atual = estilo_data["acao_longe"]
-        else:
-            self.acao_atual = estilo_data["acao_medio"]
-        
-        if roll < agressividade * 0.25:
-            acoes_agressivas = ["MATAR", "ATAQUE_RAPIDO", "PRESSIONAR", "ESMAGAR", "FLANQUEAR"]
-            self.acao_atual = random.choice(acoes_agressivas)
-        elif roll < 0.12:
-            acoes_variadas = ["CIRCULAR", "FLANQUEAR", "COMBATE", "POKE"]
-            self.acao_atual = random.choice(acoes_variadas)
-        
-        # Se muito longe, aproxima
-        if distancia > alcance * 2.0 and self.acao_atual not in ["APROXIMAR", "MATAR", "PRESSIONAR"]:
-            if random.random() < 0.8:
-                self.acao_atual = "APROXIMAR"
-        
-        # Se no alcance de ataque, ataca
-        if distancia <= alcance and self.acao_atual not in ["MATAR", "ATAQUE_RAPIDO", "ESMAGAR", "CONTRA_ATAQUE", "PRESSIONAR"]:
-            if random.random() < agressividade * 0.6:
-                self.acao_atual = random.choice(["MATAR", "ATAQUE_RAPIDO", "COMBATE", "PRESSIONAR"])
-
-    def _aplicar_modificadores_movimento(self, distancia, roll):
-        """
-        [DEPRECIADO — Sprint 5 MEL-AI-02 / MEL-AI-03]
-        Lógica absorvida em _estrategia_generica (etapa 4 — traços modificadores).
-        Mantido para compatibilidade.
-        """
-        if "AGRESSIVO" in self.tracos:
-            if self.acao_atual in ["CIRCULAR", "BLOQUEAR", "RECUAR", "COMBATE"]:
-                if random.random() < 0.55:
-                    self.acao_atual = random.choice(["MATAR", "APROXIMAR", "PRESSIONAR"])
-        
-        if "CALCULISTA" in self.tracos:
-            if self.acao_atual == "MATAR" and distancia > 4.0:
-                if random.random() < 0.25:
-                    self.acao_atual = "FLANQUEAR"
-        
-        if "PACIENTE" in self.tracos:
-            if self.acao_atual in ["APROXIMAR", "MATAR"]:
-                if random.random() < 0.2:
-                    self.acao_atual = "COMBATE"
-        
-        if "IMPRUDENTE" in self.tracos:
-            if self.acao_atual in ["BLOQUEAR", "RECUAR", "FUGIR", "CIRCULAR", "COMBATE"]:
-                if random.random() < 0.6:
-                    self.acao_atual = random.choice(["MATAR", "ESMAGAR"])
-        
-        if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
-            if random.random() < 0.25:
-                acoes = ["FLANQUEAR", "APROXIMAR", "ATAQUE_RAPIDO", "MATAR", "ESMAGAR", "POKE"]
-                self.acao_atual = random.choice(acoes)
-        
-        if "ADAPTAVEL" in self.tracos:
-            if self.frustracao > 0.5:
-                acoes = ["FLANQUEAR", "MATAR", "ESMAGAR", "PRESSIONAR"]
-                self.acao_atual = random.choice(acoes)
-                self.frustracao *= 0.5
-        
-        if "FLANQUEADOR" in self.tracos:
-            if self.acao_atual in ["APROXIMAR", "COMBATE", "CIRCULAR", "BLOQUEAR"]:
-                if random.random() < 0.5:
-                    self.acao_atual = "FLANQUEAR"
-        
-        if "VELOZ" in self.tracos:
-            if self.acao_atual in ["BLOQUEAR", "COMBATE"]:
-                if random.random() < 0.6:
-                    self.acao_atual = random.choice(["FLANQUEAR", "ATAQUE_RAPIDO"])
-        
-        if "ESTATICO" in self.tracos:
-            if self.acao_atual in ["CIRCULAR", "FLANQUEAR", "RECUAR"]:
-                if random.random() < 0.4:
-                    self.acao_atual = random.choice(["COMBATE", "MATAR"])
-        
-        if "SELVAGEM" in self.tracos:
-            if random.random() < 0.25:
-                self.acao_atual = random.choice(["MATAR", "ESMAGAR", "ATAQUE_RAPIDO"])
-        
-        if "TEIMOSO" in self.tracos:
-            if self.acao_atual not in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO"]:
-                if random.random() < 0.3:
-                    self.acao_atual = "MATAR"
-        elif "FRIO" not in self.tracos:
-            if self.raiva > 0.6:
-                if self.acao_atual in ["RECUAR", "BLOQUEAR", "CIRCULAR", "FUGIR"]:
-                    if random.random() < 0.5:
-                        self.acao_atual = random.choice(["MATAR", "ESMAGAR"])
-
-    def _aplicar_modificadores_humor(self):
-        """Aplica modificadores do humor atual"""
-        humor_data = HUMORES.get(self.humor, HUMORES["CALMO"])
-        
-        if humor_data["mod_agressividade"] > 0.15:
-            if self.acao_atual in ["RECUAR", "BLOQUEAR", "CIRCULAR", "FUGIR"]:
-                if random.random() < 0.45:
-                    self.acao_atual = random.choice(["MATAR", "APROXIMAR", "PRESSIONAR"])
-        elif humor_data["mod_agressividade"] < -0.25:
-            if self.acao_atual in ["MATAR", "ESMAGAR"]:
-                if random.random() < 0.2:
-                    self.acao_atual = "COMBATE"
-
-    def _aplicar_modificadores_filosofia(self):
-        """Aplica modificadores da filosofia"""
-        filosofia_data = FILOSOFIAS.get(self.filosofia, FILOSOFIAS["EQUILIBRIO"])
-        preferencias = filosofia_data["preferencia_acao"]
-        
-        if self._rand() < 0.2:  # QC-03: consome do pool pré-gerado
-            self.acao_atual = random.choice(preferencias)
 
     def _calcular_timer_decisao(self):
         """Calcula timer para próxima decisão"""
@@ -5063,8 +4827,10 @@ class AIBrain:
         
         # Fase ALEATORIO do ritmo caótico
         if fase_atual == "ALEATORIO":
-            if self.ritmo_timer < 0.1:  # Só muda no início da fase
-                fase_atual = random.choice(list(RITMO_MODIFICADORES.keys()))
+            # M-N02: salva fase aleatória escolhida e reutiliza por toda a duração
+            if not hasattr(self, '_fase_aleatorio_atual') or self.ritmo_timer < 0.1:
+                self._fase_aleatorio_atual = random.choice(list(RITMO_MODIFICADORES.keys()))
+            fase_atual = self._fase_aleatorio_atual
         
         if fase_atual in RITMO_MODIFICADORES:
             mods = RITMO_MODIFICADORES[fase_atual]
@@ -5120,7 +4886,7 @@ class AIBrain:
                 triggered = True
             elif trigger == "em_combo" and self.combo_state.get("em_combo", False):
                 triggered = True
-            elif trigger == "pos_combo" and self.tempo_desde_dano < 0.5 and self.tempo_desde_dano > 0.3:
+            elif trigger == "pos_combo" and self.tempo_desde_hit < 0.5 and self.combo_atual > 1:  # CB-06: era tempo_desde_dano (semântica invertida)
                 triggered = True
             elif trigger == "bloqueio_sucesso" and hasattr(self, 'ultimo_bloqueio') and self.ultimo_bloqueio < 0.3:
                 triggered = True

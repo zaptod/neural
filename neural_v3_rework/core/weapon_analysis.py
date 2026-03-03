@@ -287,29 +287,19 @@ class WeaponAnalyzer:
         )
     
     def _calcular_tamanho_arma(self, arma) -> float:
-        """Calcula tamanho efetivo da arma em metros"""
-        tipo = arma.tipo
-        
-        if tipo == "Reta":
-            return (arma.comp_cabo + arma.comp_lamina) / 100.0
-        elif tipo == "Dupla":
-            return (arma.comp_cabo + arma.comp_lamina) / 100.0 * 0.7
-        elif tipo == "Corrente":
-            return (getattr(arma, 'comp_corrente', 100) + getattr(arma, 'comp_ponta', 20)) / 100.0
-        elif tipo == "Arremesso":
-            return getattr(arma, 'tamanho_projetil', 15) / 100.0
-        elif tipo == "Arco":
-            return getattr(arma, 'tamanho_arco', 80) / 100.0
-        elif tipo == "Orbital":
-            return (getattr(arma, 'distancia', 30) + arma.largura) / 100.0
-        elif tipo == "Mágica":
-            return getattr(arma, 'distancia_max', 60) / 100.0
-        elif tipo == "Transformável":
-            forma1 = (getattr(arma, 'forma1_cabo', 20) + getattr(arma, 'forma1_lamina', 50)) / 100.0
-            forma2 = (getattr(arma, 'forma2_cabo', 80) + getattr(arma, 'forma2_lamina', 30)) / 100.0
-            return max(forma1, forma2)
-        
-        return (arma.comp_cabo + arma.comp_lamina + arma.largura) / 100.0
+        """Tamanho base fixo por tipo (geometria removida — escala vem do personagem em runtime)."""
+        # Valores calibrados para personagem padrão (tamanho=1.0, raio_fisico≈0.4m)
+        TAMANHOS = {
+            "Reta":          0.80,
+            "Dupla":         0.55,
+            "Corrente":      1.60,
+            "Arremesso":     0.25,
+            "Arco":          3.20,
+            "Orbital":       0.60,
+            "Mágica":        1.00,
+            "Transformável": 0.75,
+        }
+        return TAMANHOS.get(arma.tipo, 0.75)
     
     def _calcular_zonas_perigosas(self, tipo: str, alcance_min: float, 
                                    alcance_max: float, arco: float) -> List[Tuple[float, float, float]]:

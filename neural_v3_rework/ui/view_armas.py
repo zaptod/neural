@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models import (
     Arma, TIPOS_ARMA, LISTA_TIPOS_ARMA, RARIDADES, LISTA_RARIDADES,
     ENCANTAMENTOS, LISTA_ENCANTAMENTOS, get_raridade_data, get_tipo_arma_data,
-    validar_arma_personagem, sugerir_tamanho_arma, calcular_tamanho_arma
+    validar_arma_personagem
 )
 from data import carregar_armas, salvar_lista_armas, carregar_personagens
 from data.app_state import AppState
@@ -40,7 +40,6 @@ class TelaArmas(tk.Frame):
             "estilo": "",
             "dano": 10,
             "peso": 5,
-            "geometria": {},
             "cores": {"r": 200, "g": 200, "b": 200},
             "habilidades": [],
             "encantamentos": [],
@@ -117,7 +116,7 @@ class TelaArmas(tk.Frame):
         self.frame_progresso.pack(side="right", padx=20)
         
         self.labels_progresso = []
-        nomes_passos = ["Tipo", "Raridade", "Geometria", "Visual", "Habilidades", "Finalizar"]
+        nomes_passos = ["Tipo", "Raridade", "Visual", "Habilidades", "Finalizar"]
         for i, nome in enumerate(nomes_passos, 1):
             cor = COR_SUCCESS if i == 1 else COR_TEXTO_DIM
             lbl = tk.Label(
@@ -346,19 +345,17 @@ class TelaArmas(tk.Frame):
         elif passo == 2:
             self.passo_raridade()
         elif passo == 3:
-            self.passo_geometria()
-        elif passo == 4:
             self.passo_visual()
-        elif passo == 5:
+        elif passo == 4:
             self.passo_habilidades()
-        elif passo == 6:
+        elif passo == 5:
             self.passo_finalizar()
         
         # Atualiza botões
         self.btn_anterior.config(state="normal" if passo > 1 else "disabled")
         self.btn_proximo.config(
-            text="FORJAR!" if passo == 6 else "Proximo >",
-            bg="#00ff88" if passo == 6 else COR_ACCENT
+            text="FORJAR!" if passo == 5 else "Proximo >",
+            bg="#00ff88" if passo == 5 else COR_ACCENT
         )
         
         self.atualizar_preview()
@@ -371,7 +368,7 @@ class TelaArmas(tk.Frame):
 
     def passo_proximo(self):
         """Avança para o próximo passo"""
-        if self.passo_atual < 6:
+        if self.passo_atual < 5:
             self.mostrar_passo(self.passo_atual + 1)
         else:
             self.salvar_arma()
@@ -533,177 +530,6 @@ class TelaArmas(tk.Frame):
         self.dados_arma["dano"] = 10 * rar_data["mod_dano"]
         self.atualizar_preview()
         self.criar_resumo_stats()
-
-    # -------------------------------------------------------------------------
-    # PASSO 3: GEOMETRIA
-    # -------------------------------------------------------------------------
-    def passo_geometria(self):
-        """Passo 3: Configuração da geometria"""
-        self.lbl_passo_titulo.config(text="3. GEOMETRIA")
-        self.lbl_passo_desc.config(text="Configure as dimensoes fisicas da arma. Use o botao para sugestoes baseadas no personagem.")
-        
-        tipo = self.dados_arma["tipo"]
-        dados_tipo = TIPOS_ARMA[tipo]
-        
-        # Estilo
-        frame_estilo = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
-        frame_estilo.pack(fill="x", pady=(0, 10))
-        
-        tk.Label(
-            frame_estilo, text="Estilo:", 
-            font=("Arial", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
-        ).pack(anchor="w")
-        
-        self.combo_estilo = ttk.Combobox(
-            frame_estilo, values=dados_tipo["estilos"], state="readonly"
-        )
-        self.combo_estilo.pack(fill="x", pady=5)
-        self.combo_estilo.set(self.dados_arma.get("estilo") or dados_tipo["estilos"][0])
-        def _on_estilo_p3(e):
-            self.atualizar_dado("estilo", self.combo_estilo.get())
-            if hasattr(self, "combo_estilo_t1"):
-                try: self.combo_estilo_t1.set(self.combo_estilo.get())
-                except Exception: pass
-        self.combo_estilo.bind("<<ComboboxSelected>>", _on_estilo_p3)
-        
-        # Botão de sugestão
-        btn_sugerir = tk.Button(
-            self.frame_conteudo_passo, text="Sugerir Tamanhos (baseado no personagem)",
-            bg=COR_SUCCESS, fg=COR_BG, font=("Arial", 9, "bold"),
-            command=self.aplicar_sugestao_geometria
-        )
-        btn_sugerir.pack(fill="x", pady=10)
-        
-        # Stats base
-        frame_stats = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
-        frame_stats.pack(fill="x", pady=5)
-        
-        tk.Label(frame_stats, text="Dano Base:", bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).grid(row=0, column=0, sticky="w", pady=2)
-        self.scale_dano = tk.Scale(
-            frame_stats, from_=1, to=50, orient="horizontal",
-            bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-            command=lambda v: self.atualizar_dado("dano", float(v))
-        )
-        self.scale_dano.set(self.dados_arma["dano"])
-        self.scale_dano.grid(row=0, column=1, sticky="ew", pady=2)
-        
-        tk.Label(frame_stats, text="Peso (kg):", bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).grid(row=1, column=0, sticky="w", pady=2)
-        self.scale_peso = tk.Scale(
-            frame_stats, from_=0.5, to=30, orient="horizontal", resolution=0.5,
-            bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-            command=lambda v: self.atualizar_dado("peso", float(v))
-        )
-        self.scale_peso.set(self.dados_arma["peso"])
-        self.scale_peso.grid(row=1, column=1, sticky="ew", pady=2)
-        
-        frame_stats.columnconfigure(1, weight=1)
-        
-        # Sliders de geometria específicos do tipo
-        self.sliders_geometria = {}
-        self.criar_sliders_geometria(tipo)
-
-    def criar_sliders_geometria(self, tipo):
-        """Cria sliders específicos para o tipo de arma"""
-        # Frame para os sliders
-        frame_geo = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
-        frame_geo.pack(fill="x", pady=10)
-        
-        configs = {
-            "Reta": [
-                ("comp_cabo", "Comp. Cabo", 1, 120),
-                ("comp_lamina", "Comp. Lamina", 1, 150),
-                ("largura", "Espessura", 1, 30),
-            ],
-            "Dupla": [
-                ("comp_cabo", "Comp. Cabo", 1, 50),
-                ("comp_lamina", "Comp. Lamina", 1, 80),
-                ("largura", "Espessura", 1, 15),
-                ("separacao", "Separacao", 5, 50),
-            ],
-            "Corrente": [
-                ("comp_corrente", "Comp. Corrente", 50, 300),
-                ("comp_ponta", "Comp. Ponta", 10, 50),
-                ("largura_ponta", "Largura Ponta", 5, 30),
-            ],
-            "Arremesso": [
-                ("tamanho_projetil", "Tamanho Projetil", 5, 40),
-                ("largura", "Largura", 3, 20),
-                ("quantidade", "Quantidade", 1, 8),
-            ],
-            "Arco": [
-                ("tamanho_arco", "Tamanho Arco", 30, 120),
-                ("forca_arco", "Forca", 1, 20),
-                ("tamanho_flecha", "Tam. Flecha", 20, 80),
-            ],
-            "Orbital": [
-                ("largura", "Tamanho", 10, 80),
-                ("distancia", "Dist. Orbita", 15, 100),
-                ("quantidade_orbitais", "Quantidade", 1, 6),
-            ],
-            "Mágica": [
-                ("quantidade", "Quantidade", 1, 8),
-                ("tamanho", "Tamanho", 5, 40),
-                ("distancia_max", "Alcance", 30, 150),
-            ],
-            "Transformável": [
-                ("forma1_cabo", "Forma1 Cabo", 10, 100),
-                ("forma1_lamina", "Forma1 Lamina", 20, 120),
-                ("forma2_cabo", "Forma2 Cabo", 10, 150),
-                ("forma2_lamina", "Forma2 Lamina", 10, 80),
-                ("largura", "Espessura", 2, 15),
-            ],
-        }
-        
-        for i, (key, label, minv, maxv) in enumerate(configs.get(tipo, [])):
-            tk.Label(
-                frame_geo, text=f"{label}:", 
-                bg=COR_BG_SECUNDARIO, fg=COR_TEXTO, font=("Arial", 9)
-            ).grid(row=i, column=0, sticky="w", pady=2)
-            
-            val = self.dados_arma["geometria"].get(key, (minv + maxv) // 2)
-            
-            scale = tk.Scale(
-                frame_geo, from_=minv, to=maxv, orient="horizontal",
-                bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-                command=lambda v, k=key: self.atualizar_geometria(k, float(v))
-            )
-            scale.set(val)
-            scale.grid(row=i, column=1, sticky="ew", pady=2)
-            self.sliders_geometria[key] = scale
-        
-        frame_geo.columnconfigure(1, weight=1)
-        
-        # Checkbox cabo dano (para Reta)
-        if tipo == "Reta":
-            self.var_cabo_dano = tk.BooleanVar(value=self.dados_arma["cabo_dano"])
-            chk = tk.Checkbutton(
-                frame_geo, text="Cabo causa dano?", variable=self.var_cabo_dano,
-                bg=COR_BG_SECUNDARIO, fg=COR_ACCENT, selectcolor=COR_BG,
-                command=lambda: self.atualizar_dado("cabo_dano", self.var_cabo_dano.get())
-            )
-            chk.grid(row=len(configs.get(tipo, [])), column=0, columnspan=2, sticky="w", pady=5)
-
-    def atualizar_geometria(self, key, valor):
-        """Atualiza um valor de geometria"""
-        self.dados_arma["geometria"][key] = valor
-        self.atualizar_preview()
-
-    def aplicar_sugestao_geometria(self):
-        """Aplica sugestões de tamanho baseadas no personagem selecionado"""
-        # Tenta pegar um personagem para referência
-        personagem = None
-        if hasattr(self.controller, 'lista_chars') and self.controller.lista_chars:
-            personagem = self.controller.lista_chars[0]
-        
-        sugestoes = sugerir_tamanho_arma(personagem, self.dados_arma["tipo"])
-        
-        for key, valor in sugestoes.items():
-            self.dados_arma["geometria"][key] = valor
-            if key in self.sliders_geometria:
-                self.sliders_geometria[key].set(valor)
-        
-        self.atualizar_preview()
-        messagebox.showinfo("Sugestao Aplicada", "Tamanhos sugeridos foram aplicados!")
 
     # -------------------------------------------------------------------------
     # PASSO 4: VISUAL
@@ -1026,28 +852,27 @@ class TelaArmas(tk.Frame):
         
         tipo = self.dados_arma["tipo"]
         cores = self.dados_arma["cores"]
-        geo = self.dados_arma["geometria"]
         cor_hex = f"#{cores['r']:02x}{cores['g']:02x}{cores['b']:02x}"
         cor_raridade = CORES_RARIDADE[self.dados_arma["raridade"]]
         estilo = self.dados_arma.get("estilo", "")
         
         # Renderiza baseado no tipo — todos recebem estilo para diferenciar variantes
         if tipo == "Reta":
-            self.desenhar_arma_reta(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
+            self.desenhar_arma_reta(cx, cy, raio_char, cor_hex, cor_raridade, estilo)
         elif tipo == "Dupla":
-            self.desenhar_arma_dupla(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
+            self.desenhar_arma_dupla(cx, cy, raio_char, cor_hex, cor_raridade, estilo)
         elif tipo == "Corrente":
-            self.desenhar_arma_corrente(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
+            self.desenhar_arma_corrente(cx, cy, raio_char, cor_hex, cor_raridade, estilo)
         elif tipo == "Arremesso":
-            self.desenhar_arma_arremesso(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
+            self.desenhar_arma_arremesso(cx, cy, raio_char, cor_hex, cor_raridade, estilo)
         elif tipo == "Arco":
-            self.desenhar_arma_arco(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
+            self.desenhar_arma_arco(cx, cy, raio_char, cor_hex, cor_raridade, estilo)
         elif tipo == "Orbital":
-            self.desenhar_arma_orbital(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
+            self.desenhar_arma_orbital(cx, cy, raio_char, cor_hex, cor_raridade, estilo)
         elif tipo == "Mágica":
-            self.desenhar_arma_magica(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
+            self.desenhar_arma_magica(cx, cy, raio_char, cor_hex, cor_raridade, estilo)
         elif tipo == "Transformável":
-            self.desenhar_arma_transformavel(cx, cy, raio_char, geo, cor_hex, cor_raridade, estilo)
+            self.desenhar_arma_transformavel(cx, cy, raio_char, cor_hex, cor_raridade, estilo)
         
         # Borda de raridade
         self.canvas_preview.create_rectangle(
@@ -1060,14 +885,14 @@ class TelaArmas(tk.Frame):
             font=("Arial", 10, "bold"), fill=cor_raridade, anchor="e"
         )
 
-    def desenhar_arma_reta(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+    def desenhar_arma_reta(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Reta por estilo.
         Estilos: Corte (Espada), Estocada (Lança), Contusão (Maça), Misto.
         """
         import math as _math
-        cabo  = geo.get("comp_cabo",  20)
-        lam   = geo.get("comp_lamina", 50)
-        larg  = max(3, int(geo.get("largura", 5)))
+        cabo  = 20
+        lam   = 50
+        larg  = 5
         cv    = self.canvas_preview
         bx    = cx + raio  # base X (encosta no personagem)
 
@@ -1163,17 +988,17 @@ class TelaArmas(tk.Frame):
         cv.create_oval(tip_x - 3, cy - 3, tip_x + 3, cy + 3, fill=cor_rar, outline=cor_rar)
 
 
-    def desenhar_arma_dupla(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+    def desenhar_arma_dupla(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Dupla — renderizador por estilo.
         
         Estilos: Adagas Gêmeas (karambit), Kamas (foice), Sai (tridente),
                  Garras (garra), Tonfas (bastão-L), Facas Táticas (faca militar).
         """
         import math as _math
-        cabo  = geo.get("comp_cabo",  15)
-        lam   = geo.get("comp_lamina", 35)
-        larg  = max(2, int(geo.get("largura", 4)))
-        sep   = geo.get("separacao",  20)
+        cabo  = 15
+        lam   = 35
+        larg  = 4
+        sep   = 20
 
         cv = self.canvas_preview
 
@@ -1334,7 +1159,7 @@ class TelaArmas(tk.Frame):
                 cv.create_oval(tip_x-3, by-3, tip_x+3, by+3, fill=cor_rar, outline=cor_rar)
 
 
-    def desenhar_arma_corrente(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+    def desenhar_arma_corrente(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Corrente por estilo.
         Estilos: Kusarigama, Flail (Mangual), Chicote, Corrente com Peso.
         """
@@ -1344,9 +1169,9 @@ class TelaArmas(tk.Frame):
 
         # ── KUSARIGAMA — foice pequena + corrente + peso ────────────────────
         if "Kusarigama" in estilo:
-            comp   = geo.get("comp_corrente", 80) * 0.55
-            ponta  = max(10, int(geo.get("comp_ponta", 18) * 0.7))
-            cabo_t = geo.get("comp_cabo", 15) * 0.4
+            comp   = 80 * 0.55
+            ponta  = max(10, int(18 * 0.7))
+            cabo_t = 15 * 0.4
             # Cabo curto da foice
             cv.create_rectangle(bx, cy - 3, bx + cabo_t, cy + 3, fill="#6B3A1F", outline="#4A2810")
             # Lâmina da foice (arco)
@@ -1371,9 +1196,9 @@ class TelaArmas(tk.Frame):
 
         # ── FLAIL (MANGUAL) — cabo + corrente + bola espigada ──────────────
         elif "Mangual" in estilo or "Flail" in estilo:
-            comp   = geo.get("comp_corrente", 80) * 0.6
-            ponta  = max(12, int(geo.get("comp_ponta", 20) * 0.8))
-            cabo_t = geo.get("comp_cabo", 18) * 0.45
+            comp   = 80 * 0.6
+            ponta  = max(12, int(20 * 0.8))
+            cabo_t = 18 * 0.45
             # Cabo
             cv.create_rectangle(bx, cy - 5, bx + cabo_t, cy + 5, fill="#6B3A1F", outline="#4A2810")
             cv.create_oval(bx + cabo_t - 4, cy - 5, bx + cabo_t + 4, cy + 5, outline="#A0A5B0", width=2)
@@ -1399,8 +1224,8 @@ class TelaArmas(tk.Frame):
 
         # ── CHICOTE — longo, fino, sinuoso, sem ponta pesada ───────────────
         elif "Chicote" in estilo:
-            comp = geo.get("comp_corrente", 120) * 0.65
-            cabo_t = geo.get("comp_cabo", 15) * 0.5
+            comp = 120 * 0.65
+            cabo_t = 15 * 0.5
             # Cabo de couro
             cv.create_rectangle(bx, cy - 4, bx + cabo_t, cy + 4, fill="#3A1A08", outline="#5C3317")
             # Ondas do chicote (afunilando)
@@ -1424,9 +1249,9 @@ class TelaArmas(tk.Frame):
 
         # ── CORRENTE COM PESO — corrente grossa + peso retangular ──────────
         else:
-            comp   = geo.get("comp_corrente", 90) * 0.6
-            ponta  = max(10, int(geo.get("comp_ponta", 20) * 0.7))
-            cabo_t = geo.get("comp_cabo", 15) * 0.4
+            comp   = 90 * 0.6
+            ponta  = max(10, int(20 * 0.7))
+            cabo_t = 15 * 0.4
             # Argola de pulso
             cv.create_oval(bx, cy - 6, bx + 12, cy + 6, outline="#A0A5B0", width=2)
             # Elos grandes e quadrados
@@ -1445,14 +1270,14 @@ class TelaArmas(tk.Frame):
                                   fill="#FFFFFF", outline="")
 
 
-    def desenhar_arma_arremesso(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+    def desenhar_arma_arremesso(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Arremesso por estilo.
         Estilos: Machado (Não Retorna), Faca (Rápida), Chakram (Retorna), Bumerangue.
         """
         import math as _math
         cv  = self.canvas_preview
-        tam = geo.get("tamanho_projetil", 15)
-        qtd = max(1, min(5, int(geo.get("quantidade", 3))))
+        tam = 15
+        qtd = max(1, min(5, int(self.dados_arma.get("quantidade", 3))))
 
         for i in range(qtd):
             oy = cy + (i - (qtd - 1) / 2) * 28
@@ -1519,14 +1344,14 @@ class TelaArmas(tk.Frame):
                 cv.create_oval(bx + tam*1.1 - 2, oy - 2, bx + tam*1.2 + 2, oy + 2, fill=cor_rar, outline="")
 
 
-    def desenhar_arma_arco(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+    def desenhar_arma_arco(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Arco por estilo.
         Estilos: Arco Curto, Arco Longo, Besta, Besta de Repetição.
         """
         import math as _math
         cv    = self.canvas_preview
-        tam   = geo.get("tamanho_arco", 60)
-        flecha = geo.get("tamanho_flecha", 40)
+        tam   = 60
+        flecha = 40
 
         # ── BESTA / BESTA DE REPETIÇÃO — horizontal, limbo e gatilho ───────
         if "Besta" in estilo:
@@ -1591,14 +1416,14 @@ class TelaArmas(tk.Frame):
             cv.create_line(px, cy, px - 6, cy + 5, fill="#CC4444", width=2)
 
 
-    def desenhar_arma_orbital(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+    def desenhar_arma_orbital(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Orbital por estilo.
         Estilos: Defensivo (Escudo), Ofensivo (Drone), Mágico (Orbe), Lâminas Orbitais.
         """
         import math as _math
         cv   = self.canvas_preview
-        dist = geo.get("distancia", 30)
-        qtd  = max(1, min(6, int(geo.get("quantidade_orbitais", 2))))
+        dist = 30
+        qtd  = max(1, min(6, int(self.dados_arma.get("quantidade_orbitais", 2))))
         raio_orb = raio + dist * 0.7
 
         # Órbita pontilhada (comum a todos)
@@ -1612,7 +1437,7 @@ class TelaArmas(tk.Frame):
 
             # ── ESCUDO — arco sólido em volta da posição ─────────────────
             if "Escudo" in estilo or "Defensivo" in estilo:
-                larg = geo.get("largura", 40)
+                larg = 40
                 arc_span = min(90, larg)
                 cv.create_arc(ox - larg*0.35, oy - larg*0.35, ox + larg*0.35, oy + larg*0.35,
                                start=_math.degrees(ang) + 90 - arc_span/2,
@@ -1636,7 +1461,7 @@ class TelaArmas(tk.Frame):
 
             # ── LÂMINAS ORBITAIS — mini espadas girando ──────────────────
             elif "Lâminas" in estilo:
-                blade_len = geo.get("largura", 20) * 0.5
+                blade_len = 20 * 0.5
                 blade_ang = ang + _math.pi / 4
                 bx1 = ox + _math.cos(blade_ang) * blade_len
                 by1 = oy + _math.sin(blade_ang) * blade_len
@@ -1655,21 +1480,21 @@ class TelaArmas(tk.Frame):
 
             # ── ORBE MÁGICO (default) — esfera com glow ─────────────────
             else:
-                r2 = max(6, int(geo.get("largura", 20) * 0.22))
+                r2 = max(6, int(20 * 0.22))
                 cv.create_oval(ox - r2 - 3, oy - r2 - 3, ox + r2 + 3, oy + r2 + 3, fill="#222244", outline="")
                 cv.create_oval(ox - r2, oy - r2, ox + r2, oy + r2, fill=cor, outline=cor_rar, width=2)
                 cv.create_oval(ox - r2//2, oy - r2//2, ox, oy, fill="#FFFFFF", outline="")
 
 
-    def desenhar_arma_magica(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+    def desenhar_arma_magica(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Mágica por estilo.
         Estilos: Espadas Espectrais, Runas Flutuantes, Tentáculos Sombrios, Cristais Arcanos.
         """
         import math as _math
         cv   = self.canvas_preview
-        qtd  = max(1, min(5, int(geo.get("quantidade", 3))))
-        tam  = geo.get("tamanho", 15)
-        dist = geo.get("distancia_max", 60) * 0.55
+        qtd  = max(1, min(5, int(self.dados_arma.get("quantidade", 3))))
+        tam  = 15
+        dist = 60 * 0.55
 
         for i in range(qtd):
             if qtd > 1:
@@ -1757,20 +1582,20 @@ class TelaArmas(tk.Frame):
                 cv.create_line(int(ox - r2), int(oy - r2*0.3), int(ox + r2), int(oy - r2*0.3), fill="#FFFFFF", width=1)
                 cv.create_oval(ox-2, oy-r2//2-2, ox+2, oy-r2//2+2, fill="#FFFFFF", outline="")
 
-    def desenhar_arma_transformavel(self, cx, cy, raio, geo, cor, cor_rar, estilo=""):
+    def desenhar_arma_transformavel(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Transformável — mostra ambas as formas com seta de transformação.
         Estilos: Espada↔Lança, Compacta↔Estendida, Chicote↔Espada, Arco↔Lâminas.
         """
         import math as _math
         cv   = self.canvas_preview
         bx   = cx + raio
-        larg = max(3, int(geo.get("largura", 5)))
+        larg = 5
 
         # Geometria das duas formas
-        cabo1 = geo.get("forma1_cabo",  20)
-        lam1  = geo.get("forma1_lamina", 50)
-        cabo2 = geo.get("forma2_cabo",  30)
-        lam2  = geo.get("forma2_lamina", 80)
+        cabo1 = 20
+        lam1  = 50
+        cabo2 = 30
+        lam2  = 80
 
         # Seta de transformação no centro
         cv.create_text(cx - 45, cy, text="⟳", fill=cor_rar, font=("Arial", 14, "bold"))
@@ -1863,50 +1688,29 @@ class TelaArmas(tk.Frame):
 
         # BUG-F1: Verificar duplicata de nome (salvar_personagem já faz isso, armas não tinham)
         _state_check = AppState.get()
-        for i, a in enumerate(_state_check.lista_armas):
+        for i, a in enumerate(_state_check.weapons):
             if a.nome.lower() == dados["nome"].lower():
                 if self.indice_em_edicao is None or self.indice_em_edicao != i:
                     messagebox.showerror("Erro", f"Já existe uma arma chamada '{dados['nome']}'!")
                     return
 
-        # DES-5: Validação de geometria mínima para armas que precisam ser renderizadas
-        geo = dados["geometria"]
-        if dados["tipo"] in ("Reta", "Dupla") and geo.get("comp_lamina", 0) <= 0:
-            messagebox.showwarning("Atenção", "Lâmina com comprimento zero — a arma pode não ser visível.")
 
-        geo = dados["geometria"]
+
         cores = dados["cores"]
         
         try:
             nova = Arma(
                 nome=dados["nome"],
+                quantidade=dados.get("quantidade", 1),
+                quantidade_orbitais=dados.get("quantidade_orbitais", 1),
+                forca_arco=dados.get("forca_arco", 0),
                 tipo=dados["tipo"],
                 dano=dados["dano"],
                 peso=dados["peso"],
                 raridade=dados["raridade"],
                 estilo=dados.get("estilo", ""),
                 # Geometria basica
-                comp_cabo=geo.get("comp_cabo", 0),
-                comp_lamina=geo.get("comp_lamina", 0),
-                largura=geo.get("largura", 0),
-                distancia=geo.get("distancia", 0),
                 # Geometria extra
-                comp_corrente=geo.get("comp_corrente", 0),
-                comp_ponta=geo.get("comp_ponta", 0),
-                largura_ponta=geo.get("largura_ponta", 0),
-                tamanho_projetil=geo.get("tamanho_projetil", 0),
-                quantidade=geo.get("quantidade", 1),
-                tamanho_arco=geo.get("tamanho_arco", 0),
-                forca_arco=geo.get("forca_arco", 0),
-                tamanho_flecha=geo.get("tamanho_flecha", 0),
-                quantidade_orbitais=geo.get("quantidade_orbitais", 1),
-                tamanho=geo.get("tamanho", 0),
-                distancia_max=geo.get("distancia_max", 0),
-                separacao=geo.get("separacao", 0),
-                forma1_cabo=geo.get("forma1_cabo", 0),
-                forma1_lamina=geo.get("forma1_lamina", 0),
-                forma2_cabo=geo.get("forma2_cabo", 0),
-                forma2_lamina=geo.get("forma2_lamina", 0),
                 # Cores
                 r=cores["r"], g=cores["g"], b=cores["b"],
                 # Habilidades
@@ -1982,26 +1786,12 @@ class TelaArmas(tk.Frame):
             "dano": arma.dano_base if hasattr(arma, 'dano_base') else arma.dano,
             "peso": arma.peso_base if hasattr(arma, 'peso_base') else arma.peso,
             "geometria": {
-                "comp_cabo": arma.comp_cabo,
-                "comp_lamina": arma.comp_lamina,
                 "largura": arma.largura,
                 "distancia": arma.distancia,
-                "comp_corrente": getattr(arma, 'comp_corrente', 0),
-                "comp_ponta": getattr(arma, 'comp_ponta', 0),
-                "largura_ponta": getattr(arma, 'largura_ponta', 0),
-                "tamanho_projetil": getattr(arma, 'tamanho_projetil', 0),
                 "quantidade": getattr(arma, 'quantidade', 1),
-                "tamanho_arco": getattr(arma, 'tamanho_arco', 0),
                 "forca_arco": getattr(arma, 'forca_arco', 0),
-                "tamanho_flecha": getattr(arma, 'tamanho_flecha', 0),
                 "quantidade_orbitais": getattr(arma, 'quantidade_orbitais', 1),
                 "tamanho": getattr(arma, 'tamanho', 0),
-                "distancia_max": getattr(arma, 'distancia_max', 0),
-                "separacao": getattr(arma, 'separacao', 0),
-                "forma1_cabo": getattr(arma, 'forma1_cabo', 0),
-                "forma1_lamina": getattr(arma, 'forma1_lamina', 0),
-                "forma2_cabo": getattr(arma, 'forma2_cabo', 0),
-                "forma2_lamina": getattr(arma, 'forma2_lamina', 0),
             },
             "cores": {"r": arma.r, "g": arma.g, "b": arma.b},
             "habilidades": self._normalizar_habilidades(getattr(arma, 'habilidades', [])),
@@ -2040,7 +1830,6 @@ class TelaArmas(tk.Frame):
             "estilo": "",
             "dano": 10,
             "peso": 5,
-            "geometria": {},
             "cores": {"r": 200, "g": 200, "b": 200},
             "habilidades": [],
             "encantamentos": [],

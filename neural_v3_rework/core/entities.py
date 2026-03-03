@@ -880,7 +880,16 @@ class Lutador:
         dx = inimigo.pos[0] - self.pos[0]
         dy = inimigo.pos[1] - self.pos[1]
         distancia = math.hypot(dx, dy)
-        angulo_alvo = math.degrees(math.atan2(dy, dx))
+
+        # M-N01: se brain calculou posição futura de intercepção, aponta para ela
+        pos_intercept = getattr(self.brain, '_pos_interceptacao', None) if self.brain else None
+        if (pos_intercept is not None
+                and self.brain.acao_atual in ("APROXIMAR", "PRESSIONAR", "CONTRA_ATAQUE")):
+            alvo_x, alvo_y = pos_intercept
+        else:
+            alvo_x, alvo_y = inimigo.pos[0], inimigo.pos[1]
+
+        angulo_alvo = math.degrees(math.atan2(alvo_y - self.pos[1], alvo_x - self.pos[0]))
         diff = normalizar_angulo(angulo_alvo - self.angulo_olhar)
         
         vel_giro = 20.0 if "Assassino" in self.classe_nome or "Ninja" in self.classe_nome else 10.0
@@ -1199,14 +1208,8 @@ class Lutador:
                 
                 # Adiciona componente da arma como brain.py faz
                 arma = self.dados.arma_obj if self.dados else None
-                if arma_tipo == "Dupla":
-                    comp = getattr(arma, 'comp_lamina', 55) / PPM if arma else 1.1
-                    alcance_ataque = alcance_base + comp * 0.4
-                elif arma_tipo == "Reta":
-                    comp_total = (getattr(arma, 'comp_cabo', 20) + getattr(arma, 'comp_lamina', 40)) / PPM if arma else 1.2
-                    alcance_ataque = alcance_base + comp_total * 0.3
-                else:
-                    alcance_ataque = alcance_base
+                # Alcance = raio × range_mult (geometria removida)
+                alcance_ataque = alcance_base
                 
                 # Margem de 30% para garantir ataque quando IA decide
                 alcance_ataque *= 1.3
@@ -1280,7 +1283,7 @@ class Lutador:
             return
         
         qtd = int(getattr(arma, 'quantidade', 3))
-        tam = getattr(arma, 'tamanho_projetil', 15) / PPM
+        tam = self.raio_fisico * 0.35  # tamanho projétil = 35% do raio
         dano_por_proj = arma.dano / max(qtd, 1)
         
         cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (200, 200, 200)
@@ -1761,22 +1764,13 @@ class Lutador:
         rad = math.radians(self.angulo_arma_visual)
         ax, ay = int(self.pos[0] * PPM), int(self.pos[1] * PPM)
         
-        if "Transformável" in arma.tipo:
-            forma = getattr(arma, 'forma_atual', 1)
-            if forma == 1:
-                cabo_v = getattr(arma, 'forma1_cabo', arma.comp_cabo)
-                lamina_v = getattr(arma, 'forma1_lamina', arma.comp_lamina)
-            else:
-                cabo_v = getattr(arma, 'forma2_cabo', arma.comp_cabo)
-                lamina_v = getattr(arma, 'forma2_lamina', arma.comp_lamina)
-            cabo_px = int(((cabo_v/100)*PPM) * self.fator_escala)
-            lamina_px = int(((lamina_v/100)*PPM) * self.fator_escala)
-        elif "Corrente" in arma.tipo:
-            cabo_px = 0
-            lamina_px = int(((getattr(arma, 'comp_corrente', 80)/100)*PPM) * self.fator_escala)
-        else:
-            cabo_px = int(((arma.comp_cabo/100)*PPM) * self.fator_escala)
-            lamina_px = int(((arma.comp_lamina/100)*PPM) * self.fator_escala)
+        # Posição da arma baseada em raio_fisico × range_mult (geometria removida)
+        from core.hitbox import HITBOX_PROFILES
+        _perfil = HITBOX_PROFILES.get(arma.tipo, HITBOX_PROFILES.get("Reta", {}))
+        _raio_px = self.raio_fisico * PPM * self.fator_escala
+        _alcance = _raio_px * _perfil.get("range_mult", 2.0)
+        cabo_px   = int(_alcance * 0.30)
+        lamina_px = int(_alcance * 0.70)
         
         xi = ax + math.cos(rad) * cabo_px
         yi = ay + math.sin(rad) * cabo_px

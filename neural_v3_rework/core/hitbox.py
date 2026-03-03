@@ -295,31 +295,11 @@ class SistemaHitbox:
         tipo = arma.tipo
         profile = get_hitbox_profile(tipo)
         
-        # Determina comprimento do cabo e lâmina
-        if "Transformável" in tipo:
-            forma = getattr(arma, 'forma_atual', 1)
-            if forma == 1:
-                cabo = getattr(arma, 'forma1_cabo', arma.comp_cabo)
-                lamina = getattr(arma, 'forma1_lamina', arma.comp_lamina)
-            else:
-                cabo = getattr(arma, 'forma2_cabo', arma.comp_cabo)
-                lamina = getattr(arma, 'forma2_lamina', arma.comp_lamina)
-            debug_log(f"  Transformável forma={forma}: cabo={cabo} lamina={lamina}", "CALC")
-        else:
-            cabo = arma.comp_cabo
-            lamina = arma.comp_lamina
-        
-        # === LÓGICA DE ESCALA COM PERFIL ===
-        tam_base = cabo + lamina
+        # Alcance = raio do personagem × multiplicador do perfil (geometria removida)
         fator_arma = profile["range_mult"]
-        
-        # Alcance alvo em pixels
-        alcance_alvo = raio_char * fator_arma
-        escala = alcance_alvo / max(tam_base, 1)
-        
-        cabo_px = cabo * escala
-        lamina_px = lamina * escala
-        alcance_total = cabo_px + lamina_px
+        alcance_total = raio_char * fator_arma
+        cabo_px   = alcance_total * 0.30  # 30% = cabo
+        lamina_px = alcance_total * 0.70  # 70% = lâmina
         
         # Calcula zona morta e sweet spot baseado no perfil
         alcance_minimo = alcance_total * profile["min_range_ratio"]
@@ -390,27 +370,12 @@ class SistemaHitbox:
         tipo = arma.tipo
         profile = get_hitbox_profile("Corrente")
         
-        # Pega valores específicos de corrente
-        comp_corrente = getattr(arma, 'comp_corrente', 100)
-        comp_ponta = getattr(arma, 'comp_ponta', 20)
-        largura_ponta = getattr(arma, 'largura_ponta', 10)
-        
-        # Usa multiplicador do perfil
+        # Alcance = raio × perfil (geometria removida)
         fator_arma = profile["range_mult"]
-        alcance_alvo = raio_char * fator_arma
-        
-        # Escala baseada no comp_corrente
-        escala = alcance_alvo / max(comp_corrente, 1)
-        alcance_px = comp_corrente * escala
-        
-        # Zona morta - correntes não acertam muito perto
+        alcance_px = raio_char * fator_arma
         alcance_minimo = alcance_px * profile["min_range_ratio"]
-        
-        # A bola está no ângulo atual da arma
         angulo_bola = math.degrees(rad)
-        
-        # Largura angular da hitbox
-        tamanho_bola = max(largura_ponta * escala, raio_char * 0.2)
+        tamanho_bola = raio_char * 0.20
         largura_base = math.degrees(2 * math.atan2(tamanho_bola, alcance_px))
         
         # Durante ataque, a corrente varre um arco muito maior
@@ -420,7 +385,7 @@ class SistemaHitbox:
         else:
             largura_angular = max(largura_base + 30, 45)
         
-        debug_log(f"  Corrente v2: comp={comp_corrente} alcance={alcance_px:.1f} zona_morta={alcance_minimo:.1f}", "CALC")
+        debug_log(f"  Corrente v2: alcance={alcance_px:.1f} zona_morta={alcance_minimo:.1f}", "CALC")
         debug_log(f"  Corrente v2: ang={angulo_bola:.1f}° largura={largura_angular:.1f}° atacando={lutador.atacando}", "CALC")
         
         # Gera pontos do arco para visualização
@@ -827,18 +792,10 @@ class SistemaHitbox:
         rad = math.radians(atacante.angulo_arma_visual)
         raio_char = (atacante.dados.tamanho / 2) * PPM
         
-        # Usa a mesma lógica de escala do _calcular_hitbox_lamina
-        cabo = arma.comp_cabo
-        lamina = arma.comp_lamina
-        tam_base = cabo + lamina
-        
-        # Adagas: 1.5x o raio
-        fator_arma = 1.5
-        alcance_alvo = raio_char * fator_arma
-        escala = alcance_alvo / max(tam_base, 1)
-        
-        cabo_px = cabo * escala
-        lamina_px = lamina * escala
+        # Adagas: 1.5× raio (geometria removida)
+        alcance_alvo = raio_char * 1.5
+        cabo_px   = alcance_alvo * 0.30
+        lamina_px = alcance_alvo * 0.70
         
         # Testa ambos os offsets de ângulo
         for offset in [-25, 25]:

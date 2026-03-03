@@ -379,70 +379,21 @@ def gerar_arma(tipo, raridade, variante_idx=None, encantamento=None, skill=None)
         "durabilidade_max": 100.0,
     }
     
-    # Geometria específica por tipo
-    if tipo == "Reta":
-        arma["comp_cabo"] = valor_range(variante.get("cabo", (20, 30)))
-        arma["comp_lamina"] = valor_range(variante.get("lamina", (50, 70)))
-        arma["largura"] = random.uniform(5, 12)
-        arma["distancia"] = random.uniform(15, 30)
-        
-    elif tipo == "Dupla":
-        arma["comp_cabo"] = valor_range(variante.get("cabo", (10, 15)))
-        arma["comp_lamina"] = valor_range(variante.get("lamina", (25, 35)))
-        arma["separacao"] = valor_range(variante.get("sep", (12, 18)))
-        arma["largura"] = random.uniform(4, 8)
-        
-    elif tipo == "Corrente":
-        arma["comp_corrente"] = valor_range(variante.get("corrente", (60, 100)))
-        arma["comp_ponta"] = valor_range(variante.get("ponta", (15, 25)))
-        arma["largura_ponta"] = random.uniform(5, 12)
-        arma["comp_cabo"] = 15
-        arma["comp_lamina"] = 20
-        
-    elif tipo == "Arremesso":
-        arma["tamanho_projetil"] = valor_range(variante.get("tam", (4, 7)))
+    # Campos específicos por tipo (geometria removida — tamanho vem do personagem)
+    if tipo == "Arremesso":
         arma["quantidade"] = random.randint(*variante.get("qtd", (2, 4)))
         arma["velocidade_projetil"] = variante.get("vel", 15)
         arma["tipo_projetil"] = variante.get("tipo", "faca")
-        arma["comp_cabo"] = 10
-        arma["comp_lamina"] = 20
-        
     elif tipo == "Arco":
-        arma["tamanho_arco"] = valor_range(variante.get("tamanho", (40, 60)))
         arma["forca_arco"] = valor_range(variante.get("forca", (30, 50)))
-        arma["tamanho_flecha"] = valor_range(variante.get("flecha", (35, 50)))
-        arma["comp_cabo"] = 20
-        arma["comp_lamina"] = 40
-        
     elif tipo == "Orbital":
-        arma["distancia"] = valor_range(variante.get("dist", (20, 30)))
         arma["quantidade_orbitais"] = random.randint(*variante.get("qtd", (2, 4)))
-        arma["largura"] = variante.get("largura", 20)
         arma["tipo_orbital"] = variante.get("tipo", "orbe")
-        arma["comp_cabo"] = 10
-        arma["comp_lamina"] = 15
-        
     elif tipo == "Mágica":
-        arma["tamanho"] = valor_range(variante.get("tam", (10, 15)))
         arma["quantidade"] = random.randint(*variante.get("qtd", (2, 4)))
-        arma["distancia_max"] = valor_range(variante.get("dist", (30, 50)))
-        arma["comp_cabo"] = 10
-        arma["comp_lamina"] = 20
-        
-    elif tipo == "Transformável":
-        arma["forma1_cabo"] = valor_range(variante.get("f1_cabo", (20, 30)))
-        arma["forma1_lamina"] = valor_range(variante.get("f1_lam", (50, 70)))
-        arma["forma2_cabo"] = valor_range(variante.get("f2_cabo", (30, 50)))
-        arma["forma2_lamina"] = valor_range(variante.get("f2_lam", (70, 100)))
-        arma["comp_cabo"] = arma["forma1_cabo"]
-        arma["comp_lamina"] = arma["forma1_lamina"]
-    
-    # Valores padrão para campos ausentes
-    for campo in ["comp_cabo", "comp_lamina", "largura", "distancia", "comp_corrente", 
-                  "comp_ponta", "largura_ponta", "tamanho_projetil", "quantidade",
-                  "tamanho_arco", "forca_arco", "tamanho_flecha", "quantidade_orbitais",
-                  "tamanho", "distancia_max", "separacao", "forma1_cabo", "forma1_lamina",
-                  "forma2_cabo", "forma2_lamina"]:
+
+    # Valores padrão para campos gameplay
+    for campo in ["quantidade", "quantidade_orbitais", "forca_arco"]:
         if campo not in arma:
             arma[campo] = 0
     

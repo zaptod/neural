@@ -21,10 +21,7 @@ from .constants import (
 from .weapons import (
     Arma,
     gerar_passiva_arma,
-    calcular_tamanho_arma,
     validar_arma_personagem,
-    sugerir_tamanho_arma,
-    get_escala_visual_arma,
 )
 
 # Personagens
@@ -41,8 +38,8 @@ __all__ = [
     'Arma', 'Personagem',
     # Funções
     'gerar_passiva_arma',
-    'calcular_tamanho_arma',
+    '',
     'validar_arma_personagem',
-    'sugerir_tamanho_arma',
-    'get_escala_visual_arma',
+    '',
+    '',
 ]

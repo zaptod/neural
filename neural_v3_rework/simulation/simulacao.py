@@ -1622,6 +1622,11 @@ class Simulador:
             listener_x = self.cam.x / PPM
             self.audio.play_special("shield_block", volume=0.7)
         
+        # CB-01: notifica IA do bloqueio bem-sucedido (abre janela pos_bloqueio)
+        if hasattr(bloqueador, 'ai') and bloqueador.ai:
+            if hasattr(bloqueador.ai, 'on_bloqueio_sucesso'):
+                bloqueador.ai.on_bloqueio_sucesso()
+        
         # Direção do impacto
         ang = math.atan2(proj.y * PPM - pos_escudo[1], proj.x * PPM - pos_escudo[0])
         
@@ -1661,6 +1666,11 @@ class Simulador:
     
     def _efeito_parry(self, proj, parryer):
         """Efeito visual de parry (defesa com ataque)"""
+        # CB-01: notifica IA do parry (também conta como bloqueio — abre janela pos_bloqueio)
+        if hasattr(parryer, 'ai') and parryer.ai:
+            if hasattr(parryer.ai, 'on_bloqueio_sucesso'):
+                parryer.ai.on_bloqueio_sucesso()
+        
         # Cor do parryer
         cor = (parryer.dados.cor_r, parryer.dados.cor_g, parryer.dados.cor_b)
         
@@ -1890,7 +1900,7 @@ class Simulador:
             
             # Notifica Sistema de Coreografia v5.0
             if self.choreographer:
-                self.choreographer.registrar_hit(atacante, defensor)
+                self.choreographer.registrar_hit(atacante, defensor, dano)
             
             # === GAME FEEL v8.0 - DETERMINA TIPO DE GOLPE ===
             classe_atacante = getattr(atacante, 'classe_nome', "Guerreiro")
@@ -2080,6 +2090,24 @@ class Simulador:
         self.time_scale = 0.2; self.slow_mo_timer = 2.0
         # Som de slow motion
         self.audio.play_special("slowmo_start", 0.6)
+
+    def _salvar_memorias_rivais(self):
+        """CB-04: Persiste memória de rivalidade ao fim da luta (MEL-AI-07)."""
+        p1, p2 = self.p1, self.p2
+        if not (hasattr(p1, 'ai') and p1.ai and hasattr(p2, 'ai') and p2.ai):
+            return
+        if not self.vencedor:
+            return
+        venceu_p1 = (self.vencedor == p1.dados.nome)
+        venceu_p2 = (self.vencedor == p2.dados.nome)
+        try:
+            p1.ai.salvar_memoria_rival(p2, venceu=venceu_p1)
+        except Exception as e:
+            _log.debug("[IA] salvar_memoria_rival p1 falhou: %s", e)
+        try:
+            p2.ai.salvar_memoria_rival(p1, venceu=venceu_p2)
+        except Exception as e:
+            _log.debug("[IA] salvar_memoria_rival p2 falhou: %s", e)
 
     def desenhar(self):
         self.tela.fill(COR_FUNDO)
@@ -2738,7 +2766,67 @@ class Simulador:
             # Desenha arma com escala
             self.desenhar_arma(l.dados.arma_obj, centro_ajustado, l.angulo_arma_visual, 
                              l.dados.tamanho, raio, anim_scale)
-    
+
+        # === TAG DE NOME (estilo Minecraft) — sempre acima da cabeça ===
+        self._desenhar_nome_tag(l, centro, raio)
+
+    def _desenhar_nome_tag(self, l, centro, raio):
+        """Desenha o nome do personagem flutuando acima da cabeça, estilo Minecraft."""
+        nome = l.dados.nome
+        hp_pct = l.vida / l.vida_max if l.vida_max > 0 else 0.0
+
+        # Posição: acima do topo do círculo (centro já desconta o Z via off_y em desenhar_lutador)
+        OFFSET_Y = 14   # pixels acima do topo do círculo
+
+        # === FONTE ===
+        if not hasattr(self, '_fonte_nametag'):
+            self._fonte_nametag = pygame.font.SysFont("Arial", 13, bold=True)
+        font = self._fonte_nametag
+        texto = font.render(nome, True, (255, 255, 255))
+        tw = texto.get_width()
+        th = texto.get_height()
+
+        tag_x = centro[0]
+        tag_y = centro[1] - raio - OFFSET_Y - th
+
+        # === FUNDO SEMI-TRANSPARENTE (placa preta) ===
+        padding_x, padding_y = 6, 3
+        bg_w = tw + padding_x * 2
+        bg_h = th + padding_y * 2
+        bg_x = tag_x - bg_w // 2
+        bg_y = tag_y - padding_y
+
+        bg = pygame.Surface((bg_w, bg_h), pygame.SRCALPHA)
+        bg.fill((0, 0, 0, 160))
+        self.tela.blit(bg, (bg_x, bg_y))
+
+        # === TEXTO DO NOME ===
+        self.tela.blit(texto, (tag_x - tw // 2, tag_y))
+
+        # === BARRA DE VIDA MINÚSCULA ABAIXO DO NOME ===
+        bar_w = bg_w
+        bar_h = 4
+        bar_x = bg_x
+        bar_y = bg_y + bg_h + 2
+
+        # Fundo da barra
+        pygame.draw.rect(self.tela, (40, 40, 40), (bar_x, bar_y, bar_w, bar_h))
+
+        # Cor da barra: verde → amarelo → vermelho
+        if hp_pct > 0.5:
+            t = (hp_pct - 0.5) / 0.5
+            cor_hp = (int(255 * (1 - t)), 200, 0)
+        else:
+            t = hp_pct / 0.5
+            cor_hp = (220, int(200 * t), 0)
+
+        vida_w = int(bar_w * max(0, hp_pct))
+        if vida_w > 0:
+            pygame.draw.rect(self.tela, cor_hp, (bar_x, bar_y, vida_w, bar_h))
+
+        # Borda da barra
+        pygame.draw.rect(self.tela, (80, 80, 80), (bar_x, bar_y, bar_w, bar_h), 1)
+
     def _desenhar_slash_arc(self, lutador, centro, raio, anim_scale):
         """Desenha arco de corte visível durante ataques melee"""
         arma = lutador.dados.arma_obj
@@ -2932,9 +3020,17 @@ class Simulador:
 
         # === RETA (Espadas, Lanças, Machados) ===
         if tipo == "Reta":
-            cabo_len   = getattr(arma, 'comp_cabo',   20) * base_scale * 1.2
-            lamina_len = getattr(arma, 'comp_lamina', 60) * base_scale * 1.5 * anim_scale
             estilo_arma = getattr(arma, 'estilo', '')
+            # Geometria fixa por estilo (baseada em raio_char)
+            if 'Lança' in estilo_arma or 'Estocada' in estilo_arma:
+                cabo_len   = raio_char * 1.00
+                lamina_len = raio_char * 1.80 * anim_scale
+            elif 'Maça' in estilo_arma or 'Contusão' in estilo_arma:
+                cabo_len   = raio_char * 0.90
+                lamina_len = raio_char * 0.70 * anim_scale
+            else:  # Espada / Misto
+                cabo_len   = raio_char * 0.55
+                lamina_len = raio_char * 1.30 * anim_scale
             larg = max(4, int(larg_base * 1.2))
 
             cabo_end_x = cx + math.cos(rad) * cabo_len
@@ -3060,14 +3156,14 @@ class Simulador:
         # === DUPLA - ADAGAS GÊMEAS v3.0 (Karambit Reverse-Grip) ===
         elif tipo == "Dupla":
             estilo_arma = getattr(arma, 'estilo', '')
-            sep = getattr(arma, 'separacao', 25) * base_scale * 1.6
+            sep = raio_char * 0.55  # separação fixa
             larg = max(4, int(larg_base * 1.1))
 
             if estilo_arma == "Adagas Gêmeas":
                 # ── ADAGAS GÊMEAS v3.1: Laterais do corpo, empunhadura normal apontando à frente ──
                 # Cada daga fica na mão do personagem (lateral), lâmina apontando na direção do ataque
-                cabo_len  = getattr(arma, 'comp_cabo', 8) * base_scale * 1.3
-                lamina_len = getattr(arma, 'comp_lamina', 50) * base_scale * 1.6 * anim_scale
+                cabo_len   = raio_char * 0.35
+                lamina_len = raio_char * 1.05 * anim_scale
                 pulso = 0.5 + 0.5 * math.sin(tempo / 180)
                 glow_alpha_base = int(100 + 70 * pulso) if atacando else int(35 + 20 * pulso)
 
@@ -3197,8 +3293,8 @@ class Simulador:
             else:
                 # ── PER-STYLE RENDERERS para os demais estilos Dupla ──
                 # Kamas, Sai, Garras, Tonfas, Facas Táticas — cada um com visual único
-                cabo_len   = getattr(arma, 'comp_cabo',   15) * base_scale * 1.3
-                lamina_len = getattr(arma, 'comp_lamina', 35) * base_scale * 1.8 * anim_scale
+                cabo_len   = raio_char * 0.40
+                lamina_len = raio_char * 0.90 * anim_scale
                 lw         = max(3, larg)
                 pulso      = 0.5 + 0.5 * math.sin(tempo / 180)
 
@@ -3409,8 +3505,8 @@ class Simulador:
 
             if estilo_arma == "Mangual":
                 # ── MANGUAL v3.0: Cabo pesado + Elos de ferro fundido + Bola espigada ──
-                cabo_tam  = getattr(arma, 'comp_cabo', 18) * base_scale * 1.0
-                corrente_comp = getattr(arma, 'comp_corrente', 60) * base_scale * 1.15 * anim_scale
+                cabo_tam      = raio_char * 0.70
+                corrente_comp = raio_char * 1.55 * anim_scale
                 ponta_tam = max(6, int(raio_char * 0.20 * anim_scale))
                 num_elos = 6
                 pulso = 0.5 + 0.5 * math.sin(tempo / 200)
@@ -3553,8 +3649,8 @@ class Simulador:
 
             else:
                 # ── PER-STYLE RENDERERS: Kusarigama, Chicote, Corrente com Peso ──
-                comp_total = getattr(arma, 'comp_corrente', 80) * base_scale * 2.2 * anim_scale
-                cabo_len   = getattr(arma, 'comp_cabo',    15) * base_scale * 1.0
+                comp_total = raio_char * 2.10 * anim_scale
+                cabo_len   = raio_char * 0.60
                 ponta_tam  = max(6, int(raio_char * 0.25))
                 pulso      = 0.5 + 0.5 * math.sin(tempo / 180)
 
@@ -3771,8 +3867,8 @@ class Simulador:
         # === ARCO (Arco Curto, Arco Longo, Besta, Besta de Repetição) ===
         elif tipo == "Arco":
             estilo_arma = getattr(arma, 'estilo', '')
-            tam_arco   = getattr(arma, 'tamanho_arco',   50) * base_scale * 1.3
-            tam_flecha = getattr(arma, 'tamanho_flecha', 40) * base_scale * 1.6 * anim_scale
+            tam_arco   = raio_char * 1.30
+            tam_flecha = raio_char * 1.20 * anim_scale
             pulso = 0.5 + 0.5 * math.sin(tempo / 200)
 
             # ── BESTA / BESTA DE REPETIÇÃO ────────────────────────────────
@@ -4083,11 +4179,11 @@ class Simulador:
             pulso = 0.5 + 0.5 * math.sin(tempo / 200)
 
             if forma == 1:
-                cabo_len   = getattr(arma, 'forma1_cabo',   20) * base_scale * 1.2
-                lamina_len = getattr(arma, 'forma1_lamina', 50) * base_scale * 1.4 * anim_scale
+                cabo_len   = raio_char * 0.50
+                lamina_len = raio_char * 1.20 * anim_scale
             else:
-                cabo_len   = getattr(arma, 'forma2_cabo',   30) * base_scale * 1.2
-                lamina_len = getattr(arma, 'forma2_lamina', 80) * base_scale * 1.4 * anim_scale
+                cabo_len   = raio_char * 0.85
+                lamina_len = raio_char * 1.55 * anim_scale
 
             cabo_end_x = cx + math.cos(rad)*cabo_len
             cabo_end_y = cy + math.sin(rad)*cabo_len
@@ -4185,8 +4281,8 @@ class Simulador:
         
         # === FALLBACK ===
         else:
-            cabo_len = getattr(arma, 'comp_cabo', 20) * base_scale
-            lamina_len = getattr(arma, 'comp_lamina', 50) * base_scale * anim_scale
+            cabo_len   = raio_char * 0.55
+            lamina_len = raio_char * 1.20 * anim_scale
             
             cabo_end_x = cx + math.cos(rad) * cabo_len
             cabo_end_y = cy + math.sin(rad) * cabo_len
@@ -4449,6 +4545,8 @@ class Simulador:
                             self.audio.play_special("slowmo_end", 0.5)
                             self.audio.play_special("arena_victory", 1.0)
                             self._slow_mo_ended = True
+                            # CB-04: persiste memória de rivalidade para o sistema MEL-AI-07
+                            self._salvar_memorias_rivais()
                 dt = raw_dt * self.time_scale
                 self.processar_inputs(); self.update(dt); self.desenhar(); pygame.display.flip()
             except Exception as e:

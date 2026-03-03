@@ -447,7 +447,7 @@ class CombatChoreographer:
             if hasattr(l, 'ai') and l.ai:
                 l.ai.on_momento_cinematografico(tipo, False, 0)
     
-    def registrar_hit(self, atacante, defensor):
+    def registrar_hit(self, atacante, defensor, dano=0):
         """Registra quando um hit acontece - integrado com sistema de fluxo"""
         self.tempo_sem_hit = 0.0
         self.trocas_seguidas += 1
@@ -468,6 +468,9 @@ class CombatChoreographer:
             atacante.ai.on_hit_dado()
         if hasattr(defensor, 'ai') and defensor.ai:
             defensor.ai.on_hit_recebido_de(atacante)
+            # CB-03: notifica dano recebido (momentum negativo + quebra combo_state)
+            if hasattr(defensor.ai, 'on_hit_recebido'):
+                defensor.ai.on_hit_recebido(dano)
         
         self.ultimo_agressor = atacante
         

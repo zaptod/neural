@@ -1479,7 +1479,7 @@ class TelaPersonagens(tk.Frame):
                 
                 if "Reta" in arma_obj.tipo or "Dupla" in arma_obj.tipo:
                     # Espada/lança
-                    comp = min(arma_obj.comp_lamina / 2, 40)
+                    comp = min(arma_obj.dano * 0.5, 40)  # visual baseado em dano
                     self.canvas_preview.create_line(
                         cx + raio, cy, 
                         cx + raio + comp, cy - 10,

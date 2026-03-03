@@ -343,11 +343,15 @@ class HitStopManager:
             cor_flash=cor_flash
         )
         
-        # Se já tem hit stop ativo, empilha (usa o maior)
+        # Se já tem hit stop ativo, usa o maior (sem acumular fila)
         if self.timer_ativo > 0 and self.evento_atual:
-            if duracao > self.evento_atual.duracao:
-                self.fila_eventos.append(evento)
+            if duracao > self.timer_ativo:
+                # Substitui pelo mais longo - evita cadeia infinita de freezes
+                self.timer_ativo = duracao
+                self.evento_atual = evento
+            # Descarta se o atual ja e maior - sem enfileirar
         else:
+            self.fila_eventos.clear()  # Garante fila limpa ao iniciar
             self._iniciar_hitstop(evento)
     
     def _iniciar_hitstop(self, evento: HitStopEvent):
