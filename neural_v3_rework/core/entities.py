@@ -389,10 +389,23 @@ class Lutador:
         if "Mago" in self.classe_nome:
             custo_real *= 0.8
         
+        # CM-15: FP4 — Conjuração Perfeita: custo pela metade durante buff
+        for buff in self.buffs_ativos:
+            if getattr(buff, 'custo_mana_metade', False):
+                custo_real *= 0.5
+                break
+        
         if self.arma_passiva and self.arma_passiva.get("efeito") == "no_mana_cost":
             chance = self.arma_passiva.get("valor", 0) / 100.0
             if random.random() < chance:
                 custo_real = 0
+        
+        # CM-16: custo_vida para skills de arma (antes só existia em usar_skill_classe)
+        custo_vida = data.get("custo_vida", 0) or data.get("custo_vida_percent", 0) * self.vida_max
+        if custo_vida > 0:
+            if self.vida <= custo_vida:
+                return False
+            self.vida -= custo_vida
         
         if self.mana < custo_real:
             return False
@@ -443,6 +456,12 @@ class Lutador:
         cd = data["cooldown"]
         if self.arma_passiva and self.arma_passiva.get("efeito") == "cooldown":
             cd *= (1 - self.arma_passiva.get("valor", 0) / 100.0)
+        
+        # CM-17: FP4 — sem_cooldown buff (Conjuração Perfeita) zera cooldown
+        for buff in self.buffs_ativos:
+            if getattr(buff, 'sem_cooldown', False):
+                cd = 0
+                break
         
         self.cd_skills[nome_skill] = cd
         self.cd_skill_arma = cd
@@ -620,6 +639,12 @@ class Lutador:
         if "Mago" in self.classe_nome:
             custo *= 0.8
         
+        # CM-15b: FP4 — Conjuração Perfeita: custo pela metade durante buff
+        for buff in self.buffs_ativos:
+            if getattr(buff, 'custo_mana_metade', False):
+                custo *= 0.5
+                break
+        
         # Custo em vida (Pacto de Sangue, Sacrifício)
         custo_vida = data.get("custo_vida", 0) or data.get("custo_vida_percent", 0) * self.vida_max
         if custo_vida > 0:
@@ -655,6 +680,13 @@ class Lutador:
             pass
 
         cd = data.get("cooldown", 5.0)
+        
+        # CM-17b: FP4 — sem_cooldown buff (Conjuração Perfeita) zera cooldown
+        for buff in self.buffs_ativos:
+            if getattr(buff, 'sem_cooldown', False):
+                cd = 0
+                break
+        
         self.cd_skills[skill_nome] = cd
         
         rad = math.radians(self.angulo_olhar)
@@ -1428,6 +1460,17 @@ class Lutador:
         if "Ladino" in self.classe_nome and random.random() < 0.2:
             return False
 
+        # CM-12: CEGO reduz chance de acerto do ATACANTE (aplicado no defensor via atacante)
+        if atacante is not None and getattr(atacante, 'cego_timer', 0) > 0:
+            if random.random() < 0.5:  # 50% de miss quando cego
+                return False
+
+        # CM-13: ESQUIVA_GARANTIDA (Previsão buff) — consome 1 carga de esquiva
+        esquivas = getattr(self, 'esquivas_garantidas', 0)
+        if esquivas > 0:
+            self.esquivas_garantidas -= 1
+            return False
+
         # CM-08 fix: aplica dano_recebido_bonus de buffs (ex: Sobrecarga recebe mais dano)
         for buff in self.buffs_ativos:
             dano_recebido = getattr(buff, 'dano_recebido_bonus', 1.0)
@@ -1437,6 +1480,14 @@ class Lutador:
         # FP-3: aplica vulnerabilidade se ativa (antes era setada mas nunca lida)
         if getattr(self, 'vulnerabilidade', 1.0) != 1.0:
             dano_final *= self.vulnerabilidade
+
+        # CM-10: EXPOSTO aumenta dano recebido em 2x (antes timer setado mas nunca lido)
+        if getattr(self, 'exposto_timer', 0) > 0:
+            dano_final *= 2.0
+
+        # CM-11: CONGELADO aumenta dano recebido em 1.5x (magic_system define mod_dano_recebido: 1.5)
+        if getattr(self, 'congelado', False):
+            dano_final *= 1.5
 
         for buff in self.buffs_ativos:
             if buff.escudo_atual > 0:
@@ -1747,6 +1798,37 @@ class Lutador:
 
     def morrer(self):
         """Processa morte do lutador"""
+        # CM-14: FP1 fix — verifica buffs/skills com ativa_ao_morrer (Último Suspiro)
+        for buff in list(self.buffs_ativos):
+            if getattr(buff, 'ativa_ao_morrer', False):
+                cura_pct = getattr(buff, 'cura_percent', 0.5)
+                self.vida = self.vida_max * cura_pct
+                self.buffs_ativos.remove(buff)
+                self.morto = False
+                return  # Reviveu!
+
+        # CM-14b: FP1 — verifica skills de arma com ativa_ao_morrer
+        for sk in getattr(self, 'skills_arma', []):
+            data = sk.get("data", {})
+            if data.get("ativa_ao_morrer") and not getattr(self, '_ultimo_suspiro_usado', False):
+                cura_pct = data.get("cura_percent", 0.5)
+                self.vida = self.vida_max * cura_pct
+                self._ultimo_suspiro_usado = True
+                self.morto = False
+                self.invencivel_timer = 1.0  # Breve invencibilidade após reviver
+                return
+
+        # CM-14c: FP1 — verifica skills de classe com ativa_ao_morrer
+        for sk in getattr(self, 'skills_classe', []):
+            data = sk.get("data", {})
+            if data.get("ativa_ao_morrer") and not getattr(self, '_ultimo_suspiro_usado', False):
+                cura_pct = data.get("cura_percent", 0.5)
+                self.vida = self.vida_max * cura_pct
+                self._ultimo_suspiro_usado = True
+                self.morto = False
+                self.invencivel_timer = 1.0
+                return
+
         self.morto = True
         self.vida = 0
         self.arma_droppada_pos = list(self.pos)

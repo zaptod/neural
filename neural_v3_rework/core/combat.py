@@ -798,6 +798,44 @@ class Buff:
         self.bonus_velocidade_movimento = data.get("bonus_velocidade_movimento", 1.0)
         self.dano_recebido_bonus      = data.get("dano_recebido_bonus", 1.0)
 
+        # CM-15: FP4 — Conjuração Perfeita: sem_cooldown e custo_mana_metade
+        self.sem_cooldown = data.get("sem_cooldown", False)
+        self.custo_mana_metade = data.get("custo_mana_metade", False)
+
+        # CM-14: FP1 — Último Suspiro: ativa_ao_morrer + cura_percent
+        self.ativa_ao_morrer = data.get("ativa_ao_morrer", False)
+        self.cura_percent = data.get("cura_percent", 0)
+
+        # CM-13: FP5 — Previsão: esquiva_garantida (cargas de esquiva)
+        esquivas = data.get("esquiva_garantida", 0)
+        if esquivas > 0 and hasattr(alvo, 'esquivas_garantidas'):
+            alvo.esquivas_garantidas = getattr(alvo, 'esquivas_garantidas', 0) + esquivas
+        elif esquivas > 0:
+            alvo.esquivas_garantidas = esquivas
+
+        # CM-18: stats_aleatorios (Mutação) — aplica bonus/malus random
+        if data.get("stats_aleatorios"):
+            import random as _rng
+            self._mutacao_dano = _rng.uniform(0.5, 2.0)
+            self._mutacao_vel = _rng.uniform(0.6, 1.8)
+            self._mutacao_def = _rng.uniform(0.7, 1.5)
+            self.buff_dano *= self._mutacao_dano
+            if hasattr(alvo, 'velocidade'):
+                alvo.velocidade *= self._mutacao_vel
+            alvo.vulnerabilidade = getattr(alvo, 'vulnerabilidade', 1.0) * self._mutacao_def
+        else:
+            self._mutacao_dano = 1.0
+            self._mutacao_vel = 1.0
+            self._mutacao_def = 1.0
+
+        # Tipo de buff especial para Determinação (cooldown reduzido)
+        self.bonus_velocidade = data.get("bonus_velocidade", 1.0)
+        if self.bonus_velocidade != 1.0 and hasattr(alvo, 'velocidade'):
+            alvo.velocidade *= self.bonus_velocidade
+
+        # Dano de contato (Escudo de Brasas)
+        self.dano_contato = data.get("dano_contato", 0)
+
         # Aplica imediatamente os modificadores de velocidade na entidade
         if self.bonus_velocidade_ataque != 1.0 and hasattr(alvo, 'arma_vel_ataque'):
             alvo.arma_vel_ataque *= self.bonus_velocidade_ataque
@@ -823,6 +861,16 @@ class Buff:
             self.alvo.arma_vel_ataque /= self.bonus_velocidade_ataque
         if self.bonus_velocidade_movimento != 1.0 and hasattr(self.alvo, 'velocidade'):
             self.alvo.velocidade /= self.bonus_velocidade_movimento
+        # CM-18: reverte mutação
+        if self._mutacao_vel != 1.0 and hasattr(self.alvo, 'velocidade'):
+            self.alvo.velocidade /= self._mutacao_vel
+        if self._mutacao_def != 1.0:
+            vuln = getattr(self.alvo, 'vulnerabilidade', 1.0)
+            if self._mutacao_def != 0:
+                self.alvo.vulnerabilidade = vuln / self._mutacao_def
+        # CM-bonus_velocidade revert
+        if self.bonus_velocidade != 1.0 and hasattr(self.alvo, 'velocidade'):
+            self.alvo.velocidade /= self.bonus_velocidade
     
     def absorver_dano(self, dano):
         """Tenta absorver dano com escudo, retorna dano restante"""

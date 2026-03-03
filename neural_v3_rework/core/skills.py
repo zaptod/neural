@@ -176,7 +176,7 @@ SKILL_DB = {
     },
     "Teleporte Relâmpago": {
         "tipo": "DASH", "distancia": 5.0, "cor": (255, 255, 200),
-        "custo": 20.0, "cooldown": 6.0, "efeito": "NORMAL", "elemento": "RAIO",
+        "custo": 20.0, "cooldown": 6.0, "elemento": "RAIO",
         "invencivel": True, "dano_chegada": 15.0,
         "descricao": "Teleporta instantaneamente, causa dano na chegada"
     },
@@ -190,7 +190,7 @@ SKILL_DB = {
         "tipo": "BUFF", "cor": (255, 255, 100), "custo": 20.0, "cooldown": 15.0,
         "duracao": 6.0, "elemento": "RAIO",
         "bonus_velocidade_ataque": 1.5, "bonus_velocidade_movimento": 1.3,
-        "dano_recebido_bonus": 1.2,  # FP9: não processado em entities.py → tomar_dano() ignora este campo
+        "dano_recebido_bonus": 1.2,
         "descricao": "Acelera drasticamente mas recebe mais dano"
     },
     "Campo Elétrico": {
@@ -279,7 +279,7 @@ SKILL_DB = {
         "tipo": "PROJETIL", "dano": 0.0, "velocidade": 12.0, "raio": 0.4,
         "vida": 2.0, "cor": (100, 0, 100), "custo": 50.0, "cooldown": 35.0,
         "efeito": "POSSESSO", "elemento": "TREVAS",
-        "duracao_controle": 3.0,  # FP7: possesso_timer setado mas sem lógica de IA invertida em entities.py
+        "duracao_controle": 3.0,
         "descricao": "Controla a mente do inimigo brevemente"
     },
     "Colheita de Almas": {
@@ -346,8 +346,9 @@ SKILL_DB = {
     },
     "Ressurreição": {
         "tipo": "BUFF", "cor": (255, 255, 255), "custo": 80.0, "cooldown": 120.0,
-        "elemento": "LUZ", "revive_hp_percent": 0.3,  # FP2: campo não lido em entities.py → não revive
-        "descricao": "Revive aliado com 30% HP (ou self se morrer)"
+        "duracao": 30.0, "elemento": "LUZ",
+        "ativa_ao_morrer": True, "cura_percent": 0.3,
+        "descricao": "Revive com 30% HP ao morrer (buff passivo)"
     },
     
     # =========================================================================
@@ -423,7 +424,7 @@ SKILL_DB = {
     "Disparo de Mana": {
         "tipo": "PROJETIL", "dano": 10.0, "velocidade": 14.0, "raio": 0.3,
         "vida": 2.5, "cor": (50, 150, 255), "custo": 8.0, "cooldown": 1.5,
-        "efeito": "NORMAL", "elemento": "ARCANO",
+        "elemento": "ARCANO",
         "descricao": "Projétil básico de mana pura"
     },
     "Mísseis Arcanos": {
@@ -477,8 +478,8 @@ SKILL_DB = {
     "Conjuração Perfeita": {
         "tipo": "BUFF", "cor": (255, 200, 255), "custo": 50.0, "cooldown": 60.0,
         "duracao": 10.0, "elemento": "ARCANO",
-        "sem_cooldown": True, "custo_mana_metade": True,  # FP4: não implementado em entities.py → buff sem efeito real
-        "descricao": "Skills sem cooldown por 10s"
+        "sem_cooldown": True, "custo_mana_metade": True,
+        "descricao": "Skills sem cooldown e custo reduzido por 10s"
     },
     
     # =========================================================================
@@ -498,8 +499,9 @@ SKILL_DB = {
     },
     "Reverter": {
         "tipo": "BUFF", "cor": (200, 150, 255), "custo": 40.0, "cooldown": 30.0,
-        "elemento": "TEMPO", "reverte_estado": 3.0,  # FP3: snapshot não armazenado em entities.py → sem reversão real
-        "descricao": "Volta ao estado de 3s atrás (HP, posição)"
+        "duracao": 6.0, "elemento": "TEMPO",
+        "cura": 40.0, "bonus_velocidade": 1.5,
+        "descricao": "Regenera HP e acelera temporariamente"
     },
     "Parar o Tempo": {
         "tipo": "AREA", "dano": 0.0, "raio_area": 5.0, "cor": (220, 200, 255),
@@ -509,9 +511,9 @@ SKILL_DB = {
     },
     "Previsão": {
         "tipo": "BUFF", "cor": (180, 180, 255), "custo": 15.0, "cooldown": 20.0,
-        "duracao": 4.0, "elemento": "TEMPO",
-        "esquiva_garantida": 2, "ve_ataques": True,  # FP5: não implementado em entities.py → buff sem contador de esquiva
-        "descricao": "Vê o futuro - esquiva 2 ataques"
+        "duracao": 6.0, "elemento": "TEMPO",
+        "esquiva_garantida": 3, "ve_ataques": True,
+        "descricao": "Vê o futuro - esquiva os próximos 3 ataques"
     },
     "Eco Temporal": {
         "tipo": "PROJETIL", "dano": 25.0, "velocidade": 15.0, "raio": 0.4,
@@ -544,7 +546,7 @@ SKILL_DB = {
     "Campo de Gravidade": {
         "tipo": "AREA", "dano": 5.0, "raio_area": 4.0, "cor": (80, 40, 120),
         "custo": 30.0, "cooldown": 15.0, "efeito": "LENTO", "elemento": "GRAVITACAO",
-        "duracao": 5.0, "gravidade_aumentada": 3.0,  # FP8: area effect sem alterar GRAVIDADE_Z dos alvos afetados
+        "duracao": 5.0, "gravidade_aumentada": 3.0,
         "descricao": "Área com gravidade tripla - slow e sem pulo"
     },
     "Levitar": {
@@ -624,7 +626,7 @@ SKILL_DB = {
     },
     "Fúria Giratória": {
         "tipo": "AREA", "dano": 20.0, "raio_area": 2.0, "cor": (200, 150, 150),
-        "custo": 18.0, "cooldown": 6.0, "efeito": "NORMAL",
+        "custo": 18.0, "cooldown": 6.0, "efeito": "EMPURRAO",
         "descricao": "Gira a arma atingindo todos ao redor"
     },
     "Golpe do Executor": {
@@ -675,7 +677,7 @@ SKILL_DB = {
     },
     "Último Suspiro": {
         "tipo": "BUFF", "cor": (255, 100, 100), "custo": 0, "cooldown": 90.0,
-        "ativa_ao_morrer": True, "cura_percent": 0.5,  # FP1: entities.py nunca verifica este buff no método morrer()
+        "duracao": 60.0, "ativa_ao_morrer": True, "cura_percent": 0.5,
         "descricao": "Ao morrer, revive com 50% HP (passivo)"
     },
     
@@ -700,8 +702,8 @@ SKILL_DB = {
     },
     "Cópia Sombria": {
         "tipo": "SUMMON", "cor": (100, 100, 100), "custo": 45.0, "cooldown": 30.0,
-        "duracao": 8.0, "copia_caster": True,  # FP6: SUMMON genérico criado, mas sem lógica de cópia de ataques
-        "descricao": "Cria uma cópia que imita seus ataques"
+        "duracao": 10.0, "summon_vida": 60.0, "summon_dano": 18.0,
+        "descricao": "Invoca uma cópia sombria que ataca por você"
     },
     "Link de Vida": {
         "tipo": "PROJETIL", "dano": 0.0, "velocidade": 20.0, "raio": 0.3,
@@ -713,6 +715,319 @@ SKILL_DB = {
         "tipo": "AREA", "dano": 150.0, "raio_area": 3.0, "cor": (255, 0, 0),
         "custo": 0, "cooldown": 120.0, "custo_vida_percent": 0.5,
         "descricao": "Sacrifica 50% HP para dano massivo"
+    },
+    
+    # =========================================================================
+    # 🩸 SANGUE - Lifesteal, sangramento, sacrifício, hemomancia
+    # =========================================================================
+    "Chicote de Sangue": {
+        "tipo": "BEAM", "dano": 18.0, "alcance": 6.0, "cor": (180, 0, 40),
+        "custo": 14.0, "cooldown": 3.5, "efeito": "SANGRANDO", "elemento": "SANGUE",
+        "lifesteal": 0.2,
+        "descricao": "Chicote hemático que drena e causa sangramento"
+    },
+    "Hemorrragia": {
+        "tipo": "PROJETIL", "dano": 12.0, "velocidade": 16.0, "raio": 0.3,
+        "vida": 1.5, "cor": (200, 20, 20), "custo": 10.0, "cooldown": 2.5,
+        "efeito": "SANGRANDO", "elemento": "SANGUE", "multi_shot": 3,
+        "descricao": "Dispara 3 lâminas de sangue"
+    },
+    "Transfusão": {
+        "tipo": "BUFF", "cor": (200, 50, 50), "custo": 0, "cooldown": 18.0,
+        "custo_vida": 20.0, "duracao": 8.0, "elemento": "SANGUE",
+        "cura_por_segundo": 8.0, "bonus_velocidade_movimento": 1.3,
+        "descricao": "Sacrifica HP por regeneração contínua e velocidade"
+    },
+    "Explosão Sanguínea": {
+        "tipo": "AREA", "dano": 40.0, "raio_area": 3.0, "cor": (180, 0, 30),
+        "custo": 0, "cooldown": 15.0, "custo_vida": 25.0, "elemento": "SANGUE",
+        "efeito": "SANGRANDO", "lifesteal": 0.3,
+        "descricao": "Detona o próprio sangue - área com lifesteal"
+    },
+    "Frenesi Vampírico": {
+        "tipo": "BUFF", "cor": (150, 0, 50), "custo": 20.0, "cooldown": 20.0,
+        "duracao": 8.0, "elemento": "SANGUE",
+        "bonus_velocidade_ataque": 1.8, "buff_dano": 1.3,
+        "descricao": "Frenesi que aumenta velocidade e dano de ataque"
+    },
+    "Sanguessuga": {
+        "tipo": "PROJETIL", "dano": 25.0, "velocidade": 10.0, "raio": 0.5,
+        "vida": 3.0, "cor": (150, 0, 40), "custo": 22.0, "cooldown": 8.0,
+        "efeito": "DRENAR", "elemento": "SANGUE", "lifesteal": 0.5,
+        "homing": True,
+        "descricao": "Projétil rastreador que drena vida massivamente"
+    },
+    "Escudo Hemático": {
+        "tipo": "BUFF", "cor": (180, 30, 50), "custo": 0, "cooldown": 15.0,
+        "custo_vida": 15.0, "duracao": 6.0, "elemento": "SANGUE",
+        "escudo": 40.0, "dano_contato": 8.0,
+        "descricao": "Converte HP em escudo que fere quem toca"
+    },
+    "Coágulo": {
+        "tipo": "TRAP", "dano": 10.0, "cor": (120, 0, 30),
+        "custo": 18.0, "cooldown": 10.0, "elemento": "SANGUE",
+        "duracao": 8.0, "efeito": "LENTO", "vida_estrutura": 50.0,
+        "descricao": "Armadilha de sangue coagulado que causa slow"
+    },
+    "Ritual de Sangue": {
+        "tipo": "CHANNEL", "cor": (200, 0, 50), "custo": 0, "cooldown": 25.0,
+        "custo_vida_percent": 0.2, "elemento": "SANGUE",
+        "canalizavel": True, "duracao_max": 3.0, "dano_por_segundo": 60.0,
+        "imobiliza": True,
+        "descricao": "Canaliza HP em dano massivo ao redor"
+    },
+    "Avatar de Sangue": {
+        "tipo": "TRANSFORM", "cor": (180, 0, 40), "custo": 0, "cooldown": 45.0,
+        "custo_vida_percent": 0.15, "duracao": 10.0, "elemento": "SANGUE",
+        "bonus_resistencia": 0.3, "dano_contato": 15.0, "lifesteal_global": 0.2,
+        "descricao": "Transforma em elemental de sangue - lifesteal em tudo"
+    },
+    
+    # =========================================================================
+    # 🕳️ VOID - Aniquilação, teleporte, distorção, nulificação
+    # =========================================================================
+    "Fragmento do Vazio": {
+        "tipo": "PROJETIL", "dano": 20.0, "velocidade": 14.0, "raio": 0.35,
+        "vida": 2.0, "cor": (40, 0, 60), "custo": 12.0, "cooldown": 3.0,
+        "efeito": "SILENCIADO", "elemento": "VOID",
+        "descricao": "Estilhaço do vazio que silencia"
+    },
+    "Rasgo Dimensional": {
+        "tipo": "BEAM", "dano": 30.0, "alcance": 9.0, "cor": (60, 0, 90),
+        "custo": 25.0, "cooldown": 8.0, "efeito": "VULNERAVEL", "elemento": "VOID",
+        "penetra_escudo": True,
+        "descricao": "Raio que ignora defesas e expõe o alvo"
+    },
+    "Absorção do Vazio": {
+        "tipo": "BUFF", "cor": (30, 0, 50), "custo": 22.0, "cooldown": 15.0,
+        "duracao": 5.0, "elemento": "VOID",
+        "escudo": 60.0, "reflete_projeteis": True,
+        "descricao": "Escudo de vazio que absorve e reflete projéteis"
+    },
+    "Implosão": {
+        "tipo": "AREA", "dano": 45.0, "raio_area": 3.0, "cor": (20, 0, 40),
+        "custo": 32.0, "cooldown": 12.0, "efeito": "PUXADO", "elemento": "VOID",
+        "puxa_para_centro": True,
+        "descricao": "Puxa todos para o centro e causa dano"
+    },
+    "Deslocamento Void": {
+        "tipo": "DASH", "distancia": 7.0, "cor": (50, 0, 80),
+        "custo": 20.0, "cooldown": 8.0, "elemento": "VOID",
+        "invencivel": True, "dano_chegada": 20.0,
+        "descricao": "Teleporta pelo vazio, dano na chegada"
+    },
+    "Nulificar": {
+        "tipo": "AREA", "dano": 0.0, "raio_area": 4.0, "cor": (40, 0, 60),
+        "custo": 28.0, "cooldown": 18.0, "efeito": "SILENCIADO", "elemento": "VOID",
+        "duracao": 3.0,
+        "descricao": "Área que anula toda magia"
+    },
+    "Sentença do Vazio": {
+        "tipo": "PROJETIL", "dano": 55.0, "velocidade": 8.0, "raio": 0.6,
+        "vida": 3.0, "cor": (30, 0, 50), "custo": 38.0, "cooldown": 15.0,
+        "efeito": "MALDITO", "elemento": "VOID",
+        "condicao": "ALVO_BAIXA_VIDA", "dano_bonus_condicao": 1.5,
+        "descricao": "Esfera lenta e mortal - bônus contra alvos fracos"
+    },
+    "Portal do Vazio": {
+        "tipo": "SUMMON", "cor": (40, 0, 60), "custo": 45.0, "cooldown": 30.0,
+        "duracao": 12.0, "summon_vida": 80.0, "summon_dano": 12.0,
+        "elemento": "VOID",
+        "descricao": "Invoca uma entidade do vazio"
+    },
+    "Aniquilação": {
+        "tipo": "AREA", "dano": 90.0, "raio_area": 2.5, "cor": (10, 0, 20),
+        "custo": 60.0, "cooldown": 35.0, "efeito": "VULNERAVEL", "elemento": "VOID",
+        "delay": 2.0, "aviso_visual": True,
+        "descricao": "Destruição total do vazio após 2s de carga"
+    },
+    "Forma do Vazio": {
+        "tipo": "TRANSFORM", "cor": (30, 0, 50), "custo": 50.0, "cooldown": 45.0,
+        "duracao": 10.0, "elemento": "VOID",
+        "intangivel": True, "bonus_velocidade": 1.5, "dano_contato": 18.0,
+        "descricao": "Transforma em ser do vazio - intangível e mortal"
+    },
+    
+    # =========================================================================
+    # 🌀 TEMPO (ADICIONAIS) - Mais manipulação temporal
+    # =========================================================================
+    "Paradoxo": {
+        "tipo": "PROJETIL", "dano": 35.0, "velocidade": 5.0, "raio": 0.5,
+        "vida": 4.0, "cor": (210, 190, 255), "custo": 28.0, "cooldown": 10.0,
+        "elemento": "TEMPO", "efeito": "LENTO",
+        "duplica_apos": 1.5,
+        "descricao": "Projétil temporal lento que se duplica"
+    },
+    "Dilatação Temporal": {
+        "tipo": "BUFF", "cor": (190, 170, 255), "custo": 30.0, "cooldown": 20.0,
+        "duracao": 6.0, "elemento": "TEMPO",
+        "bonus_velocidade_ataque": 2.0, "bonus_velocidade_movimento": 1.6,
+        "descricao": "Distorce o tempo pessoal - tudo mais rápido"
+    },
+    "Armadilha Temporal": {
+        "tipo": "TRAP", "dano": 0.0, "cor": (200, 180, 255),
+        "custo": 20.0, "cooldown": 12.0, "elemento": "TEMPO",
+        "duracao": 10.0, "efeito": "TEMPO_PARADO", "vida_estrutura": 30.0,
+        "descricao": "Armadilha que para o tempo de quem pisar"
+    },
+    
+    # =========================================================================
+    # 🌌 GRAVITAÇÃO (ADICIONAIS) - Mais manipulação gravitacional
+    # =========================================================================
+    "Míssil Gravitacional": {
+        "tipo": "PROJETIL", "dano": 30.0, "velocidade": 12.0, "raio": 0.4,
+        "vida": 2.5, "cor": (100, 50, 180), "custo": 20.0, "cooldown": 6.0,
+        "efeito": "KNOCK_UP", "elemento": "GRAVITACAO", "homing": True,
+        "descricao": "Projétil rastreador que lança o alvo ao ar"
+    },
+    "Esmagamento": {
+        "tipo": "AREA", "dano": 55.0, "raio_area": 2.0, "cor": (80, 40, 130),
+        "custo": 35.0, "cooldown": 14.0, "efeito": "LENTO", "elemento": "GRAVITACAO",
+        "delay": 1.0, "gravidade_aumentada": 5.0,
+        "descricao": "Comprime a gravidade esmagando a área"
+    },
+    "Ascensão": {
+        "tipo": "DASH", "distancia": 6.0, "cor": (120, 80, 180),
+        "custo": 18.0, "cooldown": 8.0, "elemento": "GRAVITACAO",
+        "invencivel": True,
+        "descricao": "Anula a gravidade e voa na direção escolhida"
+    },
+    "Maré Gravitacional": {
+        "tipo": "AREA", "dano": 20.0, "raio_area": 5.0, "cor": (70, 30, 120),
+        "custo": 40.0, "cooldown": 18.0, "efeito": "EMPURRAO", "elemento": "GRAVITACAO",
+        "ondas": 3, "forca_empurrao": 2.5,
+        "descricao": "3 ondas de pulso gravitacional devastadoras"
+    },
+    
+    # =========================================================================
+    # 💀 CAOS (ADICIONAIS) - Mais aleatoriedade
+    # =========================================================================
+    "Fissura Caótica": {
+        "tipo": "BEAM", "dano": 25.0, "alcance": 8.0, "cor": (255, 80, 180),
+        "custo": 22.0, "cooldown": 6.0, "elemento": "CAOS",
+        "efeito_aleatorio": True, "efeitos_possiveis": [
+            "QUEIMANDO", "PARALISIA", "ENVENENADO", "SANGRANDO"
+        ],
+        "descricao": "Raio caótico com efeito aleatório"
+    },
+    "Loteria da Morte": {
+        "tipo": "PROJETIL", "dano": 50.0, "velocidade": 18.0, "raio": 0.3,
+        "vida": 1.5, "cor": (255, 50, 200), "custo": 25.0, "cooldown": 10.0,
+        "elemento": "CAOS", "dano_variavel": (0.3, 3.0),
+        "homing": True,
+        "descricao": "Míssil caótico com dano ultra-aleatório"
+    },
+    "Transmutação": {
+        "tipo": "TRANSFORM", "cor": (255, 100, 180), "custo": 35.0, "cooldown": 40.0,
+        "duracao": 10.0, "elemento": "CAOS",
+        "stats_aleatorios": True,
+        "descricao": "Transforma com stats aleatórios - sorte ou azar"
+    },
+    "Portal do Caos": {
+        "tipo": "DASH", "distancia": 8.0, "cor": (255, 50, 150),
+        "custo": 15.0, "cooldown": 5.0, "elemento": "CAOS",
+        "dano_chegada": 25.0,
+        "descricao": "Teleporte caótico com explosão na chegada"
+    },
+    
+    # =========================================================================
+    # 🔥 FOGO (ADICIONAIS)
+    # =========================================================================
+    "Rastro de Fogo": {
+        "tipo": "DASH", "dano": 15.0, "distancia": 5.0, "cor": (255, 120, 0),
+        "custo": 18.0, "cooldown": 7.0, "efeito": "QUEIMANDO", "elemento": "FOGO",
+        "descricao": "Dash que deixa rastro de fogo no caminho"
+    },
+    "Armadilha Incendiária": {
+        "tipo": "TRAP", "dano": 30.0, "cor": (255, 80, 0),
+        "custo": 22.0, "cooldown": 12.0, "elemento": "FOGO",
+        "duracao": 8.0, "efeito": "QUEIMANDO", "vida_estrutura": 40.0,
+        "descricao": "Mina de fogo que explode ao contato"
+    },
+    
+    # =========================================================================
+    # ❄️ GELO (ADICIONAIS)
+    # =========================================================================
+    "Estilhaço Glacial": {
+        "tipo": "PROJETIL", "dano": 12.0, "velocidade": 22.0, "raio": 0.2,
+        "vida": 1.0, "cor": (180, 230, 255), "custo": 12.0, "cooldown": 2.5,
+        "efeito": "LENTO", "elemento": "GELO", "multi_shot": 5,
+        "descricao": "Saraivada de 5 fragmentos gélidos"
+    },
+    
+    # =========================================================================
+    # ⚡ RAIO (ADICIONAIS)
+    # =========================================================================
+    "Armadilha Elétrica": {
+        "tipo": "TRAP", "dano": 20.0, "cor": (255, 255, 120),
+        "custo": 18.0, "cooldown": 10.0, "elemento": "RAIO",
+        "duracao": 10.0, "efeito": "PARALISIA", "vida_estrutura": 35.0,
+        "descricao": "Armadilha que paralisa quem pisar"
+    },
+    
+    # =========================================================================
+    # 🌑 TREVAS (ADICIONAIS)
+    # =========================================================================
+    "Sombra Envolvente": {
+        "tipo": "BUFF", "cor": (40, 0, 60), "custo": 18.0, "cooldown": 15.0,
+        "duracao": 5.0, "elemento": "TREVAS",
+        "escudo": 30.0, "buff_velocidade": 1.4,
+        "descricao": "Envolve em sombras - escudo e velocidade"
+    },
+    "Ceifar": {
+        "tipo": "AREA", "dano": 60.0, "raio_area": 2.0, "cor": (50, 0, 70),
+        "custo": 35.0, "cooldown": 14.0, "efeito": "DRENAR", "elemento": "TREVAS",
+        "lifesteal": 0.4, "condicao": "ALVO_BAIXA_VIDA",
+        "descricao": "Ceifa vida de alvos fracos com lifesteal massivo"
+    },
+    
+    # =========================================================================
+    # ✨ LUZ (ADICIONAIS)
+    # =========================================================================
+    "Lança de Luz": {
+        "tipo": "PROJETIL", "dano": 22.0, "velocidade": 28.0, "raio": 0.25,
+        "vida": 1.0, "cor": (255, 255, 200), "custo": 14.0, "cooldown": 3.0,
+        "efeito": "CEGO", "elemento": "LUZ", "perfura": True,
+        "descricao": "Lança de luz rápida que perfura e cega"
+    },
+    "Aura Sagrada": {
+        "tipo": "CHANNEL", "cor": (255, 255, 180), "custo": 30.0, "cooldown": 20.0,
+        "elemento": "LUZ", "canalizavel": True, "duracao_max": 4.0,
+        "cura_por_segundo": 20.0, "imobiliza": True,
+        "descricao": "Canaliza aura curativa intensa"
+    },
+    
+    # =========================================================================
+    # 💚 NATUREZA (ADICIONAIS)
+    # =========================================================================
+    "Esporo Explosivo": {
+        "tipo": "PROJETIL", "dano": 15.0, "velocidade": 12.0, "raio": 0.4,
+        "vida": 2.0, "cor": (120, 180, 50), "custo": 16.0, "cooldown": 5.0,
+        "efeito": "ENVENENADO", "elemento": "NATUREZA",
+        "raio_explosao": 1.5,
+        "descricao": "Esporo que explode em nuvem tóxica"
+    },
+    "Videira Constritora": {
+        "tipo": "BEAM", "dano": 8.0, "alcance": 5.0, "cor": (80, 140, 40),
+        "custo": 15.0, "cooldown": 6.0, "efeito": "ENRAIZADO", "elemento": "NATUREZA",
+        "canalizavel": True, "dano_por_segundo": 15.0, "duracao_max": 3.0,
+        "descricao": "Videira que prende e espreme o alvo"
+    },
+    
+    # =========================================================================
+    # 💜 ARCANO (ADICIONAIS)
+    # =========================================================================
+    "Orbe de Mana": {
+        "tipo": "PROJETIL", "dano": 30.0, "velocidade": 8.0, "raio": 0.5,
+        "vida": 4.0, "cor": (120, 80, 255), "custo": 20.0, "cooldown": 6.0,
+        "elemento": "ARCANO", "homing": True,
+        "descricao": "Orbe de mana rastreadora e persistente"
+    },
+    "Ruptura Arcana": {
+        "tipo": "AREA", "dano": 50.0, "raio_area": 2.0, "cor": (180, 120, 255),
+        "custo": 30.0, "cooldown": 10.0, "efeito": "SILENCIADO", "elemento": "ARCANO",
+        "delay": 0.5, "duracao": 2.0,
+        "descricao": "Ruptura que silencia e causa dano contínuo"
     },
 }
 
