@@ -129,7 +129,7 @@ TIPOS_ARMA = {
     "Corrente": {
         "categoria": "Melee",
         "descricao": "Arma com física de corda/corrente",
-        "estilos": ["Kusarigama", "Flail (Mangual)", "Chicote", "Corrente com Peso"],
+        "estilos": ["Kusarigama", "Mangual", "Chicote", "Corrente com Peso", "Meteor Hammer"],
         "mod_dano": 1.1,
         "mod_velocidade": 0.8,
         "alcance_base": 3.0,

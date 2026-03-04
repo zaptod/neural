@@ -653,9 +653,14 @@ class AttackAnimationManager:
     
     @classmethod
     def reset(cls):
+        if cls._instance and hasattr(cls._instance, '_initialized'):
+            del cls._instance._initialized
         cls._instance = None
     
     def __init__(self):
+        if hasattr(self, '_initialized'):
+            return
+        self._initialized = True
         # Efeitos ativos
         self.weapon_trails: List[WeaponTrailEnhanced] = []
         self.shockwaves: List[ImpactShockwave] = []

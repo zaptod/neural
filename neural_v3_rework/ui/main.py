@@ -36,6 +36,7 @@ _setup_worldmap_hook()
 from ui.view_armas import TelaArmas
 from ui.view_chars import TelaPersonagens
 from ui.view_luta import TelaLuta
+from ui.view_multi import TelaMultiBatalha
 from ui.view_sons import TelaSons
 from ui.view_worldmap import TelaWorldMap
 
@@ -65,7 +66,7 @@ class SistemaApp(tk.Tk):
         container.grid_columnconfigure(0, weight=1)
 
         self.frames = {}
-        for F in (MenuPrincipal, TelaArmas, TelaPersonagens, TelaLuta, TelaInteracoes, TelaSons, TelaWorldMap):
+        for F in (MenuPrincipal, TelaArmas, TelaPersonagens, TelaLuta, TelaMultiBatalha, TelaInteracoes, TelaSons, TelaWorldMap):
             page_name = F.__name__
             frame = F(parent=container, controller=self)
             self.frames[page_name] = frame
@@ -160,6 +161,7 @@ class MenuPrincipal(tk.Frame):
             ("Forjar Armas",          lambda: controller.show_frame("TelaArmas")),
             ("Criar Personagens",      lambda: controller.show_frame("TelaPersonagens")),
             ("Simulacao (Luta)",       lambda: controller.show_frame("TelaLuta")),
+            ("Batalha em Equipe",      lambda: controller.show_frame("TelaMultiBatalha")),
             ("Modo Torneio",           lambda: self.abrir_torneio(controller)),
             ("Configurar Sons",        lambda: controller.show_frame("TelaSons")),
             ("Interacoes Sociais",     lambda: controller.show_frame("TelaInteracoes")),

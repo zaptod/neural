@@ -137,6 +137,7 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self.timer_decisao = 0.0
         self.acao_atual = "NEUTRO"
         self.dir_circular = random.choice([-1, 1])
+        self.circular_consecutivo = 0  # Conta decisões CIRCULAR seguidas
         
         # === EMOÇÕES (0.0 a 1.0) ===
         self.medo = 0.0
@@ -373,16 +374,57 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             "enemy_weapon_changed": False,      # Se arma do inimigo mudou
         }
         
+        # === SISTEMA MULTI-COMBATENTE v13.0 ===
+        self.multi_awareness = {
+            "inimigos": [],           # Lista de {lutador, distancia, angulo, ameaca}
+            "aliados": [],            # Lista de {lutador, distancia, angulo, vida_pct}
+            "num_inimigos_vivos": 1,
+            "num_aliados_vivos": 0,
+            "ameaca_flanqueio": 0.0,  # 0-1, quão cercado está
+            "concentracao_inimiga": 0.0,  # Quão agrupados estão os inimigos
+            "aliado_perto_alvo": False,    # Aliado está perto do meu alvo?
+            "aliado_no_caminho": False,    # Aliado entre mim e o alvo? (friendly fire!)
+            "melhor_alvo": None,           # Inimigo mais estratégico (não necessariamente o mais perto)
+            "posicao_segura_aliados": None, # Direção para evitar friendly fire
+            "em_desvantagem_numerica": False,
+            "modo_multialvo": False,   # Se há mais de 1 inimigo
+        }
+        
+        # v13.0 TEAM ORDERS — preenchido pelo TeamCoordinator
+        self.team_orders = {
+            "role": "STRIKER",
+            "tactic": "FOCUS_FIRE",
+            "primary_target_id": 0,
+            "em_desvantagem": False,
+            "team_hp_pct": 1.0,
+            "alive_count": 1,
+            "enemy_alive_count": 1,
+            "is_carry": False,
+            "is_weakest": False,
+            "team_center": (0.0, 0.0),
+            "team_spread": 0.0,
+            "synergies": [],
+            "callouts": [],
+            "ally_intents": {},
+        }
+        
         # Gera personalidade única
         self._gerar_personalidade()
 
 
     # =========================================================================
-    # PROCESSAMENTO PRINCIPAL v10.0
+    # PROCESSAMENTO PRINCIPAL v13.0 MULTI-FIGHTER EDITION
     # =========================================================================
     
-    def processar(self, dt, distancia, inimigo):
-        """Processa decisões da IA a cada frame com comportamento humano"""
+    def processar(self, dt, distancia, inimigo, todos_lutadores=None):
+        """Processa decisões da IA a cada frame com comportamento humano.
+        
+        Args:
+            dt: Delta time
+            distancia: Distância ao inimigo principal
+            inimigo: Inimigo principal (mais próximo)
+            todos_lutadores: Lista de TODOS os lutadores (None = modo 1v1 legado)
+        """
         p = self.parent
         self.tempo_combate += dt
         
@@ -393,6 +435,13 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         # mais fácil de reproduzir em debug e mais eficiente em batalhas multi-combatente.
         self._rand_pool = [random.random() for _ in range(AI_RAND_POOL_SIZE)]
         self._rand_idx = 0
+        
+        # v13.0: Atualiza consciência multi-combatente
+        if todos_lutadores is not None:
+            self._atualizar_multi_awareness(dt, inimigo, todos_lutadores)
+        
+        # v13.0: Aplica ordens do TeamCoordinator ao comportamento
+        self._aplicar_team_orders(dt, distancia, inimigo, todos_lutadores)
         
         self._atualizar_cooldowns(dt)
         self._detectar_dano()
@@ -457,17 +506,46 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             if role in ["artillery", "burst_mage", "control_mage", "summoner", "buffer", "channeler"]:
                 usa_skills_primeiro = True
         
+        # v13.0: TEAM ROLE OVERRIDE — roles de time podem mudar prioridade
+        team_role = self.team_orders.get("role", "STRIKER")
+        if team_role == "ARTILLERY":
+            usa_skills_primeiro = True
+        elif team_role == "CONTROLLER":
+            usa_skills_primeiro = True
+        elif team_role == "SUPPORT":
+            usa_skills_primeiro = True
+        
+        # v13.0: TEAM TACTICAL OVERRIDE — certas táticas de time alteram comportamento
+        team_tactic = self.team_orders.get("tactic", "FOCUS_FIRE")
+        if team_tactic == "RETREAT_REGROUP" and self.team_orders.get("is_weakest", False):
+            # Sou o mais fraco e time está recuando: prioriza sobrevivência
+            if self._processar_skills(dt, distancia, inimigo):
+                return  # Tenta usar skill defensiva/cura
+            self.acao_atual = "RECUAR"
+            return
+        
+        # v13.0: Se friendly fire risk alto, suprime ataque/skills AoE
+        ff_suppressed = False
+        if self.multi_awareness.get("aliado_no_caminho", False):
+            # Checa se o aliado está muito perto: suprime 70% dos ataques
+            if random.random() < 0.7:
+                ff_suppressed = True
+        
         if usa_skills_primeiro:
             # Magos: Skills primeiro, depois ataque básico
             if self._processar_skills(dt, distancia, inimigo):
+                self._broadcast_team_intent(inimigo)
                 return
-            if self._avaliar_e_executar_ataque(dt, distancia, inimigo):
+            if not ff_suppressed and self._avaliar_e_executar_ataque(dt, distancia, inimigo):
+                self._broadcast_team_intent(inimigo)
                 return
         else:
             # Melee: Ataque primeiro, skills como suporte
-            if self._avaliar_e_executar_ataque(dt, distancia, inimigo):
+            if not ff_suppressed and self._avaliar_e_executar_ataque(dt, distancia, inimigo):
+                self._broadcast_team_intent(inimigo)
                 return
             if self._processar_skills(dt, distancia, inimigo):
+                self._broadcast_team_intent(inimigo)
                 return
         
         self.timer_decisao -= dt
@@ -475,3 +553,354 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             self._decidir_movimento(distancia, inimigo)
             self._calcular_timer_decisao()
             self._registrar_acao()
+
+    # =========================================================================
+    # SISTEMA MULTI-COMBATENTE v13.0
+    # =========================================================================
+
+    def _atualizar_multi_awareness(self, dt, inimigo_principal, todos_lutadores):
+        """Atualiza consciência de múltiplos combatentes na arena.
+        
+        Calcula ameaças de flanqueio, posição de aliados, riscos de friendly fire,
+        e seleciona o melhor alvo estratégico.
+        """
+        p = self.parent
+        ma = self.multi_awareness
+        
+        ma["inimigos"] = []
+        ma["aliados"] = []
+        
+        for f in todos_lutadores:
+            if f is p or f.morto:
+                continue
+            
+            dx = f.pos[0] - p.pos[0]
+            dy = f.pos[1] - p.pos[1]
+            dist = math.hypot(dx, dy)
+            angulo = math.degrees(math.atan2(dy, dx))
+            
+            if f.team_id != p.team_id:
+                # Inimigo
+                vida_pct = f.vida / max(f.vida_max, 1)
+                ameaca = self._calcular_ameaca_lutador(f, dist, vida_pct)
+                ma["inimigos"].append({
+                    "lutador": f,
+                    "distancia": dist,
+                    "angulo": angulo,
+                    "ameaca": ameaca,
+                    "vida_pct": vida_pct,
+                })
+            else:
+                # Aliado
+                vida_pct = f.vida / max(f.vida_max, 1)
+                ma["aliados"].append({
+                    "lutador": f,
+                    "distancia": dist,
+                    "angulo": angulo,
+                    "vida_pct": vida_pct,
+                })
+        
+        num_ini = len(ma["inimigos"])
+        num_ali = len(ma["aliados"])
+        ma["num_inimigos_vivos"] = max(num_ini, 1)
+        ma["num_aliados_vivos"] = num_ali
+        ma["modo_multialvo"] = num_ini > 1
+        ma["em_desvantagem_numerica"] = num_ini > (num_ali + 1)
+        
+        # --- Ameaça de flanqueio ---
+        if num_ini >= 2:
+            angulos = sorted([e["angulo"] for e in ma["inimigos"]])
+            max_spread = 0
+            for i in range(len(angulos)):
+                for j in range(i + 1, len(angulos)):
+                    diff = abs(angulos[j] - angulos[i])
+                    if diff > 180:
+                        diff = 360 - diff
+                    max_spread = max(max_spread, diff)
+            # Se inimigos estão em ângulos opostos (>120°), flanqueio alto
+            ma["ameaca_flanqueio"] = min(1.0, max_spread / 180.0)
+        else:
+            ma["ameaca_flanqueio"] = 0.0
+        
+        # --- Concentração inimiga (quão agrupados estão) ---
+        if num_ini >= 2:
+            posicoes = [(e["lutador"].pos[0], e["lutador"].pos[1]) for e in ma["inimigos"]]
+            cx = sum(x for x, y in posicoes) / num_ini
+            cy = sum(y for x, y in posicoes) / num_ini
+            spread = sum(math.hypot(x - cx, y - cy) for x, y in posicoes) / num_ini
+            # Menor spread = mais concentrados. Normaliza para 0-1 (0=espalhados, 1=juntos)
+            ma["concentracao_inimiga"] = max(0.0, 1.0 - spread / 10.0)
+        else:
+            ma["concentracao_inimiga"] = 0.0
+        
+        # --- Aliado perto do alvo principal ---
+        if ma["aliados"] and inimigo_principal:
+            for aliado in ma["aliados"]:
+                dist_aliado_alvo = math.hypot(
+                    aliado["lutador"].pos[0] - inimigo_principal.pos[0],
+                    aliado["lutador"].pos[1] - inimigo_principal.pos[1]
+                )
+                if dist_aliado_alvo < 3.0:
+                    ma["aliado_perto_alvo"] = True
+                    break
+            else:
+                ma["aliado_perto_alvo"] = False
+        else:
+            ma["aliado_perto_alvo"] = False
+        
+        # --- Aliado no caminho (risco de friendly fire) ---
+        ma["aliado_no_caminho"] = False
+        if ma["aliados"] and inimigo_principal:
+            dir_alvo = math.atan2(
+                inimigo_principal.pos[1] - p.pos[1],
+                inimigo_principal.pos[0] - p.pos[0]
+            )
+            dist_alvo = math.hypot(
+                inimigo_principal.pos[0] - p.pos[0],
+                inimigo_principal.pos[1] - p.pos[1]
+            )
+            for aliado in ma["aliados"]:
+                if aliado["distancia"] > dist_alvo:
+                    continue  # Aliado atrás do alvo, sem risco
+                dir_aliado = math.atan2(
+                    aliado["lutador"].pos[1] - p.pos[1],
+                    aliado["lutador"].pos[0] - p.pos[0]
+                )
+                diff_ang = abs(math.degrees(dir_alvo - dir_aliado))
+                if diff_ang > 180:
+                    diff_ang = 360 - diff_ang
+                if diff_ang < 25:  # Aliado dentro de cone de 25° da direção do ataque
+                    ma["aliado_no_caminho"] = True
+                    break
+        
+        # --- Melhor alvo estratégico ---
+        if ma["inimigos"]:
+            melhor = max(ma["inimigos"], key=lambda e: self._score_alvo(e))
+            ma["melhor_alvo"] = melhor["lutador"]
+        else:
+            ma["melhor_alvo"] = inimigo_principal
+
+    def _calcular_ameaca_lutador(self, lutador, distancia, vida_pct):
+        """Calcula nível de ameaça de um lutador (0-1).
+        
+        Considera: distância, vida, se está atacando, tipo de arma.
+        """
+        ameaca = 0.5
+        
+        # Mais perto = mais perigoso
+        if distancia < 3.0:
+            ameaca += 0.3 * (1.0 - distancia / 3.0)
+        elif distancia > 8.0:
+            ameaca -= 0.2
+        
+        # Mais vida = mais perigoso
+        ameaca += vida_pct * 0.2
+        
+        # Se está atacando = mais perigoso
+        if getattr(lutador, 'atacando', False):
+            ameaca += 0.15
+        
+        # Se tem arma de longo alcance
+        weapon_data = getattr(lutador, 'weapon_data', None)
+        if weapon_data:
+            alcance = weapon_data.get("alcance", 1.5)
+            if alcance > 3.0:
+                ameaca += 0.1
+        
+        return max(0.0, min(1.0, ameaca))
+
+    def _score_alvo(self, info_inimigo):
+        """Calcula score de prioridade para um alvo.
+        
+        Prioriza: inimigos com pouca vida, perto, e atacando aliados.
+        Integra com team_orders para coordenação de foco.
+        """
+        score = 0.0
+        
+        # Prioridade 1: Inimigos com pouca vida (execute)
+        if info_inimigo["vida_pct"] < 0.25:
+            score += 3.0
+        elif info_inimigo["vida_pct"] < 0.5:
+            score += 1.5
+        
+        # Prioridade 2: Proximidade (preferir alvos perto)
+        if info_inimigo["distancia"] < 4.0:
+            score += 2.0 * (1.0 - info_inimigo["distancia"] / 4.0)
+        
+        # Prioridade 3: Ameaça alta
+        score += info_inimigo["ameaca"] * 1.5
+        
+        # Prioridade 4: Se está atacando um aliado nosso
+        f = info_inimigo["lutador"]
+        if getattr(f, 'brain', None):
+            brain = f.brain
+            if hasattr(brain, '_alvo_atual') and brain._alvo_atual:
+                if getattr(brain._alvo_atual, 'team_id', -1) == self.parent.team_id:
+                    score += 1.0
+        
+        # v13.0: Prioridade 5 — Alvo designado pelo TeamCoordinator
+        primary_id = self.team_orders.get("primary_target_id", 0)
+        if primary_id and id(f) == primary_id:
+            score += 2.5  # Big bonus para o alvo do time
+        
+        # v13.0: Prioridade 6 — Role-based targeting
+        team_role = self.team_orders.get("role", "STRIKER")
+        if team_role == "FLANKER":
+            # Flankers preferem alvos que já estão sendo pressionados por aliados
+            ally_intents = self.team_orders.get("ally_intents", {})
+            for intent in ally_intents.values():
+                if intent.target_id == id(f):
+                    score += 1.0  # Aliado já está nesse, posso flanquear
+                    break
+        elif team_role == "SUPPORT":
+            # Suporte prefere alvos que ameaçam aliados frágeis
+            if hasattr(f, 'alvo') and f.alvo:
+                aliado_alvo = f.alvo
+                if getattr(aliado_alvo, 'team_id', -1) == self.parent.team_id:
+                    hp_aliado = aliado_alvo.vida / max(aliado_alvo.vida_max, 1)
+                    if hp_aliado < 0.4:
+                        score += 2.0  # Proteger aliado ferido
+        
+        # v13.0: Penalidade se muitos aliados já focam esse alvo (evita overkill)
+        ally_intents = self.team_orders.get("ally_intents", {})
+        allies_on_target = sum(1 for i in ally_intents.values()
+                               if getattr(i, 'target_id', 0) == id(f))
+        if allies_on_target >= 2:
+            score -= 0.5 * (allies_on_target - 1)  # Penaliza overkill
+        
+        return score
+
+    # =========================================================================
+    # SISTEMA DE COORDENAÇÃO DE TIME v13.0
+    # =========================================================================
+    
+    def _aplicar_team_orders(self, dt, distancia, inimigo, todos_lutadores):
+        """Aplica ordens do TeamCoordinator ao comportamento individual.
+        
+        Modifica: agressividade, alvo, posicionamento, urgência de skills.
+        Integra com: personalidade, classe, emoções, spatial.
+        """
+        orders = self.team_orders
+        if not orders or orders.get("alive_count", 1) <= 1:
+            return  # Solo ou sem ordens
+        
+        p = self.parent
+        role = orders.get("role", "STRIKER")
+        tactic = orders.get("tactic", "FOCUS_FIRE")
+        
+        # ── ROLE-BASED AGGRESSION MODIFIERS ───────────────────────
+        role_agg_mod = {
+            "VANGUARD":   0.1,    # Moderadamente agressivo, engaja
+            "STRIKER":    0.15,   # Agressivo, busca dano
+            "FLANKER":    0.05,   # Cauteloso até ter abertura
+            "ARTILLERY":  -0.1,   # Mantém distância
+            "SUPPORT":    -0.15,  # Mais defensivo
+            "CONTROLLER": -0.05,  # Calculado, espera momento certo
+        }
+        self._agressividade_temp_mod += role_agg_mod.get(role, 0) * dt
+        
+        # ── TACTIC-BASED EMOTIONAL ADJUSTMENTS ────────────────────
+        if tactic == "FULL_AGGRO":
+            self.confianca = min(1.0, self.confianca + 0.02 * dt * 60)
+            self.raiva = min(1.0, self.raiva + 0.01 * dt * 60)
+        elif tactic == "RETREAT_REGROUP":
+            self.medo = min(0.5, self.medo + 0.02 * dt * 60)  # Cuidado, não pânico
+        elif tactic == "PROTECT_CARRY":
+            if orders.get("is_carry", False):
+                self.confianca = min(1.0, self.confianca + 0.03 * dt * 60)
+            elif role in ("VANGUARD", "SUPPORT"):
+                # Protetores mantêm calma
+                self.medo = max(0, self.medo - 0.01 * dt * 60)
+        
+        # ── DESVANTAGEM NUMÉRICA AWARENESS ────────────────────────
+        if orders.get("em_desvantagem", False):
+            # Time em desvantagem: aumenta cautela de todos exceto berserkers
+            if "BERSERKER" not in self.tracos and "DETERMINADO" not in self.tracos:
+                self.hesitacao = min(0.3, self.hesitacao + 0.01 * dt * 60)
+            # Mas se eu sou o carry, pressiona mais (é a última esperança)
+            if orders.get("is_carry", False):
+                self.adrenalina = min(1.0, self.adrenalina + 0.03 * dt * 60)
+        
+        # ── RESPOND TO CALLOUTS ───────────────────────────────────
+        for callout in orders.get("callouts", []):
+            if callout.get("type") == "HELP":
+                # Aliado pediu ajuda — se sou vanguard/support, priorizo
+                if role in ("VANGUARD", "SUPPORT"):
+                    self.impulso = min(0.6, self.impulso + 0.1)
+            elif callout.get("type") == "TARGET":
+                # Aliado marcou alvo — aumento prioridade mental
+                pass  # Já handled pelo scoring do _score_alvo
+        
+        # ── SYNERGY AWARENESS ─────────────────────────────────────
+        synergies = orders.get("synergies", [])
+        for syn in synergies:
+            if syn.tipo == "cc_burst" and role == "STRIKER":
+                # Tenho sinergia CC→Burst com um controlador
+                # Espera pelo CC antes de burstar
+                ally_intents = orders.get("ally_intents", {})
+                partner_id = syn.fighter_a_id if syn.fighter_b_id == id(p) else syn.fighter_b_id
+                partner_intent = ally_intents.get(partner_id)
+                if partner_intent and partner_intent.skill_name:
+                    # Aliado controller está usando skill — BURST NOW
+                    self._agressividade_temp_mod += 0.3
+                    self.modo_burst = True
+            elif syn.tipo == "tank_dps" and role == "VANGUARD":
+                # Sou o tank — mantenho aggro posicionando na frente
+                self._agressividade_temp_mod += 0.1
+            elif syn.tipo == "heal_support" and role == "SUPPORT":
+                # Monitora aliado com pouca vida
+                if orders.get("is_weakest", False):
+                    pass  # Eu sou o fraco, cuido de mim
+                else:
+                    # Olho pro mais fraco do time para curar
+                    self._agressividade_temp_mod -= 0.1
+        
+        # ── POSITION RELATIVE TO TEAM ─────────────────────────────
+        team_center = orders.get("team_center", (0, 0))
+        dist_to_center = math.hypot(p.pos[0] - team_center[0], p.pos[1] - team_center[1])
+        
+        if role == "VANGUARD":
+            # Vanguard fica na frente do time (entre aliados e inimigos)
+            pass  # Handled na _decidir_movimento via spatial
+        elif role == "ARTILLERY":
+            # Artillery fica atrás do time
+            if dist_to_center > 8.0:
+                # Muito longe do time, reagrupa
+                self._agressividade_temp_mod -= 0.1
+        elif role == "SUPPORT":
+            # Suporte fica perto do centro do time
+            if dist_to_center > 6.0:
+                self._agressividade_temp_mod -= 0.15
+    
+    def _broadcast_team_intent(self, inimigo):
+        """Comunica a intenção atual ao TeamCoordinator."""
+        from ai.team_ai import TeamCoordinatorManager
+        coord = TeamCoordinatorManager.get().get_fighter_coordinator(self.parent)
+        if coord:
+            skill_name = ""
+            if hasattr(self.parent, 'skill_atual_nome'):
+                skill_name = getattr(self.parent, 'skill_atual_nome', "") or ""
+            coord.broadcast_intent(
+                self.parent,
+                action=self.acao_atual,
+                target=inimigo,
+                skill=skill_name,
+                urgency=self.adrenalina,
+            )
+    
+    def _pedir_ajuda_time(self):
+        """Pede ajuda ao time quando em perigo."""
+        from ai.team_ai import TeamCoordinatorManager
+        coord = TeamCoordinatorManager.get().get_fighter_coordinator(self.parent)
+        if coord:
+            p = self.parent
+            hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1
+            urgency = max(0.5, 1.0 - hp_pct)
+            coord.request_help(p, urgency)
+    
+    def _marcar_alvo_time(self, alvo, reason="FOCUS"):
+        """Marca um alvo para o time focar."""
+        from ai.team_ai import TeamCoordinatorManager
+        coord = TeamCoordinatorManager.get().get_fighter_coordinator(self.parent)
+        if coord:
+            coord.callout_target(self.parent, alvo, reason)

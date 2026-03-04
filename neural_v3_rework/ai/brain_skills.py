@@ -103,6 +103,8 @@ class SkillsMixin(_AIBrainMixinBase):
             return True
         if self._tentar_usar_summon(distancia, inimigo):
             return True
+        if self._tentar_usar_trap(distancia, inimigo):
+            return True
 
         return False
 
@@ -178,6 +180,37 @@ class SkillsMixin(_AIBrainMixinBase):
         buffs_ativos          = len(getattr(p, 'buffs_ativos', []))
         tenho_summons         = self._contar_summons_ativos() > 0
 
+        # ── v13.0: Team context ──
+        orders = getattr(self, 'team_orders', {})
+        team_role = orders.get("role", "STRIKER")
+        team_tactic = orders.get("tactic", "FOCUS_FIRE")
+        has_team = orders.get("alive_count", 1) > 1
+        is_carry = orders.get("is_carry", False)
+        is_weakest = orders.get("is_weakest", False)
+        ally_no_caminho = getattr(self, 'multi_awareness', {}).get("aliado_no_caminho", False)
+
+        # v13.0: AoE friendly fire suppression helper
+        def _aoe_safe(nome):
+            """Verifica se skill AoE é segura (sem aliados na blast zone)."""
+            if not has_team:
+                return True
+            sk = skills.get(nome)
+            if not sk:
+                return True
+            if sk.tipo not in ("AREA", "BEAM"):
+                return True  # Não AoE, sempre seguro
+            # Se aliado está no caminho do alvo, suprime AoE 80% das vezes
+            if ally_no_caminho and random.random() < 0.80:
+                return False
+            # Checa raio de AoE vs posição de aliados
+            raio_aoe = sk.data.get("raio", 0) or sk.data.get("largura", 0) or 2.0
+            aliados = getattr(self, 'multi_awareness', {}).get("aliados", [])
+            for aliado in aliados:
+                if aliado["distancia"] < raio_aoe * 1.3 and aliado["distancia"] < distancia:
+                    if random.random() < 0.75:
+                        return False
+            return True
+
         # ── Helpers ──
         def pode_usar(nome):
             if nome not in skills:
@@ -193,6 +226,9 @@ class SkillsMixin(_AIBrainMixinBase):
 
         def tentar(nome, motivo=""):
             if pode_usar(nome):
+                # v13.0: AoE friendly fire check
+                if not _aoe_safe(nome):
+                    return False
                 if self._executar_skill_por_nome(nome):
                     strategy.registrar_uso_skill(nome)
                     self._pos_uso_skill_estrategica(skills[nome])
@@ -204,6 +240,48 @@ class SkillsMixin(_AIBrainMixinBase):
             if not sk or sk.alcance_efetivo <= 0:
                 return True
             return distancia <= sk.alcance_efetivo * margem
+
+        # ================================================================
+        # v13.0 PRIORIDADE 0: TEAM SUPPORT SKILLS — cura/buff aliados
+        # Antes de tudo: se sou SUPPORT e aliado precisa de cura
+        # ================================================================
+        if has_team and team_role == "SUPPORT" and not is_weakest:
+            weakest_ally_hp = 1.0
+            ma = getattr(self, 'multi_awareness', {})
+            for aliado in ma.get("aliados", []):
+                if aliado["vida_pct"] < weakest_ally_hp:
+                    weakest_ally_hp = aliado["vida_pct"]
+
+            if weakest_ally_hp < 0.4:
+                # Aliado em perigo — prioriza cura/buff
+                for nome in list(plano.sustains) + list(plano.rotacao_critical):
+                    sk = skills.get(nome)
+                    if sk and sk.tipo == "BUFF" and (
+                        sk.data.get("cura") or sk.data.get("cura_por_segundo") or
+                        sk.data.get("escudo") or sk.data.get("buff_defesa")
+                    ):
+                        if tentar(nome, "team_suporte_aliado"):
+                            return True
+
+            # SUPPORT também buff aliados se todos saudáveis
+            if weakest_ally_hp > 0.6 and mana_pct > 0.5 and buffs_ativos == 0:
+                for nome in [n for n, sk in skills.items()
+                             if sk.tipo == "BUFF" and sk.data.get("buff_dano")]:
+                    if tentar(nome, "team_suporte_buff"):
+                        return True
+
+        # v13.0: CONTROLLER CC para time — se aliado Striker está pronto para burst
+        if has_team and team_role == "CONTROLLER" and mana_pct > 0.3:
+            ally_intents = orders.get("ally_intents", {})
+            striker_ready = any(
+                getattr(intent, 'action', '') in ("MATAR", "ESMAGAR", "PRESSIONAR")
+                for intent in ally_intents.values()
+            )
+            if striker_ready and not inimigo_stunado:
+                for nome in plano.controls:
+                    if alcance_ok(nome, 1.15):
+                        if tentar(nome, "team_cc_para_burst"):
+                            return True
 
         # ================================================================
         # PRIORIDADE 1: SOBREVIVÊNCIA — HP crítico
@@ -318,18 +396,30 @@ class SkillsMixin(_AIBrainMixinBase):
         # ================================================================
         # PRIORIDADE 5: EXECUÇÃO — inimigo HP baixo
         # Gasta mais recursos quando pode confirmar kill
+        # v13.0: Evita overkill se aliados já estão focando
         # ================================================================
         if inimigo_hp_pct < 0.32:
+            # v13.0: Check overkill — se 2+ aliados já focam este alvo,
+            # não gasta finisher caro (a não ser que HP < 10%)
+            ally_intents = orders.get("ally_intents", {})
+            allies_on_this = sum(
+                1 for i in ally_intents.values()
+                if getattr(i, 'target_id', 0) == id(inimigo)
+                and getattr(i, 'action', '') in ("MATAR", "ESMAGAR", "PRESSIONAR")
+            ) if has_team else 0
+            skip_expensive_finisher = allies_on_this >= 2 and inimigo_hp_pct > 0.10
+
             # 5a. Finisher dedicado
-            for nome in sorted(plano.finishers,
-                               key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
-                               reverse=True):
-                sk = skills.get(nome)
-                if not sk:
-                    continue
-                if alcance_ok(nome, 1.30):
-                    if tentar(nome, "execucao_finisher"):
-                        return True
+            if not skip_expensive_finisher:
+                for nome in sorted(plano.finishers,
+                                   key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
+                                   reverse=True):
+                    sk = skills.get(nome)
+                    if not sk:
+                        continue
+                    if alcance_ok(nome, 1.30):
+                        if tentar(nome, "execucao_finisher"):
+                            return True
             # 5b. Burst de maior dano
             for nome in sorted(plano.bursts,
                                key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
@@ -369,7 +459,7 @@ class SkillsMixin(_AIBrainMixinBase):
 
         # ================================================================
         # PRIORIDADE 7: OPENER — primeiros 8 segundos
-        # Estabelecer vantagem: buffs de dano, summons, transformações
+        # Estabelecer vantagem: buffs de dano, summons, traps, transformações
         # ================================================================
         if tempo_combate < 8.0:
             for nome in plano.rotacao_opening:
@@ -385,6 +475,11 @@ class SkillsMixin(_AIBrainMixinBase):
                 elif sk.tipo == "TRANSFORM":
                     if tentar(nome, "opener_transform"):
                         return True
+                elif sk.tipo == "TRAP" and self._contar_traps_ativos() < 2:
+                    # Trigger traps como zona de controle inicial
+                    if not sk.data.get("bloqueia_movimento", False):
+                        if tentar(nome, "opener_trap_trigger"):
+                            return True
                 elif sk.tipo == "BUFF" and sk.data.get("escudo") and hp_pct < 0.7:
                     if tentar(nome, "opener_escudo"):
                         return True
@@ -397,7 +492,7 @@ class SkillsMixin(_AIBrainMixinBase):
         if poke_dist_ok and mana_pct > 0.30:
             chance_poke = {
                 "artillery": 0.88, "control_mage": 0.80, "burst_mage": 0.70,
-                "summoner": 0.60, "battle_mage": 0.45,
+                "summoner": 0.60, "battle_mage": 0.45, "trap_master": 0.75,
             }.get(role, 0.38)
             if "SPAMMER" in self.tracos:
                 chance_poke = min(0.96, chance_poke + 0.14)
@@ -407,10 +502,20 @@ class SkillsMixin(_AIBrainMixinBase):
                 for nome in plano.pokes:
                     if alcance_ok(nome, 1.12) and tentar(nome, "poke"):
                         return True
-                # Traps como zoning
-                for nome in [n for n, sk in skills.items() if sk.tipo == "TRAP"]:
-                    if tentar(nome, "trap_zoning"):
-                        return True
+                # Traps como zoning — diferencia wall vs trigger
+                traps_ativos = self._contar_traps_ativos()
+                if traps_ativos < 3:
+                    for nome in [n for n, sk in skills.items() if sk.tipo == "TRAP"]:
+                        sk = skills[nome]
+                        if sk.data.get("bloqueia_movimento", False):
+                            # Walls: colocar entre eu e o inimigo quando inimigo avança
+                            if inimigo_atk_iminente or distancia < 4.0:
+                                if tentar(nome, "wall_zoning_defensivo"):
+                                    return True
+                        else:
+                            # Trigger traps: colocar no caminho do inimigo
+                            if tentar(nome, "trap_zoning_trigger"):
+                                return True
 
         # ================================================================
         # PRIORIDADE 9: SUMMON MANUTENÇÃO
@@ -420,6 +525,17 @@ class SkillsMixin(_AIBrainMixinBase):
             for nome in [n for n, sk in skills.items()
                          if sk.tipo == "SUMMON" and strategy.cd_por_tipo.get("SUMMON", 0) <= 0]:
                 if tentar(nome, "manutencao_summon"):
+                    return True
+
+        # ================================================================
+        # PRIORIDADE 9.5: TRAP MANUTENÇÃO
+        # Re-colocar traps quando poucas ativas
+        # ================================================================
+        traps_ativos_agora = self._contar_traps_ativos()
+        if traps_ativos_agora < 2 and mana_pct > 0.40 and tempo_combate > 6.0:
+            for nome in [n for n, sk in skills.items()
+                         if sk.tipo == "TRAP" and strategy.cd_por_tipo.get("TRAP", 0) <= 0]:
+                if tentar(nome, "manutencao_trap"):
                     return True
 
         # ================================================================
@@ -445,6 +561,7 @@ class SkillsMixin(_AIBrainMixinBase):
             estou_encurralado=encurralado,
             inimigo_encurralado=oponente_encurralado,
             inimigo_atacando=inimigo_atk_iminente,
+            inimigo_stunado=inimigo_stunado,
             tenho_summons_ativos=self._contar_summons_ativos(),
             tenho_traps_ativos=self._contar_traps_ativos(),
             tenho_buffs_ativos=buffs_ativos,
@@ -517,14 +634,15 @@ class SkillsMixin(_AIBrainMixinBase):
 
     
     def _pos_uso_skill_estrategica(self, skill_profile):
-        """Define ação após usar uma skill baseada na estratégia"""
+        """Define ação após usar uma skill baseada na estratégia v3.1"""
         tipo = skill_profile.tipo
         
         if tipo == "DASH":
             if skill_profile.data.get("dano_chegada", 0) > 0:
                 self.acao_atual = "MATAR"
             else:
-                self.acao_atual = "CIRCULAR"
+                # Dash sem dano = reposicionamento, agir de acordo
+                self.acao_atual = "COMBATE"
         elif tipo == "SUMMON":
             # Após invocar, recuar para deixar o summon lutar
             if self.skill_strategy.preferencias.get("estilo_kite"):
@@ -532,32 +650,37 @@ class SkillsMixin(_AIBrainMixinBase):
             else:
                 self.acao_atual = "PRESSIONAR"
         elif tipo == "TRAP":
-            # Após colocar trap, tentar atrair inimigo
-            self.acao_atual = "RECUAR"
+            if skill_profile.data.get("bloqueia_movimento", False):
+                # Wall colocada: recuar para atrás da muralha
+                self.acao_atual = "RECUAR"
+            else:
+                # Trigger trap colocada: recuar para atrair inimigo sobre ela
+                self.acao_atual = "RECUAR"
         elif tipo == "TRANSFORM":
             # Transformado = agressivo
             self.acao_atual = "MATAR"
         elif tipo == "BUFF":
             if skill_profile.data.get("buff_velocidade"):
-                # Com velocidade, pode aproximar ou fugir
                 if self.medo > 0.4:
                     self.acao_atual = "FUGIR"
                 else:
                     self.acao_atual = "APROXIMAR"
             elif skill_profile.data.get("cura"):
-                # Após cura, manter distância
-                self.acao_atual = "CIRCULAR"
+                # Curou: manter distância segura enquanto cura faz efeito
+                self.acao_atual = "RECUAR"
             else:
                 self.acao_atual = "PRESSIONAR"
         elif tipo in ["PROJETIL", "BEAM"]:
-            # Skills de distância, manter range
             if self.estilo_luta in ["KITE", "RANGED"]:
                 self.acao_atual = "RECUAR"
             else:
-                self.acao_atual = "CIRCULAR"
+                # Projetil lançado: pressionar enquanto projétil voa
+                self.acao_atual = "COMBATE"
         elif tipo == "AREA":
-            # Após área, pode seguir agressivo
             self.acao_atual = "MATAR"
+        elif tipo == "CHANNEL":
+            # Canalizando: manter posição, não orbitar
+            self.acao_atual = "COMBATE"
 
 
     def _tentar_dash_ofensivo(self, distancia, inimigo):
@@ -789,7 +912,7 @@ class SkillsMixin(_AIBrainMixinBase):
 
     
     def _tentar_usar_trap(self, distancia, inimigo):
-        """Usa armadilhas estrategicamente"""
+        """Usa armadilhas estrategicamente v3.0 — diferencia wall vs trigger"""
         trap_skills = self.skills_por_tipo.get("TRAP", [])
         if not trap_skills:
             return False
@@ -813,22 +936,34 @@ class SkillsMixin(_AIBrainMixinBase):
                 continue
             
             usar = False
+            is_wall = data.get("bloqueia_movimento", False)
             
-            # Encurralado = trap para escapar
-            if self.consciencia_espacial.get("encurralado", False):
-                usar = True
-            
-            # Inimigo se aproximando
-            elif self.leitura_oponente.get("ataque_iminente", False) and distancia < 4.0:
-                usar = True
-            
-            # Controle de área
-            elif traps_ativos < 2 and distancia > 3.0:
-                if random.random() < 0.15:
+            if is_wall:
+                # WALL: usar defensivamente
+                # Encurralado = wall para bloquear perseguição
+                if self.consciencia_espacial.get("encurralado", False):
+                    usar = True
+                # Inimigo se aproximando agressivamente
+                elif self.leitura_oponente.get("ataque_iminente", False) and distancia < 4.0:
+                    usar = True
+                # HP baixo = barreira defensiva
+                elif p.vida / max(p.vida_max, 1) < 0.4 and distancia < 5.0:
+                    usar = True
+            else:
+                # TRIGGER: colocar no caminho provável do inimigo
+                # Inimigo se aproximando = colocar na frente
+                if self.leitura_oponente.get("ataque_iminente", False) and distancia < 5.0:
+                    usar = True
+                # Controle de área geral
+                elif traps_ativos < 2 and distancia > 3.0:
+                    if random.random() < 0.20:
+                        usar = True
+                # Início do combate = armar o campo
+                elif self.tempo_combate < 6.0 and traps_ativos == 0:
                     usar = True
             
             if usar and self._usar_skill(skill):
-                self.acao_atual = "RECUAR"
+                self.acao_atual = "RECUAR" if is_wall else "CIRCULAR"
                 return True
         
         return False

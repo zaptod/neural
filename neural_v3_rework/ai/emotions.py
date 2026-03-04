@@ -74,8 +74,8 @@ class EmotionSystem:
     def atualizar(self, dt, distancia, inimigo, tempo_combate, dir_circular_cd):
         """Atualiza estado emocional"""
         p = self.parent
-        hp_pct = p.vida / p.vida_max
-        inimigo_hp_pct = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
+        hp_pct = p.vida / max(p.vida_max, 1)
+        inimigo_hp_pct = inimigo.vida / max(inimigo.vida_max, 1)
         
         # Decay de emoções
         decay = 0.005 if "FRIO" in self.tracos else 0.015

@@ -207,7 +207,7 @@ class SpatialMixin(_AIBrainMixinBase):
         esp = self.consciencia_espacial
         tatica = self.tatica_espacial
         p = self.parent
-        hp_pct = p.vida / p.vida_max
+        hp_pct = p.vida / max(p.vida_max, 1)
         
         # Reset táticas
         tatica["usando_cobertura"] = False
@@ -318,6 +318,87 @@ class SpatialMixin(_AIBrainMixinBase):
                     self.acao_atual = "CIRCULAR"
                 else:
                     self.acao_atual = "FLANQUEAR"
+
+        # ================================================================
+        # v13.0: TEAM SPATIAL AWARENESS — posicionamento relativo ao time
+        # ================================================================
+        orders = getattr(self, 'team_orders', {})
+        team_role = orders.get("role", "")
+        has_team = orders.get("alive_count", 1) > 1
+
+        if has_team and team_role:
+            team_center = orders.get("team_center", (0, 0))
+            team_spread = orders.get("team_spread", 0)
+            dist_to_center = math.hypot(
+                p.pos[0] - team_center[0], p.pos[1] - team_center[1]
+            ) if team_center != (0, 0) else 999
+
+            # ── RETREAT TO ALLY (quando HP baixo, recua para suporte/tank) ──
+            if hp_pct < 0.35 and team_role not in ("VANGUARD",):
+                from ai.team_ai import TeamCoordinatorManager
+                coord = TeamCoordinatorManager.get().get_fighter_coordinator(p)
+                if coord:
+                    retreat_pos = coord.should_retreat_to_ally(p)
+                    if retreat_pos:
+                        # Ajusta ação para recuar em direção ao aliado
+                        dx = retreat_pos[0] - p.pos[0]
+                        dy = retreat_pos[1] - p.pos[1]
+                        dist_retreat = math.hypot(dx, dy)
+                        if dist_retreat > 2.0:
+                            self.acao_atual = "RECUAR"
+                            # Seta direção de movimento para o aliado (não para longe do inimigo)
+                            ang_aliado = math.atan2(dy, dx)
+                            p.movimento_x = math.cos(ang_aliado) * 0.3
+
+            # ── VANGUARD: posiciona-se entre aliados e inimigos ──
+            if team_role == "VANGUARD":
+                ma = getattr(self, 'multi_awareness', {})
+                inimigos = ma.get("inimigos", [])
+                if inimigos and team_center != (0, 0):
+                    # Centro dos inimigos
+                    cx_ini = sum(e["lutador"].pos[0] for e in inimigos) / len(inimigos)
+                    cy_ini = sum(e["lutador"].pos[1] for e in inimigos) / len(inimigos)
+                    # Posição ideal: entre aliados e inimigos
+                    ideal_x = (team_center[0] + cx_ini) / 2
+                    ideal_y = (team_center[1] + cy_ini) / 2
+                    dist_to_ideal = math.hypot(p.pos[0] - ideal_x, p.pos[1] - ideal_y)
+                    if dist_to_ideal > 4.0:
+                        # Muito longe da posição ideal, vai para lá
+                        self._agressividade_temp_mod = max(
+                            -0.1, self._agressividade_temp_mod - 0.05
+                        )
+
+            # ── ARTILLERY: recua se muito perto do centro do time (fica atrás) ──
+            if team_role == "ARTILLERY":
+                if dist_to_center < 2.0:
+                    # Muito colado no time, se afasta para trás
+                    self._agressividade_temp_mod = max(
+                        -0.3, self._agressividade_temp_mod - 0.05
+                    )
+
+            # ── FLANKER: tenta ficar em ângulo diferente dos aliados ──
+            if team_role == "FLANKER":
+                ma = getattr(self, 'multi_awareness', {})
+                aliados = ma.get("aliados", [])
+                if aliados and inimigo:
+                    # Ângulo do inimigo em relação a mim
+                    ang_meu = math.atan2(
+                        inimigo.pos[1] - p.pos[1],
+                        inimigo.pos[0] - p.pos[0]
+                    )
+                    # Ângulo do aliado mais perto em relação ao inimigo
+                    for aliado in aliados:
+                        ang_aliado = math.atan2(
+                            inimigo.pos[1] - aliado["lutador"].pos[1],
+                            inimigo.pos[0] - aliado["lutador"].pos[0]
+                        )
+                        diff = abs(math.degrees(ang_meu - ang_aliado))
+                        if diff > 180:
+                            diff = 360 - diff
+                        # Se estou no mesmo ângulo que o aliado, flanqueia mais
+                        if diff < 45:
+                            self.dir_circular = 1 if random.random() < 0.5 else -1
+                        break  # só checa o mais perto
 
     
     def _aplicar_modificadores_espaciais(self, distancia, inimigo):

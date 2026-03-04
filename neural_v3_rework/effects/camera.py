@@ -86,9 +86,12 @@ class Câmera:
         self.target_zoom = self.zoom
 
     def aplicar_shake(self, forca, duracao=0.2):
-        """Aplica efeito de shake na câmera"""
-        self.shake_magnitude = max(self.shake_magnitude, forca)
-        self.shake_timer = max(self.shake_timer, duracao)
+        """Aplica efeito de shake na câmera — v15.0: valores reduzidos e capped"""
+        # v15.0: Escala global de shake reduzida para evitar sacudida excessiva
+        forca_ajustada = forca * 0.35  # Reduz shake global em 65%
+        forca_ajustada = min(forca_ajustada, 12.0)  # Cap absoluto
+        self.shake_magnitude = max(self.shake_magnitude, forca_ajustada)
+        self.shake_timer = max(self.shake_timer, duracao * 0.7)  # Duração menor
 
     def converter(self, world_x, world_y):
         """Converte coordenadas do mundo para tela"""
@@ -126,38 +129,42 @@ class Câmera:
         return (self.margem_segura < sx < self.screen_width - self.margem_segura and
                 self.margem_segura < sy < self.screen_height - self.margem_segura)
     
-    def _calcular_bounding_box(self, p1, p2):
+    def _calcular_bounding_box(self, p1, p2, fighters=None):
         """
-        Calcula a bounding box que contém ambos os lutadores.
+        Calcula a bounding box que contém todos os lutadores.
+        v13.0: Suporta N fighters via parâmetro opcional.
         Retorna: (min_x, min_y, max_x, max_y) em pixels do mundo
         """
-        # Posições em pixels
-        x1, y1 = p1.pos[0] * PPM, p1.pos[1] * PPM
-        x2, y2 = p2.pos[0] * PPM, p2.pos[1] * PPM
+        alvos = fighters if fighters else [p1, p2]
+        alvos = [f for f in alvos if f is not None]
         
-        # Considera altura Z (pulos/knockback vertical)
-        z1 = getattr(p1, 'z', 0) * PPM
-        z2 = getattr(p2, 'z', 0) * PPM
+        if not alvos:
+            return 0, 0, 100, 100
         
-        # Tamanho visual dos lutadores (um pouco maior que hitbox)
-        raio1 = getattr(p1, 'raio_fisico', 0.5) * PPM * 2
-        raio2 = getattr(p2, 'raio_fisico', 0.5) * PPM * 2
+        min_x = float('inf')
+        max_x = float('-inf')
+        min_y = float('inf')
+        max_y = float('-inf')
         
-        # Bounding box expandida
-        min_x = min(x1 - raio1, x2 - raio2)
-        max_x = max(x1 + raio1, x2 + raio2)
-        min_y = min(y1 - raio1 - z1, y2 - raio2 - z2)  # Considera altura
-        max_y = max(y1 + raio1, y2 + raio2)
+        for f in alvos:
+            x = f.pos[0] * PPM
+            y = f.pos[1] * PPM
+            z = getattr(f, 'z', 0) * PPM
+            raio = getattr(f, 'raio_fisico', 0.5) * PPM * 2
+            
+            min_x = min(min_x, x - raio)
+            max_x = max(max_x, x + raio)
+            min_y = min(min_y, y - raio - z)
+            max_y = max(max_y, y + raio)
         
         return min_x, min_y, max_x, max_y
     
-    def _calcular_zoom_necessario(self, p1, p2) -> float:
+    def _calcular_zoom_necessario(self, p1, p2, fighters=None) -> float:
         """
-        Calcula o zoom NECESSÁRIO para manter ambos os lutadores visíveis.
+        Calcula o zoom NECESSÁRIO para manter todos os lutadores visíveis.
         Este é o zoom MÍNIMO - não podemos ter zoom MAIOR que isso.
         """
-        # Bounding box dos lutadores
-        min_x, min_y, max_x, max_y = self._calcular_bounding_box(p1, p2)
+        min_x, min_y, max_x, max_y = self._calcular_bounding_box(p1, p2, fighters=fighters)
         
         # Tamanho necessário para enquadrar (com margem segura)
         largura_mundo = (max_x - min_x)
@@ -184,48 +191,48 @@ class Câmera:
         # Clamp aos limites
         return max(self.zoom_min, min(self.zoom_max, zoom_necessario))
     
-    def _calcular_centro_ideal(self, p1, p2) -> tuple:
+    def _calcular_centro_ideal(self, p1, p2, fighters=None) -> tuple:
         """
-        Calcula o centro ideal da câmera para enquadrar ambos os lutadores.
+        Calcula o centro ideal da câmera para enquadrar todos os lutadores.
         Retorna: (x, y) em pixels do mundo
         """
-        # Centro exato entre os lutadores
-        cx = (p1.pos[0] + p2.pos[0]) / 2 * PPM
-        cy = (p1.pos[1] + p2.pos[1]) / 2 * PPM
+        alvos = fighters if fighters else [p1, p2]
+        alvos = [f for f in alvos if f is not None]
+        
+        if not alvos:
+            return self.x, self.y
+        
+        cx = sum(f.pos[0] for f in alvos) / len(alvos) * PPM
+        cy = sum(f.pos[1] for f in alvos) / len(alvos) * PPM
         
         # Considera altura Z
-        z1 = getattr(p1, 'z', 0) * PPM
-        z2 = getattr(p2, 'z', 0) * PPM
-        cy -= (z1 + z2) / 4  # Ajusta levemente para cima se estiverem pulando
+        z_avg = sum(getattr(f, 'z', 0) for f in alvos) / len(alvos) * PPM
+        cy -= z_avg / 4
         
         return cx, cy
     
-    def _aplicar_zoom_emergencia(self, p1, p2):
+    def _aplicar_zoom_emergencia(self, p1, p2, fighters=None):
         """
         Aplica zoom de emergência se algum lutador estiver fora da tela.
         INSTANTÂNEO - não suaviza.
         """
-        # Se algum lutador for None, não há emergência
-        if p1 is None or p2 is None:
+        alvos = fighters if fighters else [f for f in [p1, p2] if f is not None]
+        if not alvos:
             return False
         
-        # Verifica se ambos estão visíveis
-        p1_visivel = self._lutador_visivel(p1)
-        p2_visivel = self._lutador_visivel(p2)
+        # Verifica se todos estão visíveis
+        todos_visiveis = all(self._lutador_visivel(f) for f in alvos)
         
-        if not p1_visivel or not p2_visivel:
+        if not todos_visiveis:
             self._emergency_zoom_count += 1
             
-            # Calcula zoom necessário para ver ambos
-            zoom_necessario = self._calcular_zoom_necessario(p1, p2)
+            zoom_necessario = self._calcular_zoom_necessario(p1, p2, fighters=alvos)
             
-            # APLICA IMEDIATAMENTE (sem suavização)
             if zoom_necessario < self.zoom:
                 self.zoom = zoom_necessario
                 self.target_zoom = zoom_necessario
             
-            # Também centraliza imediatamente
-            cx, cy = self._calcular_centro_ideal(p1, p2)
+            cx, cy = self._calcular_centro_ideal(p1, p2, fighters=alvos)
             self.x = cx
             self.y = cy
             
@@ -233,19 +240,26 @@ class Câmera:
         
         return False
 
-    def atualizar(self, dt, p1, p2):
-        """Atualiza a câmera baseado nos lutadores"""
+    def atualizar(self, dt, p1, p2, fighters=None):
+        """Atualiza a câmera baseado nos lutadores. v13.0: Suporta N fighters."""
         
-        # === SHAKE ===
+        # v13.0: Se fighters list fornecida, usa para todos os cálculos
+        alvos = fighters if fighters else [p1, p2]
+        alvos = [f for f in alvos if f is not None]
+        
+        # === SHAKE v15.0: Decay mais rápido, menos sacudida ===
         if self.shake_timer > 0:
             self.shake_timer -= dt
-            decay = min(1.0, self.shake_timer / 0.3)
-            shake_atual = self.shake_magnitude * decay * decay
+            decay = min(1.0, self.shake_timer / 0.15)  # Decay 2x mais rápido
+            shake_atual = self.shake_magnitude * decay * decay * decay  # Cubic decay (mais suave)
+            # Shake mínimo: ignora valores muito pequenos
+            if shake_atual < 0.5:
+                shake_atual = 0
             self.offset_x = random.uniform(-shake_atual, shake_atual)
             self.offset_y = random.uniform(-shake_atual, shake_atual)
         else:
-            self.offset_x *= 0.8
-            self.offset_y *= 0.8
+            self.offset_x *= 0.6  # Retorno mais rápido ao centro
+            self.offset_y *= 0.6
             self.shake_magnitude = 0
         
         # === MODO MANUAL (teclas WASD) ===
@@ -254,10 +268,10 @@ class Câmera:
         
         # === PASSO 1: VERIFICAÇÃO DE EMERGÊNCIA ===
         # Se algum lutador estiver fora da tela, AÇÃO IMEDIATA
-        if p1 is None or p2 is None:
-            return  # Não pode atualizar sem lutadores
+        if not alvos:
+            return
         
-        emergencia = self._aplicar_zoom_emergencia(p1, p2)
+        emergencia = self._aplicar_zoom_emergencia(p1, p2, fighters=alvos)
         
         if emergencia:
             # Após emergência, retorna - próximo frame vai suavizar
@@ -265,10 +279,15 @@ class Câmera:
         
         # === PASSO 2: CÁLCULO DO ZOOM IDEAL ===
         if self.modo == "AUTO":
-            zoom_necessario = self._calcular_zoom_necessario(p1, p2)
+            zoom_necessario = self._calcular_zoom_necessario(p1, p2, fighters=alvos)
             
-            # Adiciona um pouco de "drama" baseado na distância
-            dist = math.hypot(p1.pos[0] - p2.pos[0], p1.pos[1] - p2.pos[1])
+            # v13.0: Distância entre os 2 lutadores mais distantes
+            max_dist = 0
+            for i in range(len(alvos)):
+                for j in range(i + 1, len(alvos)):
+                    d = math.hypot(alvos[i].pos[0] - alvos[j].pos[0], alvos[i].pos[1] - alvos[j].pos[1])
+                    max_dist = max(max_dist, d)
+            dist = max_dist
             
             # Combate muito próximo = pode dar zoom in (mas não mais que o necessário)
             if dist < 3.0:
@@ -278,8 +297,7 @@ class Câmera:
             
             # Vida crítica = ligeiramente mais zoom
             vida_min = min(
-                p1.vida / p1.vida_max if p1.vida_max > 0 else 1,
-                p2.vida / p2.vida_max if p2.vida_max > 0 else 1
+                (f.vida / f.vida_max if f.vida_max > 0 else 1) for f in alvos
             )
             if vida_min < 0.25:
                 zoom_desejado = min(zoom_desejado * 1.1, self.zoom_max)
@@ -302,10 +320,8 @@ class Câmera:
             self.target_zoom = min(self.target_zoom, zoom_necessario * 1.1)
         
         elif self.modo == "P1":
-            # Segue P1
             self.target_zoom = 1.2
         elif self.modo == "P2":
-            # Segue P2
             self.target_zoom = 1.2
         
         # === PASSO 3: APLICA ZOOM SUAVEMENTE ===
@@ -326,7 +342,7 @@ class Câmera:
             tx, ty = p2.pos[0] * PPM, p2.pos[1] * PPM
             self.lerp_pos(tx, ty, dt, self.velocidade_pan)
         elif self.modo == "AUTO":
-            cx, cy = self._calcular_centro_ideal(p1, p2)
+            cx, cy = self._calcular_centro_ideal(p1, p2, fighters=alvos)
             
             # === ENQUADRAMENTO PREDITIVO ===
             if self._prev_centro is not None:
@@ -344,19 +360,19 @@ class Câmera:
                 cx += self._velocidade_centro[0] * predicao
                 cy += self._velocidade_centro[1] * predicao
             
-            self._prev_centro = self._calcular_centro_ideal(p1, p2)
+            self._prev_centro = self._calcular_centro_ideal(p1, p2, fighters=alvos)
             
             # Acelera câmera se lutador perto da borda
             velocidade = self.velocidade_pan
-            if not self._lutador_na_zona_segura(p1) or not self._lutador_na_zona_segura(p2):
+            if any(not self._lutador_na_zona_segura(f) for f in alvos):
                 velocidade = self.velocidade_pan * 2
             
             self.lerp_pos(cx, cy, dt, velocidade)
         
         # === PASSO 5: VERIFICAÇÃO FINAL ===
         # Se MESMO ASSIM algum lutador estiver fora, força zoom
-        if not self._lutador_visivel(p1) or not self._lutador_visivel(p2):
-            zoom_min_necessario = self._calcular_zoom_necessario(p1, p2)
+        if any(not self._lutador_visivel(f) for f in alvos):
+            zoom_min_necessario = self._calcular_zoom_necessario(p1, p2, fighters=alvos)
             if self.zoom > zoom_min_necessario:
                 self.zoom = zoom_min_necessario
 
@@ -373,12 +389,12 @@ class Câmera:
     def esta_visivel(self, world_x, world_y, margem=50):
         """Verifica se uma posição do mundo está visível na tela"""
         sx, sy = self.converter(world_x, world_y)
-        return -margem < sx < LARGURA + margem and -margem < sy < ALTURA + margem
+        return -margem < sx < self.screen_width + margem and -margem < sy < self.screen_height + margem
     
     def get_bounds_mundo(self):
         """Retorna os limites do mundo visíveis na tela"""
-        min_x = self.x - (LARGURA / 2) / self.zoom
-        max_x = self.x + (LARGURA / 2) / self.zoom
-        min_y = self.y - (ALTURA / 2) / self.zoom
-        max_y = self.y + (ALTURA / 2) / self.zoom
+        min_x = self.x - (self.screen_width / 2) / self.zoom
+        max_x = self.x + (self.screen_width / 2) / self.zoom
+        min_y = self.y - (self.screen_height / 2) / self.zoom
+        max_y = self.y + (self.screen_height / 2) / self.zoom
         return min_x, min_y, max_x, max_y

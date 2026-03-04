@@ -81,7 +81,7 @@ class CombatMixin(_AIBrainMixinBase):
             chance_base = 0.6
             
             # Aumenta chance se inimigo com pouca vida
-            if inimigo.vida / inimigo.vida_max < 0.3:
+            if inimigo.vida / max(inimigo.vida_max, 1) < 0.3:
                 chance_base = 0.85
             
             # Modificadores de personalidade
@@ -405,8 +405,8 @@ class CombatMixin(_AIBrainMixinBase):
         
         # Baseado em HP
         p = self.parent
-        meu_hp = p.vida / p.vida_max
-        ini_hp = inimigo.vida / inimigo.vida_max
+        meu_hp = p.vida / max(p.vida_max, 1)
+        ini_hp = inimigo.vida / max(inimigo.vida_max, 1)
         hp_diff = meu_hp - ini_hp
         self.momentum += hp_diff * 0.02
         
@@ -531,8 +531,8 @@ class CombatMixin(_AIBrainMixinBase):
         """Dispatcher de decisão de movimento — v13.0 Strategy Pattern"""
         p = self.parent
         roll = random.random()
-        hp_pct = p.vida / p.vida_max
-        inimigo_hp_pct = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
+        hp_pct = p.vida / max(p.vida_max, 1)
+        inimigo_hp_pct = inimigo.vida / max(inimigo.vida_max, 1)
 
         alcance_efetivo = self._calcular_alcance_efetivo()
         alcance_ideal   = p.alcance_ideal
@@ -636,7 +636,7 @@ class CombatMixin(_AIBrainMixinBase):
             em_combo   = slam_combo >= 2
 
             if em_zona_morta:
-                urgencia = 1.0 - (distancia / zona_morta)
+                urgencia = 1.0 - (distancia / max(zona_morta, 0.01))
                 self.acao_atual = "RECUAR" if (urgencia > 0.4 or roll < 0.88) else random.choice(["RECUAR", "COMBATE", "RECUAR"])
                 if hasattr(self.parent, 'mangual_slam_combo'):
                     self.parent.mangual_slam_combo = 0
@@ -895,12 +895,114 @@ class CombatMixin(_AIBrainMixinBase):
         if self.acao_atual not in ("NEUTRO",):
             votar(self.acao_atual, 0.5)
 
+        # ── 11. TEAM ROLE-BASED MOVEMENT v13.0 ──────────────────────────────────
+        orders = getattr(self, 'team_orders', {})
+        team_role = orders.get("role", "")
+        team_tactic = orders.get("tactic", "")
+        team_center = orders.get("team_center", (0, 0))
+        has_team = orders.get("alive_count", 1) > 1
+
+        if has_team and team_role:
+            if team_role == "VANGUARD":
+                # Vanguard fica entre aliados e inimigos, engaja frontalmente
+                votar("APROXIMAR", 0.5); votar("PRESSIONAR", 0.5); votar("MATAR", 0.3)
+                votar("BLOQUEAR", 0.2)
+                # Não recua facilmente
+                pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.4
+                pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.2
+            elif team_role == "FLANKER":
+                # Flanker circula para atacar pelo lado
+                votar("FLANQUEAR", 0.8); votar("CIRCULAR", 0.4)
+                if no_alcance:
+                    votar("ATAQUE_RAPIDO", 0.5)
+                else:
+                    votar("APROXIMAR", 0.3)
+                # Evita engajamento frontal direto
+                pesos["PRESSIONAR"] = pesos.get("PRESSIONAR", 0.0) * 0.5
+            elif team_role == "ARTILLERY":
+                # Artillery mantém distância máxima
+                if distancia < alcance_efetivo * 0.6:
+                    votar("RECUAR", 1.2); votar("FUGIR", 0.6)
+                elif distancia < alcance_efetivo:
+                    votar("RECUAR", 0.5); votar("CIRCULAR", 0.4)
+                else:
+                    votar("COMBATE", 0.5)
+                # Penaliza aproximação agressiva
+                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.3
+                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.5
+            elif team_role == "SUPPORT":
+                # Suporte fica perto do centro do time, evita frontline
+                dist_to_center = math.hypot(
+                    p.pos[0] - team_center[0], p.pos[1] - team_center[1]
+                ) if team_center != (0, 0) else 999
+                if dist_to_center > 6.0:
+                    # Longe do time, reagrupa
+                    votar("RECUAR", 0.6); votar("CIRCULAR", 0.4)
+                else:
+                    votar("COMBATE", 0.5); votar("CIRCULAR", 0.3)
+                # Suporte evita engajamento direto
+                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.4
+                pesos["ESMAGAR"] = pesos.get("ESMAGAR", 0.0) * 0.3
+            elif team_role == "CONTROLLER":
+                # Controller mantém distância média, zone control
+                if distancia < alcance_ideal * 0.6:
+                    votar("RECUAR", 0.6); votar("CIRCULAR", 0.5)
+                elif distancia < alcance_efetivo:
+                    votar("COMBATE", 0.5); votar("CIRCULAR", 0.4); votar("FLANQUEAR", 0.3)
+                else:
+                    votar("APROXIMAR", 0.3); votar("CIRCULAR", 0.3)
+            elif team_role == "STRIKER":
+                # Striker é agressivo mas calculado
+                if no_alcance:
+                    votar("MATAR", 0.4); votar("ESMAGAR", 0.3)
+                else:
+                    votar("APROXIMAR", 0.4); votar("PRESSIONAR", 0.3)
+
+            # ── TACTIC-BASED OVERRIDES ──
+            if team_tactic == "RETREAT_REGROUP":
+                votar("RECUAR", 1.0); votar("CIRCULAR", 0.5)
+                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.3
+                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.3
+            elif team_tactic == "FULL_AGGRO":
+                votar("MATAR", 0.5); votar("APROXIMAR", 0.4); votar("PRESSIONAR", 0.3)
+            elif team_tactic == "KITE_AND_POKE":
+                if distancia < alcance_efetivo * 0.8:
+                    votar("RECUAR", 0.5)
+                votar("CIRCULAR", 0.3); votar("POKE", 0.3)
+            elif team_tactic == "PINCER_ATTACK":
+                if team_role == "FLANKER":
+                    votar("FLANQUEAR", 0.8)
+                else:
+                    votar("PRESSIONAR", 0.4); votar("APROXIMAR", 0.3)
+            elif team_tactic == "PROTECT_CARRY":
+                if orders.get("is_carry", False):
+                    # Carry joga mais agressivo
+                    votar("MATAR", 0.4); votar("PRESSIONAR", 0.3)
+                elif team_role in ("VANGUARD", "SUPPORT"):
+                    # Protetores ficam perto do carry
+                    votar("COMBATE", 0.3); votar("CIRCULAR", 0.3)
+            elif team_tactic == "BAIT_AND_PUNISH":
+                if team_role in ("CONTROLLER", "FLANKER"):
+                    votar("CIRCULAR", 0.4); votar("RECUAR", 0.3)
+                else:
+                    votar("COMBATE", 0.3)
+
         # ── ANTI-REPETIÇÃO ─────────────────────────────────────────────────────
         if len(self.historico_acoes) >= 3:
             ultimas_3 = self.historico_acoes[-3:]
             acao_rep = self.acao_atual
             if ultimas_3.count(acao_rep) >= 2:
                 pesos[acao_rep] = pesos.get(acao_rep, 0.0) * 0.5   # penaliza repetição
+
+        # ── ANTI-CIRCULAR: impede orbitar infinitamente ────────────────────────
+        if self.circular_consecutivo >= 3:
+            # Já circulou demais — penaliza fortemente e força ação diferente
+            pesos["CIRCULAR"] = pesos.get("CIRCULAR", 0.0) * 0.1
+            # Incentiva ações que quebrem o padrão
+            if no_alcance:
+                votar("COMBATE", 0.8); votar("PRESSIONAR", 0.5)
+            else:
+                votar("APROXIMAR", 0.7); votar("FLANQUEAR", 0.5)
 
         # ── DECISÃO FINAL ──────────────────────────────────────────────────────
         if pesos:

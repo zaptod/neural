@@ -76,6 +76,7 @@ class AudioManager:
     
     def __init__(self):
         self.enabled = True
+        self.debug = False  # Set True to enable audio debug prints
         self.master_volume = 0.7
         self.sfx_volume = 0.8
         self.music_volume = 0.5
@@ -98,8 +99,9 @@ class AudioManager:
         # Diretório de sons - usa caminho absoluto
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.sound_dir = os.path.join(base_dir, "sounds")
-        print(f"[AUDIO] Sound directory: {self.sound_dir}")
-        print(f"[AUDIO] Directory exists: {os.path.exists(self.sound_dir)}")
+        if self.debug:
+            print(f"[AUDIO] Sound directory: {self.sound_dir}")
+            print(f"[AUDIO] Directory exists: {os.path.exists(self.sound_dir)}")
         
         if not os.path.exists(self.sound_dir):
             os.makedirs(self.sound_dir, exist_ok=True)
@@ -183,7 +185,8 @@ class AudioManager:
         self.sound_groups.clear()
         self.sound_config = self._load_sound_config()
         self._setup_sounds()
-        print("AudioManager: Sons recarregados!")
+        if self.debug:
+            print("AudioManager: Sons recarregados!")
     
     @classmethod
     def get_instance(cls):
@@ -340,10 +343,10 @@ class AudioManager:
             if os.path.exists(filepath):
                 try:
                     sound = pygame.mixer.Sound(filepath)
-                    print(f"[AUDIO] Loaded configured: {name} -> {filepath}")
+                    if self.debug: print(f"[AUDIO] Loaded configured: {name} -> {filepath}")
                     return sound
                 except Exception as e:
-                    print(f"[AUDIO] Error loading {filepath}: {e}")
+                    if self.debug: print(f"[AUDIO] Error loading {filepath}: {e}")
         
         # Tenta carregar arquivo com nome padrão
         for ext in ['.wav', '.ogg', '.mp3']:
@@ -351,10 +354,10 @@ class AudioManager:
             if os.path.exists(filepath):
                 try:
                     sound = pygame.mixer.Sound(filepath)
-                    print(f"[AUDIO] Loaded: {name} -> {filepath}")
+                    if self.debug: print(f"[AUDIO] Loaded: {name} -> {filepath}")
                     return sound
                 except Exception as e:
-                    print(f"[AUDIO] Error loading {filepath}: {e}")
+                    if self.debug: print(f"[AUDIO] Error loading {filepath}: {e}")
         
         # SEM som configurado = não toca nada (sem sons procedurais)
         return None
@@ -373,7 +376,7 @@ class AudioManager:
             pan: Panorâmica (-1.0 esquerda, 0.0 centro, 1.0 direita)
         """
         if not self.enabled or not sound_name:
-            print(f"[AUDIO] play() - disabled or no name: enabled={self.enabled}, name={sound_name}")
+            if self.debug: print(f"[AUDIO] play() - disabled or no name: enabled={self.enabled}, name={sound_name}")
             return
         
         # Tenta tocar do grupo primeiro (variação aleatória)
@@ -382,12 +385,12 @@ class AudioManager:
         if sound_name in self.sound_groups:
             sounds = self.sound_groups[sound_name]
             sound = random.choice(sounds)
-            print(f"[AUDIO] Playing from group: {sound_name}")
+            if self.debug: print(f"[AUDIO] Playing from group: {sound_name}")
         elif sound_name in self.sounds:
             sound = self.sounds[sound_name]
-            print(f"[AUDIO] Playing sound: {sound_name}")
+            if self.debug: print(f"[AUDIO] Playing sound: {sound_name}")
         else:
-            print(f"[AUDIO] Sound NOT FOUND: {sound_name} (available: {list(self.sounds.keys())[:5]}...)")
+            if self.debug: print(f"[AUDIO] Sound NOT FOUND: {sound_name} (available: {list(self.sounds.keys())[:5]}...)")
             return
         
         if sound:
@@ -407,7 +410,7 @@ class AudioManager:
             else:
                 sound.set_volume(final_volume)
             
-            print(f"[AUDIO] >>> PLAYING {actual_name} [{category}] vol={final_volume:.2f}")
+            if self.debug: print(f"[AUDIO] >>> PLAYING {actual_name} [{category}] vol={final_volume:.2f}")
             sound.play()
     
     def play_positional(self, sound_name: str, pos_x: float, listener_x: float, 
@@ -497,7 +500,7 @@ class AudioManager:
             else:
                 sound = "slash_light"
                 volume = 0.7
-            print(f"[AUDIO] Slash sound: damage={damage:.1f}, critical={is_critical} -> {sound}")
+        if self.debug: print(f"[AUDIO] Slash sound: damage={damage:.1f}, critical={is_critical} -> {sound}")
         else:
             sound = category
             volume = 0.7
@@ -597,7 +600,7 @@ class AudioManager:
     
     def play_movement(self, movement_type: str, pos_x: float = 0, listener_x: float = 0):
         """Toca som de movimento"""
-        print(f"[AUDIO] play_movement called: type={movement_type}, pos_x={pos_x}")
+        if self.debug: print(f"[AUDIO] play_movement called: type={movement_type}, pos_x={pos_x}")
         sound_map = {
             "jump": "jump_start",
             "land": "jump_land",
@@ -606,15 +609,15 @@ class AudioManager:
         }
         
         sound = sound_map.get(movement_type)
-        print(f"[AUDIO] play_movement: mapped '{movement_type}' -> '{sound}'")
+        if self.debug: print(f"[AUDIO] play_movement: mapped '{movement_type}' -> '{sound}'")
         if sound:
             # Volume mais alto para pulos (0.7) para ser audível mesmo com atenuação espacial
             volume = 0.3 if movement_type == "footstep" else 0.7
             if pos_x != 0:
-                print(f"[AUDIO] Calling play_positional for {sound}")
+                if self.debug: print(f"[AUDIO] Calling play_positional for {sound}")
                 self.play_positional(sound, pos_x, listener_x, volume=volume)
             else:
-                print(f"[AUDIO] Calling play for {sound}")
+                if self.debug: print(f"[AUDIO] Calling play for {sound}")
                 self.play(sound, volume=volume)
     
     def play_special(self, event_type: str, volume: float = 0.8):

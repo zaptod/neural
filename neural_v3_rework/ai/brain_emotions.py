@@ -99,7 +99,7 @@ class EmotionsMixin(_AIBrainMixinBase):
         base_impulso = 0.1
         if self.raiva > 0.6:
             base_impulso += 0.3
-        if inimigo.vida / inimigo.vida_max < 0.25:
+        if inimigo.vida / max(inimigo.vida_max, 1) < 0.25:
             base_impulso += 0.25
         if self.momentum > 0.5:
             base_impulso += 0.2
@@ -174,6 +174,15 @@ class EmotionsMixin(_AIBrainMixinBase):
         if len(self.historico_acoes) > 10:
             self.historico_acoes.pop(0)
         
+        # Rastreia CIRCULAR consecutivo e inverte direção periodicamente
+        if self.acao_atual == "CIRCULAR":
+            self.circular_consecutivo += 1
+            # A cada 2-3 circulares seguidos, inverte a direção pra não parecer robótico
+            if self.circular_consecutivo >= random.randint(2, 3):
+                self.dir_circular *= -1
+        else:
+            self.circular_consecutivo = 0
+        
         # Conta repetições
         if self.acao_atual in self.repeticao_contador:
             self.repeticao_contador[self.acao_atual] += 1
@@ -242,8 +251,8 @@ class EmotionsMixin(_AIBrainMixinBase):
     def _atualizar_emocoes(self, dt, distancia, inimigo):
         """Atualiza estado emocional"""
         p = self.parent
-        hp_pct = p.vida / p.vida_max
-        inimigo_hp_pct = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
+        hp_pct = p.vida / max(p.vida_max, 1)
+        inimigo_hp_pct = inimigo.vida / max(inimigo.vida_max, 1)
         
         decay = 0.005 if "FRIO" in self.tracos else 0.015
         if "EMOTIVO" in self.tracos:
@@ -290,6 +299,85 @@ class EmotionsMixin(_AIBrainMixinBase):
         if hp_pct < 0.2 or (distancia < 2.0 and self.raiva > 0.5):
             self.adrenalina = min(1.0, self.adrenalina + 0.04 * dt * 60)
         
+        # ================================================================
+        # v13.0: TEAM EMOTIONAL CONTEXT
+        # Aliados influenciam estado emocional: moral, coordenação, medo coletivo
+        # ================================================================
+        orders = getattr(self, 'team_orders', {})
+        has_team = orders.get("alive_count", 1) > 1
+
+        if has_team:
+            team_hp_pct = orders.get("team_hp_pct", 1.0)
+            em_desvantagem = orders.get("em_desvantagem", False)
+            alive_count = orders.get("alive_count", 1)
+            enemy_alive = orders.get("enemy_alive_count", 1)
+            is_carry = orders.get("is_carry", False)
+
+            # ── MORAL DO TIME (afeta confiança e medo de todos) ──
+            if team_hp_pct > 0.7 and alive_count > enemy_alive:
+                # Time saudável e em vantagem = moral alto
+                self.confianca = min(1.0, self.confianca + 0.01 * dt * 60)
+                self.medo = max(0, self.medo - 0.005 * dt * 60)
+            elif team_hp_pct < 0.3 or em_desvantagem:
+                # Time morrendo ou em desvantagem numérica
+                if "DETERMINADO" not in self.tracos and "FRIO" not in self.tracos:
+                    self.medo = min(0.6, self.medo + 0.01 * dt * 60)
+                if "VINGATIVO" in self.tracos:
+                    self.raiva = min(1.0, self.raiva + 0.02 * dt * 60)
+
+            # ── ALLY DEATH DETECTION ──
+            ma = getattr(self, 'multi_awareness', {})
+            prev_ally_count = getattr(self, '_prev_ally_alive', alive_count)
+            if alive_count < prev_ally_count:
+                # Aliado morreu!
+                ally_died = True
+                if "VINGATIVO" in self.tracos:
+                    self.raiva = min(1.0, self.raiva + 0.4)
+                    self.adrenalina = min(1.0, self.adrenalina + 0.3)
+                if "BERSERKER" in self.tracos or "BERSERKER_RAGE" in self.tracos:
+                    self.raiva = min(1.0, self.raiva + 0.3)
+                    self.modo_berserk = True
+                if "COVARDE" in self.tracos:
+                    self.medo = min(1.0, self.medo + 0.3)
+                if "PROTETOR" in self.tracos:
+                    self.frustracao = min(1.0, self.frustracao + 0.3)
+                    self.raiva = min(1.0, self.raiva + 0.2)
+                # Emotional impact genérico
+                self.adrenalina = min(1.0, self.adrenalina + 0.15)
+            self._prev_ally_alive = alive_count
+
+            # ── LAST STAND — último sobrevivente do time ──
+            if alive_count == 1 and enemy_alive >= 2:
+                self.adrenalina = min(1.0, self.adrenalina + 0.05 * dt * 60)
+                if "DETERMINADO" in self.tracos or "KAMIKAZE" in self.tracos:
+                    self.raiva = min(1.0, self.raiva + 0.03 * dt * 60)
+                    self.confianca = min(0.8, self.confianca + 0.02 * dt * 60)
+                    self.medo = max(0, self.medo - 0.02 * dt * 60)
+                elif "COVARDE" not in self.tracos:
+                    self.medo = min(0.7, self.medo + 0.02 * dt * 60)
+
+            # ── COORDINATED AGGRESSION — aliados atacando = mais confiança ──
+            ally_intents = orders.get("ally_intents", {})
+            allies_attacking = sum(
+                1 for i in ally_intents.values()
+                if getattr(i, 'action', '') in ("MATAR", "ESMAGAR", "PRESSIONAR")
+            )
+            if allies_attacking >= 2:
+                self.confianca = min(1.0, self.confianca + 0.01 * dt * 60)
+                self.excitacao = min(1.0, self.excitacao + 0.01 * dt * 60)
+
+            # ── CARRY PRESSURE — carry do time sente pressão extra ──
+            if is_carry:
+                self.excitacao = min(1.0, self.excitacao + 0.005 * dt * 60)
+
+            # ── HELP REQUEST URGENCY — se aliado pediu ajuda, impulso sobe ──
+            for callout in orders.get("callouts", []):
+                if callout.get("type") == "HELP":
+                    urgency = callout.get("urgency", 0.5)
+                    self.impulso = min(0.7, self.impulso + urgency * 0.1)
+                    if "PROTETOR" in self.tracos:
+                        self.impulso = min(0.9, self.impulso + 0.15)
+
         # Mudança de direção
         if self.cd_mudanca_direcao <= 0:
             chance = 0.15 if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos else 0.08
@@ -358,7 +446,7 @@ class EmotionsMixin(_AIBrainMixinBase):
                 self.modo_defensivo = False
         
         if "EXPLOSIVO" in self.tracos or self.estilo_luta == "BURST":
-            inimigo_hp_pct = inimigo.vida / inimigo.vida_max
+            inimigo_hp_pct = inimigo.vida / max(inimigo.vida_max, 1)
             if inimigo_hp_pct < 0.4 or (p.mana > p.mana_max * 0.8 and distancia < 5.0):
                 self.modo_burst = True
             elif inimigo_hp_pct > 0.6 or p.mana < p.mana_max * 0.3:
@@ -375,8 +463,8 @@ class EmotionsMixin(_AIBrainMixinBase):
             return False
         
         p = self.parent
-        hp_pct = p.vida / p.vida_max
-        inimigo_hp_pct = inimigo.vida / inimigo.vida_max
+        hp_pct = p.vida / max(p.vida_max, 1)
+        inimigo_hp_pct = inimigo.vida / max(inimigo.vida_max, 1)
         
         for quirk in self.quirks:
             if self._executar_quirk(quirk, distancia, hp_pct, inimigo_hp_pct, inimigo):

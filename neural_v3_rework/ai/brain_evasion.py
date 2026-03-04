@@ -170,7 +170,7 @@ class EvasionMixin(_AIBrainMixinBase):
         escolha += random.uniform(-20, 20)
         
         # Se HP baixo, prioriza recuar
-        hp_pct = p.vida / p.vida_max
+        hp_pct = p.vida / max(p.vida_max, 1)
         if hp_pct < 0.3:
             # Mistura desvio com recuo
             ang_recuo = math.degrees(math.atan2(
@@ -281,7 +281,7 @@ class EvasionMixin(_AIBrainMixinBase):
                 
                 if diff_ang < 45:  # Vindo na minha direção
                     vel_proj = getattr(proj, 'vel', 10.0)
-                    tempo_impacto = dist / vel_proj
+                    tempo_impacto = dist / max(vel_proj, 0.01)
                     
                     if tempo_impacto < resultado["tempo_impacto"]:
                         resultado["vindo"] = True

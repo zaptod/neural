@@ -1677,7 +1677,7 @@ class TelaArmas(tk.Frame):
 
     def desenhar_arma_corrente(self, cx, cy, raio, cor, cor_rar, estilo=""):
         """Desenha arma do tipo Corrente por estilo.
-        Estilos: Kusarigama, Flail (Mangual), Chicote, Corrente com Peso.
+        Estilos: Kusarigama, Mangual, Chicote, Corrente com Peso, Meteor Hammer.
         """
         import math as _math
         cv   = self.canvas_preview
@@ -1710,33 +1710,66 @@ class TelaArmas(tk.Frame):
             wy = cy
             cv.create_oval(wx - 7, wy - 7, wx + 7, wy + 7, fill=cor, outline=cor_rar, width=2)
 
-        # ── FLAIL (MANGUAL) — cabo + corrente + bola espigada ──────────────
+        # ── FLAIL (MANGUAL) v4.0 — Estrela da Manhã ─────────────────────
         elif "Mangual" in estilo or "Flail" in estilo:
-            comp   = 80 * 0.6
-            ponta  = max(12, int(20 * 0.8))
-            cabo_t = 18 * 0.45
-            # Cabo
-            cv.create_rectangle(bx, cy - 5, bx + cabo_t, cy + 5, fill="#6B3A1F", outline="#4A2810")
-            cv.create_oval(bx + cabo_t - 4, cy - 5, bx + cabo_t + 4, cy + 5, outline="#A0A5B0", width=2)
-            # Elos da corrente
-            elo_x = bx + cabo_t + 4
-            for i in range(8):
-                t = i / 7
+            comp   = 80 * 0.55
+            head_r = max(11, int(18 * 0.85))
+            cabo_t = 18 * 0.42
+            # Cabo metálico reforçado
+            cv.create_rectangle(bx, cy - 4, bx + cabo_t, cy + 4, fill="#3A3544", outline="#5A5568")
+            cv.create_line(bx + 2, cy, bx + cabo_t - 2, cy, fill="#8A859E", width=1)  # highlight
+            # Grip de couro (2 faixas)
+            for gi in [0.3, 0.6]:
+                gx = bx + cabo_t * gi
+                cv.create_line(gx, cy - 4, gx, cy + 4, fill="#2A1A0A", width=2)
+            # Pommel (base)
+            cv.create_oval(bx - 3, cy - 4, bx + 3, cy + 4, fill="#5A5568", outline=cor_rar, width=1)
+            # Pivô articulado
+            cv.create_oval(bx + cabo_t - 4, cy - 5, bx + cabo_t + 4, cy + 5,
+                           fill="#3A3544", outline="#B0AEC0", width=2)
+            # Corrente: elos ovais alternados
+            elo_x = bx + cabo_t + 6
+            for i in range(7):
+                t = i / 6
                 ex = elo_x + comp * t
-                ey = cy + _math.sin(t * _math.pi) * 14
-                ew, eh = (8, 4) if i % 2 == 0 else (5, 7)
-                cv.create_rectangle(ex - ew//2, ey - eh//2, ex + ew//2, ey + eh//2,
-                                     fill="#6A6C78", outline="#9A9CA8")
-            # Bola espigada
-            bx2 = elo_x + comp + 4
-            by2 = cy + _math.sin(_math.pi * 0.9) * 14
-            cv.create_oval(bx2 - ponta, by2 - ponta, bx2 + ponta, by2 + ponta, fill=cor, outline=cor_rar, width=2)
-            for sa in [0, 90, 180, 270]:
-                sr = _math.radians(sa)
-                cv.create_line(bx2 + _math.cos(sr) * (ponta-1), by2 + _math.sin(sr) * (ponta-1),
-                                bx2 + _math.cos(sr) * (ponta+7), by2 + _math.sin(sr) * (ponta+7),
-                                fill=cor, width=3)
-            cv.create_oval(bx2 - ponta//3, by2 - ponta//3, bx2, by2, fill="#FFFFFF", outline="")
+                ey = cy + _math.sin(t * _math.pi) * 10
+                # Alternando orientação
+                if i % 2 == 0:
+                    cv.create_oval(ex - 5, ey - 3, ex + 5, ey + 3, fill="#6A6578", outline="#9A95AE")
+                else:
+                    cv.create_oval(ex - 3, ey - 5, ex + 3, ey + 5, fill="#6A6578", outline="#9A95AE")
+            # Cabeça: Estrela da Manhã
+            hx = elo_x + comp + 8
+            hy = cy + _math.sin(_math.pi * 0.85) * 10
+            # Glow de energia
+            cv.create_oval(hx - head_r - 5, hy - head_r - 5, hx + head_r + 5, hy + head_r + 5,
+                           fill="", outline=cor_rar, width=1, dash=(3, 3))
+            # Esfera central
+            cv.create_oval(hx - head_r, hy - head_r, hx + head_r, hy + head_r,
+                           fill=cor, outline=cor_rar, width=2)
+            # Highlight esférico
+            cv.create_oval(hx - head_r//2, hy - head_r//2, hx - head_r//5, hy - head_r//5,
+                           fill="#FFFFFF", outline="")
+            # 8 espinhos em estrela (losangos)
+            for si in range(8):
+                sa = _math.radians(si * 45)
+                # Base na superfície
+                b_x = hx + _math.cos(sa) * (head_r - 1)
+                b_y = hy + _math.sin(sa) * (head_r - 1)
+                # Ponta externa
+                t_x = hx + _math.cos(sa) * (head_r + 10)
+                t_y = hy + _math.sin(sa) * (head_r + 10)
+                # Lados (perpendiculares)
+                pw = 3
+                l_x = hx + _math.cos(sa) * (head_r + 3) + _math.cos(sa + _math.pi/2) * pw
+                l_y = hy + _math.sin(sa) * (head_r + 3) + _math.sin(sa + _math.pi/2) * pw
+                r_x = hx + _math.cos(sa) * (head_r + 3) - _math.cos(sa + _math.pi/2) * pw
+                r_y = hy + _math.sin(sa) * (head_r + 3) - _math.sin(sa + _math.pi/2) * pw
+                cv.create_polygon(b_x, b_y, l_x, l_y, t_x, t_y, r_x, r_y,
+                                  fill=cor, outline=cor_rar, width=1)
+            # Anel equatorial com runas
+            cv.create_oval(hx - head_r//2, hy - head_r//2, hx + head_r//2, hy + head_r//2,
+                           outline=cor_rar, width=1)
 
         # ── CHICOTE — longo, fino, sinuoso, sem ponta pesada ───────────────
         elif "Chicote" in estilo:
@@ -1762,6 +1795,42 @@ class TelaArmas(tk.Frame):
             # Ponta (nó)
             if pts:
                 cv.create_oval(pts[-1][0]-3, pts[-1][1]-3, pts[-1][0]+3, pts[-1][1]+3, fill=cor_rar, outline="")
+
+        # ── METEOR HAMMER — corrente longa + esfera em chamas ────────────
+        elif "Meteor" in estilo:
+            comp   = 100 * 0.65
+            head_r = max(10, int(16 * 0.8))
+            # Sem cabo — corrente sai direto da mão
+            cv.create_oval(bx - 3, cy - 3, bx + 3, cy + 3, fill="#8A8C98", outline="")
+            # Corrente longa com elos circulares
+            for i in range(10):
+                t = i / 9
+                ex = bx + 4 + comp * t
+                ey = cy + _math.sin(t * _math.pi * 2.5) * 8
+                cv.create_oval(ex - 3, ey - 3, ex + 3, ey + 3, outline="#7A756A", width=1)
+                if i > 0:
+                    prev_x = bx + 4 + comp * ((i-1)/9)
+                    prev_y = cy + _math.sin(((i-1)/9) * _math.pi * 2.5) * 8
+                    cv.create_line(prev_x, prev_y, ex, ey, fill="#7A756A", width=1)
+            # Cabeça flamejante
+            mx = bx + 4 + comp + head_r
+            my = cy
+            # Aura de fogo
+            cv.create_oval(mx - head_r - 8, my - head_r - 8, mx + head_r + 8, my + head_r + 8,
+                           fill="#FF4400", outline="", stipple="gray25")
+            cv.create_oval(mx - head_r - 4, my - head_r - 4, mx + head_r + 4, my + head_r + 4,
+                           fill="#FF8800", outline="", stipple="gray50")
+            # Esfera metálica
+            cv.create_oval(mx - head_r, my - head_r, mx + head_r, my + head_r,
+                           fill=cor, outline=cor_rar, width=2)
+            cv.create_oval(mx - head_r//2, my - head_r//2, mx - head_r//5, my - head_r//5,
+                           fill="#FFFFFF", outline="")
+            # 4 chamas radiando
+            for fi in range(4):
+                fa = _math.radians(fi * 90 + 22)
+                fx = mx + _math.cos(fa) * (head_r + 5)
+                fy = my + _math.sin(fa) * (head_r + 5)
+                cv.create_oval(fx - 3, fy - 3, fx + 3, fy + 3, fill="#FF6622", outline="")
 
         # ── CORRENTE COM PESO — corrente grossa + peso retangular ──────────
         else:
@@ -1896,13 +1965,15 @@ class TelaArmas(tk.Frame):
         # ── ARCO LONGO — alto, curvatura suave, sem decoração ──────────────
         elif "Longo" in estilo:
             span = tam * 0.85
-            cv.create_arc(cx - span*0.6, cy - span, cx + span*0.6, cy + span,
-                           start=55, extent=70, style="arc", outline=cor, width=5)
-            # Corda tensionada
-            y1 = cy - _math.sin(_math.radians(55)) * span
-            y2 = cy + _math.sin(_math.radians(55)) * span
-            x_str = cx - _math.cos(_math.radians(55)) * span * 0.6
-            cv.create_line(x_str, cy - abs(y1 - cy), x_str, cy + abs(y2 - cy), fill="#C8B060", width=2)
+            # Arco vertical no lado direito (como Arco Curto, mas mais alto e estreito)
+            half_w = span * 0.35
+            cv.create_arc(cx - half_w, cy - span, cx + half_w, cy + span,
+                           start=-70, extent=140, style="arc", outline=cor, width=5)
+            # Corda tensionada — conecta as duas pontas do arco
+            x_tip = cx + half_w * _math.cos(_math.radians(70))
+            y_top = cy - span * _math.sin(_math.radians(70))
+            y_bot = cy + span * _math.sin(_math.radians(70))
+            cv.create_line(x_tip, y_top, x_tip, y_bot, fill="#C8B060", width=2)
             # Flecha
             cv.create_line(cx, cy, cx + raio + flecha, cy, fill="#8B4513", width=2)
             cv.create_polygon(cx + raio + flecha, cy, cx + raio + flecha - 10, cy - 5,
@@ -2302,8 +2373,8 @@ class TelaArmas(tk.Frame):
             "dano": arma.dano_base if hasattr(arma, 'dano_base') else arma.dano,
             "peso": arma.peso_base if hasattr(arma, 'peso_base') else arma.peso,
             "geometria": {
-                "largura": arma.largura,
-                "distancia": arma.distancia,
+                "largura": getattr(arma, 'largura', 0),
+                "distancia": getattr(arma, 'distancia', 0),
                 "quantidade": getattr(arma, 'quantidade', 1),
                 "forca_arco": getattr(arma, 'forca_arco', 0),
                 "quantidade_orbitais": getattr(arma, 'quantidade_orbitais', 1),

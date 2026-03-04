@@ -73,8 +73,10 @@ SKILL_DB = {
     "Fênix": {
         "tipo": "SUMMON", "dano": 25.0, "cor": (255, 180, 50), 
         "custo": 60.0, "cooldown": 30.0, "elemento": "FOGO",
+        "efeito": "QUEIMANDO",
         "duracao": 15.0, "summon_vida": 80.0, "summon_dano": 15.0,
-        "descricao": "Invoca uma fênix que ataca e revive uma vez"
+        "aura_dano": 5.0, "aura_raio": 2.0,
+        "descricao": "Invoca uma fênix que ataca com fogo e revive uma vez"
     },
     "Combustão Espontânea": {
         "tipo": "PROJETIL", "dano": 80.0, "velocidade": 0.5, "raio": 0.3,  # B3 fix: era 0 → projétil ficava parado
@@ -106,8 +108,8 @@ SKILL_DB = {
         "descricao": "Lança perfurante de gelo puro"
     },
     "Nevasca": {
-        "tipo": "AREA", "dano": 8.0, "raio_area": 4.0, "cor": (200, 230, 255),
-        "custo": 30.0, "cooldown": 15.0, "efeito": "LENTO", "elemento": "GELO",
+        "tipo": "AREA", "dano": 12.0, "raio_area": 4.0, "cor": (200, 230, 255),
+        "custo": 28.0, "cooldown": 15.0, "efeito": "LENTO", "elemento": "GELO",
         "duracao": 3.0, "slow_fator": 0.4,
         "descricao": "Área de gelo que causa slow contínuo"
     },
@@ -126,8 +128,10 @@ SKILL_DB = {
     "Muralha de Gelo": {
         "tipo": "TRAP", "dano": 0.0, "cor": (180, 220, 255),
         "custo": 20.0, "cooldown": 12.0, "elemento": "GELO",
+        "efeito": "CONGELADO",
         "duracao": 6.0, "bloqueia_movimento": True, "vida_estrutura": 100.0,
-        "descricao": "Cria uma parede de gelo bloqueadora"
+        "dano_contato": 8.0,
+        "descricao": "Cria uma parede de gelo que congela quem tocar"
     },
     "Shatter": {
         "tipo": "AREA", "dano": 60.0, "raio_area": 2.5, "cor": (200, 240, 255),
@@ -194,8 +198,8 @@ SKILL_DB = {
         "descricao": "Acelera drasticamente mas recebe mais dano"
     },
     "Campo Elétrico": {
-        "tipo": "AREA", "dano": 5.0, "raio_area": 3.0, "cor": (200, 200, 255),
-        "custo": 30.0, "cooldown": 12.0, "efeito": "PARALISIA", "elemento": "RAIO",
+        "tipo": "AREA", "dano": 8.0, "raio_area": 3.0, "cor": (200, 200, 255),
+        "custo": 28.0, "cooldown": 12.0, "efeito": "PARALISIA", "elemento": "RAIO",
         "duracao": 4.0, "chance_stun": 0.3,
         "descricao": "Campo que causa stun aleatório"
     },
@@ -387,9 +391,10 @@ SKILL_DB = {
     "Ira da Floresta": {
         "tipo": "SUMMON", "dano": 15.0, "cor": (80, 150, 50),
         "custo": 40.0, "cooldown": 25.0, "elemento": "NATUREZA",
+        "efeito": "ENVENENADO",
         "duracao": 12.0, "summon_vida": 100.0, "summon_dano": 12.0,
         "summon_tipo": "TREANT",
-        "descricao": "Invoca um treant protetor"
+        "descricao": "Invoca um treant que envenena inimigos"
     },
     "Praga": {
         "tipo": "PROJETIL", "dano": 10.0, "velocidade": 8.0, "raio": 0.6,
@@ -686,8 +691,9 @@ SKILL_DB = {
     # =========================================================================
     "Invocação: Espírito": {
         "tipo": "SUMMON", "cor": (180, 180, 255), "custo": 35.0, "cooldown": 25.0,
+        "elemento": "ARCANO", "efeito": "LENTO",
         "duracao": 10.0, "summon_vida": 50.0, "summon_dano": 8.0,
-        "descricao": "Invoca um espírito aliado"
+        "descricao": "Invoca um espírito arcano que retarda inimigos"
     },
     "Troca de Almas": {
         "tipo": "DASH", "distancia": 0.0, "cor": (150, 0, 150),
@@ -702,8 +708,9 @@ SKILL_DB = {
     },
     "Cópia Sombria": {
         "tipo": "SUMMON", "cor": (100, 100, 100), "custo": 45.0, "cooldown": 30.0,
+        "elemento": "TREVAS", "efeito": "CEGO",
         "duracao": 10.0, "summon_vida": 60.0, "summon_dano": 18.0,
-        "descricao": "Invoca uma cópia sombria que ataca por você"
+        "descricao": "Invoca uma sombra que cega inimigos ao atacar"
     },
     "Link de Vida": {
         "tipo": "PROJETIL", "dano": 0.0, "velocidade": 20.0, "raio": 0.3,
@@ -740,7 +747,7 @@ SKILL_DB = {
     },
     "Explosão Sanguínea": {
         "tipo": "AREA", "dano": 40.0, "raio_area": 3.0, "cor": (180, 0, 30),
-        "custo": 0, "cooldown": 15.0, "custo_vida": 25.0, "elemento": "SANGUE",
+        "custo": 15.0, "cooldown": 15.0, "custo_vida": 25.0, "elemento": "SANGUE",
         "efeito": "SANGRANDO", "lifesteal": 0.3,
         "descricao": "Detona o próprio sangue - área com lifesteal"
     },
@@ -767,6 +774,7 @@ SKILL_DB = {
         "tipo": "TRAP", "dano": 10.0, "cor": (120, 0, 30),
         "custo": 18.0, "cooldown": 10.0, "elemento": "SANGUE",
         "duracao": 8.0, "efeito": "LENTO", "vida_estrutura": 50.0,
+        "bloqueia_movimento": False,
         "descricao": "Armadilha de sangue coagulado que causa slow"
     },
     "Ritual de Sangue": {
@@ -832,8 +840,9 @@ SKILL_DB = {
     "Portal do Vazio": {
         "tipo": "SUMMON", "cor": (40, 0, 60), "custo": 45.0, "cooldown": 30.0,
         "duracao": 12.0, "summon_vida": 80.0, "summon_dano": 12.0,
-        "elemento": "VOID",
-        "descricao": "Invoca uma entidade do vazio"
+        "elemento": "VOID", "efeito": "LENTO",
+        "aura_dano": 3.0, "aura_raio": 2.5,
+        "descricao": "Invoca uma entidade do vazio que drena e retarda"
     },
     "Aniquilação": {
         "tipo": "AREA", "dano": 90.0, "raio_area": 2.5, "cor": (10, 0, 20),
@@ -868,6 +877,7 @@ SKILL_DB = {
         "tipo": "TRAP", "dano": 0.0, "cor": (200, 180, 255),
         "custo": 20.0, "cooldown": 12.0, "elemento": "TEMPO",
         "duracao": 10.0, "efeito": "TEMPO_PARADO", "vida_estrutura": 30.0,
+        "bloqueia_movimento": False,
         "descricao": "Armadilha que para o tempo de quem pisar"
     },
     
@@ -942,6 +952,7 @@ SKILL_DB = {
         "tipo": "TRAP", "dano": 30.0, "cor": (255, 80, 0),
         "custo": 22.0, "cooldown": 12.0, "elemento": "FOGO",
         "duracao": 8.0, "efeito": "QUEIMANDO", "vida_estrutura": 40.0,
+        "bloqueia_movimento": False,
         "descricao": "Mina de fogo que explode ao contato"
     },
     
@@ -962,6 +973,7 @@ SKILL_DB = {
         "tipo": "TRAP", "dano": 20.0, "cor": (255, 255, 120),
         "custo": 18.0, "cooldown": 10.0, "elemento": "RAIO",
         "duracao": 10.0, "efeito": "PARALISIA", "vida_estrutura": 35.0,
+        "bloqueia_movimento": False,
         "descricao": "Armadilha que paralisa quem pisar"
     },
     

@@ -361,22 +361,23 @@ STYLE_PROFILES = {
         spark_on_impact=True, spark_count=7,
     ),
 
-    # ── MANGUAL v3.1 - HEAVY SLAM & GROUND POUND ──
-    # Golpes pesados que tremem o chão. Sem spin: overheads e sweeps.
+    # ── MANGUAL v4.0 - ESTRELA DA MANHÃ: DEVASTATING SLAMS ──
+    # Golpes devastadores com estrela cristalina. Mais lento mas mais impactante.
+    # Cada impacto gera onda de choque visível e screen shake assimétrico.
     "Mangual": WeaponAnimationProfile(
-        anticipation_time=0.32, attack_time=0.18, impact_time=0.12,
-        follow_through_time=0.14, recovery_time=0.30,
-        anticipation_angle=-100, attack_angle=140, follow_through_angle=25,
-        anticipation_scale=0.65, attack_scale=1.55, impact_scale=0.80,
-        trail_length=20, shake_intensity=20.0,
+        anticipation_time=0.35, attack_time=0.16, impact_time=0.14,
+        follow_through_time=0.16, recovery_time=0.32,
+        anticipation_angle=-105, attack_angle=155, follow_through_angle=30,
+        anticipation_scale=0.60, attack_scale=1.60, impact_scale=0.75,
+        trail_length=22, shake_intensity=22.0,
         attack_easing="ease_in_expo", anticipation_easing="ease_in_back",
         recovery_easing="ease_out_back",
-        glow_enabled=True, glow_radius=22, glow_color=(100, 220, 80),
-        glow_pulse_speed=0.8,
-        motion_blur_enabled=True, motion_blur_frames=7,
-        trail_width_start=14, trail_width_end=3,
+        glow_enabled=True, glow_radius=24, glow_color=(140, 220, 255),
+        glow_pulse_speed=0.7,
+        motion_blur_enabled=True, motion_blur_frames=8,
+        trail_width_start=16, trail_width_end=4,
         trail_color_shift=True,
-        spark_on_impact=True, spark_count=32, spark_color=(140, 255, 100),
+        spark_on_impact=True, spark_count=36, spark_color=(180, 240, 255),
     ),
     "Chicote": WeaponAnimationProfile(
         anticipation_time=0.13, attack_time=0.11, impact_time=0.028,
@@ -389,17 +390,44 @@ STYLE_PROFILES = {
         spark_on_impact=True, spark_count=9, spark_color=(255, 220, 100),
     ),
     "Meteor Hammer": WeaponAnimationProfile(
-        anticipation_time=0.0, attack_time=0.28, impact_time=0.07,
-        follow_through_time=0.22, recovery_time=0.0,
-        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
-        anticipation_scale=1.0, attack_scale=1.18, trail_length=26,
-        shake_intensity=11.0, attack_easing="linear",
-        glow_enabled=True, glow_radius=18, glow_color=(255, 100, 60),
-        glow_pulse_speed=5.0,
-        motion_blur_enabled=True, motion_blur_frames=7,
-        trail_width_start=10, trail_width_end=2,
-        spark_on_impact=True, spark_count=20, spark_color=(255, 120, 60),
+        anticipation_time=0.05, attack_time=0.30, impact_time=0.08,
+        follow_through_time=0.20, recovery_time=0.05,
+        anticipation_angle=-15, attack_angle=380, follow_through_angle=10,
+        anticipation_scale=0.95, attack_scale=1.22, impact_scale=0.85,
+        trail_length=28, shake_intensity=13.0, attack_easing="linear",
+        glow_enabled=True, glow_radius=20, glow_color=(255, 120, 40),
+        glow_pulse_speed=6.0,
+        motion_blur_enabled=True, motion_blur_frames=8,
+        trail_width_start=12, trail_width_end=2,
+        spark_on_impact=True, spark_count=24, spark_color=(255, 140, 50),
         trail_color_shift=True,
+    ),
+    # ── KUSARIGAMA v5.0: Dual-mode (foice rápida / peso lento) ──
+    "Kusarigama": WeaponAnimationProfile(
+        anticipation_time=0.08, attack_time=0.10, impact_time=0.03,
+        follow_through_time=0.08, recovery_time=0.12,
+        anticipation_angle=-55, attack_angle=120, follow_through_angle=25,
+        anticipation_scale=0.88, attack_scale=1.25, impact_scale=0.90,
+        trail_length=14, shake_intensity=4.5,
+        attack_easing="ease_out_back", anticipation_easing="ease_in_quad",
+        glow_enabled=True, glow_radius=12, glow_color=(180, 120, 255),
+        motion_blur_enabled=True, motion_blur_frames=5,
+        trail_width_start=7, trail_width_end=2,
+        spark_on_impact=True, spark_count=10, spark_color=(200, 150, 255),
+    ),
+    # ── CORRENTE COM PESO v5.0: Golpes lentos com pull/slow ──
+    "Corrente com Peso": WeaponAnimationProfile(
+        anticipation_time=0.28, attack_time=0.22, impact_time=0.10,
+        follow_through_time=0.18, recovery_time=0.35,
+        anticipation_angle=-70, attack_angle=130, follow_through_angle=20,
+        anticipation_scale=0.70, attack_scale=1.45, impact_scale=0.80,
+        trail_length=16, shake_intensity=15.0,
+        attack_easing="ease_in_expo", anticipation_easing="ease_in_back",
+        recovery_easing="ease_out_quad",
+        glow_enabled=True, glow_radius=16, glow_color=(80, 180, 120),
+        motion_blur_enabled=True, motion_blur_frames=6,
+        trail_width_start=10, trail_width_end=3,
+        spark_on_impact=True, spark_count=18, spark_color=(100, 200, 140),
     ),
 
     # ── ARREMESSO ──
@@ -730,8 +758,21 @@ class WeaponAnimator:
         current_phase, phase_progress = self._get_phase(state, profile)
         state.current_phase = current_phase
 
-        if weapon_style == "Mangual":
+        # === v5.0: Per-style chain weapon routing ===
+        if weapon_style == "Mangual" or "Flail" in weapon_style:
             self._update_mangual(state, profile, current_phase, phase_progress)
+            return
+        if weapon_style == "Kusarigama":
+            self._update_kusarigama(state, profile, current_phase, phase_progress)
+            return
+        if weapon_style == "Chicote":
+            self._update_chicote(state, profile, current_phase, phase_progress)
+            return
+        if weapon_style == "Meteor Hammer":
+            self._update_meteor_hammer(state, profile, current_phase, phase_progress)
+            return
+        if "Corrente com Peso" in weapon_style:
+            self._update_corrente_peso(state, profile, current_phase, phase_progress)
             return
         if weapon_style == "Adagas Gêmeas":
             self._update_dagger(state, profile, current_phase, phase_progress)
@@ -887,6 +928,230 @@ class WeaponAnimator:
                 state.is_attacking = False
                 state.angle_offset = 0
 
+    def _update_kusarigama(self, state, profile, current_phase, phase_progress):
+        """v5.0 - Kusarigama Dual-Mode Combat
+        
+        Alterna entre dois modos baseado em chain_mode:
+          mode 0 = FOICE: Cortes rápidos horizontais com alternação L/R
+          mode 1 = PESO: Arremesso diagonal lento com retração
+        
+        Combo counter acelera os cortes de foice.
+        A transição entre modos é visualmente suave.
+        """
+        # Detecta modo via attack_pattern: pares = foice, ímpares = peso
+        is_weight_mode = state.attack_pattern % 3 == 2  # 1 em 3 é peso
+        direction = 1 if state.attack_pattern % 2 == 0 else -1
+
+        if not is_weight_mode:
+            # ── MODO FOICE: Cortes rápidos alternantes ──
+            combo_speed = 1.0 + min(state.combo_count, 6) * 0.10
+            if current_phase == AttackPhase.ANTICIPATION:
+                prog = Easing.ease_out_expo(phase_progress)
+                state.angle_offset = -45 * direction * prog / combo_speed
+                state.scale = 1.0 + (0.88 - 1.0) * prog
+            elif current_phase == AttackPhase.ATTACK:
+                prog = Easing.ease_out_back(phase_progress)
+                state.angle_offset = -45 * direction + 130 * direction * prog
+                state.scale = 1.0 + (1.25 - 1.0) * math.sin(phase_progress * math.pi)
+            elif current_phase == AttackPhase.IMPACT:
+                state.angle_offset = 85 * direction
+                state.scale = 0.92
+                if profile.shake_on_impact:
+                    shake = profile.shake_intensity * (1 - phase_progress) * 0.7
+                    state.shake_offset = (random.uniform(-shake, shake), random.uniform(-shake, shake))
+                if phase_progress < 0.1:
+                    self._spawn_sparks(state, profile)
+            elif current_phase == AttackPhase.FOLLOW_THROUGH:
+                prog = Easing.ease_out_quad(phase_progress)
+                state.angle_offset = 85 * direction * (1 - prog * 0.5)
+                state.scale = 0.92 + (1.0 - 0.92) * prog
+                state.shake_offset = (0, 0)
+            elif current_phase == AttackPhase.RECOVERY:
+                prog = Easing.ease_in_out_quad(phase_progress)
+                state.angle_offset = 85 * direction * 0.5 * (1 - prog)
+                state.scale = 1.0
+                if phase_progress >= 1.0:
+                    state.is_attacking = False
+                    state.angle_offset = 0
+        else:
+            # ── MODO PESO: Arremesso longo lento ──
+            if current_phase == AttackPhase.ANTICIPATION:
+                prog = Easing.ease_in_back(phase_progress)
+                state.angle_offset = -30 * prog
+                state.scale = 1.0 + (0.75 - 1.0) * prog
+            elif current_phase == AttackPhase.ATTACK:
+                prog = Easing.ease_in_expo(phase_progress)
+                state.angle_offset = -30 + 160 * prog
+                state.scale = 1.0 + (1.35 - 1.0) * math.sin(phase_progress * math.pi * 0.7)
+            elif current_phase == AttackPhase.IMPACT:
+                state.angle_offset = 130
+                state.scale = 0.85
+                if profile.shake_on_impact:
+                    shake = profile.shake_intensity * 1.5 * (1 - phase_progress)
+                    state.shake_offset = (random.uniform(-shake, shake), random.uniform(-shake, shake))
+                if phase_progress < 0.08:
+                    self._spawn_sparks(state, profile)
+            elif current_phase == AttackPhase.FOLLOW_THROUGH:
+                # Peso retrai (volta na corrente)
+                prog = Easing.ease_in_out_quad(phase_progress)
+                state.angle_offset = 130 * (1 - prog * 0.7)
+                state.scale = 0.85 + (1.0 - 0.85) * prog
+                state.shake_offset = (0, 0)
+            elif current_phase == AttackPhase.RECOVERY:
+                prog = Easing.ease_out_quad(phase_progress)
+                state.angle_offset = 130 * 0.3 * (1 - prog)
+                state.scale = 1.0
+                if phase_progress >= 1.0:
+                    state.is_attacking = False
+                    state.angle_offset = 0
+
+    def _update_chicote(self, state, profile, current_phase, phase_progress):
+        """v5.0 - Whip Crack System
+        
+        Mecânica de chicote: puxada para trás → estalo → crack na ponta.
+        Extremamente rápido, com 'snap' visual no impacto.
+        Animação: puxa → lança → snap elástico → recolhe.
+        Sensação: RÁPIDO, PRECISO, ESTALO.
+        """
+        direction = 1 if state.attack_pattern % 2 == 0 else -1
+        # Chicote tem arco MUITO grande mas fino
+        if current_phase == AttackPhase.ANTICIPATION:
+            # Puxa o braço para trás (wind-up do chicote)
+            prog = Easing.ease_out_expo(phase_progress)
+            state.angle_offset = -78 * direction * prog
+            state.scale = 0.85 + (1.0 - 0.85) * (1 - prog)
+        elif current_phase == AttackPhase.ATTACK:
+            # Lança para frente — MUITO rápido
+            prog = Easing.ease_out_expo(phase_progress)
+            state.angle_offset = -78 * direction + 270 * direction * prog
+            # Stretch extremo (chicote estica)
+            state.scale = 1.0 + 0.50 * math.sin(phase_progress * math.pi * 0.8)
+        elif current_phase == AttackPhase.IMPACT:
+            # CRACK! — estalo na ponta
+            state.angle_offset = 192 * direction
+            state.scale = 0.80  # Snap — contração
+            shake = profile.shake_intensity * (1 - phase_progress) * 1.2
+            state.shake_offset = (random.uniform(-shake, shake), random.uniform(-shake*0.5, shake*0.5))
+            if phase_progress < 0.08:
+                self._spawn_sparks(state, profile)
+        elif current_phase == AttackPhase.FOLLOW_THROUGH:
+            # Chicote recolhe elasticamente
+            prog = Easing.ease_out_elastic(phase_progress)
+            state.angle_offset = 192 * direction * (1 - prog * 0.8)
+            state.scale = 0.80 + (1.0 - 0.80) * prog
+            state.shake_offset = (0, 0)
+        elif current_phase == AttackPhase.RECOVERY:
+            prog = Easing.ease_in_out_quad(phase_progress)
+            remaining = 192 * direction * 0.2
+            state.angle_offset = remaining * (1 - prog)
+            state.scale = 1.0
+            if phase_progress >= 1.0:
+                state.is_attacking = False
+                state.angle_offset = 0
+
+    def _update_meteor_hammer(self, state, profile, current_phase, phase_progress):
+        """v5.0 - Meteor Hammer Continuous Spin
+        
+        Rotação contínua com velocidade crescente.
+        Em vez de golpes discretos, a bola gira em órbita.
+        O 'ataque' é um frame de hit dentro do spin contínuo.
+        Sensação: HIPNÓTICO, CONTÍNUO, PRESSÃO.
+        """
+        # Spin contínuo — ângulo acumula
+        spin_t = state.attack_timer
+        spin_rate = 380  # graus por ciclo de ataque
+        
+        if current_phase == AttackPhase.ANTICIPATION:
+            # Quase nenhum wind-up — já está girando
+            prog = Easing.ease_out_quad(phase_progress)
+            state.angle_offset = spin_rate * 0.05 * prog
+            state.scale = 1.0
+        elif current_phase == AttackPhase.ATTACK:
+            # Spin contínuo — ângulo acumula linearmente (sem ease)
+            state.angle_offset = spin_rate * phase_progress
+            state.scale = 1.0 + 0.22 * math.sin(phase_progress * math.pi * 4)
+        elif current_phase == AttackPhase.IMPACT:
+            # Mini-impact a cada passada
+            state.angle_offset = spin_rate
+            state.scale = 0.85
+            shake = profile.shake_intensity * 0.5 * (1 - phase_progress)
+            state.shake_offset = (random.uniform(-shake, shake), random.uniform(-shake, shake))
+            if phase_progress < 0.1:
+                self._spawn_sparks(state, profile)
+        elif current_phase == AttackPhase.FOLLOW_THROUGH:
+            prog = Easing.ease_out_quad(phase_progress)
+            state.angle_offset = spin_rate + 10 * prog
+            state.scale = 0.85 + (1.0 - 0.85) * prog
+            state.shake_offset = (0, 0)
+        elif current_phase == AttackPhase.RECOVERY:
+            # Quase sem recovery — spin continua
+            prog = phase_progress
+            state.angle_offset = (spin_rate + 10) * (1 - prog * 0.1)
+            state.scale = 1.0
+            if phase_progress >= 1.0:
+                state.is_attacking = False
+                state.angle_offset = 0
+
+    def _update_corrente_peso(self, state, profile, current_phase, phase_progress):
+        """v5.0 - Weighted Chain: Grapple & Crush
+        
+        Golpe pesado que 'gruda' no alvo e puxa.
+        Wind-up lento → arremesso → impacto pesado → puxão de volta.
+        Sensação: PESADO, IMPLACÁVEL, CONTROLE.
+        """
+        direction = 1 if state.attack_pattern % 2 == 0 else -1
+        
+        if current_phase == AttackPhase.ANTICIPATION:
+            # Carrega o peso para trás (girando na mão)
+            prog = Easing.ease_in_back(phase_progress)
+            state.angle_offset = -70 * direction * prog
+            # Gira o peso lentamente durante o carregamento
+            rotation = math.sin(phase_progress * math.pi * 3) * 8
+            state.angle_offset += rotation
+            state.scale = 1.0 + (0.70 - 1.0) * prog
+        elif current_phase == AttackPhase.ATTACK:
+            # Arremessa o peso — aceleração gravitacional
+            prog = Easing.ease_in_expo(phase_progress)
+            state.angle_offset = -70 * direction + 200 * direction * prog
+            state.scale = 1.0 + (1.45 - 1.0) * math.sin(phase_progress * math.pi * 0.7)
+        elif current_phase == AttackPhase.IMPACT:
+            # Peso ESMAGA — screen shake vertical pesado
+            total = -70 * direction + 200 * direction
+            state.angle_offset = total
+            state.scale = 0.80
+            if profile.shake_on_impact:
+                shake_decay = 1.0 - Easing.ease_out_expo(phase_progress)
+                shake = profile.shake_intensity * shake_decay * 1.5
+                # Shake mais vertical (peso caindo)
+                state.shake_offset = (
+                    random.uniform(-shake * 0.5, shake * 0.5),
+                    random.uniform(-shake, shake) + shake * 0.3
+                )
+            if phase_progress < 0.06:
+                self._spawn_sparks(state, profile)
+        elif current_phase == AttackPhase.FOLLOW_THROUGH:
+            # PUXA o peso de volta (arrasta o inimigo junto)
+            prog = Easing.ease_in_out_quad(phase_progress)
+            total = -70 * direction + 200 * direction
+            # Recolhe o peso — ângulo retorna
+            state.angle_offset = total * (1 - prog * 0.6)
+            state.scale = 0.80 + (1.0 - 0.80) * Easing.ease_out_bounce(phase_progress)
+            if phase_progress < 0.3:
+                residual = profile.shake_intensity * 0.2 * (1 - phase_progress / 0.3)
+                state.shake_offset = (random.uniform(-residual, residual), random.uniform(-residual, residual))
+            else:
+                state.shake_offset = (0, 0)
+        elif current_phase == AttackPhase.RECOVERY:
+            prog = Easing.ease_out_quad(phase_progress)
+            total = (-70 * direction + 200 * direction) * 0.4
+            pendulum = math.sin(phase_progress * math.pi * 1.5) * (1 - phase_progress) * 6
+            state.angle_offset = total * (1 - prog) + pendulum
+            state.scale = 1.0
+            state.shake_offset = (0, 0)
+            if phase_progress >= 1.0:
+                state.is_attacking = False
+                state.angle_offset = 0
+
     def _update_dagger(self, state, profile, current_phase, phase_progress):
         """v3.0 - Karambit Cross-Slash Combo System
         
@@ -998,17 +1263,38 @@ class WeaponAnimator:
         elif weapon_type in ["Mágica", "Magica"]:
             state.scale = 1.0 + 0.07 * math.sin(state.pulse_phase * 1.5)
             state.angle_offset = 4 * math.sin(state.pulse_phase * 0.9)
-        elif weapon_style == "Mangual":
+        elif weapon_style == "Mangual" or "Flail" in weapon_style:
             # v3.0: Bola pendula em figura-8 com spin contínuo lento
-            # Oscilação pendular com dois componentes de frequência
             pendulum1 = math.sin(state.pulse_phase * 0.55) * 12
             pendulum2 = math.sin(state.pulse_phase * 1.1) * 4
             state.angle_offset = pendulum1 + pendulum2
-            # Scale pulsa levemente (corrente esticando/contraindo)
             state.scale = 1.0 + 0.04 * math.sin(state.pulse_phase * 0.9)
-            # Spin residual decai suavemente
             if state.mangual_spin_speed > 0.05:
                 state.mangual_spin_speed *= (1.0 - dt * 0.4)
+        elif weapon_style == "Kusarigama":
+            # v5.0: Foice oscila de um lado, peso do outro
+            sickle = math.sin(state.pulse_phase * 0.8) * 6
+            weight = math.sin(state.pulse_phase * 0.5 + math.pi) * 4
+            state.angle_offset = sickle + weight
+            state.scale = 1.0 + 0.03 * math.sin(state.pulse_phase * 1.2)
+        elif weapon_style == "Chicote":
+            # v5.0: Chicote oscila suavemente, pronto para estalar
+            wave = math.sin(state.pulse_phase * 1.2) * 3
+            snap = math.sin(state.pulse_phase * 4.0) * 0.8  # Micro-vibração
+            state.angle_offset = wave + snap
+            state.scale = 1.0 + 0.015 * math.sin(state.pulse_phase * 2.0)
+        elif weapon_style == "Meteor Hammer":
+            # v5.0: Gira lentamente mesmo no idle (sempre em movimento)
+            state.angle_offset = 15 * math.sin(state.pulse_phase * 0.7)
+            # Se ainda tem spin residual, orbita
+            if getattr(state, 'mangual_spin_speed', 0) > 0.1:
+                state.angle_offset += state.mangual_spin_speed * 30 * math.sin(state.pulse_phase * 2)
+            state.scale = 1.0 + 0.03 * math.sin(state.pulse_phase * 1.5)
+        elif "Corrente com Peso" in weapon_style:
+            # v5.0: Balanço pesado e lento, como pêndulo
+            pendulum = math.sin(state.pulse_phase * 0.35) * 10
+            state.angle_offset = pendulum
+            state.scale = 1.0 + 0.03 * math.sin(state.pulse_phase * 0.6)
         elif weapon_style == "Adagas Gêmeas":
             # v3.0: Karambit idle - dagas rodam suavemente em posição de guarda
             # Micro-vibração de prontidão
@@ -1034,8 +1320,10 @@ class WeaponTrailRenderer:
             return
         if weapon_type in ["Mágica", "Magica"]:
             self._draw_magic_trail(surface, trail_positions, weapon_color)
-        elif weapon_style == "Mangual":
+        elif weapon_style == "Mangual" or "Flail" in weapon_style:
             self._draw_mangual_trail(surface, trail_positions, weapon_color)
+        elif weapon_style == "Chicote":
+            self._draw_whip_trail(surface, trail_positions, weapon_color)
         elif weapon_style == "Adagas Gêmeas":
             self._draw_dagger_trail(surface, trail_positions, weapon_color)
         elif weapon_type == "Corrente":
@@ -1168,6 +1456,32 @@ class WeaponTrailRenderer:
                                    (int(x1), int(y1)), (int(x2), int(y2)), width)
                 except Exception: pass
 
+    def _draw_whip_trail(self, surface, positions, color):
+        """v5.0: Chicote trail — linha fina que engrossa no crack, com snap elétrico."""
+        if len(positions) < 2: return
+        n = len(positions)
+        for i in range(n - 1):
+            x1, y1, a1 = positions[i]; x2, y2, a2 = positions[i + 1]
+            alpha = int(min(a1, a2) * 200)
+            if alpha < 8: continue
+            ratio = i / max(n - 1, 1)
+            # Chicote: fino na base, engrossa no crack (ponta)
+            w = max(1, int(1 + 5 * ratio * ratio))
+            blend = alpha / 255
+            # Cor: amarelo/dourado brilhante na ponta (crack)
+            cr = int(min(255, color[0]*blend + 100*blend*ratio))
+            cg = int(min(255, color[1]*blend + 80*blend*ratio))
+            cb = int(min(255, color[2]*blend * 0.5))
+            try:
+                pygame.draw.line(surface, (cr, cg, cb),
+                    (int(x1), int(y1)), (int(x2), int(y2)), w)
+                # Snap sparks na ponta
+                if ratio > 0.85:
+                    gs = pygame.Surface((8, 8), pygame.SRCALPHA)
+                    pygame.draw.circle(gs, (255, 240, 150, min(255, int(alpha * 0.7))), (4, 4), 4)
+                    surface.blit(gs, (int(x2) - 4, int(y2) - 4))
+            except Exception: pass
+
 
 @dataclass
 class SlashEffect:
@@ -1228,7 +1542,8 @@ class ThrustEffect:
         final = tuple(min(255, int(c*blend + 100*blend)) for c in self.color)
         try:
             pygame.draw.line(surface, final, start, end, width)
-        except: pass
+        except Exception:
+            pass
 
 
 @dataclass

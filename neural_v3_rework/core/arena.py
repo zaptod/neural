@@ -5,6 +5,7 @@ Sistema expandido com múltiplos mapas temáticos.
 """
 
 import math
+import time
 import pygame
 from utils.config import PPM, LARGURA, ALTURA
 from dataclasses import dataclass, field
@@ -438,6 +439,99 @@ ARENAS = {
             Obstaculo("pilar", 15.0, 18.0, 1.2, 1.2, (100, 95, 85)),
         ],
     ),
+    
+    # === v13.0: ARENAS MULTI-COMBATENTE ===
+    
+    "Campo de Batalha": ArenaConfig(
+        nome="Campo de Batalha",
+        largura=50.0,
+        altura=40.0,
+        cor_chao=(35, 40, 30),
+        cor_parede=(50, 55, 45),
+        cor_borda=(80, 90, 70),
+        formato="retangular",
+        tema="batalha",
+        descricao="Arena enorme para batalhas em equipe (até 4v4)",
+        icone="⚔️",
+        obstaculos=[
+            # Barricadas centrais
+            Obstaculo("barricada", 25.0, 15.0, 6.0, 1.0, (90, 80, 60)),
+            Obstaculo("barricada", 25.0, 25.0, 6.0, 1.0, (90, 80, 60)),
+            # Torres nos cantos
+            Obstaculo("torre", 12.0, 10.0, 2.5, 2.5, (100, 90, 70)),
+            Obstaculo("torre", 38.0, 10.0, 2.5, 2.5, (100, 90, 70)),
+            Obstaculo("torre", 12.0, 30.0, 2.5, 2.5, (100, 90, 70)),
+            Obstaculo("torre", 38.0, 30.0, 2.5, 2.5, (100, 90, 70)),
+            # Pilares estratégicos no meio
+            Obstaculo("pilar", 20.0, 20.0, 2.0, 2.0, (80, 75, 65)),
+            Obstaculo("pilar", 30.0, 20.0, 2.0, 2.0, (80, 75, 65)),
+            # Rochas espalhadas
+            Obstaculo("rocha", 15.0, 20.0, 1.5, 1.5, (70, 70, 65)),
+            Obstaculo("rocha", 35.0, 20.0, 1.5, 1.5, (70, 70, 65)),
+            Obstaculo("rocha", 25.0, 10.0, 1.5, 1.5, (70, 70, 65)),
+            Obstaculo("rocha", 25.0, 30.0, 1.5, 1.5, (70, 70, 65)),
+        ],
+    ),
+    
+    "Grande Coliseu": ArenaConfig(
+        nome="Grande Coliseu",
+        largura=50.0,
+        altura=50.0,
+        cor_chao=(65, 55, 40),
+        cor_parede=(110, 95, 70),
+        cor_borda=(170, 150, 110),
+        formato="circular",
+        tema="romano",
+        descricao="Coliseu grandioso para batalhas épicas em equipe",
+        icone="🏟️",
+        obstaculos=[
+            # Pilares internos em círculo
+            Obstaculo("pilar", 17.0, 25.0, 2.0, 2.0, (140, 120, 90)),
+            Obstaculo("pilar", 33.0, 25.0, 2.0, 2.0, (140, 120, 90)),
+            Obstaculo("pilar", 25.0, 17.0, 2.0, 2.0, (140, 120, 90)),
+            Obstaculo("pilar", 25.0, 33.0, 2.0, 2.0, (140, 120, 90)),
+            # Pilares diagonais
+            Obstaculo("pilar", 19.0, 19.0, 1.5, 1.5, (130, 110, 85)),
+            Obstaculo("pilar", 31.0, 19.0, 1.5, 1.5, (130, 110, 85)),
+            Obstaculo("pilar", 19.0, 31.0, 1.5, 1.5, (130, 110, 85)),
+            Obstaculo("pilar", 31.0, 31.0, 1.5, 1.5, (130, 110, 85)),
+            # Arena central elevada
+            Obstaculo("plataforma", 25.0, 25.0, 4.0, 4.0, (100, 85, 65), solido=False),
+            # Barricadas baixas
+            Obstaculo("barricada", 21.0, 14.0, 4.0, 0.8, (90, 80, 60)),
+            Obstaculo("barricada", 29.0, 36.0, 4.0, 0.8, (90, 80, 60)),
+        ],
+    ),
+    
+    "Fortaleza": ArenaConfig(
+        nome="Fortaleza Demolida",
+        largura=45.0,
+        altura=35.0,
+        cor_chao=(40, 38, 35),
+        cor_parede=(75, 65, 55),
+        cor_borda=(110, 95, 80),
+        formato="retangular",
+        tema="ruinas",
+        descricao="Ruínas de uma fortaleza - muita cobertura",
+        icone="🏚️",
+        obstaculos=[
+            # Muralhas quebradas (barreiras longas)
+            Obstaculo("muralha", 15.0, 12.0, 10.0, 1.2, (85, 75, 65)),
+            Obstaculo("muralha", 30.0, 23.0, 10.0, 1.2, (85, 75, 65)),
+            # Paredes curtas
+            Obstaculo("parede", 10.0, 20.0, 1.2, 6.0, (80, 70, 60)),
+            Obstaculo("parede", 35.0, 15.0, 1.2, 6.0, (80, 70, 60)),
+            # Torres destruídas
+            Obstaculo("torre", 8.0, 8.0, 3.0, 3.0, (95, 85, 70)),
+            Obstaculo("torre", 37.0, 8.0, 3.0, 3.0, (95, 85, 70)),
+            Obstaculo("torre", 8.0, 27.0, 3.0, 3.0, (95, 85, 70)),
+            Obstaculo("torre", 37.0, 27.0, 3.0, 3.0, (95, 85, 70)),
+            # Escombros diversos
+            Obstaculo("escombro", 22.0, 17.0, 2.0, 2.0, (70, 65, 55)),
+            Obstaculo("escombro", 18.0, 25.0, 1.5, 1.5, (70, 65, 55)),
+            Obstaculo("escombro", 28.0, 10.0, 1.5, 1.5, (70, 65, 55)),
+        ],
+    ),
 }
 
 # Lista ordenada de mapas para seleção
@@ -445,8 +539,13 @@ LISTA_MAPAS = [
     "Arena", "Arena Pequena", "Ringue", "Coliseu", "Dojo",
     "Castelo", "Templo", "Floresta", "Caverna", "Gelo",
     "Vulcao", "Inferno", "Cemiterio", "Praia", "Espacial",
-    "Cyberpunk", "Labirinto"
+    "Cyberpunk", "Labirinto",
+    # v13.0: Mapas para batalhas multi-combatente
+    "Campo de Batalha", "Grande Coliseu", "Fortaleza",
 ]
+
+# v13.0: Mapas recomendados para multi-fighter
+MAPAS_MULTI = ["Campo de Batalha", "Grande Coliseu", "Fortaleza", "Coliseu", "Praia", "Floresta"]
 
 def get_mapa_info(nome: str) -> dict:
     """Retorna informações do mapa para exibição"""
@@ -779,6 +878,77 @@ class Arena:
         
         return (p1_x, p1_y), (p2_x, p2_y)
     
+    def get_spawn_points_multi(self, num_fighters: int, teams: dict) -> List[Tuple[float, float]]:
+        """v13.0: Retorna pontos de spawn para N lutadores organizados por time.
+        
+        Args:
+            num_fighters: Número total de lutadores
+            teams: Dict {team_id: [lutadores]}
+            
+        Returns:
+            Lista de (x, y) na mesma ordem que self.fighters seria.
+        """
+        if num_fighters <= 2:
+            s1, s2 = self.get_spawn_points()
+            return [s1, s2][:num_fighters]
+        
+        spawn_points = []
+        num_teams = len(teams)
+        
+        # Distribui times em lados opostos da arena
+        for team_idx, (tid, members) in enumerate(sorted(teams.items())):
+            n_members = len(members)
+            
+            if num_teams == 2:
+                # 2 times: esquerda vs direita
+                if team_idx == 0:
+                    base_x = self.centro_x - self.largura * 0.3
+                else:
+                    base_x = self.centro_x + self.largura * 0.3
+                
+                # Distribui membros verticalmente
+                spacing = min(3.0, (self.altura * 0.6) / max(n_members, 1))
+                start_y = self.centro_y - (n_members - 1) * spacing / 2
+                
+                for i in range(n_members):
+                    spawn_points.append((base_x, start_y + i * spacing))
+            
+            elif num_teams == 3:
+                # 3 times: triângulo
+                angle = (team_idx / 3) * math.pi * 2 - math.pi / 2
+                radius = min(self.largura, self.altura) * 0.3
+                base_x = self.centro_x + math.cos(angle) * radius
+                base_y = self.centro_y + math.sin(angle) * radius
+                
+                spacing = 2.0
+                perp_angle = angle + math.pi / 2
+                start_offset = -(n_members - 1) * spacing / 2
+                
+                for i in range(n_members):
+                    offset = start_offset + i * spacing
+                    x = base_x + math.cos(perp_angle) * offset
+                    y = base_y + math.sin(perp_angle) * offset
+                    spawn_points.append((x, y))
+            
+            else:
+                # 4+ times: distribuir nos cantos/lados
+                angle = (team_idx / num_teams) * math.pi * 2
+                radius = min(self.largura, self.altura) * 0.35
+                base_x = self.centro_x + math.cos(angle) * radius
+                base_y = self.centro_y + math.sin(angle) * radius
+                
+                spacing = 2.0
+                perp_angle = angle + math.pi / 2
+                start_offset = -(n_members - 1) * spacing / 2
+                
+                for i in range(n_members):
+                    offset = start_offset + i * spacing
+                    x = base_x + math.cos(perp_angle) * offset
+                    y = base_y + math.sin(perp_angle) * offset
+                    spawn_points.append((x, y))
+        
+        return spawn_points
+    
     def limpar_colisoes(self):
         """Limpa histórico de colisões após processamento"""
         # Limpa completamente - colisões já foram processadas neste frame
@@ -876,7 +1046,6 @@ class Arena:
             
             elif obs.tipo in ["lava", "fogo"]:
                 # Efeito pulsante para fogo/lava
-                import time
                 pulse = int(abs(math.sin(time.time() * 3)) * 50)
                 cor = (min(255, cor[0] + pulse), max(0, cor[1] - pulse//2), 0)
                 pygame.draw.rect(surface, cor, rect)
@@ -887,7 +1056,6 @@ class Arena:
             
             elif obs.tipo == "cristal":
                 # Cristal com brilho
-                import time
                 brilho = int(abs(math.sin(time.time() * 2 + obs.x)) * 40)
                 cor = tuple(min(255, c + brilho) for c in obs.cor)
                 # Desenha hexágono aproximado
@@ -968,7 +1136,6 @@ class Arena:
             
             elif obs.tipo == "nucleo":
                 # Núcleo energético
-                import time
                 pulse = abs(math.sin(time.time() * 4))
                 raio = int(half_w * (0.8 + pulse * 0.2))
                 # Aura externa

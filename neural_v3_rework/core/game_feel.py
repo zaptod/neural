@@ -321,15 +321,19 @@ class HitStopManager:
         # Intensidade para efeitos visuais (0.0 a 1.0)
         intensidade = min(1.0, duracao / 0.3)  # Normaliza para 0.3s como máximo
         
-        # Camera shake proporcional - força > velocidade
-        # Classes de força causam shake MUITO maior
+        # v15.0: Camera shake reduzido — só shakes significativos em dano alto
         shake_mult = CLASS_HITSTOP_MULT.get(classe_atacante, 1.0)
-        camera_shake = 5.0 + (dano * 0.3 * shake_mult)
+        # Threshold: abaixo de 5 de dano, shake zero
+        if dano < 5:
+            camera_shake = 0.0
+        else:
+            camera_shake = 1.5 + (dano * 0.12 * min(shake_mult, 1.5))
+        camera_shake = min(camera_shake, 10.0)  # Cap absoluto
         
-        # Zoom punch para impactos pesados
+        # Zoom punch apenas para golpes realmente pesados
         camera_zoom = 0.0
-        if tipo_golpe in ["PESADO", "DEVASTADOR", "EPICO"] or is_critico:
-            camera_zoom = 0.1 + (intensidade * 0.15)
+        if tipo_golpe in ["DEVASTADOR", "EPICO"] or (is_critico and dano > 15):
+            camera_zoom = 0.04 + (intensidade * 0.06)
         
         evento = HitStopEvent(
             duracao=duracao,
@@ -940,39 +944,38 @@ class CameraFeel:
             tipo_golpe: "LEVE", "MEDIO", "PESADO", "DEVASTADOR", "EPICO"
             direcao: Direção do golpe normalizada
         """
-        # Multiplicador de classe
-        mult_classe = CLASS_HITSTOP_MULT.get(classe_atacante, 1.0)
+        # Multiplicador de classe (capped para evitar excessos)
+        mult_classe = min(1.5, CLASS_HITSTOP_MULT.get(classe_atacante, 1.0))
         
-        # Base de shake
+        # v15.0: Base de shake reduzida drasticamente
         shake_base = {
-            "LEVE": 3.0,
-            "MEDIO": 6.0,
-            "PESADO": 12.0,
-            "DEVASTADOR": 20.0,
-            "EPICO": 30.0
-        }.get(tipo_golpe, 6.0)
+            "LEVE": 0.5,
+            "MEDIO": 1.5,
+            "PESADO": 4.0,
+            "DEVASTADOR": 7.0,
+            "EPICO": 10.0
+        }.get(tipo_golpe, 1.5)
         
-        # Escala com dano
-        shake_dano = math.sqrt(dano) * 0.5
+        # Escala com dano (menos agressivo)
+        shake_dano = math.sqrt(max(0, dano - 3)) * 0.25
         
         # Shake final
         shake_final = (shake_base + shake_dano) * mult_classe
         
-        # Acumula shake (com cap)
-        self.shake_acumulado = min(40.0, self.shake_acumulado + shake_final)
+        # Acumula shake (com cap baixo)
+        self.shake_acumulado = min(15.0, self.shake_acumulado + shake_final)
         
         # Direção do shake (golpe empurra câmera na direção oposta brevemente)
         if direcao != (0, 0):
-            self.shake_dir_x = -direcao[0] * 0.3
-            self.shake_dir_y = -direcao[1] * 0.3
+            self.shake_dir_x = -direcao[0] * 0.15
+            self.shake_dir_y = -direcao[1] * 0.15
         
-        # Zoom punch para golpes pesados
-        if tipo_golpe in ["PESADO", "DEVASTADOR", "EPICO"]:
+        # Zoom punch apenas para golpes realmente pesados
+        if tipo_golpe in ["DEVASTADOR", "EPICO"]:
             intensidade_zoom = {
-                "PESADO": 0.08,
-                "DEVASTADOR": 0.15,
-                "EPICO": 0.25
-            }.get(tipo_golpe, 0.1)
+                "DEVASTADOR": 0.06,
+                "EPICO": 0.12
+            }.get(tipo_golpe, 0.05)
             
             self._iniciar_zoom_punch(intensidade_zoom * mult_classe)
         
@@ -983,19 +986,18 @@ class CameraFeel:
     def aplicar_magia_carregada(self, carga: float, posicao: tuple):
         """
         Efeito especial para magias completamente carregadas.
-        
-        Cria um momento dramático de "BUILD UP" seguido de "RELEASE".
+        v15.0: Valores reduzidos para não sacudir demais.
         """
         if carga >= 1.0:
-            # Magia completa = efeito máximo
-            self.shake_acumulado = 35.0
-            self._iniciar_zoom_punch(0.3)
-            self._iniciar_focus(posicao, 0.25)
+            # Magia completa = efeito máximo (mas contido)
+            self.shake_acumulado = min(12.0, self.shake_acumulado + 8.0)
+            self._iniciar_zoom_punch(0.12)
+            self._iniciar_focus(posicao, 0.15)
         else:
             # Magia parcial = efeito proporcional
-            self.shake_acumulado = min(25.0, 10.0 + carga * 15.0)
-            if carga > 0.5:
-                self._iniciar_zoom_punch(carga * 0.2)
+            self.shake_acumulado = min(8.0, 3.0 + carga * 5.0)
+            if carga > 0.7:
+                self._iniciar_zoom_punch(carga * 0.08)
     
     def _iniciar_zoom_punch(self, intensidade: float):
         """Inicia efeito de zoom punch"""
@@ -1016,19 +1018,22 @@ class CameraFeel:
         """Atualiza efeitos de câmera"""
         # Decay do shake
         if self.shake_acumulado > 0:
-            self.shake_acumulado -= self.shake_decay * dt
+            # v15.0: Decay 2x mais rápido
+            self.shake_acumulado -= self.shake_decay * 2.0 * dt
             self.shake_acumulado = max(0, self.shake_acumulado)
             
-            # Aplica shake na câmera
-            if self.camera and self.shake_acumulado > 0:
-                # Shake com direção (empurra na direção do golpe, depois randomiza)
-                dir_factor = max(0, 1.0 - self.shake_acumulado / 20.0)
+            # Aplica shake na câmera (com valores menores)
+            if self.camera and self.shake_acumulado > 0.3:
+                dir_factor = max(0, 1.0 - self.shake_acumulado / 10.0)
                 
-                shake_x = self.shake_acumulado * (random.uniform(-1, 1) * 0.7 + self.shake_dir_x * dir_factor)
-                shake_y = self.shake_acumulado * (random.uniform(-1, 1) * 0.7 + self.shake_dir_y * dir_factor)
+                shake_x = self.shake_acumulado * (random.uniform(-1, 1) * 0.4 + self.shake_dir_x * dir_factor)
+                shake_y = self.shake_acumulado * (random.uniform(-1, 1) * 0.4 + self.shake_dir_y * dir_factor)
                 
                 self.camera.offset_x = shake_x
                 self.camera.offset_y = shake_y
+            elif self.camera:
+                self.camera.offset_x *= 0.5
+                self.camera.offset_y *= 0.5
         
         # Decay da direção
         self.shake_dir_x *= (1.0 - dt * 5.0)

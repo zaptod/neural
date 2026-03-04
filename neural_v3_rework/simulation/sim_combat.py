@@ -94,6 +94,82 @@ class SimuladorCombat:
                         ))
                         arma._aviso_quebrada_exibido = True
 
+            # === v5.0: MECÂNICAS ESPECIAIS DE CORRENTE ===
+            chain_estilo = getattr(arma, 'estilo', '')
+            chain_kb_mult = 1.0  # Multiplicador de knockback chain
+            chain_label = None   # Floating text especial
+
+            if arma.tipo == "Corrente":
+                dist_hit = math.hypot(vx, vy)
+
+                if "Mangual" in chain_estilo or "Flail" in chain_estilo:
+                    # MANGUAL: Momentum system — cada hit acumula poder
+                    momentum = getattr(atacante, 'chain_momentum', 0)
+                    # Bônus de dano: até +60% com momentum cheio
+                    dano *= (1.0 + momentum * 0.6)
+                    # Bônus de knockback: até +80%
+                    chain_kb_mult = 1.0 + momentum * 0.8
+                    # Acumula momentum no hit (cap 1.0)
+                    atacante.chain_momentum = min(1.0, momentum + 0.25)
+                    if momentum >= 0.7:
+                        chain_label = "MOMENTUM!"
+
+                elif chain_estilo == "Kusarigama":
+                    mode = getattr(atacante, 'chain_mode', 0)
+                    if mode == 0:
+                        # FOICE: Dano base menor, mas aplica sangramento
+                        dano *= 0.75
+                        # Aplica DOT de sangramento
+                        from core.combat import DotEffect
+                        dot = DotEffect("SANGRANDO", defensor, arma.dano * 0.3,
+                                       3.0, (180, 40, 40))
+                        defensor.dots_ativos.append(dot)
+                        chain_label = "CORTE!"
+                    else:
+                        # PESO: Dano normal, stun curto
+                        defensor.stun_timer = max(defensor.stun_timer, 0.4)
+                        chain_kb_mult = 1.3
+                        chain_label = "STUN!"
+
+                elif chain_estilo == "Chicote":
+                    # CHICOTE: Crack bonus na ponta (sweet spot)
+                    alcance_total = getattr(atacante, 'raio_fisico', 0.5) * 6.0
+                    ratio_dist = dist_hit / max(alcance_total, 0.1)
+                    if ratio_dist >= 0.65:  # Sweet spot na ponta
+                        dano *= 2.0  # CRACK! 2x dano
+                        chain_label = "CRACK!"
+                        # Interrompe ataque do inimigo
+                        if defensor.atacando:
+                            defensor.atacando = False
+                            defensor.cooldown_ataque = 0.3
+                    else:
+                        dano *= 0.6  # Dano fraco se perto
+                    chain_kb_mult = 0.5  # Chicote não empurra muito
+
+                elif chain_estilo == "Meteor Hammer":
+                    # METEOR: Dano baseado na velocidade de spin
+                    spin_speed = getattr(atacante, 'chain_spin_speed', 0)
+                    # Spin rápido = mais dano (até +100%)
+                    dano *= (1.0 + min(spin_speed, 3.0) * 0.33)
+                    chain_kb_mult = 0.8  # KB moderado
+                    if spin_speed >= 2.0:
+                        chain_label = "ORBITA!"
+
+                elif "Corrente com Peso" in chain_estilo:
+                    # CORRENTE COM PESO: Aplica slow + pull
+                    # Slow: reduz velocidade do alvo em 40% por 1.5s
+                    defensor.slow_timer = max(defensor.slow_timer, 1.5)
+                    defensor.slow_fator = min(defensor.slow_fator, 0.6)
+                    # Pull: puxa o alvo na direção do atacante
+                    pull_force = 4.0
+                    pull_dx = atacante.pos[0] - defensor.pos[0]
+                    pull_dy = atacante.pos[1] - defensor.pos[1]
+                    pull_mag = math.hypot(pull_dx, pull_dy) or 1
+                    defensor.vel[0] += (pull_dx / pull_mag) * pull_force
+                    defensor.vel[1] += (pull_dy / pull_mag) * pull_force
+                    chain_kb_mult = 0.3  # Quase sem KB (puxa em vez de empurrar)
+                    chain_label = "PUXÃO!"
+
             # === ÁUDIO v10.0 - SOM DE ATAQUE (baseado no dano) ===
             tipo_ataque = arma.tipo if arma else "SOCO"
             if self.audio:
@@ -176,11 +252,29 @@ class SimuladorCombat:
             cor_arma = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else BRANCO
             self.impact_flashes.append(ImpactFlash(dx, dy, cor_arma, 1.0, "normal"))
             
+            # === v5.0: FLOATING TEXT DE MECÂNICA CHAIN ===
+            if chain_label:
+                cor_chain = {
+                    "MOMENTUM!": (255, 180, 50),
+                    "CORTE!": (180, 40, 40),
+                    "STUN!": (100, 100, 255),
+                    "CRACK!": (255, 255, 100),
+                    "ORBITA!": (200, 100, 255),
+                    "PUXÃO!": (100, 255, 100),
+                }.get(chain_label, (255, 255, 255))
+                self.textos.append(FloatingText(
+                    dx, dy - 45, chain_label, cor_chain, 20
+                ))
+
             # === SISTEMA DE KNOCKBACK BASEADO EM FORÇA ===
             # Calcula knockback com a nova fórmula
             pos_impacto = (dx / PPM, dy / PPM)
             kb_base = calcular_knockback_com_forca(atacante, defensor, direcao_impacto, dano)
             kb_x, kb_y = kb_base[0], kb_base[1]
+
+            # v5.0: Multiplicador de knockback chain
+            kb_x *= chain_kb_mult
+            kb_y *= chain_kb_mult
             
             if resultado_hit and not resultado_hit["sofreu_stagger"]:
                 # Super Armor ativa - knockback reduzido
@@ -222,12 +316,12 @@ class SimuladorCombat:
                 
                 # Game Feel já processou camera shake para morte
                 if not self.game_feel:
-                    self.cam.aplicar_shake(35.0, 0.5)
-                    self.cam.zoom_punch(0.3, 0.2)
-                    self.hit_stop_timer = 0.4
+                    self.cam.aplicar_shake(18.0, 0.3)
+                    self.cam.zoom_punch(0.15, 0.15)
+                    self.hit_stop_timer = 0.25
                 else:
                     # Efeitos adicionais de morte
-                    self.cam.zoom_punch(0.35, 0.25)
+                    self.cam.zoom_punch(0.18, 0.18)
                 
                 self.shockwaves.append(Shockwave(dx, dy, VERMELHO_SANGUE, 2.0))
                 self.textos.append(FloatingText(dx, dy - 50, "FATAL!", VERMELHO_SANGUE, 45))
@@ -253,11 +347,13 @@ class SimuladorCombat:
                 
                 # Se Game Feel está gerenciando shake/hitstop, não duplicamos
                 if not self.game_feel:
-                    shake_intensity = min(20.0, 5.0 + dano * 0.3)
-                    self.cam.aplicar_shake(shake_intensity, 0.12)
-                    self.hit_stop_timer = min(0.1, 0.02 + dano * 0.002)
-                    if dano > 15:
-                        self.cam.zoom_punch(0.08, 0.1)
+                    # v15.0: Shake proporcional ao dano com threshold
+                    if dano > 8:
+                        shake_intensity = min(12.0, 2.0 + dano * 0.15)
+                        self.cam.aplicar_shake(shake_intensity, 0.08)
+                    self.hit_stop_timer = min(0.08, 0.015 + dano * 0.001)
+                    if dano > 25:
+                        self.cam.zoom_punch(0.05, 0.08)
                 
                 # Shockwave para ataques fortes
                 tier = get_impact_tier(forca_atacante)
@@ -284,69 +380,90 @@ class SimuladorCombat:
 
 
     def verificar_colisoes_combate(self):
-        if self.p1.dados.arma_obj and self.p2.dados.arma_obj:
-            if self.checar_clash_geral(self.p1, self.p2):
-                self.efeito_clash(self.p1, self.p2); return 
-        morreu_1 = self.checar_ataque(self.p1, self.p2)
-        morreu_2 = self.checar_ataque(self.p2, self.p1)
-        if morreu_1: self.ativar_slow_motion(); self.vencedor = self.p1.dados.nome
-        if morreu_2: self.ativar_slow_motion(); self.vencedor = self.p2.dados.nome
+        """v13.0: Verifica colisões de combate entre TODOS os pares de lutadores.
+        
+        Friendly fire ON: Ataques afetam qualquer lutador, incluindo aliados.
+        """
+        fighters = getattr(self, 'fighters', [self.p1, self.p2])
+        
+        # Verifica clash entre todos os pares
+        for i in range(len(fighters)):
+            for j in range(i + 1, len(fighters)):
+                a, b = fighters[i], fighters[j]
+                if a.morto or b.morto:
+                    continue
+                if a.dados.arma_obj and b.dados.arma_obj:
+                    if self.checar_clash_geral(a, b):
+                        self.efeito_clash(a, b)
+                        continue
+        
+        # Verifica ataques de cada lutador contra TODOS os outros (friendly fire)
+        for atacante in fighters:
+            if atacante.morto or not atacante.atacando:
+                continue
+            for defensor in fighters:
+                if defensor is atacante or defensor.morto:
+                    continue
+                morreu = self.checar_ataque(atacante, defensor)
+                if morreu:
+                    self.ativar_slow_motion()
+                    self.vencedor = self._determinar_vencedor_por_morte(defensor) if hasattr(self, '_determinar_vencedor_por_morte') else atacante.dados.nome
 
 
     def resolver_fisica_corpos(self, dt):
-        """Resolve colisão física entre os dois lutadores impedindo sobreposição"""
-        p1, p2 = self.p1, self.p2
-        if p1.morto or p2.morto: 
+        """v13.0: Resolve colisão física entre TODOS os pares de lutadores."""
+        fighters = getattr(self, 'fighters', [self.p1, self.p2])
+        vivos = [f for f in fighters if not f.morto]
+        
+        if len(vivos) < 2:
             return
         
         # Múltiplas iterações para garantir separação completa
         for _ in range(3):
-            # Calcula distância entre centros
-            dx = p2.pos[0] - p1.pos[0]
-            dy = p2.pos[1] - p1.pos[1]
-            dist = math.hypot(dx, dy)
-            
-            # Soma dos raios (distância mínima permitida)
-            soma_raios = p1.raio_fisico + p2.raio_fisico
-            
-            # Só processa se estiverem se sobrepondo E na mesma altura (Z)
-            if dist >= soma_raios or abs(p1.z - p2.z) >= 1.0:
-                break  # Não há sobreposição, sai do loop
+            for i in range(len(vivos)):
+                for j in range(i + 1, len(vivos)):
+                    p1, p2 = vivos[i], vivos[j]
+                    
+                    dx = p2.pos[0] - p1.pos[0]
+                    dy = p2.pos[1] - p1.pos[1]
+                    dist = math.hypot(dx, dy)
+                    
+                    soma_raios = p1.raio_fisico + p2.raio_fisico
+                    
+                    if dist >= soma_raios or abs(p1.z - p2.z) >= 1.0:
+                        continue
+                    
+                    penetracao = soma_raios - dist
+                    
+                    if dist > 0.001:
+                        nx, ny = dx / dist, dy / dist
+                    else:
+                        ang = random.uniform(0, math.pi * 2)
+                        nx, ny = math.cos(ang), math.sin(ang)
+                    
+                    separacao = (penetracao / 2.0) + 0.02
+                    
+                    p1.pos[0] -= nx * separacao
+                    p1.pos[1] -= ny * separacao
+                    p2.pos[0] += nx * separacao
+                    p2.pos[1] += ny * separacao
+        
+        # Velocidade de repulsão para pares próximos
+        for i in range(len(vivos)):
+            for j in range(i + 1, len(vivos)):
+                p1, p2 = vivos[i], vivos[j]
+                dx = p2.pos[0] - p1.pos[0]
+                dy = p2.pos[1] - p1.pos[1]
+                dist = math.hypot(dx, dy)
+                soma_raios = p1.raio_fisico + p2.raio_fisico
                 
-            # Calcula penetração (quanto estão se sobrepondo)
-            penetracao = soma_raios - dist
-            
-            # Vetor normal de separação (de p1 para p2)
-            if dist > 0.001:
-                nx, ny = dx / dist, dy / dist
-            else:
-                # Se estiverem exatamente no mesmo ponto, escolhe direção aleatória
-                ang = random.uniform(0, math.pi * 2)
-                nx, ny = math.cos(ang), math.sin(ang)
-            
-            # === SEPARAÇÃO FÍSICA INSTANTÂNEA ===
-            # Move cada corpo para fora da sobreposição (metade para cada lado)
-            separacao = (penetracao / 2.0) + 0.02  # Margem de segurança
-            
-            p1.pos[0] -= nx * separacao
-            p1.pos[1] -= ny * separacao
-            p2.pos[0] += nx * separacao
-            p2.pos[1] += ny * separacao
-        
-        # === VELOCIDADE DE REPULSÃO (aplica uma vez) ===
-        # Recalcula distância após separação
-        dx = p2.pos[0] - p1.pos[0]
-        dy = p2.pos[1] - p1.pos[1]
-        dist = math.hypot(dx, dy)
-        
-        # Se ainda estiverem muito próximos, aplica repulsão
-        if dist < soma_raios * 1.2 and dist > 0.001:
-            nx, ny = dx / dist, dy / dist
-            fator_repulsao = 6.0
-            p1.vel[0] -= nx * fator_repulsao
-            p1.vel[1] -= ny * fator_repulsao
-            p2.vel[0] += nx * fator_repulsao
-            p2.vel[1] += ny * fator_repulsao
+                if dist < soma_raios * 1.2 and dist > 0.001:
+                    nx, ny = dx / dist, dy / dist
+                    fator_repulsao = 6.0
+                    p1.vel[0] -= nx * fator_repulsao
+                    p1.vel[1] -= ny * fator_repulsao
+                    p2.vel[0] += nx * fator_repulsao
+                    p2.vel[1] += ny * fator_repulsao
 
 
     def checar_clash_geral(self, p1, p2):
@@ -410,10 +527,10 @@ class SimuladorCombat:
         p1.tomar_clash(vec_x/mag, vec_y/mag)
         p2.tomar_clash(-vec_x/mag, -vec_y/mag)
         
-        # === EFEITOS DE CÂMERA DRAMÁTICOS ===
-        self.cam.aplicar_shake(25.0, 0.25)
-        self.cam.zoom_punch(0.15, 0.15)
-        self.hit_stop_timer = 0.15  # Pausa dramática
+        # === EFEITOS DE CÂMERA DRAMÁTICOS v15.0 ===
+        self.cam.aplicar_shake(14.0, 0.15)
+        self.cam.zoom_punch(0.08, 0.1)
+        self.hit_stop_timer = 0.12  # Pausa dramática
         
         # Shockwave grande
         self.shockwaves.append(Shockwave(mx, my, BRANCO, 1.5))
@@ -528,9 +645,9 @@ class SimuladorCombat:
         except Exception as e:
             _log.debug(f"[SWORD CLASH] ERRO ao tocar som: {e}")
         
-        # === CAMERA SHAKE E HIT STOP DRAMÁTICOS ===
-        self.cam.aplicar_shake(20.0, 0.3)
-        self.hit_stop_timer = 0.2  # Pausa dramática
+        # === CAMERA SHAKE E HIT STOP DRAMÁTICOS v15.0 ===
+        self.cam.aplicar_shake(12.0, 0.15)
+        self.hit_stop_timer = 0.12  # Pausa dramática
         
         # === PARTÍCULAS DE FAÍSCAS ===
         for _ in range(40):
@@ -685,8 +802,8 @@ class SimuladorCombat:
             self.particulas.append(Particula(proj.x * PPM, proj.y * PPM, AMARELO_FAISCA, vx, vy, 3, 0.3))
         
         # Shake leve
-        self.cam.aplicar_shake(8.0, 0.1)
-        self.hit_stop_timer = 0.05
+        self.cam.aplicar_shake(5.0, 0.06)
+        self.hit_stop_timer = 0.03
 
     
     def _efeito_desvio_dash(self, proj, desviador):
@@ -729,5 +846,5 @@ class SimuladorCombat:
         self.hit_sparks.append(HitSpark(proj.x * PPM, proj.y * PPM, AMARELO_FAISCA, ang, 1.5))
         
         # Camera e timing
-        self.cam.aplicar_shake(15.0, 0.15)
-        self.hit_stop_timer = 0.1
+        self.cam.aplicar_shake(8.0, 0.1)
+        self.hit_stop_timer = 0.06

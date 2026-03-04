@@ -56,6 +56,89 @@ HITBOX_PROFILES = {
         "sweet_spot_end": 1.0,
         "has_dead_zone": True,      # Não acerta muito perto
     },
+    # === PER-STYLE CHAIN PROFILES v5.0 ===
+    "Mangual": {
+        "shape": "sweep_arc",
+        "idle_shape": "arc",
+        "base_arc": 120,            # Arco estreito (golpe vertical pesado)
+        "attack_arc_mult": 1.0,
+        "range_mult": 4.0,
+        "min_range_ratio": 0.35,    # Zona morta GRANDE (bola pesada)
+        "hit_window_start": 0.25,   # Acerta só na descida
+        "hit_window_end": 0.70,
+        "sweet_spot_start": 0.75,   # Sweet spot na ponta
+        "sweet_spot_end": 1.0,
+        "has_dead_zone": True,
+    },
+    "Kusarigama_foice": {
+        "shape": "arc",
+        "idle_shape": "line",
+        "base_arc": 100,            # Cortes rápidos de foice
+        "attack_arc_mult": 1.3,
+        "range_mult": 2.5,          # Curto (foice é perto)
+        "min_range_ratio": 0.05,    # Quase sem zona morta
+        "hit_window_start": 0.08,   # Acerta cedo (rápido)
+        "hit_window_end": 0.75,
+        "sweet_spot_start": 0.3,
+        "sweet_spot_end": 0.8,
+        "has_dead_zone": False,
+    },
+    "Kusarigama_peso": {
+        "shape": "sweep_arc",
+        "idle_shape": "arc",
+        "base_arc": 60,             # Arco estreito (arremessa peso)
+        "attack_arc_mult": 1.0,
+        "range_mult": 5.5,          # Muito longo
+        "min_range_ratio": 0.40,    # Zona morta enorme
+        "hit_window_start": 0.30,   # Demora p/ chegar
+        "hit_window_end": 0.85,
+        "sweet_spot_start": 0.80,
+        "sweet_spot_end": 1.0,
+        "has_dead_zone": True,
+    },
+    "Chicote": {
+        "shape": "sweep_arc",
+        "idle_shape": "line",
+        "base_arc": 45,             # Arco fino (laço reto)
+        "attack_arc_mult": 1.5,
+        "range_mult": 6.0,          # MAIOR alcance melee
+        "min_range_ratio": 0.15,    # Zona morta pequena
+        "hit_window_start": 0.05,   # Acerta muito cedo
+        "hit_window_end": 0.60,     # Mas acaba rápido
+        "sweet_spot_start": 0.70,   # Crack = ponta (70-100%)
+        "sweet_spot_end": 1.0,
+        "has_dead_zone": False,
+        "crack_bonus": 2.0,         # 2x dano no crack
+    },
+    "Meteor Hammer": {
+        "shape": "circle",          # 360° quando girando!
+        "idle_shape": "arc",
+        "base_arc": 360,            # Área completa
+        "attack_arc_mult": 1.0,
+        "range_mult": 5.0,
+        "min_range_ratio": 0.20,
+        "hit_window_start": 0.0,    # Sempre acerta (spin)
+        "hit_window_end": 1.0,
+        "sweet_spot_start": 0.60,
+        "sweet_spot_end": 1.0,
+        "has_dead_zone": True,
+        "spin_area": True,          # Flag de dano em área
+    },
+    "Corrente com Peso": {
+        "shape": "sweep_arc",
+        "idle_shape": "arc",
+        "base_arc": 140,            # Arco médio
+        "attack_arc_mult": 1.0,
+        "range_mult": 3.5,          # Alcance médio-curto
+        "min_range_ratio": 0.15,    # Zona morta menor
+        "hit_window_start": 0.15,
+        "hit_window_end": 0.80,
+        "sweet_spot_start": 0.50,
+        "sweet_spot_end": 0.90,
+        "has_dead_zone": True,
+        "applies_slow": True,       # Aplica slow no hit
+        "applies_pull": True,       # Puxa o alvo
+    },
     "Arremesso": {
         "shape": "projectile_cone",
         "idle_shape": "point",
@@ -120,8 +203,21 @@ def debug_log(msg: str, categoria: str = "INFO"):
         print(f"[HITBOX:{categoria}] {msg}")
 
 
-def get_hitbox_profile(tipo: str) -> Dict:
-    """Retorna o perfil de hitbox para um tipo de arma"""
+def get_hitbox_profile(tipo: str, estilo: str = "") -> Dict:
+    """Retorna o perfil de hitbox para um tipo de arma.
+    v5.0: Para Corrente, busca perfil por estilo primeiro."""
+    # v5.0: Chain weapons — perfil por estilo primeiro
+    if tipo == "Corrente" and estilo:
+        # Kusarigama dual-mode: checa chain_mode via suffix
+        if estilo in HITBOX_PROFILES:
+            return HITBOX_PROFILES[estilo]
+        # Tenta match parcial (estilo in key OR key in estilo)
+        for key in HITBOX_PROFILES:
+            if key in estilo or estilo in key:
+                return HITBOX_PROFILES[key]
+        # Fallback para Corrente genérico
+        return HITBOX_PROFILES["Corrente"]
+
     # Tenta match exato primeiro
     if tipo in HITBOX_PROFILES:
         return HITBOX_PROFILES[tipo]
@@ -217,7 +313,7 @@ class SistemaHitbox:
     
     def __init__(self):
         self.ultimo_ataque_info = {}  # Cache de info para debug visual
-        self.hits_registrados = []  # Histórico de hits
+        self.hits_registrados = []  # Histórico de hits (capped at 100)
         
     def calcular_hitbox_arma(self, lutador) -> Optional[HitboxInfo]:
         """
@@ -363,14 +459,21 @@ class SistemaHitbox:
     
     def _calcular_hitbox_corrente(self, lutador, arma, cx, cy, rad, fator, raio_char) -> HitboxInfo:
         """
-        Calcula hitbox para armas de corrente v2.0.
-        A hitbox segue a posição da BOLA na ponta da corrente.
-        Usa perfis de hitbox para características precisas.
+        Calcula hitbox para armas de corrente v5.0.
+        Usa perfil por ESTILO, não genérico. Kusarigama tem dual-mode.
         """
         tipo = arma.tipo
-        profile = get_hitbox_profile("Corrente")
+        estilo = getattr(arma, 'estilo', '')
         
-        # Alcance = raio × perfil (geometria removida)
+        # v5.0: Kusarigama dual-mode — resolve o perfil baseado em chain_mode
+        if estilo == "Kusarigama":
+            chain_mode = getattr(lutador, 'chain_mode', 0)
+            profile_key = "Kusarigama_foice" if chain_mode == 0 else "Kusarigama_peso"
+            profile = get_hitbox_profile("Corrente", profile_key)
+        else:
+            profile = get_hitbox_profile("Corrente", estilo)
+        
+        # Alcance = raio × perfil
         fator_arma = profile["range_mult"]
         alcance_px = raio_char * fator_arma
         alcance_minimo = alcance_px * profile["min_range_ratio"]
@@ -378,15 +481,21 @@ class SistemaHitbox:
         tamanho_bola = raio_char * 0.20
         largura_base = math.degrees(2 * math.atan2(tamanho_bola, alcance_px))
         
-        # Durante ataque, a corrente varre um arco muito maior
-        if lutador.atacando:
+        # Meteor Hammer spinning: 360° hitbox
+        is_spinning = getattr(lutador, 'chain_spinning', False)
+        
+        # Durante ataque, a corrente varre um arco baseado no perfil
+        if lutador.atacando or is_spinning:
             angulo_bola = lutador.angulo_olhar
-            largura_angular = profile["base_arc"] * profile["attack_arc_mult"]
+            if is_spinning or profile.get("spin_area"):
+                largura_angular = 360.0  # Full circle
+            else:
+                largura_angular = profile["base_arc"] * profile["attack_arc_mult"]
         else:
             largura_angular = max(largura_base + 30, 45)
         
-        debug_log(f"  Corrente v2: alcance={alcance_px:.1f} zona_morta={alcance_minimo:.1f}", "CALC")
-        debug_log(f"  Corrente v2: ang={angulo_bola:.1f}° largura={largura_angular:.1f}° atacando={lutador.atacando}", "CALC")
+        debug_log(f"  Corrente v5: estilo={estilo} alcance={alcance_px:.1f} zona_morta={alcance_minimo:.1f}", "CALC")
+        debug_log(f"  Corrente v5: ang={angulo_bola:.1f}° largura={largura_angular:.1f}° atacando={lutador.atacando}", "CALC")
         
         # Gera pontos do arco para visualização
         pontos_arco = []
@@ -479,7 +588,7 @@ class SistemaHitbox:
             fator_arma = 2.0
 
         alcance_px = raio_char * fator_arma
-        largura_ang = max(60.0, arma.largura * 2)
+        largura_ang = max(60.0, getattr(arma, 'largura', 30) * 2)
 
         debug_log(f"  Área: raio_char={raio_char:.1f} fator={fator_arma} alcance_px={alcance_px:.1f} largura={largura_ang}°", "CALC")
 
@@ -716,7 +825,11 @@ class SistemaHitbox:
         
         # Armas de área: verifica distância e ângulo
         else:
-            return self._colisao_area(hitbox, (dx, dy), raio_def, atacante.dados.nome)
+            acertou_area, motivo_area = self._colisao_area(hitbox, (dx, dy), raio_def, atacante.dados.nome)
+            # Cap hits_registrados to prevent unbounded growth
+            if len(self.hits_registrados) > 100:
+                self.hits_registrados = self.hits_registrados[-50:]
+            return acertou_area, motivo_area
     
     def _colisao_linha_circulo(self, p1: Tuple[float, float], p2: Tuple[float, float],
                                centro: Tuple[float, float], raio: float) -> Tuple[bool, str]:

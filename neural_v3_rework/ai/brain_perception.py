@@ -362,11 +362,11 @@ class PerceptionMixin(_AIBrainMixinBase):
         
         elif estrategia == "esperar":
             if random.random() < 0.4:
-                self.acao_atual = random.choice(["COMBATE", "CIRCULAR", "BLOQUEAR"])
+                self.acao_atual = random.choice(["COMBATE", "BLOQUEAR", "COMBATE"])
         
         elif estrategia == "aproximar":
             if random.random() < 0.3:
-                self.acao_atual = random.choice(["APROXIMAR", "CIRCULAR"])
+                self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR"])
         
         # === COMPORTAMENTOS ESPECÍFICOS POR TIPO DE ARMA INIMIGA ===
         # v2.0: inclui lógica contra Mangual e Adagas Gêmeas reformulados
@@ -381,7 +381,7 @@ class PerceptionMixin(_AIBrainMixinBase):
             # Manter distância e punir a aproximação
             dist_segura = alcance_efetivo * 1.2  # Fica além do alcance das adagas
             if distancia < dist_segura and roll < 0.45:
-                self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "CIRCULAR"])
+                self.acao_atual = random.choice(["RECUAR", "FLANQUEAR", "RECUAR"])
         
         if tipo_ini == "Corrente":
             arma_ini_estilo = arma_inimigo.estilo if arma_inimigo and hasattr(arma_inimigo, 'estilo') else ''
@@ -399,15 +399,72 @@ class PerceptionMixin(_AIBrainMixinBase):
                     # Na zona de perigo: tenta entrar na zona morta para anular
                     self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "FLANQUEAR"])
                 # Se dentro da zona morta: o Mangual é ineficaz → ataca!
-            # Contra correntes normais: entrar na zona morta ou manter distância
-            if distancia < perc.get("distancia_segura", 3.0) * 0.5:
-                # Estou na zona morta - vantagem!
-                if random.random() < 0.6:
-                    self.acao_atual = random.choice(["MATAR", "PRESSIONAR"])
-            elif distancia < perc.get("zona_perigo_inimigo", 4.0):
-                # Zona perigosa da corrente - sai rápido
-                if random.random() < 0.5:
-                    self.acao_atual = random.choice(["APROXIMAR", "RECUAR"])  # Uma ou outra
+
+            elif arma_ini_estilo == "Kusarigama":
+                # v5.0 CONTRA KUSARIGAMA: Troca de modo é vulnerável
+                # Manter distância média (fora do foice, dentro do peso)
+                # para forçar troca de modos constante
+                chain_mode_ini = getattr(inimigo, 'chain_mode', 0)
+                if chain_mode_ini == 0:
+                    # Modo foice (perto): manter distância
+                    if distancia < 3.0 and roll < 0.55:
+                        self.acao_atual = random.choice(["RECUAR", "FLANQUEAR"])
+                else:
+                    # Modo peso (longe): aproximar para forçar troca
+                    if distancia > 4.0 and roll < 0.55:
+                        self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR"])
+
+            elif arma_ini_estilo == "Chicote":
+                # v5.0 CONTRA CHICOTE: Sweet spot na ponta = 2x dano
+                # Estratégia: ficar BEM PERTO (dentro da zona fraca) ou LONGE demais
+                alcance_chicote = perc.get("alcance_inimigo", 5.0)
+                zona_fraca = alcance_chicote * 0.5  # Dentro de 50% = dano fraco
+                if distancia > zona_fraca and distancia < alcance_chicote:
+                    # Na zona do CRACK: perigosíssimo, sai ou entra mais
+                    if roll < 0.6:
+                        self.acao_atual = random.choice(["APROXIMAR", "APROXIMAR", "RECUAR"])
+                elif distancia < zona_fraca:
+                    # Dentro da zona fraca: vantagem! Chicote fraco de perto
+                    if roll < 0.65:
+                        self.acao_atual = random.choice(["MATAR", "PRESSIONAR", "COMBATE"])
+
+            elif arma_ini_estilo == "Meteor Hammer":
+                # v5.0 CONTRA METEOR HAMMER: Spin contínuo cria zona 360°
+                # Estratégia: ficar FORA quando está girando, punir quando NÃO gira
+                is_spinning = getattr(inimigo, 'chain_spinning', False)
+                if is_spinning:
+                    alcance_meteor = perc.get("alcance_inimigo", 5.0)
+                    if distancia < alcance_meteor * 1.1:
+                        # Dentro da zona de spin: sair URGENTE
+                        self.acao_atual = random.choice(["RECUAR", "RECUAR", "FLANQUEAR"])
+                    # Fora da zona: esperar ele parar
+                else:
+                    # Não está girando: momento de atacar
+                    if distancia < 4.0 and roll < 0.6:
+                        self.acao_atual = random.choice(["PRESSIONAR", "MATAR", "COMBATE"])
+
+            elif "Corrente com Peso" in arma_ini_estilo:
+                # v5.0 CONTRA CORRENTE COM PESO: Pull + Slow é letal
+                # Estratégia: manter distância máxima, nunca deixar puxar
+                is_slowed = getattr(self.lutador, 'slow_timer', 0) > 0
+                if is_slowed:
+                    # Estou lento: foge desesperadamente
+                    self.acao_atual = random.choice(["RECUAR", "RECUAR", "FLANQUEAR"])
+                elif distancia < 3.5 and roll < 0.5:
+                    # Perto demais: risco de pull
+                    self.acao_atual = random.choice(["RECUAR", "FLANQUEAR"])
+                elif distancia > 5.0 and roll < 0.4:
+                    # Seguro: mantém distância ou aproveita para poke
+                    self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR"])
+
+            else:
+                # Contra correntes genéricas (fallback)
+                if distancia < perc.get("distancia_segura", 3.0) * 0.5:
+                    if random.random() < 0.6:
+                        self.acao_atual = random.choice(["MATAR", "PRESSIONAR"])
+                elif distancia < perc.get("zona_perigo_inimigo", 4.0):
+                    if random.random() < 0.5:
+                        self.acao_atual = random.choice(["APROXIMAR", "RECUAR"])
         
         elif tipo_ini == "Arco":
             # Contra arcos: flanqueia e aproxima

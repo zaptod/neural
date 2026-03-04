@@ -295,7 +295,7 @@ class SkillStrategySystem:
             self.skills_por_tipo[tipo].append(perfil)
     
     def _calcular_metricas(self, perfil: SkillProfile):
-        """Calcula métricas numéricas da skill"""
+        """Calcula métricas numéricas da skill v3.0"""
         data = perfil.data
         tipo = perfil.tipo
         
@@ -310,7 +310,22 @@ class SkillStrategySystem:
         if tipo == "SUMMON":
             duracao = data.get("duracao", 10)
             summon_dano = data.get("summon_dano", 10)
-            perfil.dano_total = summon_dano * duracao * 0.5  # Estimativa
+            # Estimativa: ataques a cada ~1.2s + aura contínua
+            ataques_estimados = duracao / 1.2 * 0.6  # 60% hit rate
+            perfil.dano_total = summon_dano * ataques_estimados
+            # Aura contribui dano contínuo
+            aura_dano = data.get("aura_dano", 0)
+            aura_raio = data.get("aura_raio", 0)
+            if aura_dano > 0 and aura_raio > 0:
+                perfil.dano_total += aura_dano * duracao * 0.4  # 40% uptime
+        elif tipo == "TRAP":
+            # Trigger traps: burst dano + efeito
+            if not data.get("bloqueia_movimento", False):
+                perfil.dano_total = data.get("dano", 0)
+            else:
+                # Walls: dano contato por segundo * estim duração de contato
+                dano_contato = data.get("dano_contato", 0)
+                perfil.dano_total = dano_contato * 3.0  # ~3s contato estimado
         
         # Alcance efetivo
         if tipo == "PROJETIL":
@@ -323,6 +338,10 @@ class SkillStrategySystem:
             perfil.alcance_efetivo = data.get("raio_area", 3.0)
         elif tipo == "DASH":
             perfil.alcance_efetivo = data.get("distancia", 4.0)
+        elif tipo == "SUMMON":
+            perfil.alcance_efetivo = 0  # Self-cast (summon persegue sozinho)
+        elif tipo == "TRAP":
+            perfil.alcance_efetivo = 0  # Coloca nos pés
         else:
             perfil.alcance_efetivo = 0  # Self-cast
         
@@ -343,6 +362,9 @@ class SkillStrategySystem:
         elif tipo == "DASH":
             perfil.distancia_min = 3.0
             perfil.distancia_max = perfil.alcance_efetivo + 3.0
+        elif tipo in ["BUFF", "SUMMON", "TRAP", "TRANSFORM"]:
+            perfil.distancia_min = 0
+            perfil.distancia_max = 999.0  # Sem restrição de distância
     
     def _determinar_propositos(self, perfil: SkillProfile):
         """Determina os propósitos estratégicos da skill"""
@@ -388,18 +410,41 @@ class SkillStrategySystem:
                 propositos.append(SkillPurpose.OPENER)
                 propositos.append(SkillPurpose.BURST)
         
-        # SUMMON
+        # SUMMON v3.0 — diferencia por efeito e tipo
         elif tipo == "SUMMON":
-            propositos.append(SkillPurpose.OPENER)  # Invocar no início
-            propositos.append(SkillPurpose.SUSTAIN)  # Distração
-            propositos.append(SkillPurpose.ZONING)   # Controle de área
+            propositos.append(SkillPurpose.OPENER)   # Invocar no início
+            propositos.append(SkillPurpose.SUSTAIN)  # Distração / tanking dano
+            # Summons com efeito CC (CEGO, LENTO, PARALISIA) = controle
+            efeito = data.get("efeito", "NORMAL")
+            if efeito in ("CEGO", "LENTO", "PARALISIA", "CONGELADO", "ENRAIZADO", "MEDO"):
+                propositos.append(SkillPurpose.CONTROL)
+            # Summons com aura = zoning
+            if data.get("aura_dano", 0) > 0:
+                propositos.append(SkillPurpose.ZONING)
+            # Summons de alto dano = burst helper
+            if data.get("summon_dano", 0) >= 15:
+                propositos.append(SkillPurpose.BURST)
         
-        # TRAP
+        # TRAP v3.0 — diferencia wall (muralha) de trigger (armadilha)
         elif tipo == "TRAP":
-            propositos.append(SkillPurpose.ZONING)
-            propositos.append(SkillPurpose.CONTROL)
-            if data.get("bloqueia_movimento"):
-                propositos.append(SkillPurpose.ESCAPE)
+            efeito = data.get("efeito", "NORMAL")
+            if data.get("bloqueia_movimento", False):
+                # WALL: bloqueia passagem, controle de área defensivo
+                propositos.append(SkillPurpose.ZONING)
+                propositos.append(SkillPurpose.ESCAPE)   # Pode bloquear perseguição
+                propositos.append(SkillPurpose.CONTROL)  # Impede movimento
+                if data.get("dano_contato", 0) > 0:
+                    propositos.append(SkillPurpose.SUSTAIN)  # Dano passivo protetor
+            else:
+                # TRIGGER: armadilha no chão, dispara ao pisar
+                propositos.append(SkillPurpose.ZONING)   # Controle de área
+                propositos.append(SkillPurpose.CONTROL)  # CC no trigger
+                if data.get("dano", 0) >= 20:
+                    propositos.append(SkillPurpose.BURST)  # Dano significativo
+                if efeito in ("PARALISIA", "CONGELADO", "TEMPO_PARADO", "ENRAIZADO"):
+                    propositos.append(SkillPurpose.CONTROL)  # CC forte
+                # Armadilhas são ótimas para setup de combo
+                propositos.append(SkillPurpose.OPENER)
         
         # TRANSFORM
         elif tipo == "TRANSFORM":
@@ -554,10 +599,10 @@ class SkillStrategySystem:
         self._definir_estilo()
     
     def _criar_rotacao_opening(self) -> List[str]:
-        """Rotação para início de combate"""
+        """Rotação para início de combate v3.0"""
         rotacao = []
         
-        # Prioridade: Buffs > Summons > Traps
+        # Prioridade: Buffs de dano > Summons > Traps (trigger) > Traps (wall) > Pokes
         for s in self.skills_por_proposito[SkillPurpose.OPENER]:
             if s.tipo == "BUFF" and s.data.get("buff_dano"):
                 rotacao.insert(0, s.nome)  # Buff de dano primeiro
@@ -565,6 +610,10 @@ class SkillStrategySystem:
                 rotacao.append(s.nome)
             elif s.tipo == "TRANSFORM":
                 rotacao.append(s.nome)
+            elif s.tipo == "TRAP":
+                # Trigger traps no opening para zone control
+                if not s.data.get("bloqueia_movimento", False):
+                    rotacao.append(s.nome)
         
         # Adiciona pokes para manter pressão
         for s in self.skills_por_proposito[SkillPurpose.POKE][:2]:
@@ -606,7 +655,7 @@ class SkillStrategySystem:
         return rotacao
     
     def _criar_rotacao_disadvantage(self) -> List[str]:
-        """Rotação quando está em desvantagem"""
+        """Rotação quando está em desvantagem v3.0"""
         rotacao = []
         
         # Sustain e escape
@@ -616,6 +665,14 @@ class SkillStrategySystem:
             if s.nome not in rotacao:
                 rotacao.append(s.nome)
         for s in self.skills_por_proposito[SkillPurpose.CONTROL]:
+            if s.nome not in rotacao:
+                rotacao.append(s.nome)
+        # Walls como barreira defensiva
+        for s in self.skills_por_tipo.get("TRAP", []):
+            if s.data.get("bloqueia_movimento", False) and s.nome not in rotacao:
+                rotacao.insert(1, s.nome)  # Alta prioridade
+        # Summons como distração defensiva
+        for s in self.skills_por_tipo.get("SUMMON", []):
             if s.nome not in rotacao:
                 rotacao.append(s.nome)
         
@@ -667,11 +724,11 @@ class SkillStrategySystem:
             plano.estilo = "kite"
             plano.distancia_preferida = 6.0
         elif role == StrategicRole.SUMMONER:
-            plano.estilo = "balanced"
-            plano.distancia_preferida = 5.0
+            plano.estilo = "kite"  # Fica atrás dos summons
+            plano.distancia_preferida = 5.5
         elif role == StrategicRole.TRAP_MASTER:
-            plano.estilo = "defensive"
-            plano.distancia_preferida = 4.0
+            plano.estilo = "kite"  # Lure into traps
+            plano.distancia_preferida = 4.5
         elif role == StrategicRole.BUFFER:
             plano.estilo = "defensive"
             plano.distancia_preferida = 3.0
@@ -811,7 +868,36 @@ class SkillStrategySystem:
             for burst in bursts[:1]:
                 add(ch, burst, "channel_charge_burst")
 
-        self.plano.combos = combos[:20]
+        # TRAP combos v3.0
+        traps = self.skills_por_tipo.get("TRAP", [])
+        trigger_traps = [s for s in traps if not s.data.get("bloqueia_movimento", False)]
+        wall_traps = [s for s in traps if s.data.get("bloqueia_movimento", False)]
+        
+        # Trigger trap -> CC (trap stuns/slows, then follow up)
+        for trap in trigger_traps:
+            for burst in bursts[:2]:
+                add(trap, burst, "trap_burst_AMBUSH")
+            for cc in cc_sk[:2]:
+                add(trap, cc, "trap_cc_layered")
+        
+        # Wall trap -> poke (block path, then snipe)
+        for wall in wall_traps:
+            for poke in pokes[:2]:
+                add(wall, poke, "wall_poke_siege")
+            for esc in escapes[:1]:
+                add(wall, esc, "wall_escape_defensive")
+        
+        # CC -> trap (stun then place trap for when they recover)
+        for cc in cc_sk[:2]:
+            for trap in trigger_traps[:2]:
+                add(cc, trap, "cc_then_trap_LAYERED_CC")
+        
+        # Summon -> trap (summon chases, enemy retreats into trap)
+        for summon in summons[:2]:
+            for trap in trigger_traps[:2]:
+                add(summon, trap, "summon_chase_into_trap")
+
+        self.plano.combos = combos[:25]
 
     # =========================================================================
     # EXECUÇÃO DO PLANO
@@ -938,21 +1024,20 @@ class SkillStrategySystem:
         return True
     
     def _condicoes_ideais(self, nome: str, sit: CombatSituation) -> bool:
-        """Verifica se as condições são ideais para usar a skill"""
+        """Verifica se as condições são ideais para usar a skill v3.0"""
         skill = self.skills[nome]
         
         # Distância
         if skill.alcance_efetivo > 0:
-            if sit.distancia < skill.distancia_min * 0.5:  # Mais flexível
+            if sit.distancia < skill.distancia_min * 0.5:
                 return False
-            if sit.distancia > skill.distancia_max * 1.2:  # Mais flexível
+            if sit.distancia > skill.distancia_max * 1.2:
                 return False
         
         # HP próprio
         if sit.meu_hp_percent < skill.hp_proprio_min:
             return False
         if sit.meu_hp_percent > skill.hp_proprio_max:
-            # Para skills de cura, só retorna False se HP > max
             if skill.proposito_principal == SkillPurpose.SUSTAIN:
                 return False
         
@@ -961,9 +1046,21 @@ class SkillStrategySystem:
             if sit.inimigo_hp_percent > skill.hp_inimigo_max:
                 return False
         
-        # Skills que não dependem de distância (BUFF, SUMMON, TRANSFORM)
-        if skill.tipo in ["BUFF", "SUMMON", "TRANSFORM", "TRAP"]:
-            return True  # Sempre pode usar se tiver mana
+        # SUMMON: não invocar se já tem summons ativos (evita spam)
+        if skill.tipo == "SUMMON":
+            if sit.tenho_summons_ativos >= 2:
+                return False
+            return True
+        
+        # TRAP: não colocar se já tem muitas traps (evita spam)
+        if skill.tipo == "TRAP":
+            if sit.tenho_traps_ativos >= 3:
+                return False
+            return True
+        
+        # BUFF/TRANSFORM: sempre pode usar se tiver mana
+        if skill.tipo in ["BUFF", "TRANSFORM"]:
+            return True
         
         return True
     

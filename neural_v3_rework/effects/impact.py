@@ -9,66 +9,92 @@ import math
 
 
 class ImpactFlash:
-    """Flash de impacto quando projéteis/ataques colidem"""
+    """Flash de impacto quando projéteis/ataques colidem — v15.0 POLISHED"""
     def __init__(self, x, y, cor, tamanho=1.0, tipo="normal"):
         self.x = x
         self.y = y
         self.cor = cor
         self.tamanho_base = 30 * tamanho
         self.tamanho = self.tamanho_base
-        self.vida = 0.15
-        self.max_vida = 0.15
+        self.vida = 0.18
+        self.max_vida = 0.18
         self.tipo = tipo
         self.raios = []
         
         if tipo == "magic":
-            for i in range(8):
+            for i in range(10):
                 ang = random.uniform(0, math.pi * 2)
-                comp = random.uniform(20, 50) * tamanho
+                comp = random.uniform(25, 55) * tamanho
                 self.raios.append((ang, comp))
         elif tipo == "clash":
-            for i in range(12):
-                ang = i * (math.pi * 2 / 12)
-                comp = random.uniform(30, 60) * tamanho
+            for i in range(14):
+                ang = i * (math.pi * 2 / 14) + random.uniform(-0.15, 0.15)
+                comp = random.uniform(35, 70) * tamanho
+                self.raios.append((ang, comp))
+        elif tipo == "normal":
+            for i in range(6):
+                ang = random.uniform(0, math.pi * 2)
+                comp = random.uniform(15, 35) * tamanho
                 self.raios.append((ang, comp))
     
     def update(self, dt):
         self.vida -= dt
         prog = 1.0 - (self.vida / self.max_vida)
-        if prog < 0.3:
-            self.tamanho = self.tamanho_base * (prog / 0.3)
+        # Ease out: rápido crescimento, fade suave
+        if prog < 0.2:
+            self.tamanho = self.tamanho_base * (prog / 0.2) ** 0.5
         else:
-            self.tamanho = self.tamanho_base * (1.0 - (prog - 0.3) / 0.7)
+            self.tamanho = self.tamanho_base * (1.0 - ((prog - 0.2) / 0.8) ** 2)
     
     def draw(self, tela, cam):
         if self.vida <= 0:
             return
         sx, sy = cam.converter(self.x, self.y)
-        alpha = int(255 * (self.vida / self.max_vida))
+        prog = 1.0 - (self.vida / self.max_vida)
+        alpha = int(255 * (1.0 - prog ** 1.5))  # Smoother fade
         tam = cam.converter_tam(self.tamanho)
         
         if tam < 2:
             return
         
-        s = pygame.Surface((tam * 4, tam * 4), pygame.SRCALPHA)
-        centro = (tam * 2, tam * 2)
+        surf_size = max(8, tam * 5)
+        s = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        centro = (surf_size // 2, surf_size // 2)
         
-        cor_glow = (*self.cor[:3], alpha // 2)
-        pygame.draw.circle(s, cor_glow, centro, tam * 2)
+        # Camada 1: Glow externo grande e suave
+        glow_r = min(surf_size // 2 - 1, tam * 3)
+        if glow_r > 2:
+            glow_alpha = max(0, min(255, alpha // 4))
+            pygame.draw.circle(s, (*self.cor[:3], glow_alpha), centro, glow_r)
         
-        cor_core = (*self.cor[:3], alpha)
-        pygame.draw.circle(s, cor_core, centro, tam)
+        # Camada 2: Glow médio colorido
+        mid_r = min(surf_size // 2 - 1, tam * 2)
+        if mid_r > 1:
+            mid_alpha = max(0, min(255, alpha // 2))
+            pygame.draw.circle(s, (*self.cor[:3], mid_alpha), centro, mid_r)
         
-        pygame.draw.circle(s, (255, 255, 255, alpha), centro, max(2, tam // 2))
+        # Camada 3: Core brilhante
+        core_r = max(2, tam)
+        core_alpha = max(0, min(255, alpha))
+        pygame.draw.circle(s, (*self.cor[:3], core_alpha), centro, min(core_r, surf_size // 2 - 1))
         
+        # Camada 4: Centro branco (hotspot)
+        hot_r = max(1, tam // 2)
+        hot_alpha = max(0, min(255, int(alpha * 0.9)))
+        pygame.draw.circle(s, (255, 255, 255, hot_alpha), centro, min(hot_r, surf_size // 2 - 1))
+        
+        # Raios de luz com glow
         for ang, comp in self.raios:
             comp_atual = comp * (self.vida / self.max_vida) * cam.zoom
+            ray_alpha = max(0, min(255, int(alpha * 0.7)))
             ex = centro[0] + math.cos(ang) * comp_atual
             ey = centro[1] + math.sin(ang) * comp_atual
-            pygame.draw.line(s, cor_core, centro, (int(ex), int(ey)), max(1, tam // 5))
+            # Raio com glow
+            ray_width = max(2, tam // 4)
+            pygame.draw.line(s, (*self.cor[:3], ray_alpha // 2), centro, (int(ex), int(ey)), ray_width + 2)
+            pygame.draw.line(s, (255, 255, 255, ray_alpha), centro, (int(ex), int(ey)), max(1, ray_width))
         
-        self.tela = tela
-        tela.blit(s, (sx - tam * 2, sy - tam * 2))
+        tela.blit(s, (sx - surf_size // 2, sy - surf_size // 2))
 
 
 class MagicClash:

@@ -557,10 +557,10 @@ STATUS_EFFECTS_DB = {
 
 CONDICOES_SKILL = {
     "SEMPRE": lambda caster, alvo: True,
-    "ALVO_BAIXA_VIDA": lambda caster, alvo: alvo.vida / alvo.vida_max < 0.3,
-    "ALVO_ALTA_VIDA": lambda caster, alvo: alvo.vida / alvo.vida_max > 0.7,
-    "CASTER_BAIXA_VIDA": lambda caster, alvo: caster.vida / caster.vida_max < 0.3,
-    "CASTER_ALTA_VIDA": lambda caster, alvo: caster.vida / caster.vida_max > 0.7,
+    "ALVO_BAIXA_VIDA": lambda caster, alvo: alvo.vida / max(alvo.vida_max, 1) < 0.3,
+    "ALVO_ALTA_VIDA": lambda caster, alvo: alvo.vida / max(alvo.vida_max, 1) > 0.7,
+    "CASTER_BAIXA_VIDA": lambda caster, alvo: caster.vida / max(caster.vida_max, 1) < 0.3,
+    "CASTER_ALTA_VIDA": lambda caster, alvo: caster.vida / max(caster.vida_max, 1) > 0.7,
     "ALVO_ATORDOADO": lambda caster, alvo: any(e.nome == "Atordoado" for e in getattr(alvo, 'status_effects', [])),
     "ALVO_QUEIMANDO": lambda caster, alvo: any(e.nome == "Queimando" for e in getattr(alvo, 'status_effects', [])),
     "ALVO_CONGELADO": lambda caster, alvo: any(e.nome == "Congelado" for e in getattr(alvo, 'status_effects', [])),

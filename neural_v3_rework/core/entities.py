@@ -14,8 +14,9 @@ class Lutador:
     - Sistema de classes expandido
     - Novos tipos de skills (DASH, BUFF, AREA, BEAM, SUMMON)
     - Efeitos de status (DoT, buffs, debuffs)
+    - Batalhas multi-lutador com equipes (v13.0)
     """
-    def __init__(self, dados_char, pos_x, pos_y):
+    def __init__(self, dados_char, pos_x, pos_y, team_id=0):
         # Importações tardias para evitar circular imports
         from ai import AIBrain
         from core.skills import get_skill_data
@@ -29,6 +30,9 @@ class Lutador:
         self.z = 0.0
         self.vel_z = 0.0
         self.raio_fisico = (self.dados.tamanho / 4.0)
+        
+        # === v13.0: SISTEMA DE EQUIPES ===
+        self.team_id = team_id  # 0 = time A, 1 = time B, -1 = FFA
         
         # Carrega dados da classe
         self.classe_nome = getattr(self.dados, 'classe', "Guerreiro (Força Bruta)")
@@ -168,6 +172,20 @@ class Lutador:
         self.weapon_anim_shake = (0, 0)   # Offset de shake no impacto
         self.weapon_trail_positions = []  # Posições do trail da arma
         self.arma_droppada_pos = None
+
+        # === SISTEMA DE CORRENTE v5.0 — Mecânicas únicas por estilo ===
+        self.chain_momentum = 0.0        # Mangual: acumula a cada hit (0→1)
+        self.chain_spin_speed = 0.0      # Meteor Hammer: velocidade de spin
+        self.chain_spinning = False      # Meteor Hammer: girando ativamente?
+        self.chain_spin_dmg_timer = 0.0  # Meteor Hammer: timer de dano contínuo
+        self.chain_combo = 0             # Kusarigama: combo counter
+        self.chain_combo_timer = 0.0     # Kusarigama: tempo até reset do combo
+        self.chain_mode = 0              # Kusarigama: 0=foice(perto), 1=peso(longe)
+        self.chain_pull_target = None    # Corrente com Peso: alvo sendo puxado
+        self.chain_pull_timer = 0.0      # Corrente com Peso: duração do pull
+        self.chain_whip_crack = False    # Chicote: próximo hit é crack (sweet spot)
+        self.chain_whip_stacks = 0       # Chicote: stacks de velocidade
+        self.chain_recovery_mult = 1.0   # Multiplica cooldown pós-ataque
         self.arma_droppada_ang = 0
         self.fator_escala = self.dados.tamanho / ALTURA_PADRAO
         self.alcance_ideal = 1.5
@@ -294,6 +312,7 @@ class Lutador:
         if efeito == "execute":
             if alvo.vida / max(alvo.vida_max, 1) < (valor / 100.0):
                 alvo.vida = 0
+                alvo.morrer()
                 resultado["execute"] = True
 
         # === PASSIVA: double_hit (chance de aplicar dano novamente) ===
@@ -823,8 +842,14 @@ class Lutador:
         
         return True
 
-    def update(self, dt, inimigo):
-        """Atualiza estado do lutador"""
+    def update(self, dt, inimigo, todos_lutadores=None):
+        """Atualiza estado do lutador.
+        
+        Args:
+            dt: Delta time
+            inimigo: Inimigo principal (nearest enemy) - compatível com 1v1
+            todos_lutadores: Lista de TODOS os lutadores na arena (None = modo 1v1 legado)
+        """
         from core.physics import normalizar_angulo
         
         if self.invencivel_timer > 0:
@@ -833,7 +858,11 @@ class Lutador:
             self.flash_timer -= dt
         if self.stun_timer > 0:
             self.stun_timer -= dt
-            if self.stun_timer <= 0 and getattr(self, 'congelado', False):
+        # Track congelado timer separately from stun timer
+        congelado_t = getattr(self, 'congelado_timer', 0)
+        if congelado_t > 0:
+            self.congelado_timer = congelado_t - dt
+            if self.congelado_timer <= 0:
                 self.congelado = False
         if self.cd_skill_arma > 0:
             self.cd_skill_arma -= dt
@@ -845,7 +874,7 @@ class Lutador:
             self.cura_bloqueada -= dt
 
         # BUG-C3: Decrementar timers de debuffs que antes nunca expiravam
-        for attr in ['silenciado_timer', 'cego_timer', 'medo_timer', 'charme_timer']:
+        for attr in ['silenciado_timer', 'cego_timer', 'medo_timer', 'charme_timer', 'exposto_timer']:
             val = getattr(self, attr, 0)
             if val > 0:
                 setattr(self, attr, val - dt)
@@ -874,6 +903,30 @@ class Lutador:
             self.exausto_timer -= dt
             if self.exausto_timer <= 0:
                 self.regen_mana_base = self.class_data.get("regen_mana", 3.0)
+
+        # Decrementar tempo_parado e restaurar slow_fator ao expirar
+        if getattr(self, 'tempo_parado', False) and self.stun_timer <= 0:
+            self.tempo_parado = False
+            if self.slow_fator == 0.0:
+                self.slow_fator = 1.0
+
+        # Decrementar bomba_relogio_timer e detonar ao expirar
+        if getattr(self, 'bomba_relogio_timer', 0) > 0:
+            self.bomba_relogio_timer -= dt
+            if self.bomba_relogio_timer <= 0:
+                dano_bomba = getattr(self, 'bomba_relogio_dano', 80.0)
+                self.vida = max(0, self.vida - dano_bomba)
+                self.flash_timer = 0.3
+                self.flash_cor = (255, 100, 0)
+                if self.vida <= 0:
+                    self.morrer()
+
+        # Reset em_vortex / sendo_puxado when stun expires
+        if self.stun_timer <= 0:
+            if getattr(self, 'em_vortex', False):
+                self.em_vortex = False
+            if getattr(self, 'sendo_puxado', False):
+                self.sendo_puxado = False
 
         for skill_nome in list(self.cd_skills.keys()):
             if self.cd_skills[skill_nome] > 0:
@@ -909,6 +962,22 @@ class Lutador:
         if "Paladino" in self.classe_nome:
             self.vida = min(self.vida_max, self.vida + self.vida_max * 0.005 * dt)  # Reduzido de 2% para 0.5%
         
+        # v13.0: Multi-fighter targeting - encontra inimigo mais próximo vivo
+        if todos_lutadores is not None:
+            inimigos_vivos = [
+                f for f in todos_lutadores
+                if f is not self and not f.morto and f.team_id != self.team_id
+            ]
+            if inimigos_vivos:
+                inimigo = min(inimigos_vivos, key=lambda f: math.hypot(
+                    f.pos[0] - self.pos[0], f.pos[1] - self.pos[1]))
+            # Se não tem inimigos vivos, mantém o inimigo original (para physics etc)
+        
+        # BUG-FIX: se inimigo é None (todos mortos), skip IA e só aplica física
+        if inimigo is None:
+            self.aplicar_fisica(dt)
+            return
+        
         dx = inimigo.pos[0] - self.pos[0]
         dy = inimigo.pos[1] - self.pos[1]
         distancia = math.hypot(dx, dy)
@@ -927,11 +996,20 @@ class Lutador:
         vel_giro = 20.0 if "Assassino" in self.classe_nome or "Ninja" in self.classe_nome else 10.0
         self.angulo_olhar += diff * vel_giro * dt
 
-        if self.stun_timer <= 0 and not inimigo.morto:
+        # v13.0: Verifica se há QUALQUER inimigo vivo (não só o principal)
+        algum_inimigo_vivo = not inimigo.morto
+        if todos_lutadores is not None:
+            algum_inimigo_vivo = any(
+                not f.morto for f in todos_lutadores
+                if f is not self and f.team_id != self.team_id
+            )
+
+        if self.stun_timer <= 0 and algum_inimigo_vivo:
             # Só processa IA se tiver brain (não em modo manual)
             if self.brain is not None:
-                self.brain.processar(dt, distancia, inimigo)
+                self.brain.processar(dt, distancia, inimigo, todos_lutadores=todos_lutadores)
                 self.executar_movimento(dt, distancia)
+                self._atualizar_chain_state(dt, distancia)  # v5.0 chain mechanics
                 self.executar_ataques(dt, distancia, inimigo)
 
         self.aplicar_fisica(dt)
@@ -1080,18 +1158,25 @@ class Lutador:
                 
         elif acao == "CIRCULAR":
             rad_lat = math.radians(self.angulo_olhar + (90 * self.brain.dir_circular))
-            mx = math.cos(rad_lat) * 0.85
-            my = math.sin(rad_lat) * 0.85
-            # v8.0: Ajuste de distância enquanto circula
+            # v8.1: Variação na velocidade lateral para parecer footwork, não orbita
+            circ_mult = random.uniform(0.6, 0.95)
+            mx = math.cos(rad_lat) * circ_mult
+            my = math.sin(rad_lat) * circ_mult
+            # v8.1: Pausas micro — às vezes desacelera no meio do strafe
+            if random.random() < 0.12:
+                mx *= 0.3
+                my *= 0.3
+            # Ajuste de distância enquanto circula
             if distancia < 2.5:
-                mx -= math.cos(rad) * 0.3  # Afasta um pouco
-                my -= math.sin(rad) * 0.3
+                mx -= math.cos(rad) * 0.35  # Afasta mais agressivamente
+                my -= math.sin(rad) * 0.35
             elif distancia > 4.0:
                 mx += math.cos(rad) * 0.2  # Aproxima um pouco
                 my += math.sin(rad) * 0.2
-            else:
-                mx += math.cos(rad) * 0.25
-                my += math.sin(rad) * 0.25
+            # v8.1: Na faixa ideal, pequeno approach aleatório em vez de constante
+            elif random.random() < 0.4:
+                mx += math.cos(rad) * 0.15
+                my += math.sin(rad) * 0.15
             
         elif acao == "FLANQUEAR":
             # v8.0: Flanqueio mais dinâmico
@@ -1180,7 +1265,13 @@ class Lutador:
         self.cooldown_ataque -= dt
         
         arma_tipo = self.dados.arma_obj.tipo if self.dados.arma_obj else "Reta"
+        arma_estilo = getattr(self.dados.arma_obj, 'estilo', '') if self.dados.arma_obj else ''
         is_orbital = self.dados.arma_obj and "Orbital" in arma_tipo
+        
+        # === v5.0: CORRENTE usa sistema dedicado ===
+        if arma_tipo == "Corrente":
+            self._executar_ataques_corrente(dt, distancia, inimigo, arma_estilo)
+            return
         
         # Obtém gerenciador de animações
         anim_manager = get_weapon_animation_manager()
@@ -1195,7 +1286,7 @@ class Lutador:
         
         # Atualiza animação
         transform = anim_manager.get_weapon_transform(
-            id(self), arma_tipo, self.angulo_olhar, weapon_tip, dt
+            id(self), arma_tipo, self.angulo_olhar, weapon_tip, dt, weapon_style=arma_estilo
         )
         
         # Aplica transformações
@@ -1284,7 +1375,7 @@ class Lutador:
                 self.timer_animacao = profile.total_time
                 
                 # Inicia animação no gerenciador
-                anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar)
+                anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar, weapon_style=arma_estilo)
                 
                 if arma_tipo == "Arremesso":
                     self._disparar_arremesso(inimigo)
@@ -1305,7 +1396,260 @@ class Lutador:
                 # BUG-06 fix: velocidade_ataque da arma reduz o cooldown
                 vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
                 self.cooldown_ataque = base_cd / vel_ataque
-    
+
+    # =====================================================================
+    # === SISTEMA DE CORRENTE v5.0 — Mecânicas únicas por estilo ========
+    # =====================================================================
+
+    def _atualizar_chain_state(self, dt, distancia):
+        """Atualiza estados persistentes das mecânicas de corrente."""
+        arma = self.dados.arma_obj
+        if not arma or arma.tipo != "Corrente":
+            return
+
+        estilo = getattr(arma, 'estilo', '')
+
+        # Mangual: momentum decai lentamente (precisa de hits para manter)
+        if "Mangual" in estilo or "Flail" in estilo:
+            self.chain_momentum = max(0, self.chain_momentum - dt * 0.15)
+
+        # Kusarigama: combo timer decai, resets combo
+        elif estilo == "Kusarigama":
+            if self.chain_combo_timer > 0:
+                self.chain_combo_timer -= dt
+                if self.chain_combo_timer <= 0:
+                    self.chain_combo = 0
+                    self.chain_mode = 0  # Reset para foice
+
+        # Chicote: stacks de velocidade decaem
+        elif estilo == "Chicote":
+            if self.chain_whip_stacks > 0 and not self.atacando:
+                self.chain_whip_stacks = max(0, self.chain_whip_stacks - dt * 2.0)
+
+        # Meteor Hammer: spin contínuo consome "energia de spin"
+        elif estilo == "Meteor Hammer":
+            if self.chain_spinning:
+                self.chain_spin_speed = min(3.0, self.chain_spin_speed + dt * 0.8)
+                # Dano contínuo em área enquanto gira
+                self.chain_spin_dmg_timer -= dt
+            else:
+                self.chain_spin_speed = max(0, self.chain_spin_speed - dt * 1.5)
+
+        # Corrente com Peso: pull timer e slow
+        elif "Corrente com Peso" in estilo:
+            if self.chain_pull_timer > 0:
+                self.chain_pull_timer -= dt
+                if self.chain_pull_timer <= 0:
+                    self.chain_pull_target = None
+
+    def _executar_ataques_corrente(self, dt, distancia, inimigo, estilo):
+        """
+        Sistema de ataque dedicado para armas CORRENTE v5.0.
+        Cada estilo tem mecânica, timings e efeitos completamente diferentes.
+        
+        Mangual:       Golpes gravitacionais com momentum crescente
+        Kusarigama:    Alterna foice rápida (perto) e peso lento (longe)
+        Chicote:       Ataques rápidos, crack no sweet spot, interrupção
+        Meteor Hammer: Spin contínuo 360° com dano em área crescente
+        Corrente+Peso: Golpes lentos que slow + pull o inimigo
+        """
+        from effects.weapon_animations import get_weapon_animation_manager, WEAPON_PROFILES, STYLE_PROFILES
+
+        anim_manager = get_weapon_animation_manager()
+
+        # Resolução de profile: STYLE_PROFILES tem per-style timings (Mangual, Chicote, etc.)
+        arma_tipo = "Corrente"
+        # v5.0 fix: busca primeiro em STYLE_PROFILES (per-style), depois WEAPON_PROFILES (per-type)
+        if estilo in STYLE_PROFILES:
+            profile_key = estilo
+            _profile_dict = STYLE_PROFILES
+        elif estilo in WEAPON_PROFILES:
+            profile_key = estilo
+            _profile_dict = WEAPON_PROFILES
+        else:
+            profile_key = arma_tipo
+            _profile_dict = WEAPON_PROFILES
+
+        # Calcula posição ponta da arma para trail
+        rad = math.radians(self.angulo_olhar)
+        tip_dist = self.raio_fisico * 3.5  # Correntes são mais longas
+        weapon_tip = (
+            self.pos[0] + math.cos(rad) * tip_dist,
+            self.pos[1] + math.sin(rad) * tip_dist
+        )
+
+        # Atualiza animação — v5.0: passa estilo para per-style animations
+        transform = anim_manager.get_weapon_transform(
+            id(self), arma_tipo, self.angulo_olhar, weapon_tip, dt, weapon_style=estilo
+        )
+        self.weapon_anim_scale = transform["scale"]
+        self.weapon_anim_shake = transform["shake"]
+        self.weapon_trail_positions = transform["trail_positions"]
+
+        # ── METEOR HAMMER: modo spin contínuo ──
+        if estilo == "Meteor Hammer" and self.chain_spinning:
+            # Enquanto girando, arma visual gira continuamente
+            self.angulo_arma_visual += self.chain_spin_speed * 360 * dt
+            # Timer de dano contínuo (não usa cooldown normal)
+            if self.chain_spin_dmg_timer <= 0:
+                self.chain_spin_dmg_timer = max(0.2, 0.6 - self.chain_spin_speed * 0.12)
+                # Marca como atacando por um breve momento para hitbox detectar
+                self.atacando = True
+                self.ataque_id += 1
+                self.alvos_atingidos_neste_ataque.clear()
+                profile = _profile_dict.get(profile_key, WEAPON_PROFILES["Corrente"])
+                self.timer_animacao = 0.15  # Mini-ataque contínuo
+                anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+            elif self.timer_animacao > 0:
+                self.timer_animacao -= dt
+                self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+                if self.timer_animacao <= 0:
+                    self.atacando = False
+
+            # Sai do spin se recuar/fugir ou perder a ação
+            acoes_spin = ["MATAR", "ESMAGAR", "COMBATE", "PRESSIONAR", "CIRCULAR"]
+            if self.brain.acao_atual not in acoes_spin or distancia > 6.0:
+                self.chain_spinning = False
+                self.atacando = False
+                self.cooldown_ataque = 0.8  # Penalidade ao parar de girar
+            return
+
+        # ── Processo normal de ataque (não-spin) ──
+        if self.atacando:
+            self.timer_animacao -= dt
+            profile = _profile_dict.get(profile_key, WEAPON_PROFILES["Corrente"])
+            if self.timer_animacao <= 0:
+                self.atacando = False
+                self.angulo_arma_visual = self.angulo_olhar
+                # Mangual: recovery penalty se não acertou (momentum perde)
+                if ("Mangual" in estilo or "Flail" in estilo):
+                    self.chain_recovery_mult = max(0.7, 1.0 - self.chain_momentum * 0.3)
+            else:
+                self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+        else:
+            self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+
+        # ── Decisão de atacar ──
+        if self.atacando or self.cooldown_ataque > 0:
+            return
+
+        acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO",
+                           "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"]
+        if self.brain.acao_atual not in acoes_ofensivas:
+            return
+
+        # ── Alcance por estilo ──
+        alcance = self._calcular_alcance_corrente(estilo)
+
+        if distancia > alcance or abs(self.z - inimigo.z) > 1.5:
+            return
+
+        # ══════════════════════════════════════════════════════════════
+        # PER-STYLE ATTACK LOGIC
+        # ══════════════════════════════════════════════════════════════
+
+        profile = _profile_dict.get(profile_key, WEAPON_PROFILES["Corrente"])
+
+        if "Mangual" in estilo or "Flail" in estilo:
+            # ── MANGUAL: Golpes gravitacionais com momentum ──
+            # Mais momentum = menos wind-up, mais dano
+            momentum_bonus = self.chain_momentum * 0.4  # Até 40% mais rápido
+            anim_time = profile.total_time * (1.0 - momentum_bonus)
+            self.timer_animacao = max(0.3, anim_time)
+            # Cooldown AUMENTA com base no peso (arma pesada = lenta)
+            peso = getattr(self.dados.arma_obj, 'peso', 8.0)
+            base_cd = 1.2 + (peso / 10.0) * 0.5 - self.chain_momentum * 0.4
+            self.chain_recovery_mult = 1.0
+
+        elif estilo == "Kusarigama":
+            # ── KUSARIGAMA: Dual-mode (foice perto / peso longe) ──
+            # Auto-seleciona modo baseado na distância
+            alcance_foice = self.raio_fisico * 2.5
+            if distancia < alcance_foice:
+                self.chain_mode = 0  # Foice: rápido, curto
+                anim_time = profile.total_time * 0.6  # 40% mais rápido
+                base_cd = 0.35 + random.random() * 0.2
+            else:
+                self.chain_mode = 1  # Peso: lento, longo
+                anim_time = profile.total_time * 1.2
+                base_cd = 0.7 + random.random() * 0.3
+            self.timer_animacao = anim_time
+            # Combo: ataques rápidos incrementam
+            self.chain_combo += 1
+            self.chain_combo_timer = 2.5  # Reset em 2.5s sem atacar
+
+        elif estilo == "Chicote":
+            # ── CHICOTE: Ataques rápidos com crack no sweet spot ──
+            # Velocidade aumenta com stacks (cada hit acumula)
+            speed_mult = 1.0 + min(self.chain_whip_stacks, 5) * 0.12
+            anim_time = profile.total_time / speed_mult
+            self.timer_animacao = max(0.15, anim_time)
+            # Crack: se inimigo está na faixa de sweet spot (70-100% do alcance)
+            faixa_min = alcance * 0.65
+            self.chain_whip_crack = distancia >= faixa_min
+            base_cd = max(0.2, 0.4 / speed_mult)
+            self.chain_whip_stacks = min(6, self.chain_whip_stacks + 1)
+
+        elif estilo == "Meteor Hammer":
+            # ── METEOR HAMMER: Inicia spin ou golpe único ──
+            if self.brain.acao_atual in ["MATAR", "PRESSIONAR", "COMBATE"] and distancia < 5.0:
+                # Inicia modo spin contínuo!
+                self.chain_spinning = True
+                self.chain_spin_speed = 0.5
+                self.chain_spin_dmg_timer = 0.3
+                self.atacando = True
+                self.ataque_id += 1
+                self.alvos_atingidos_neste_ataque.clear()
+                self.timer_animacao = 0.15
+                anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+                return  # Spin mode takes over
+            else:
+                # Golpe único (lançamento)
+                anim_time = profile.total_time
+                self.timer_animacao = anim_time
+                base_cd = 0.9 + random.random() * 0.4
+
+        elif "Corrente com Peso" in estilo:
+            # ── CORRENTE COM PESO: Golpes lentos que slow + pull ──
+            anim_time = profile.total_time * 1.1  # Ligeiramente mais lento
+            self.timer_animacao = anim_time
+            base_cd = 1.0 + random.random() * 0.4
+            # Pull setup: marca alvo para ser puxado no hit
+            self.chain_pull_target = inimigo
+            self.chain_pull_timer = 0.8  # 0.8s de pull window
+
+        else:
+            # Fallback genérico para estilos desconhecidos
+            self.timer_animacao = profile.total_time
+            base_cd = 0.6 + random.random() * 0.4
+
+        # ── Inicia ataque ──
+        self.atacando = True
+        self.ataque_id += 1
+        self.alvos_atingidos_neste_ataque.clear()
+        anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+
+        # ── Cooldown final ──
+        vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
+        self.cooldown_ataque = base_cd * self.chain_recovery_mult / vel_ataque
+
+    def _calcular_alcance_corrente(self, estilo):
+        """Retorna o alcance de ataque para cada estilo de corrente."""
+        base = self.raio_fisico
+        if "Mangual" in estilo or "Flail" in estilo:
+            return base * 4.0    # Mangual: alcance médio-longo
+        elif estilo == "Kusarigama":
+            # Kusarigama: usa alcance máximo (peso) para decisão de iniciar ataque
+            # O modo (foice vs peso) é decidido DENTRO do ataque, não aqui
+            return base * 5.5    # Sempre usa alcance do modo peso para check
+        elif estilo == "Chicote":
+            return base * 6.0    # Chicote: maior alcance melee do jogo
+        elif estilo == "Meteor Hammer":
+            return base * 5.0    # Meteor: longo
+        elif "Corrente com Peso" in estilo:
+            return base * 3.5    # Peso: médio (compensa com pull)
+        return base * 4.0        # Fallback
+
     def _disparar_arremesso(self, alvo):
         """Dispara projéteis de arma de arremesso"""
         from core.combat import ArmaProjetil
@@ -1452,6 +1796,11 @@ class Lutador:
         if self.morto or self.invencivel_timer > 0:
             return False
         
+        # SONO: acordar ao tomar dano
+        if getattr(self, 'dormindo', False):
+            self.dormindo = False
+            self.stun_timer = 0
+        
         dano_final = dano
 
         if "Cavaleiro" in self.classe_nome:
@@ -1484,6 +1833,11 @@ class Lutador:
         # CM-10: EXPOSTO aumenta dano recebido em 2x (antes timer setado mas nunca lido)
         if getattr(self, 'exposto_timer', 0) > 0:
             dano_final *= 2.0
+
+        # MARCADO: próximo ataque causa dano extra e consume a marca
+        if getattr(self, 'marcado', False):
+            dano_final *= 1.3
+            self.marcado = False
 
         # CM-11: CONGELADO aumenta dano recebido em 1.5x (magic_system define mod_dano_recebido: 1.5)
         if getattr(self, 'congelado', False):
@@ -1659,6 +2013,7 @@ class Lutador:
             self.slow_timer = max(self.slow_timer, (duracao or 2.0) + 1.0)
             self.slow_fator = 0.3
             self.congelado = True
+            self.congelado_timer = max(getattr(self, 'congelado_timer', 0), duracao or 2.0)
             
         elif efeito == "LENTO":
             self.slow_timer = max(self.slow_timer, duracao or 2.0)

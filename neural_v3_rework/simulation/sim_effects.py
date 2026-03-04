@@ -128,9 +128,9 @@ class SimuladorEffects:
                 random.uniform(0.2, 0.5)
             ))
         
-        # Shake da câmera proporcional à intensidade
-        if intensidade > 0.5:
-            self.cam.aplicar_shake(intensidade * 8, 0.1)
+        # Shake da câmera proporcional à intensidade (v15.0: reduzido)
+        if intensidade > 0.7:
+            self.cam.aplicar_shake(intensidade * 4, 0.06)
         
         # Flash de impacto se muito forte
         if intensidade > 0.7:

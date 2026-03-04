@@ -456,7 +456,7 @@ class Projetil:
         if not self.condicao:
             return 1.0
         
-        hp_percent = alvo.vida / alvo.vida_max
+        hp_percent = alvo.vida / max(alvo.vida_max, 1)
         
         if self.condicao == "ALVO_BAIXA_VIDA" and hp_percent < 0.3:
             if self.executa:
@@ -592,6 +592,11 @@ class AreaEffect:
         self.taunt = data.get("taunt", False)
         self.duracao_taunt = data.get("duracao_taunt", 0)
 
+    def _is_ally(self, alvo):
+        """v13.0: Check if target is on same team as owner"""
+        return (hasattr(self.dono, 'team_id') and hasattr(alvo, 'team_id')
+                and alvo.team_id == self.dono.team_id)
+
     def atualizar(self, dt, alvos=None):
         """Atualiza efeito de área com todos os novos comportamentos"""
         resultados = []
@@ -635,7 +640,7 @@ class AreaEffect:
         # === VÓRTEX / PUXAR ===
         if (self.vortex or self.puxa_continuo) and alvos:
             for alvo in alvos:
-                if alvo == self.dono or alvo.morto:
+                if alvo == self.dono or alvo.morto or self._is_ally(alvo):
                     continue
                 dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
                 if dist < self.raio_atual * 1.5:  # Pull range um pouco maior
@@ -647,7 +652,7 @@ class AreaEffect:
             if self.tick_timer >= self.tick_interval:
                 self.tick_timer = 0
                 for alvo in alvos:
-                    if alvo == self.dono or alvo.morto:
+                    if alvo == self.dono or alvo.morto or self._is_ally(alvo):
                         continue
                     dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
                     if dist < self.raio_atual:
@@ -658,7 +663,7 @@ class AreaEffect:
                         })
         
         # === FADE OUT ===
-        self.alpha = int(255 * max(0, self.vida / self.duracao))
+        self.alpha = int(255 * max(0, self.vida / max(self.duracao, 0.01)))
         
         if self.vida <= 0:
             self.ativo = False
@@ -680,7 +685,8 @@ class AreaEffect:
         if self.duracao_fear > 0:
             if hasattr(alvo, 'medo_timer'):
                 alvo.medo_timer = max(alvo.medo_timer, self.duracao_fear)
-            alvo.brain.medo = 1.0
+            if getattr(alvo, 'brain', None):
+                alvo.brain.medo = 1.0
         
         # Gravidade
         if self.gravidade_aumentada > 1.0:
@@ -857,19 +863,18 @@ class Buff:
 
     def _reverter_stats(self):
         """BUG-04 fix: reverte modificadores de velocidade ao expirar"""
-        if self.bonus_velocidade_ataque != 1.0 and hasattr(self.alvo, 'arma_vel_ataque'):
+        if self.bonus_velocidade_ataque not in (0, 1.0) and hasattr(self.alvo, 'arma_vel_ataque'):
             self.alvo.arma_vel_ataque /= self.bonus_velocidade_ataque
-        if self.bonus_velocidade_movimento != 1.0 and hasattr(self.alvo, 'velocidade'):
+        if self.bonus_velocidade_movimento not in (0, 1.0) and hasattr(self.alvo, 'velocidade'):
             self.alvo.velocidade /= self.bonus_velocidade_movimento
         # CM-18: reverte mutação
-        if self._mutacao_vel != 1.0 and hasattr(self.alvo, 'velocidade'):
+        if self._mutacao_vel not in (0, 1.0) and hasattr(self.alvo, 'velocidade'):
             self.alvo.velocidade /= self._mutacao_vel
-        if self._mutacao_def != 1.0:
+        if self._mutacao_def not in (0, 1.0):
             vuln = getattr(self.alvo, 'vulnerabilidade', 1.0)
-            if self._mutacao_def != 0:
-                self.alvo.vulnerabilidade = vuln / self._mutacao_def
+            self.alvo.vulnerabilidade = vuln / self._mutacao_def
         # CM-bonus_velocidade revert
-        if self.bonus_velocidade != 1.0 and hasattr(self.alvo, 'velocidade'):
+        if self.bonus_velocidade not in (0, 1.0) and hasattr(self.alvo, 'velocidade'):
             self.alvo.velocidade /= self.bonus_velocidade
     
     def absorver_dano(self, dano):
@@ -936,7 +941,10 @@ class DotEffect:
 class Summon:
     """
     Criatura invocada que luta ao lado do conjurador
-    v2.0 - Suporta Fenix, Treant, Espirito, Copia Sombria
+    v3.0 - Suporta Fenix, Treant, Espirito, Copia Sombria
+    - Ataques aplicam elemento/efeito da skill
+    - Tomam dano de projéteis e áreas inimigas
+    - IA melhorada com esquiva e posicionamento
     """
     def __init__(self, nome_skill, x, y, dono):
         self.nome = nome_skill
@@ -954,15 +962,19 @@ class Summon:
         self.duracao = data.get("duracao", 10.0)
         self.vida_timer = self.duracao
         
-        # Tipo de summon
+        # Tipo e elemento
         self.summon_tipo = data.get("summon_tipo", "BASICO")
-        self.copia_caster = data.get("copia_caster", False)
+        self.elemento = data.get("elemento", None)
+        self.efeito = data.get("efeito", "NORMAL")
+        
+        # Raio de colisão (projéteis podem acertá-lo)
+        self.raio_fisico = 0.6
         
         # Comportamento
-        self.raio_agressao = 5.0
+        self.raio_agressao = 6.0
         self.raio_ataque = 1.5
-        self.velocidade = 4.0
-        self.cooldown_ataque = 1.5
+        self.velocidade = 4.5
+        self.cooldown_ataque = 1.2
         self.cd_timer = 0
         
         # Estado
@@ -970,14 +982,17 @@ class Summon:
         self.alvo = None
         self.vel = [0, 0]
         self.angulo = 0
+        self.flash_timer = 0  # Para feedback visual de dano
+        self.flash_cor = (255, 255, 255)
         
         # Habilidades especiais
-        self.revive_count = 1 if "fenix" in nome_skill.lower() else 0
+        self.revive_count = 1 if "fenix" in nome_skill.lower() or "fênix" in nome_skill.lower() else 0
         self.aura_dano = data.get("aura_dano", 0)
         self.aura_raio = data.get("aura_raio", 0)
         
-        # CM-05: buffer_projeteis removido — Summon nunca dispara projéteis,
-        # usa resultados de 'ataque' direto via atualizar()
+        # IA: esquiva simples
+        self._evade_timer = 0
+        self._strafe_dir = 1
     
     def atualizar(self, dt, alvos):
         """Atualiza comportamento do summon"""
@@ -992,16 +1007,27 @@ class Summon:
             self.ativo = False
             return resultados
         
+        # Flash timer
+        if self.flash_timer > 0:
+            self.flash_timer -= dt
+        
         # Cooldown de ataque
         if self.cd_timer > 0:
             self.cd_timer -= dt
         
-        # Encontra alvo mais proximo
+        # Esquiva timer
+        if self._evade_timer > 0:
+            self._evade_timer -= dt
+        
+        # Encontra alvo mais proximo (inimigo do dono)
         melhor_alvo = None
         menor_dist = self.raio_agressao
         
         for alvo in alvos:
             if alvo == self.dono or alvo.morto:
+                continue
+            # v13.0: Don't target allies in team battles
+            if hasattr(self.dono, 'team_id') and hasattr(alvo, 'team_id') and alvo.team_id == self.dono.team_id:
                 continue
             dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
             if dist < menor_dist:
@@ -1011,16 +1037,26 @@ class Summon:
         self.alvo = melhor_alvo
         
         if self.alvo:
-            # Move em direcao ao alvo
             dx = self.alvo.pos[0] - self.x
             dy = self.alvo.pos[1] - self.y
             dist = math.hypot(dx, dy) or 1
             self.angulo = math.degrees(math.atan2(dy, dx))
             
             if dist > self.raio_ataque:
-                # Aproxima
-                self.x += (dx / dist) * self.velocidade * dt
-                self.y += (dy / dist) * self.velocidade * dt
+                # Move em direção ao alvo com leve strafe
+                move_x = (dx / dist) * self.velocidade * dt
+                move_y = (dy / dist) * self.velocidade * dt
+                
+                # Strafe lateral para não ser previsível
+                if self._evade_timer <= 0 and dist < 4.0:
+                    perp_x = -dy / dist
+                    perp_y = dx / dist
+                    strafe = 0.3 * self._strafe_dir
+                    move_x += perp_x * strafe * self.velocidade * dt
+                    move_y += perp_y * strafe * self.velocidade * dt
+                
+                self.x += move_x
+                self.y += move_y
             elif self.cd_timer <= 0:
                 # Ataca!
                 self.cd_timer = self.cooldown_ataque
@@ -1028,16 +1064,17 @@ class Summon:
                     "tipo": "ataque",
                     "alvo": self.alvo,
                     "dano": self.dano,
+                    "efeito": self.efeito,
                     "x": self.x,
                     "y": self.y
                 })
         else:
-            # Segue o dono
+            # Segue o dono mantendo distância
             dx = self.dono.pos[0] - self.x
             dy = self.dono.pos[1] - self.y
             dist = math.hypot(dx, dy) or 1
             
-            if dist > 2.0:
+            if dist > 2.5:
                 self.x += (dx / dist) * self.velocidade * dt
                 self.y += (dy / dist) * self.velocidade * dt
         
@@ -1051,30 +1088,43 @@ class Summon:
                     resultados.append({
                         "tipo": "aura",
                         "alvo": alvo,
-                        "dano": self.aura_dano * dt
+                        "dano": self.aura_dano * dt,
+                        "efeito": self.efeito
                     })
         
         return resultados
     
     def tomar_dano(self, dano):
-        """Summon recebe dano"""
+        """Summon recebe dano — retorna dict de evento ou None"""
         self.vida -= dano
+        self.flash_timer = 0.15
+        self.flash_cor = (255, 100, 100)
+        
+        # Muda strafe direction ao levar dano (esquiva reativa)
+        self._strafe_dir *= -1
+        self._evade_timer = 0.5
+        
         if self.vida <= 0:
             if self.revive_count > 0:
                 # Fenix revive!
                 self.revive_count -= 1
                 self.vida = self.vida_max * 0.5
+                self.flash_timer = 0.3
+                self.flash_cor = (255, 200, 50)
                 return {"revive": True, "x": self.x, "y": self.y}
             else:
                 self.ativo = False
-                return {"morreu": True}
+                return {"morreu": True, "x": self.x, "y": self.y}
         return None
 
 
 class Trap:
     """
     Estrutura/armadilha colocada no campo
-    v2.0 - Muralha de Gelo, armadilhas, etc
+    v3.0 - Dois modos: WALL (bloqueia movimento) e TRIGGER (dispara ao pisar)
+    
+    WALLs: Muralha de Gelo — bloqueia movimento e projéteis, dano contínuo de contato
+    TRIGGERs: Armadilhas — invisíveis/semi-visíveis, disparam uma vez ao pisar
     """
     def __init__(self, nome_skill, x, y, dono):
         self.nome = nome_skill
@@ -1084,43 +1134,122 @@ class Trap:
         self.y = y
         self.dono = dono
         
-        self.vida_max = data.get("vida_estrutura", 100.0)
+        self.vida_max = data.get("vida_estrutura", 60.0)
         self.vida = self.vida_max
         self.duracao = data.get("duracao", 5.0)
         self.vida_timer = self.duracao
         self.cor = data.get("cor", (200, 200, 255))
+        self.elemento = data.get("elemento", None)
         
-        # Dimensoes (para muralhas)
+        # Dimensoes (para muralhas/walls)
         self.largura = data.get("largura", 2.0)
         self.altura = data.get("altura", 3.0)
-        self.raio = max(self.largura, self.altura) / 2  # Para desenho circular
-        self.angulo = 0  # Para rotação visual
+        self.raio = max(self.largura, self.altura) / 2
+        self.angulo = 0
         
-        # Comportamento
-        self.bloqueia_movimento = data.get("bloqueia_movimento", True)
-        self.bloqueia_projeteis = data.get("bloqueia_projeteis", True)
-        self.dano_contato = data.get("dano_contato", 0)
-        self.efeito_contato = data.get("efeito_contato", None)
+        # Comportamento — DEFAULT: False (armadilhas são o caso mais comum)
+        self.bloqueia_movimento = data.get("bloqueia_movimento", False)
+        self.bloqueia_projeteis = data.get("bloqueia_projeteis", self.bloqueia_movimento)
         
+        # Dano e efeito — lê TANTO "dano" quanto "dano_contato" para compatibilidade
+        self.dano_trigger = data.get("dano", data.get("dano_contato", 0))
+        self.efeito = data.get("efeito", data.get("efeito_contato", "NORMAL"))
+        
+        # Para walls: dano por segundo ao tocar
+        self.dano_por_segundo = data.get("dano_contato", self.dano_trigger * 0.3)
+        
+        # Raio de trigger para armadilhas (não-bloqueantes)
+        self.raio_trigger = data.get("raio_trigger", 1.2)
+        
+        # Estado
         self.ativo = True
+        self.ativada = False          # Armadilha já disparou?
+        self.flash_timer = 0          # Feedback visual
+        self.flash_cor = (255, 255, 255)
+        self._vitimas = set()         # IDs de lutadores já atingidos (evita multi-hit em 1 frame)
+        self._arm_delay = 0.3         # Atraso antes de armar (evita auto-trigger)
+        self._arm_timer = self._arm_delay
     
     def atualizar(self, dt):
-        """Atualiza trap"""
+        """Atualiza trap — retorna None ou resultado de trigger"""
+        if self.flash_timer > 0:
+            self.flash_timer -= dt
+        
+        # Timer de armamento
+        if self._arm_timer > 0:
+            self._arm_timer -= dt
+        
         self.vida_timer -= dt
         if self.vida_timer <= 0 or self.vida <= 0:
             self.ativo = False
     
+    def esta_armada(self):
+        """Retorna se a trap já passou o delay de armamento"""
+        return self._arm_timer <= 0
+    
     def colidir_ponto(self, px, py):
         """Verifica se um ponto colide com a trap"""
-        # Colisao retangular simplificada
-        return (abs(px - self.x) < self.largura / 2 and 
-                abs(py - self.y) < self.altura / 2)
+        if self.bloqueia_movimento:
+            # Colisao retangular para walls
+            return (abs(px - self.x) < self.largura / 2 and 
+                    abs(py - self.y) < self.altura / 2)
+        else:
+            # Colisao circular para armadilhas
+            return math.hypot(px - self.x, py - self.y) < self.raio_trigger
+    
+    def tentar_trigger(self, lutador):
+        """
+        Tenta disparar armadilha contra um lutador.
+        Retorna dict com resultado ou None se não ativou.
+        Só dispara se: não-bloqueante, armada, não ativada, lutador não é dono.
+        """
+        if self.bloqueia_movimento:
+            return None
+        if self.ativada or not self.esta_armada():
+            return None
+        if lutador == self.dono or lutador.morto:
+            return None
+        if id(lutador) in self._vitimas:
+            return None
+        
+        # Verifica proximidade
+        dist = math.hypot(lutador.pos[0] - self.x, lutador.pos[1] - self.y)
+        if dist > self.raio_trigger:
+            return None
+        
+        # TRIGGER!
+        self.ativada = True
+        self._vitimas.add(id(lutador))
+        self.flash_timer = 0.3
+        self.flash_cor = (255, 200, 50)
+        
+        # Armadilha desaparece logo após ativar
+        self.vida_timer = min(self.vida_timer, 0.5)
+        
+        return {
+            "tipo": "trigger",
+            "alvo": lutador,
+            "dano": self.dano_trigger,
+            "efeito": self.efeito,
+            "x": self.x,
+            "y": self.y
+        }
+    
+    def dano_wall_contato(self, dt):
+        """Retorna dano por frame para walls (Muralha de Gelo etc)"""
+        if not self.bloqueia_movimento:
+            return 0
+        return self.dano_por_segundo * dt
     
     def tomar_dano(self, dano):
-        """Trap recebe dano"""
+        """Trap recebe dano — retorna True se destruída"""
         self.vida -= dano
+        self.flash_timer = 0.12
+        self.flash_cor = (255, 100, 100)
         if self.vida <= 0:
             self.ativo = False
+            return True
+        return False
 
 
 class Transform:

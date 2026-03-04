@@ -255,8 +255,8 @@ class CombatChoreographer:
         l1, l2 = self.lutador1, self.lutador2
         
         # HP médio (mais intenso quando ambos baixos)
-        hp1_pct = l1.vida / l1.vida_max
-        hp2_pct = l2.vida / l2.vida_max
+        hp1_pct = l1.vida / max(l1.vida_max, 1)
+        hp2_pct = l2.vida / max(l2.vida_max, 1)
         hp_fator = 1.0 - ((hp1_pct + hp2_pct) / 2)
         
         # Diferença de HP (mais intenso quando próximo)
@@ -286,8 +286,8 @@ class CombatChoreographer:
         l1, l2 = self.lutador1, self.lutador2
         distancia = math.sqrt((l1.pos[0] - l2.pos[0])**2 + (l1.pos[1] - l2.pos[1])**2)
         
-        hp1_pct = l1.vida / l1.vida_max
-        hp2_pct = l2.vida / l2.vida_max
+        hp1_pct = l1.vida / max(l1.vida_max, 1)
+        hp2_pct = l2.vida / max(l2.vida_max, 1)
         
         # === CLASH (Colisão de ataques) v6.1 - Janela de tempo melhorada ===
         if self._pode_momento("CLASH"):
