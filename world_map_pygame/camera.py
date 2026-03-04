@@ -1,126 +1,110 @@
 """
-world_map_pygame/camera.py
-Câmera estilo Google Maps: pan com inércia, zoom ancorado no cursor, fly-to animado.
-
-[FASE 1 — Bug Fix] MAP_Y_OFFSET removido.
-  ANTES: MAP_Y_OFFSET = 40 hardcoded aqui E em renderer.py sem comunicação.
-         Qualquer diferença entre os dois quebrava s2w/w2s e causava o bug de clique.
-  DEPOIS: map_y é recebido dinamicamente via cam.map_y (atualizado pelo main loop
-          a partir de ui.map_y). A câmera sempre sabe exatamente onde o mapa começa.
+World Map — Camera System
+Pan / zoom with keyboard, mouse drag, and scroll wheel.
 """
-import math
-from . import config
-from .config import WORLD_W, WORLD_H
+import pygame
+from config import MAP_W, MAP_H, ZOOM_LEVELS, DEFAULT_ZOOM, SCR
 
 
 class Camera:
-    MIN_ZOOM  = 0.20
-    MAX_ZOOM  = 6.0
-    ZOOM_STEP = 1.13
-    FRICTION  = 0.78
-    FLY_SPEED = 0.10
+    def __init__(self):
+        self.zoom_idx  = DEFAULT_ZOOM
+        self.cell_size = ZOOM_LEVELS[self.zoom_idx]
 
-    def __init__(self, map_x: int, map_w: int, map_y: int = 0):
-        self.map_x = map_x
-        self.map_w = map_w
-        self.map_y = map_y          # [FIX] recebido dinamicamente, não hardcoded
+        self.x = 0.0    # top-left in tile coords
+        self.y = 0.0
+        self.pan_speed = 5.0
 
-        map_h = config.SCREEN_H - map_y
-        fit   = min(map_w / WORLD_W, map_h / WORLD_H) * 0.90
-        self.zoom     = fit
-        self.offset_x = WORLD_W / 2 - (map_w / 2) / fit
-        self.offset_y = WORLD_H / 2 - (map_h / 2) / fit
+        self.dragging       = False
+        self._drag_start    = (0, 0)
+        self._drag_cam      = (0.0, 0.0)
+        self._clamp()
 
-        self.vx = self.vy = 0.0
-        self.dragging = False
-        self._dsx = self._dsy = 0
-        self._dox = self._doy = 0.0
-        self._lsx = self._lsy = 0
+    # ── viewport helpers ───────────────────────────────────────────────────
+    @property
+    def viewport_tiles_w(self):
+        return SCR.w // self.cell_size + 2
 
-        self.flying = False
-        self._fox = self._foy = self._fz = 0.0
+    @property
+    def viewport_tiles_h(self):
+        return SCR.viewport_h // self.cell_size + 2
 
-    # ── Conversões ────────────────────────────────────────────────────────
-    def w2s(self, wx: float, wy: float):
-        """World-units → pixel de tela."""
-        return (
-            int((wx - self.offset_x) * self.zoom) + self.map_x,
-            int((wy - self.offset_y) * self.zoom) + self.map_y,
-        )
+    def get_visible_rect(self):
+        """(x0, y0, x1, y1) tile range currently on screen."""
+        x0 = max(0, int(self.x))
+        y0 = max(0, int(self.y))
+        x1 = min(MAP_W,  int(self.x + SCR.w / self.cell_size) + 2)
+        y1 = min(MAP_H, int(self.y + SCR.viewport_h / self.cell_size) + 2)
+        return x0, y0, x1, y1
 
-    def s2w(self, sx: float, sy: float):
-        """Pixel de tela → world-units."""
-        return (
-            (sx - self.map_x) / self.zoom + self.offset_x,
-            (sy - self.map_y) / self.zoom + self.offset_y,   # [FIX] usa self.map_y real
-        )
-
-    # ── Zoom ──────────────────────────────────────────────────────────────
-    def zoom_at(self, sx: float, sy: float, factor: float):
-        wx, wy = self.s2w(sx, sy)
-        nz = max(self.MIN_ZOOM, min(self.MAX_ZOOM, self.zoom * factor))
-        if nz == self.zoom:
+    # ── zoom ───────────────────────────────────────────────────────────────
+    def zoom_in(self):
+        if self.zoom_idx >= len(ZOOM_LEVELS) - 1:
             return
-        self.zoom     = nz
-        self.offset_x = wx - (sx - self.map_x) / self.zoom
-        self.offset_y = wy - (sy - self.map_y) / self.zoom   # [FIX]
-        self.vx = self.vy = 0.0
+        cx, cy = self._center()
+        self.zoom_idx += 1
+        self.cell_size = ZOOM_LEVELS[self.zoom_idx]
+        self._set_center(cx, cy)
 
-    # ── Pan ───────────────────────────────────────────────────────────────
-    def start_drag(self, sx: float, sy: float):
-        self.dragging = True
-        self.flying   = False
-        self._dsx, self._dsy = sx, sy
-        self._dox, self._doy = self.offset_x, self.offset_y
-        self._lsx, self._lsy = sx, sy
-        self.vx = self.vy = 0.0
+    def zoom_out(self):
+        if self.zoom_idx <= 0:
+            return
+        cx, cy = self._center()
+        self.zoom_idx -= 1
+        self.cell_size = ZOOM_LEVELS[self.zoom_idx]
+        self._set_center(cx, cy)
 
-    def update_drag(self, sx: float, sy: float):
+    # ── pan ────────────────────────────────────────────────────────────────
+    def pan(self, dtx, dty):
+        self.x += dtx
+        self.y += dty
+        self._clamp()
+
+    def handle_keys(self, dt):
+        keys = pygame.key.get_pressed()
+        spd  = self.pan_speed * (20.0 / self.cell_size) * dt
+        if keys[pygame.K_LEFT]  or keys[pygame.K_a]: self.pan(-spd, 0)
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]: self.pan( spd, 0)
+        if keys[pygame.K_UP]    or keys[pygame.K_w]: self.pan(0, -spd)
+        if keys[pygame.K_DOWN]  or keys[pygame.K_s]: self.pan(0,  spd)
+
+    # ── mouse drag ─────────────────────────────────────────────────────────
+    def start_drag(self, pos):
+        self.dragging    = True
+        self._drag_start = pos
+        self._drag_cam   = (self.x, self.y)
+
+    def update_drag(self, pos):
         if not self.dragging:
             return
-        self.vx = (self._lsx - sx) / self.zoom
-        self.vy = (self._lsy - sy) / self.zoom
-        self._lsx, self._lsy = sx, sy
-        self.offset_x = self._dox - (sx - self._dsx) / self.zoom
-        self.offset_y = self._doy - (sy - self._dsy) / self.zoom
+        dx = (self._drag_start[0] - pos[0]) / self.cell_size
+        dy = (self._drag_start[1] - pos[1]) / self.cell_size
+        self.x = self._drag_cam[0] + dx
+        self.y = self._drag_cam[1] + dy
+        self._clamp()
 
-    def end_drag(self):
+    def stop_drag(self):
         self.dragging = False
 
-    # ── Fly-to ────────────────────────────────────────────────────────────
-    def fly_to(self, wx: float, wy: float, tz: float = None):
-        map_h = config.SCREEN_H - self.map_y
-        if tz is None:
-            tz = min(self.MAX_ZOOM * 0.6, max(self.zoom * 1.9, 1.6))
-        self._fox = wx - (self.map_w / 2) / tz
-        self._foy = wy - (map_h       / 2) / tz
-        self._fz  = tz
-        self.flying = True
-        self.vx = self.vy = 0.0
+    # ── coordinate conversion ──────────────────────────────────────────────
+    def screen_to_tile(self, sx, sy):
+        return int(self.x + sx / self.cell_size), int(self.y + sy / self.cell_size)
 
-    def fly_home(self):
-        map_h = config.SCREEN_H - self.map_y
-        fit = min(self.map_w / WORLD_W, map_h / WORLD_H) * 0.90
-        self.fly_to(WORLD_W / 2, WORLD_H / 2, fit)
+    def tile_to_screen(self, tx, ty):
+        return int((tx - self.x) * self.cell_size), int((ty - self.y) * self.cell_size)
 
-    # ── Update ────────────────────────────────────────────────────────────
-    def update(self):
-        if self.flying:
-            sp = self.FLY_SPEED
-            self.offset_x += (self._fox - self.offset_x) * sp
-            self.offset_y += (self._foy - self.offset_y) * sp
-            self.zoom     += (self._fz  - self.zoom)     * sp
-            if (math.hypot(self.offset_x - self._fox,
-                           self.offset_y - self._foy) < 0.5
-                    and abs(self.zoom - self._fz) < 0.002):
-                self.offset_x, self.offset_y, self.zoom = \
-                    self._fox, self._foy, self._fz
-                self.flying = False
-        elif not self.dragging:
-            if abs(self.vx) < 0.22 and abs(self.vy) < 0.22:
-                self.vx = self.vy = 0.0
-            else:
-                self.offset_x += self.vx
-                self.offset_y += self.vy
-                self.vx *= self.FRICTION
-                self.vy *= self.FRICTION
+    # ── internal ───────────────────────────────────────────────────────────
+    def _center(self):
+        return (self.x + SCR.w / self.cell_size / 2,
+                self.y + SCR.viewport_h / self.cell_size / 2)
+
+    def _set_center(self, cx, cy):
+        self.x = cx - SCR.w / self.cell_size / 2
+        self.y = cy - SCR.viewport_h / self.cell_size / 2
+        self._clamp()
+
+    def _clamp(self):
+        max_x = max(0.0, MAP_W  - SCR.w / self.cell_size)
+        max_y = max(0.0, MAP_H - SCR.viewport_h / self.cell_size)
+        self.x = max(0.0, min(self.x, max_x))
+        self.y = max(0.0, min(self.y, max_y))

@@ -122,5 +122,49 @@
         "durabilidade_max": 100.0,
         "habilidade": "Portal do Caos",
         "custo_mana": 15.0
+    },
+    {
+        "nome": "kso",
+        "tipo": "Mágica",
+        "dano": 9.0,
+        "peso": 5.0,
+        "raridade": "Épico",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "r": 200,
+        "g": 200,
+        "b": 200,
+        "estilo": "Runas Flutuantes",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Medo Profundo",
+                "custo": 22.0
+            },
+            {
+                "nome": "Forma Relâmpago",
+                "custo": 45.0
+            }
+        ],
+        "encantamentos": [
+            "Velocidade",
+            "Vampirismo",
+            "Trevas"
+        ],
+        "passiva": {
+            "nome": "Brutal",
+            "efeito": "crit_damage",
+            "valor": 35,
+            "descricao": "+35% dano crítico"
+        },
+        "critico": 0.0,
+        "velocidade_ataque": 1.0,
+        "afinidade_elemento": null,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Medo Profundo",
+        "custo_mana": 22.0
     }
 ]

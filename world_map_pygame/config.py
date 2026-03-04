@@ -1,210 +1,269 @@
 """
-world_map_pygame/config.py
-Constantes visuais, dimensões e paletas.
-SCREEN_W/SCREEN_H são detectados automaticamente a partir da tela real.
-
-[FASE 1] Mudanças:
-  - Paleta sépia/pergaminho substituindo o azul-frio cartográfico
-  - TEX_W/H aumentados de 1024×717 → 2048×1434 (melhora qualidade no zoom)
-  - UI_SCALE calculado em runtime baseado em SCREEN_H (resolve textos pequenos)
-  - MAP_Y_OFFSET removido — câmera recebe map_y dinâmico da UI
-  - Novas constantes de layout: FILTER_BAR_H, BOTTOM_PANEL_H
-  - GOLD promovido para cor de destaque primária (era CYAN)
+World Map — Configuration & Constants  (v6.0 LIVING WORLD)
+Massive map, chunk-based rendering, world history, deep unit AI,
+auto-civilizations, Noita-depth physics. EVERYTHING lives and breathes.
 """
 import os
 
-# ─── CAMINHOS ────────────────────────────────────────────────────────────────
-_HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# ─── Paths ─────────────────────────────────────────────────────────────────────
+ROOT_DIR    = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR    = os.path.join(ROOT_DIR, "data")
+NEURAL_DIR  = os.path.join(os.path.dirname(ROOT_DIR), "neural_v3_rework")
 
-def find_data_dir() -> str:
-    candidates = [
-        os.path.join(_HERE, "world_map_pygame", "data"),
-        os.path.join(_HERE, "world_map_module", "data"),
-        os.path.join(_HERE, "..", "world_map_module", "data"),
-    ]
-    for c in candidates:
-        if os.path.isdir(c):
-            return os.path.abspath(c)
-    return candidates[0]
+# ─── Screen (defaults — overridden at runtime by SCR) ──────────────────────────
+SCREEN_W = 1280
+SCREEN_H = 900
+FPS      = 60
 
-# ─── JANELA ───────────────────────────────────────────────────────────────────
-try:
-    import pygame
-    pygame.display.init()
-    _di = pygame.display.Info()
-    SCREEN_W = min(1440, _di.current_w)
-    SCREEN_H = min(900,  _di.current_h - 60)
-    del _di
-except Exception:
-    SCREEN_W = 1280
-    SCREEN_H = 720
+# ─── Map Grid (MASSIVE: 1600×1000 = 1,600,000 tiles) ──────────────────────────
+MAP_W = 1600
+MAP_H = 1000
 
-FPS = 60
+# ─── Chunk System (for performance) ───────────────────────────────────────────
+CHUNK_SIZE = 64      # tiles per chunk edge
+CHUNK_COLS = (MAP_W + CHUNK_SIZE - 1) // CHUNK_SIZE   # 25
+CHUNK_ROWS = (MAP_H + CHUNK_SIZE - 1) // CHUNK_SIZE   # 16
 
-# ─── ESCALA DE UI ─────────────────────────────────────────────────────────────
-UI_SCALE: float = max(0.7, min(2.0, SCREEN_H / 900.0))
+# ─── Zoom / Camera ─────────────────────────────────────────────────────────────
+ZOOM_LEVELS  = [2, 3, 4, 6, 8, 12, 16]
+DEFAULT_ZOOM = 1   # index into ZOOM_LEVELS — start at 3px/tile
 
-def scaled(size: int) -> int:
-    return max(8, int(size * UI_SCALE))
+# ─── UI ────────────────────────────────────────────────────────────────────────
+TOPBAR_H       = 32
+BOTTOMBAR_H    = 80
+SIDEBAR_W      = 52
+UI_BAR_H       = BOTTOMBAR_H
+MAP_VIEWPORT_H = SCREEN_H - TOPBAR_H - BOTTOMBAR_H
 
-# ─── NOVO LAYOUT ──────────────────────────────────────────────────────────────
-FILTER_BAR_H   = scaled(36)
-BOTTOM_PANEL_H = scaled(180)
 
-# Mantido por compatibilidade (painel lateral removido)
-PANEL_W_MIN = 0
-PANEL_W_MAX = 0
+class SCR:
+    """Live screen dimensions — updated on window resize."""
+    w          = SCREEN_W
+    h          = SCREEN_H
+    viewport_h = MAP_VIEWPORT_H
 
-# ─── ESPAÇO DO MUNDO ──────────────────────────────────────────────────────────
-WORLD_W = 2000
-WORLD_H = 1400
+    @classmethod
+    def resize(cls, w, h):
+        cls.w          = w
+        cls.h          = h
+        cls.viewport_h = h - TOPBAR_H - BOTTOMBAR_H
 
-# ─── TEXTURA (2048×1434 resolve pixelado no zoom alto) ───────────────────────
-TEX_W = 2048
-TEX_H = 1434
+# ─── Terrain Generation ───────────────────────────────────────────────────────
+TERRAIN_SEED        = 42
+MOISTURE_SEED       = 137
+TERRAIN_OCTAVES     = 7
+TERRAIN_PERSISTENCE = 0.50
+TERRAIN_LACUNARITY  = 2.0
+TEMPERATURE_SEED    = 201
 
-# ─── GERAÇÃO DO HEIGHTMAP ────────────────────────────────────────────────────
-TERRAIN_SEED   = 12345
-SEA_LEVEL      = 0.42
-TERRITORY_SEED = 77
-VORONOI_WARP   = 0.38
-
-# ─── PALETA CARTOGRÁFICA — PERGAMINHO ENVELHECIDO ────────────────────────────
-import numpy as np
-
-OCEAN_PALETTE = [
-    np.array([ 48,  62,  92], dtype=np.float32),
-    np.array([ 58,  74, 108], dtype=np.float32),
-    np.array([ 68,  88, 120], dtype=np.float32),
-    np.array([ 80, 100, 135], dtype=np.float32),
-    np.array([ 96, 118, 152], dtype=np.float32),
-]
-C_SHORE   = np.array([128, 148, 172], dtype=np.float32)
-C_LAND    = np.array([210, 195, 162], dtype=np.float32)
-C_LAND_HI = np.array([185, 168, 135], dtype=np.float32)
-C_RIVER   = (110, 130, 155)
-C_BORDER  = (155, 138, 108)
-
-# ─── PALETA UI — DOURADO MEDIEVAL ────────────────────────────────────────────
-UI_BG     = ( 18,  14,  10)
-UI_BG2    = ( 28,  22,  16)
-UI_LINE   = ( 65,  52,  35)
-UI_PANEL  = ( 22,  18,  12)
-GOLD      = (210, 175,  80)
-GOLD_DIM  = (155, 128,  55)
-CRIMSON   = (180,  40,  40)
-CYAN      = ( 80, 160, 200)
-TXT       = (235, 225, 200)
-TXT_DIM   = (155, 140, 115)
-TXT_MUTED = ( 95,  85,  68)
-
-# ─── TINTS POR NATUREZA ───────────────────────────────────────────────────────
-NATURE_TINT = {
-    "balanced": (  0, 190, 230,  32),
-    "fire":     (210,  65,  10,  50),
-    "ice":      (130, 200, 240,  32),
-    "darkness": ( 80,  10, 170,  58),
-    "nature":   ( 25, 150,  45,  42),
-    "chaos":    (170,  15, 130,  48),
-    "void":     ( 10,  45, 170,  58),
-    "greed":    (200, 155,  10,  48),
-    "fear":     ( 90,   5, 155,  55),
-    "arcane":   ( 80, 110, 210,  42),
-    "blood":    (190,  10,  10,  55),
-    "ancient":  (155, 115,  20,  58),
-    "unclaimed":( 65,  72,  88,  10),
+# ─── Biome Colors — 22 biomes ─────────────────────────────────────────────────
+BIOME_COLORS = {
+    'deep_ocean':     (15,  18,  50),
+    'ocean':          (28,  46,  92),
+    'shallow_water':  (48,  78, 128),
+    'reef':           (40,  90, 130),
+    'river':          (55,  95, 160),
+    'beach':          (220, 190, 118),
+    'desert':         (196, 156,  80),
+    'savanna':        (164, 152,  60),
+    'grassland':      (80, 140,  50),
+    'forest':         (40,  96,  40),
+    'dense_forest':   (22,  60,  28),
+    'tropical':       (30,  80,  25),
+    'swamp':          (56,  76,  42),
+    'tundra':         (140, 150, 140),
+    'taiga':          (42,  72,  52),
+    'hills':          (128, 112,  78),
+    'mountain':       (96,  96, 104),
+    'high_mountain':  (136, 136, 144),
+    'volcano':        (80,  30,  20),
+    'snow':           (216, 228, 232),
+    'crystal_field':  (160, 180, 220),
+    'corrupted':      (50,  15,  40),
 }
 
-NATURE_COLOR = {
-    "balanced": (  0, 200, 240),
-    "fire":     (240,  80,  20),
-    "ice":      (150, 215, 250),
-    "darkness": (120,  35, 210),
-    "nature":   ( 55, 185,  70),
-    "chaos":    (210,  35, 170),
-    "void":     ( 35,  70, 210),
-    "greed":    (220, 178,  20),
-    "fear":     (150,  25, 210),
-    "arcane":   (110, 140, 230),
-    "blood":    (220,  20,  20),
-    "ancient":  (190, 145,  35),
-    "unclaimed":(100, 110, 132),
+# ─── Biome Elevation Thresholds ───────────────────────────────────────────────
+ELEV_DEEP_OCEAN = 0.14
+ELEV_OCEAN      = 0.21
+ELEV_SHALLOW    = 0.26
+ELEV_BEACH      = 0.29
+ELEV_LOWLAND    = 0.54
+ELEV_HIGHLAND   = 0.68
+ELEV_MOUNTAIN   = 0.82
+ELEV_PEAK       = 0.92
+
+# ─── Moisture Thresholds ──────────────────────────────────────────────────────
+MOIST_DRY = 0.20
+MOIST_MED = 0.35
+MOIST_WET = 0.55
+
+# ─── Temperature Thresholds ───────────────────────────────────────────────────
+TEMP_COLD   = 0.25
+TEMP_COOL   = 0.40
+TEMP_WARM   = 0.65
+TEMP_HOT    = 0.80
+
+# ─── Influence System ─────────────────────────────────────────────────────────
+INFLUENCE_DEFAULT_RADIUS  = 70
+INFLUENCE_MIN_THRESHOLD   = 0.05
+INFLUENCE_TINT_STRENGTH   = 0.35
+INFLUENCE_WATER_FACTOR    = 0.15
+
+# ─── God Colors ───────────────────────────────────────────────────────────────
+GOD_COLORS = {
+    'god_balance':   (180, 160, 255),
+    'god_fear':      (200,  30,  30),
+    'god_greed':     (255, 200,   0),
+    'god_nature':    (34,  170,  68),
+    'god_fire':      (255, 102,  34),
+    'god_ice':       (68,  187, 221),
+    'god_darkness':  (85,   34, 170),
+    'god_chaos':     (221,  34, 170),
+    'god_void':      (34,   85, 102),
 }
 
-SEAL_COLOR = {
-    "sleeping": (120,  35, 210),
-    "stirring": GOLD,
-    "awakened": (  0, 200, 240),
-    "broken":   CRIMSON,
-}
-
-# ─── LOD (Level-of-Detail) — ZOOM THRESHOLDS ─────────────────────────────────
-# LOD 0: Strategic (zoomed out)  — region blobs, large names, no zone boundaries
-# LOD 1: Regional               — zone boundaries, zone names, ownership colors
-# LOD 2: Tactical               — structure icons, nature tinting, badges, roads
-# LOD 3: Detail                 — pixel-art buildings, landmarks, vegetation
-# LOD 4: Close-up               — sub-district markers, detailed buildings, POIs
-LOD_THRESHOLDS = [0.35, 0.90, 2.0, 3.5]   # zoom >= threshold → next LOD
-
-def get_lod(zoom: float) -> int:
-    """Return LOD level (0–4) for given zoom."""
-    lod = 0
-    for t in LOD_THRESHOLDS:
-        if zoom >= t:
-            lod += 1
-        else:
-            break
-    return lod
-
-# ─── STRUCTURE TYPES ──────────────────────────────────────────────────────────
+# ─── Structures ───────────────────────────────────────────────────────────────
 STRUCTURE_TYPES = {
-    "fortress":  {"icon": "▲", "color": (180, 160, 130), "size_range": (10, 16)},
-    "city":      {"icon": "■", "color": (200, 185, 155), "size_range": (8, 14)},
-    "village":   {"icon": "◆", "color": (170, 155, 125), "size_range": (6, 10)},
-    "ruins":     {"icon": "✕", "color": (140, 125, 100), "size_range": (8, 12)},
-    "temple":    {"icon": "◎", "color": (190, 170, 220), "size_range": (10, 14)},
-    "market":    {"icon": "▬", "color": (210, 190, 80),  "size_range": (8, 12)},
-    "outpost":   {"icon": "△", "color": (160, 145, 115), "size_range": (6, 10)},
-    "sacred":    {"icon": "❋", "color": (100, 180, 100), "size_range": (8, 12)},
-    "port":      {"icon": "⚓", "color": (100, 140, 180), "size_range": (8, 12)},
-    "mine":      {"icon": "⛏", "color": (150, 130, 100), "size_range": (6, 10)},
-    "tower":     {"icon": "⌂", "color": (165, 150, 120), "size_range": (6, 10)},
+    'citadel':    {'size': 7, 'symbol': 'castle'},
+    'castle':     {'size': 7, 'symbol': 'castle'},
+    'temple':     {'size': 7, 'symbol': 'temple'},
+    'tower':      {'size': 5, 'symbol': 'tower'},
+    'altar':      {'size': 5, 'symbol': 'altar'},
+    'ruin':       {'size': 5, 'symbol': 'ruin'},
+    'village':    {'size': 5, 'symbol': 'village'},
+    'city':       {'size': 7, 'symbol': 'city'},
+    'farm':       {'size': 5, 'symbol': 'farm'},
+    'mine':       {'size': 5, 'symbol': 'mine'},
+    'port':       {'size': 5, 'symbol': 'port'},
+    'wall':       {'size': 3, 'symbol': 'wall'},
+    'bridge':     {'size': 3, 'symbol': 'bridge'},
+    'workshop':   {'size': 5, 'symbol': 'workshop'},
+    'barracks':   {'size': 5, 'symbol': 'barracks'},
+    'graveyard':  {'size': 5, 'symbol': 'graveyard'},
 }
 
-# ─── NATURE VFX CONFIG ────────────────────────────────────────────────────────
-NATURE_VFX = {
-    "fire":     {"particles": "ember",    "overlay": "cracks",   "intensity": 0.7},
-    "ice":      {"particles": "snow",     "overlay": "frost",    "intensity": 0.5},
-    "darkness": {"particles": "shadow",   "overlay": "tendrils", "intensity": 0.8},
-    "nature":   {"particles": "leaf",     "overlay": "vines",    "intensity": 0.6},
-    "chaos":    {"particles": "glitch",   "overlay": "distort",  "intensity": 0.9},
-    "void":     {"particles": "void",     "overlay": "warp",     "intensity": 0.7},
-    "greed":    {"particles": "gold",     "overlay": "sparkle",  "intensity": 0.5},
-    "fear":     {"particles": "fog",      "overlay": "eyes",     "intensity": 0.8},
-    "balanced": {"particles": "glow",     "overlay": "aura",     "intensity": 0.3},
-    "arcane":   {"particles": "sigil",    "overlay": "runes",    "intensity": 0.6},
-    "blood":    {"particles": "drip",     "overlay": "veins",    "intensity": 0.7},
-    "ancient":  {"particles": "dust",     "overlay": "glyphs",   "intensity": 0.5},
-    "unclaimed":{"particles": None,       "overlay": None,       "intensity": 0.0},
+# ─── Particles ─────────────────────────────────────────────────────────────────
+MAX_PARTICLES = 1200
+
+# ─── Material Simulation ──────────────────────────────────────────────────────
+SIM_TICKS_PER_SEC = 10
+
+# ─── Minimap ──────────────────────────────────────────────────────────────────
+MINIMAP_W      = 240
+MINIMAP_H      = 150
+MINIMAP_MARGIN = 8
+
+# ─── Weather ──────────────────────────────────────────────────────────────────
+WEATHER_TICK_RATE   = 0.5      # weather updates per second
+SEASON_LENGTH       = 120.0    # seconds per season
+SEASONS             = ['spring', 'summer', 'autumn', 'winter']
+
+# ─── Civilization ─────────────────────────────────────────────────────────────
+CIV_TICK_RATE       = 1.0      # civ updates per second
+POP_GROWTH_BASE     = 0.002    # per-tick growth rate
+POP_MAX_VILLAGE     = 50
+POP_MAX_CITY        = 300
+RESOURCE_TYPES      = ['food', 'wood', 'stone', 'iron', 'gold', 'mana']
+
+# ─── Units ────────────────────────────────────────────────────────────────────
+UNIT_SPEED          = 2.0      # tiles per second
+
+# ─── Army & War System ────────────────────────────────────────────────────────
+ARMY_MIN_SIZE       = 3
+ARMY_MERGE_RADIUS   = 8
+WAR_COOLDOWN        = 300.0    # seconds between wars
+PATROL_RADIUS       = 40
+RAID_RANGE          = 80
+
+# ─── World History ─────────────────────────────────────────────────────────────
+HISTORY_MAX_EVENTS  = 2000
+ERA_LENGTH          = 600.0    # seconds per era
+ERA_NAMES           = ['Dawn', 'Expansion', 'Conflict', 'Empire', 'Decline', 'Rebirth']
+
+# ─── Auto-Civilization ────────────────────────────────────────────────────────
+AUTO_CIV_TICK       = 2.0      # seconds between auto-civ decisions
+SETTLE_MIN_DIST     = 30       # min tiles between settlements
+EXPAND_FOOD_THRESH  = 100      # food needed to expand
+WAR_DECLARE_THRESH  = 0.6      # territory ratio threshold for war
+UNIT_TYPES = {
+    'settler':   {'hp': 30,  'atk': 0,  'spd': 1.5, 'icon': 'settler',  'cost': {'food': 20, 'wood': 10}},
+    'warrior':   {'hp': 80,  'atk': 15, 'spd': 2.0, 'icon': 'sword',    'cost': {'food': 10, 'iron': 5}},
+    'archer':    {'hp': 50,  'atk': 20, 'spd': 1.8, 'icon': 'bow',      'cost': {'food': 10, 'wood': 8}},
+    'mage':      {'hp': 40,  'atk': 30, 'spd': 1.5, 'icon': 'staff',    'cost': {'food': 10, 'mana': 15}},
+    'knight':    {'hp': 120, 'atk': 25, 'spd': 3.0, 'icon': 'horse',    'cost': {'food': 20, 'iron': 15}},
+    'siege':     {'hp': 200, 'atk': 40, 'spd': 0.8, 'icon': 'catapult', 'cost': {'wood': 30, 'iron': 20}},
+    'dragon':    {'hp': 300, 'atk': 50, 'spd': 4.0, 'icon': 'dragon',   'cost': {'mana': 50, 'gold': 30}},
+    'undead':    {'hp': 60,  'atk': 12, 'spd': 1.5, 'icon': 'skull',    'cost': {'mana': 8}},
+    'golem':     {'hp': 250, 'atk': 35, 'spd': 0.5, 'icon': 'golem',    'cost': {'stone': 30, 'mana': 20}},
+    'spirit':    {'hp': 20,  'atk': 25, 'spd': 5.0, 'icon': 'ghost',    'cost': {'mana': 12}},
+    'scout':     {'hp': 35,  'atk': 5,  'spd': 4.5, 'icon': 'scout',    'cost': {'food': 5, 'wood': 3}},
+    'healer':    {'hp': 30,  'atk': 0,  'spd': 1.8, 'icon': 'healer',   'cost': {'food': 10, 'mana': 10}},
+    'berserker': {'hp': 100, 'atk': 40, 'spd': 2.5, 'icon': 'axe',      'cost': {'food': 15, 'iron': 10}},
+    'assassin':  {'hp': 40,  'atk': 45, 'spd': 4.0, 'icon': 'dagger',   'cost': {'gold': 15, 'iron': 5}},
+    'titan':     {'hp': 500, 'atk': 60, 'spd': 0.3, 'icon': 'titan',    'cost': {'stone': 50, 'mana': 40, 'iron': 30}},
 }
 
-# ─── LIVE SYNC ────────────────────────────────────────────────────────────────
-SYNC_POLL_INTERVAL = 3.0   # seconds between JSON checks
-SYNC_TRANSITION_SPEED = 2.0  # seconds for ownership transition animation
+# ─── Element Synergy (Noita-depth: chain reactions, cascading effects) ────────
+# (mat_a, mat_b) → result_material
+ELEMENT_REACTIONS = {
+    ('fire', 'water'):     'steam',
+    ('fire', 'ice'):       'water',
+    ('fire', 'sand_elem'): 'glass',
+    ('fire', 'vine'):      'ash',
+    ('fire', 'spore'):     'ash',
+    ('fire', 'mud'):       'stone',
+    ('lava', 'water'):     'obsidian',
+    ('lava', 'ice'):       'obsidian',
+    ('lava', 'vine'):      'fire',
+    ('lava', 'sand_elem'): 'glass',
+    ('water', 'ice'):      'ice',
+    ('water', 'ash'):      'mud',
+    ('water', 'sand_elem'):'mud',
+    ('water', 'corrupt'):  'swamp_gas',
+    ('acid', 'stone'):     'none',
+    ('acid', 'obsidian'):  'none',
+    ('acid', 'glass'):     'none',
+    ('acid', 'crystal'):   'none',
+    ('acid', 'vine'):      'none',
+    ('acid', 'mud'):       'swamp_gas',
+    ('bless', 'corrupt'):  'crystal',
+    ('bless', 'hellfire'): 'fire',
+    ('bless', 'spore'):    'vine',
+    ('bless', 'swamp_gas'):'steam',
+    ('fire', 'corrupt'):   'hellfire',
+    ('ice', 'water'):      'ice',
+    ('frost', 'fire'):     'water',
+    ('frost', 'lava'):     'obsidian',
+    ('frost', 'steam'):    'water',
+    ('frost', 'vine'):     'ice',
+    ('frost', 'mud'):      'ice',
+    ('lightning', 'sand_elem'): 'glass',
+    ('lightning', 'water'):     'none',
+    ('lightning', 'ice'):       'water',
+    ('lightning', 'steam'):     'none',
+    ('lightning', 'vine'):      'fire',
+    ('vine', 'corrupt'):   'spore',
+    ('vine', 'mud'):       'vine',
+    ('steam', 'ice'):      'frost',
+    ('hellfire', 'water'): 'steam',
+    ('hellfire', 'ice'):   'steam',
+    ('crystal', 'corrupt'):'glass',
+    ('crystal', 'fire'):   'glass',
+}
 
-# ─── STRUCTURE PALETTES PER NATURE ────────────────────────────────────────────
-NATURE_BUILDING_PALETTE = {
-    "balanced": [(185, 170, 140), (200, 185, 155), (165, 150, 120), (140, 125, 95)],
-    "fire":     [(180,  80,  30), (210, 100,  20), (150,  60,  15), (120,  40,  10)],
-    "ice":      [(160, 200, 230), (180, 215, 240), (140, 185, 215), (120, 165, 195)],
-    "darkness": [(100,  50, 120), (120,  60, 140), ( 80,  40, 100), ( 60,  30,  80)],
-    "nature":   [( 80, 140,  60), (100, 160,  80), ( 60, 120,  40), ( 50, 100,  35)],
-    "chaos":    [(180,  50, 150), (200,  60, 170), (160,  40, 130), (140,  30, 110)],
-    "void":     [( 50,  60, 140), ( 70,  80, 160), ( 40,  50, 120), ( 30,  40, 100)],
-    "greed":    [(200, 170,  50), (220, 190,  60), (180, 150,  40), (160, 130,  30)],
-    "fear":     [(120,  40, 160), (140,  50, 180), (100,  30, 140), ( 80,  20, 120)],
-    "arcane":   [(100, 120, 200), (120, 140, 220), ( 80, 100, 180), ( 60,  80, 160)],
-    "blood":    [(180,  30,  30), (200,  40,  40), (160,  20,  20), (140,  15,  15)],
-    "ancient":  [(170, 140,  60), (190, 160,  80), (150, 120,  40), (130, 100,  30)],
-    "unclaimed":[(150, 140, 125), (165, 155, 140), (135, 125, 110), (120, 110,  95)],
+# Extra materials from reactions (expanded for Noita-depth chains)
+REACTION_MATERIALS = {
+    'steam':     {'color': (200, 210, 220), 'sim': True,  'rises': True,  'life': 80},
+    'glass':     {'color': (180, 220, 230), 'sim': False, 'life': 0},
+    'obsidian':  {'color': (25,   15,  30), 'sim': False, 'life': 0},
+    'swamp_gas': {'color': (90,  110,  50), 'sim': True,  'rises': True,  'life': 60, 'toxic': True},
+    'crystal':   {'color': (170, 200, 255), 'sim': False, 'life': 0},
+    'hellfire':  {'color': (180,  20,  60), 'sim': True,  'spread': 0.20, 'life': 120, 'burns': True},
+    'ash':       {'color': (70,   65,  60), 'sim': True,  'falls': True,  'life': 0},
+    'mud':       {'color': (90,   70,  45), 'sim': True,  'life': 0,  'flows': True},
+    'frost':     {'color': (190, 220, 240), 'sim': True,  'spread': 0.04, 'life': 150},
+    'vine':      {'color': (50,  120,  30), 'sim': True,  'spread': 0.06, 'life': 0},
+    'spore':     {'color': (130,  90, 140), 'sim': True,  'spread': 0.03, 'life': 200, 'toxic': True},
+    'lightning_mat': {'color': (255, 255, 180), 'sim': True, 'life': 8},
+    'stone':     {'color': (120, 115, 110), 'sim': False, 'life': 0},
 }

@@ -1,11 +1,10 @@
 """
-Neural Fights — Aethermoor World Map Launcher
-Executa o mapa do mundo em pygame.
+Aethermoor — World Map Launcher
+Runs the pixel-art world map (pygame).
 
-Uso:
-    python RUN_WORLDMAP.py
+Usage:  python RUN_WORLDMAP.py
 """
 import subprocess, sys, os
 
-script = os.path.join(os.path.dirname(__file__), "world_map_pygame", "RUN_WORLDMAP.py")
+script = os.path.join(os.path.dirname(__file__), "world_map_pygame", "main.py")
 subprocess.run([sys.executable, script])

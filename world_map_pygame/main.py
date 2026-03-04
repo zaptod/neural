@@ -1,272 +1,734 @@
 """
-world_map_pygame/main.py
-Ponto de entrada.
-
-[FASE 3] Integração com nova UI:
-  - draw_filter_bar, draw_bottom_panel_with_gods substituem painéis antigos
-  - Cliques na filter bar e no minimap tratados antes do mapa
-  - selected_zone passado para ui.open_panel()
-  - Tecla F: toggle da barra de filtros (fecha/abre)
-  - Minimap marca dirty quando ownership muda
+Aethermoor — World Map  (v6.0 Living World)
+Pixel-art retro world map with freeform influence, god tools,
+material sim, civilizations, units, weather, element synergy.
+EVERYTHING interacts with EVERYTHING: weather↔units↔buildings↔materials↔biomes.
+v6.0: 1600×1000 map, chunk renderer, world history & eras, army AI,
+      auto-civ expansion, Noita-depth 44 reactions, diplomacy.
 """
-import sys, time
 import pygame
+import sys
+import os
+import random
+import math
+import numpy as np
 
-from .config        import SCREEN_W, SCREEN_H, FPS, GOLD, scaled
-from . import config
-from .data_loader   import load_data
-from .terrain       import generate_heightmap, generate_moisture, build_base_texture
-from .territories   import build_territory_maps, extract_border_mask, zone_at_pixel, world_to_tex
-from .camera        import Camera
-from .renderer      import MapRenderer
-from .ui            import UI
-from .particles     import Particles
-from .structures    import StructureManager
-from .nature_vfx    import NatureVFX
-from .live_sync     import LiveSync
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from config import *
+from terrain import generate_terrain, is_land
+from influence import InfluenceMap
+from camera import Camera
+from renderer import Renderer
+from structures import StructureRenderer
+from particles import ParticleSystem
+from ui import WorldBoxUI
+from tools import ToolState, MaterialLayer, apply_tool, MATERIALS, MAT_NAMES
+from events import EventLog
+from data_loader import load_world_state, save_world_state, load_gods, save_gods
+from live_sync import LiveSync
+from civilizations import CivilizationSystem
+from units import UnitSystem
+from weather import WeatherSystem
+from synergy import SynergyEngine
+from history import WorldHistory
+
+# ─── Default gods ──────────────────────────────────────────────────────────────
+DEFAULT_GODS = [
+    {"god_id": "god_balance",  "god_name": "Goddess of Balance",
+     "nature": "Balance",  "color_primary": "#b4a0ff"},
+    {"god_id": "god_fear",     "god_name": "God of Fear",
+     "nature": "Fear",     "color_primary": "#c81e1e"},
+    {"god_id": "god_greed",    "god_name": "God of Greed",
+     "nature": "Greed",    "color_primary": "#ffc800"},
+    {"god_id": "god_nature",   "god_name": "God of Nature",
+     "nature": "Nature",   "color_primary": "#22aa44"},
+    {"god_id": "god_fire",     "god_name": "God of Fire",
+     "nature": "Fire",     "color_primary": "#ff6622"},
+    {"god_id": "god_ice",      "god_name": "God of Ice",
+     "nature": "Ice",      "color_primary": "#44bbdd"},
+    {"god_id": "god_darkness", "god_name": "God of Darkness",
+     "nature": "Darkness", "color_primary": "#5522aa"},
+    {"god_id": "god_chaos",    "god_name": "God of Chaos",
+     "nature": "Chaos",    "color_primary": "#dd22aa"},
+    {"god_id": "god_void",     "god_name": "God of the Void",
+     "nature": "Void",     "color_primary": "#225566"},
+]
+
+STRONGHOLD_NAMES = [
+    "Astral Citadel", "Dread Fortress", "Golden Vault",
+    "Verdant Spire",  "Ember Keep",     "Frost Bastion",
+    "Shadow Sanctum", "Maelstrom Tower","Abyssal Throne",
+]
+STRONGHOLD_TYPES = [
+    "citadel", "castle", "temple", "temple",
+    "castle",  "citadel","temple", "tower", "altar",
+]
 
 
-def run():
-    pygame.init()
-    screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
-    pygame.display.set_caption("Neural Fights — Aethermoor")
-    clock = pygame.time.Clock()
+def _find_land_positions(heightmap, biome_map, biome_names, count=9):
+    land_set = {i for i, n in enumerate(biome_names)
+                if n not in ('deep_ocean', 'ocean', 'shallow_water')}
+    valid = []
+    for y in range(MAP_H):
+        for x in range(MAP_W):
+            if biome_map[y, x] in land_set:
+                e = heightmap[y, x]
+                if 0.32 <= e <= 0.65:
+                    valid.append((x, y))
+    if not valid:
+        for y in range(MAP_H):
+            for x in range(MAP_W):
+                if biome_map[y, x] in land_set:
+                    valid.append((x, y))
+    if len(valid) < count:
+        return valid
+    rng = np.random.RandomState(42)
+    selected = [valid[rng.randint(len(valid))]]
+    sample_n = min(2000, len(valid))
+    for _ in range(count - 1):
+        idxs = rng.choice(len(valid), sample_n, replace=False)
+        best_d, best_p = -1, None
+        for i in idxs:
+            p = valid[i]
+            md = min(math.hypot(p[0] - s[0], p[1] - s[1]) for s in selected)
+            if md > best_d:
+                best_d, best_p = md, p
+        if best_p:
+            selected.append(best_p)
+    return selected
 
-    ui = UI()
 
-    # ── Loading ────────────────────────────────────────────────────────────
-    ui.draw_loading(screen, "Carregando dados do mundo...", 0.05)
-    zones, gods, ownership, ancient_seals, global_stats, event_log, ancient_gods = load_data()
-    print(f"[map] {len(zones)} zonas · {len(gods)} deuses · {len(ancient_gods)} deuses antigos · "
-          f"{len(event_log.events)} eventos · janela {SCREEN_W}×{SCREEN_H}")
+def _generate_strongholds(heightmap, biome_map, biome_names):
+    positions = _find_land_positions(heightmap, biome_map, biome_names, 9)
+    out = []
+    for i, (god, pos) in enumerate(zip(DEFAULT_GODS, positions)):
+        out.append({
+            "id":       f"sh_{i+1}",
+            "god_id":   god["god_id"],
+            "x":        pos[0],
+            "y":        pos[1],
+            "strength": round(random.uniform(0.8, 1.0), 2),
+            "radius":   random.randint(35, 55),
+            "name":     STRONGHOLD_NAMES[i] if i < len(STRONGHOLD_NAMES) else f"Stronghold {i+1}",
+            "type":     STRONGHOLD_TYPES[i]  if i < len(STRONGHOLD_TYPES) else "castle",
+        })
+    return out
 
-    ui.draw_loading(screen, "Gerando heightmap procedural (fBm)...", 0.20)
-    heightmap = generate_heightmap()
-    moisture  = generate_moisture()
 
-    ui.draw_loading(screen, "Computando territórios (Voronoi warp)...", 0.45)
-    zone_idx, zone_list = build_territory_maps(zones)
+# ═══════════════════════════════════════════════════════════════════════════════
+class WorldMap:
+    """Main application — WorldBox-style god game with civilizations, units, weather."""
 
-    ui.draw_loading(screen, "Extraindo fronteiras...", 0.62)
-    border_mask = extract_border_mask(zone_idx)
+    def __init__(self):
+        pygame.init()
 
-    ui.draw_loading(screen, "Renderizando textura cartográfica...", 0.75)
-    img_u8   = build_base_texture(heightmap, border_mask, moisture=moisture)
-    map_surf = pygame.Surface((img_u8.shape[1], img_u8.shape[0]))
-    pygame.surfarray.blit_array(map_surf, img_u8.swapaxes(0, 1))
+        # ── auto-detect screen size ────────────────────────────────────────
+        info = pygame.display.Info()
+        init_w = max(800, min(int(info.current_w * 0.90), 1920))
+        init_h = max(600, min(int(info.current_h * 0.88), 1080))
+        SCR.resize(init_w, init_h)
 
-    ui.draw_loading(screen, "Gerando estruturas e VFX...", 0.85)
-    struct_mgr = StructureManager(zones, heightmap=heightmap)
-    struct_mgr.initialize()
-    nature_vfx = NatureVFX(zones, zone_idx)
-    live_sync  = LiveSync()
+        self.screen = pygame.display.set_mode((SCR.w, SCR.h), pygame.RESIZABLE)
+        pygame.display.set_caption("Aethermoor — World Map")
+        self.clock   = pygame.time.Clock()
+        self.running = True
 
-    ui.draw_loading(screen, "Inicializando câmera...", 0.92)
-    cam  = Camera(map_x=ui.map_x, map_w=ui.map_w, map_y=ui.map_y)
-    rend = MapRenderer(map_surf, zone_idx, zone_list, zones, gods, cam,
-                       structure_mgr=struct_mgr, nature_vfx=nature_vfx)
-    part = Particles()
+        # ── terrain (now returns 5 values with temperature) ────────────────
+        print("[WorldMap] generating terrain…")
+        self.terrain_data = generate_terrain()
+        self.heightmap, self.moisture, self.temperature, self.biome_map, self.biome_names = self.terrain_data
 
-    # Give UI access to terrain texture for the minimap
-    ui.set_terrain_surface(map_surf)
+        self.land_mask = np.zeros((MAP_H, MAP_W), dtype=bool)
+        for i, name in enumerate(self.biome_names):
+            if name not in ('deep_ocean', 'ocean', 'shallow_water'):
+                self.land_mask |= (self.biome_map == i)
 
-    ui.draw_loading(screen, "Pronto!", 1.0)
-    pygame.time.wait(300)
+        # ── material layer ─────────────────────────────────────────────────
+        self.materials = MaterialLayer()
 
-    selected_zone = None
-    hover_zone    = None
-    t_anim        = 0.0
-    last_click_t  = 0.0
-    last_click_z  = None
-    intro_alpha   = 255
+        # ── gods ───────────────────────────────────────────────────────────
+        self._init_gods()
+        god_ids = [g["god_id"] for g in self.gods]
 
-    running = True
-    while running:
-        dt     = clock.tick(FPS) / 1000.0
-        t_anim += dt
-        fps    = clock.get_fps()
+        # ── influence ──────────────────────────────────────────────────────
+        self.influence = InfluenceMap(god_ids, self.land_mask)
+        self._init_strongholds()
 
-        # Sincroniza câmera com layout (map_y muda quando painel abre/fecha)
-        cam.map_x = ui.map_x
-        cam.map_w = config.SCREEN_W   # sempre full-width
-        cam.map_y = ui.map_y
+        # ── tool state ─────────────────────────────────────────────────────
+        self.tool_state = ToolState()
 
+        # ── NEW: civilizations, units, weather, SYNERGY, HISTORY ───────────
+        self.civilizations = CivilizationSystem()
+        self.units         = UnitSystem()
+        self.weather       = WeatherSystem()
+        self.weather.init_temperature(self.heightmap)
+        self.synergy       = SynergyEngine()
+        self.history       = WorldHistory(god_ids)
+
+        # ── subsystems ─────────────────────────────────────────────────────
+        self.camera     = Camera()
+        self.renderer   = Renderer(self.screen,
+                                   (self.heightmap, self.moisture, self.biome_map, self.biome_names),
+                                   self.influence, self.materials)
+        self.structures = StructureRenderer()
+        self.particles  = ParticleSystem()
+        self.ui         = WorldBoxUI(self.tool_state, self.gods)
+        self.event_log  = EventLog()
+
+        # load saved events
+        state = load_world_state()
+        if state.get("world_events"):
+            self.event_log.load_from_state(state["world_events"])
+            for d in self.event_log.get_display(20):
+                self.ui.add_event(d)
+
+        self._refresh_standings()
+
+        # ── live sync ──────────────────────────────────────────────────────
+        self.live_sync = LiveSync(on_state_changed=self._on_sync)
+        self.live_sync.start()
+
+        # ── simulation timers ──────────────────────────────────────────────
+        self._sim_accum     = 0.0
+        self._civ_accum     = 0.0
+        self._weather_accum = 0.0
+        self._unit_accum    = 0.0
+        self._synergy_accum = 0.0
+        self._history_accum = 0.0
+
+        self.ui.add_event("World map initialised — v6.0 Living World")
+        print("[WorldMap] ready — 1600x1000, 22 biomes, 44 reactions, armies, history, auto-civ, LIVING WORLD.")
+
+    # ── helpers ────────────────────────────────────────────────────────────
+    def _init_gods(self):
+        gd = load_gods()
+        if gd.get("gods"):
+            self.gods = gd["gods"]
+        else:
+            self.gods = DEFAULT_GODS
+            save_gods({"gods": self.gods})
+
+    def _init_strongholds(self):
+        state = load_world_state()
+        sh = state.get("strongholds")
+        # Validate positions for new map size
+        valid = True
+        if sh:
+            for s in sh:
+                if s['x'] >= MAP_W or s['y'] >= MAP_H:
+                    valid = False
+                    break
+        if sh and valid:
+            self.strongholds = sh
+        else:
+            self.strongholds = _generate_strongholds(
+                self.heightmap, self.biome_map, self.biome_names)
+            state["strongholds"] = self.strongholds
+            save_world_state(state)
+        self.influence.set_strongholds(self.strongholds)
+
+    def _refresh_standings(self):
+        st = []
+        for g in self.gods:
+            gid = g["god_id"]
+            pop = self.civilizations.get_total_population(gid)
+            units = self.units.get_type_count(god_id=gid)
+            armies = sum(1 for a in self.units.armies if a.god_id == gid) if hasattr(self.units, 'armies') else 0
+            st.append({
+                "god_id":      gid,
+                "god_name":    g.get("god_name", gid),
+                "territories": self.influence.get_god_territory_count(gid),
+                "population":  pop,
+                "units":       units,
+                "armies":      armies,
+            })
+        st.sort(key=lambda x: x["territories"], reverse=True)
+        self.ui.set_standings(st)
+
+    def _on_sync(self, new_state):
+        if new_state.get("strongholds"):
+            self.strongholds = new_state["strongholds"]
+            self.influence.set_strongholds(self.strongholds)
+            self.renderer.mark_influence_dirty()
+            self._refresh_standings()
+        evts = new_state.get("world_events", [])
+        if evts:
+            desc = EventLog.format(evts[-1])
+            self.event_log.add(evts[-1].get("type", "unknown"), desc,
+                               evts[-1].get("god_id"))
+            self.ui.add_event(desc)
+
+    def _reclassify_biomes(self):
+        """Re-run biome classification after terrain edits."""
+        from config import (ELEV_DEEP_OCEAN, ELEV_OCEAN, ELEV_SHALLOW, ELEV_BEACH,
+                            ELEV_LOWLAND, ELEV_HIGHLAND, ELEV_MOUNTAIN, ELEV_PEAK,
+                            MOIST_DRY, MOIST_MED, MOIST_WET,
+                            TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT)
+        bn = self.biome_names
+        idx = {name: i for i, name in enumerate(bn)}
+        bm = self.biome_map
+        e  = self.heightmap
+        m  = self.moisture
+        t  = self.temperature
+
+        bm[:] = idx['grassland']
+        bm[e < ELEV_DEEP_OCEAN] = idx['deep_ocean']
+        bm[(e >= ELEV_DEEP_OCEAN) & (e < ELEV_OCEAN)] = idx['ocean']
+        bm[(e >= ELEV_OCEAN) & (e < ELEV_SHALLOW)] = idx['shallow_water']
+        bm[(e >= ELEV_SHALLOW) & (e < ELEV_BEACH)] = idx['beach']
+
+        # Reef
+        reef_mask = (e >= ELEV_OCEAN) & (e < ELEV_SHALLOW) & (t > TEMP_WARM) & (m > MOIST_WET)
+        bm[reef_mask] = idx['reef']
+
+        low = (e >= ELEV_BEACH) & (e < ELEV_LOWLAND)
+        bm[low & (t < TEMP_COLD)] = idx['tundra']
+        bm[low & (t >= TEMP_COLD) & (t < TEMP_COOL) & (m >= MOIST_MED)] = idx['taiga']
+        bm[low & (t >= TEMP_COLD) & (t < TEMP_COOL) & (m < MOIST_MED)] = idx['tundra']
+        bm[low & (t >= TEMP_COOL) & (t < TEMP_HOT) & (m < MOIST_DRY)] = idx['desert']
+        bm[low & (t >= TEMP_COOL) & (t < TEMP_HOT) & (m >= MOIST_DRY) & (m < MOIST_MED)] = idx['savanna']
+        bm[low & (t >= TEMP_COOL) & (t < TEMP_HOT) & (m >= MOIST_MED) & (m < MOIST_WET)] = idx['grassland']
+        bm[low & (t >= TEMP_COOL) & (t < TEMP_HOT) & (m >= MOIST_WET)] = idx['forest']
+        bm[low & (t >= TEMP_HOT) & (m < MOIST_DRY)] = idx['desert']
+        bm[low & (t >= TEMP_HOT) & (m >= MOIST_DRY) & (m < MOIST_MED)] = idx['savanna']
+        bm[low & (t >= TEMP_HOT) & (m >= MOIST_MED)] = idx['tropical']
+        bm[low & (m > 0.70) & (t >= TEMP_COOL)] = idx['swamp']
+
+        hi = (e >= ELEV_LOWLAND) & (e < ELEV_HIGHLAND)
+        bm[hi & (t < TEMP_COOL) & (m >= MOIST_MED)] = idx['taiga']
+        bm[hi & (t < TEMP_COOL) & (m < MOIST_MED)] = idx['tundra']
+        bm[hi & (t >= TEMP_COOL) & (m < MOIST_DRY)] = idx['hills']
+        bm[hi & (t >= TEMP_COOL) & (m >= MOIST_DRY) & (m < 0.70)] = idx['dense_forest']
+        bm[hi & (t >= TEMP_COOL) & (m >= 0.70)] = idx['swamp']
+
+        mt = (e >= ELEV_HIGHLAND) & (e < ELEV_MOUNTAIN)
+        bm[mt & (m < 0.40)] = idx['mountain']
+        bm[mt & (m >= 0.40)] = idx['high_mountain']
+        bm[(e >= ELEV_MOUNTAIN) & (e < ELEV_PEAK)] = idx['snow']
+
+        volcano_mask = (e >= ELEV_PEAK) & (t > TEMP_WARM) & (m < MOIST_DRY)
+        bm[volcano_mask] = idx['volcano']
+        bm[(e >= ELEV_PEAK) & ~volcano_mask] = idx['snow']
+
+        crystal_mask = (e >= ELEV_HIGHLAND) & (e < ELEV_MOUNTAIN) & (m > 0.75) & (t < TEMP_COOL)
+        bm[crystal_mask] = idx['crystal_field']
+
+        self.renderer.terrain_colors = self.renderer._build_base_colors()
+        self.renderer.mark_influence_dirty()
+
+        self.land_mask[:] = False
+        for i, name in enumerate(bn):
+            if name not in ('deep_ocean', 'ocean', 'shallow_water'):
+                self.land_mask |= (bm == i)
+
+    def _event_log_fn(self, text):
+        self.event_log.add("tool_action", text)
+        self.ui.add_event(text)
+
+    def _screen_to_tile(self, sx, sy):
+        return self.camera.screen_to_tile(sx, sy - TOPBAR_H)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    def run(self):
+        while self.running:
+            dt = self.clock.tick(FPS) / 1000.0
+            dt = min(dt, 0.05)
+            self._events()
+            self._update(dt)
+            self._draw()
+            pygame.display.flip()
+        self.live_sync.stop()
+        pygame.quit()
+
+    # ── events ─────────────────────────────────────────────────────────────
+    def _events(self):
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                running = False
+                self.running = False
+
+            elif ev.type == pygame.VIDEORESIZE:
+                SCR.resize(ev.w, ev.h)
+                self.screen = pygame.display.set_mode((SCR.w, SCR.h), pygame.RESIZABLE)
+                self.renderer.mark_influence_dirty()
+                self.structures.clear_cache()
+                self.camera._clamp()
 
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_ESCAPE:
-                    if selected_zone:
-                        selected_zone = None
-                        ui.open_panel(None)
+                    if self.ui.show_info_panel:
+                        self.ui.close_info()
                     else:
-                        running = False
-                elif ev.key in (pygame.K_h, pygame.K_HOME):
-                    cam.fly_home()
-                    selected_zone = None
-                    ui.open_panel(None)
-                    ui.notify("Visão Global")
-                elif ev.key == pygame.K_r:
-                    ui.draw_loading(screen, "Recarregando dados...", 0.5)
-                    zones, gods, ownership, ancient_seals, global_stats, event_log, ancient_gods = load_data()
-                    rend.zones = zones
-                    rend.gods  = gods
-                    struct_mgr.zones = zones
-                    struct_mgr._initialized = False
-                    struct_mgr.initialize()
-                    nature_vfx.zones = zones
-                    ui.mark_minimap_dirty()
-                    ui.notify("Dados recarregados ✓")
+                        self.running = False
+                elif ev.key in (pygame.K_PLUS, pygame.K_EQUALS, pygame.K_KP_PLUS):
+                    self.camera.zoom_in(); self.structures.clear_cache()
+                elif ev.key in (pygame.K_MINUS, pygame.K_KP_MINUS):
+                    self.camera.zoom_out(); self.structures.clear_cache()
+                elif ev.key == pygame.K_SPACE:
+                    self.tool_state.toggle_pause()
+                elif ev.key == pygame.K_LEFTBRACKET:
+                    self.tool_state.prev_brush()
+                elif ev.key == pygame.K_RIGHTBRACKET:
+                    self.tool_state.next_brush()
+                elif ev.key == pygame.K_TAB:
+                    self.ui.show_info_panel = not self.ui.show_info_panel
+
+            elif ev.type == pygame.MOUSEWHEEL:
+                if ev.y > 0:
+                    self.camera.zoom_in(); self.structures.clear_cache()
+                elif ev.y < 0:
+                    self.camera.zoom_out(); self.structures.clear_cache()
 
             elif ev.type == pygame.MOUSEBUTTONDOWN:
                 mx, my = ev.pos
-
-                # ── 1. Clique na barra de filtros ─────────────────────────
-                if my < ui.HUD_H:
-                    if ev.button == 1:
-                        nats = sorted(set(z.base_nature for z in zones.values()))
-                        ui.handle_filter_click(mx, my, nats)
-                    continue
-
-                # ── 2. Clique no minimap ───────────────────────────────────
                 if ev.button == 1:
-                    if ui.handle_minimap_click(mx, my, cam, zones):
+                    if self.ui.handle_click(mx, my):
                         continue
-
-                # ── 3. Scroll no painel inferior ──────────────────────────
-                on_panel = my >= ui._panel_y and ui._panel_slide > 0.1
-                if on_panel:
-                    if ev.button == 4:
-                        ui.scroll_panel(-scaled(24))
-                    elif ev.button == 5:
-                        ui.scroll_panel(scaled(24))
-                    continue
-
-                # ── 4. Interação com o mapa ───────────────────────────────
-                on_map = mx >= ui.map_x and ui.map_y <= my < ui._panel_y
-
-                if on_map:
-                    if ev.button == 1:
-                        wx, wy = cam.s2w(mx, my)
-                        tx, ty = world_to_tex(wx, wy)
-                        z   = zone_at_pixel(zone_idx, zone_list, tx, ty)
-                        now = time.time()
-                        if z and z == last_click_z and now - last_click_t < 0.35:
-                            cam.fly_to(*z.centroid)
-                            ui.notify(f"✈  {z.zone_name}")
-                        else:
-                            selected_zone = z
-                            ui.open_panel(z)
-                            if z:
-                                ui.notify(z.zone_name)
-                                sx, sy = cam.w2s(*z.centroid)
-                                part.emit(sx, sy, GOLD, n=22)
-                        last_click_z = z
-                        last_click_t = now
-                        cam.start_drag(mx, my)
-
-                    elif ev.button == 3:
-                        selected_zone = None
-                        ui.open_panel(None)
-
-                    elif ev.button == 4:
-                        cam.zoom_at(mx, my, Camera.ZOOM_STEP)
-                    elif ev.button == 5:
-                        cam.zoom_at(mx, my, 1 / Camera.ZOOM_STEP)
+                    if not self.ui.is_over_ui(mx, my):
+                        self.tool_state.painting = True
+                        self._apply_at_mouse(mx, my)
+                elif ev.button in (2, 3):
+                    if not self.ui.is_over_ui(mx, my):
+                        self.camera.start_drag((mx, my - TOPBAR_H))
 
             elif ev.type == pygame.MOUSEBUTTONUP:
                 if ev.button == 1:
-                    cam.end_drag()
+                    self.tool_state.painting = False
+                elif ev.button in (2, 3):
+                    self.camera.stop_drag()
 
             elif ev.type == pygame.MOUSEMOTION:
                 mx, my = ev.pos
-                if cam.dragging:
-                    cam.update_drag(mx, my)
-                if ui.map_y <= my < ui._panel_y and mx >= ui.map_x:
-                    wx, wy = cam.s2w(mx, my)
-                    tx, ty = world_to_tex(wx, wy)
-                    hover_zone = zone_at_pixel(zone_idx, zone_list, tx, ty)
+                if self.camera.dragging:
+                    self.camera.update_drag((mx, my - TOPBAR_H))
+
+                if self.tool_state.painting and not self.ui.is_over_ui(mx, my):
+                    self._apply_at_mouse(mx, my)
+
+                if not self.ui.is_over_ui(mx, my) and my > TOPBAR_H:
+                    tx, ty = self._screen_to_tile(mx, my)
+                    if 0 <= tx < MAP_W and 0 <= ty < MAP_H:
+                        biome = self.biome_names[self.biome_map[ty, tx]]
+                        gid, st = self.influence.get_dominant_at(tx, ty)
+                        mat = self.materials.get_at(tx, ty)
+                        elev = float(self.heightmap[ty, tx])
+                        moist = float(self.moisture[ty, tx])
+                        temp = float(self.temperature[ty, tx])
+                        weather = self.weather.get_weather_at(tx, ty)
+                        building = self.civilizations.get_at(tx, ty)
+                        units_here = self.units.get_at(tx, ty)
+                        self.ui.set_hover(tx, ty, biome, gid, round(st, 2),
+                                          mat, round(elev, 3), round(moist, 3),
+                                          round(temp, 3), weather,
+                                          building, len(units_here))
+
+    def _apply_at_mouse(self, mx, my):
+        tx, ty = self._screen_to_tile(mx, my)
+        if not (0 <= tx < MAP_W and 0 <= ty < MAP_H):
+            return
+        tool = self.tool_state.tool
+        tid  = tool['id']
+
+        if tid == 'select':
+            biome = self.biome_names[self.biome_map[ty, tx]]
+            gid, st = self.influence.get_dominant_at(tx, ty)
+            sh = None
+            for s in self.strongholds:
+                if abs(s['x'] - tx) <= 3 and abs(s['y'] - ty) <= 3:
+                    sh = s; break
+            building = self.civilizations.get_at(tx, ty)
+            units_here = self.units.get_at(tx, ty)
+            self.ui.set_info({
+                "biome": biome, "god_id": gid,
+                "influence": st, "stronghold": sh,
+                "pos": (tx, ty),
+                "elevation": float(self.heightmap[ty, tx]),
+                "moisture": float(self.moisture[ty, tx]),
+                "temperature": float(self.temperature[ty, tx]),
+                "material": self.materials.get_at(tx, ty),
+                "building": building,
+                "units": units_here,
+                "weather": self.weather.get_weather_at(tx, ty),
+                "season": self.weather.season,
+            })
+            return
+
+        if tid == 'measure':
+            return
+
+        changed = apply_tool(
+            self.tool_state, tx, ty,
+            self.heightmap, self.moisture, self.biome_map, self.biome_names,
+            self.materials, self.influence, self.strongholds, self.gods,
+            self.particles, self._reclassify_biomes, self._event_log_fn,
+            world=self,
+        )
+        if changed:
+            self.renderer.mark_influence_dirty()
+            self._refresh_standings()
+
+    # ── update ─────────────────────────────────────────────────────────────
+    def _update(self, dt):
+        self.camera.handle_keys(dt)
+        self.particles.update(dt, self.camera, self.biome_map,
+                              self.biome_names, self.influence)
+
+        if not self.tool_state.sim_paused:
+            speed = self.tool_state.sim_speed
+
+            # Material simulation
+            sim_dt = 1.0 / SIM_TICKS_PER_SEC
+            self._sim_accum += dt * speed
+            ticks = 0
+            while self._sim_accum >= sim_dt and ticks < 5:
+                self.materials.simulate(self.heightmap, self.biome_map,
+                                        self.biome_names)
+                self._sim_accum -= sim_dt
+                ticks += 1
+
+            # Weather simulation (now with biome reclassify callback)
+            weather_dt = 1.0 / max(WEATHER_TICK_RATE, 0.1)
+            self._weather_accum += dt * speed
+            if self._weather_accum >= weather_dt:
+                self.weather.simulate(
+                    self._weather_accum, self.heightmap, self.moisture,
+                    self.materials, self.biome_map, self.biome_names,
+                    reclassify_fn=self._reclassify_biomes)
+                self._weather_accum = 0.0
+
+            # ── UNIVERSAL SYNERGY ENGINE ───────────────────────────────
+            self._synergy_accum += dt * speed
+            if self._synergy_accum >= 0.2:  # 5 synergy ticks per second
+                from synergy import SynergyEngine as SE
+                SE.reset_tick_modifiers(self)
+                self.synergy.tick(self._synergy_accum, self)
+                self._synergy_accum = 0.0
+
+            # Civilization simulation (now with season + world ref)
+            civ_dt = 1.0 / max(CIV_TICK_RATE, 0.1)
+            self._civ_accum += dt * speed
+            if self._civ_accum >= civ_dt:
+                self.civilizations.simulate(
+                    self._civ_accum, self.biome_map, self.biome_names,
+                    self.heightmap, self.influence, self.materials,
+                    weather=self.weather, season=self.weather.season,
+                    world=self)
+                self._civ_accum = 0.0
+
+            # Unit simulation (synergy modifiers already applied + world ref)
+            self._unit_accum += dt * speed
+            if self._unit_accum >= 0.1:
+                self.units.simulate(
+                    self._unit_accum, self.heightmap, self.biome_map,
+                    self.biome_names, self.land_mask,
+                    self.influence, self.materials,
+                    world=self)
+                self._unit_accum = 0.0
+
+            # World History tick
+            self._history_accum += dt * speed
+            if self._history_accum >= 1.0:
+                self.history.tick(self._history_accum, self)
+                self._history_accum = 0.0
+                # Push recent history events to UI event log
+                for ev in self.history.events[-3:]:
+                    if ev.tick == self.history.world_tick:
+                        self.ui.add_event(f"[{ev.era}] {ev.text}")
+
+    # ── draw ───────────────────────────────────────────────────────────────
+    def _draw(self):
+        self.screen.fill((6, 6, 10))
+        self._draw_map_area()
+        army_count = len(self.units.armies) if hasattr(self.units, 'armies') else 0
+        war_count = len([w for w in self.history.wars if w.winner is None]) if hasattr(self, 'history') else 0
+        self.ui.render(self.screen, fps=self.clock.get_fps(),
+                       season=self.weather.season,
+                       pop=self.civilizations.get_total_population(),
+                       unit_count=self.units.count,
+                       building_count=len(self.civilizations.active_buildings),
+                       weather_zones=len(self.weather.zones),
+                       era=getattr(self.history, 'era_name', ''),
+                       army_count=army_count,
+                       war_count=war_count)
+
+    def _draw_map_area(self):
+        cell = self.camera.cell_size
+        x0, y0, x1, y1 = self.camera.get_visible_rect()
+        vis_w = x1 - x0
+        vis_h = y1 - y0
+        if vis_w <= 0 or vis_h <= 0:
+            return
+
+        # Terrain + influence + materials
+        self.renderer.render_map_to_area(self.camera, TOPBAR_H)
+
+        # ── Buildings ──────────────────────────────────────────────────
+        for b in self.civilizations.active_buildings:
+            tx, ty = b.x, b.y
+            if tx < x0 - 6 or tx > x1 + 6 or ty < y0 - 6 or ty > y1 + 6:
+                continue
+            sx, sy = self.camera.tile_to_screen(tx, ty)
+            sy += TOPBAR_H
+            god_col = GOD_COLORS.get(b.god_id, (180, 180, 180))
+            icon_sc = max(2, cell // 2)
+            stype = b.btype if b.btype in ('village','city','farm','mine','port',
+                        'wall','bridge','workshop','barracks','graveyard','temple') else 'castle'
+            key = (stype, b.god_id or '', icon_sc)
+            if key not in self.structures._cache:
+                self.structures._cache[key] = self.structures._make(
+                    stype, god_col, icon_sc)
+            icon = self.structures._cache[key]
+            ix = sx + cell // 2 - icon.get_width() // 2
+            iy = sy + cell // 2 - icon.get_height() // 2
+            self.screen.blit(icon, (ix, iy))
+
+        # ── Strongholds ───────────────────────────────────────────────
+        for sh in self.strongholds:
+            tx, ty = sh['x'], sh['y']
+            if tx < x0 - 6 or tx > x1 + 6 or ty < y0 - 6 or ty > y1 + 6:
+                continue
+            sx, sy = self.camera.tile_to_screen(tx, ty)
+            sy += TOPBAR_H
+            stype  = sh.get('type', 'castle')
+            god_id = sh.get('god_id', '')
+            god_col = GOD_COLORS.get(god_id, (180, 180, 180))
+            icon_sc = max(2, cell // 2)
+            key = (stype, god_id, icon_sc)
+            if key not in self.structures._cache:
+                self.structures._cache[key] = self.structures._make(
+                    stype, god_col, icon_sc)
+            icon = self.structures._cache[key]
+            ix = sx + cell // 2 - icon.get_width() // 2
+            iy = sy + cell // 2 - icon.get_height() // 2
+            self.screen.blit(icon, (ix, iy))
+
+        # ── Units ──────────────────────────────────────────────────────
+        _UNIT_SHAPES = {
+            'scout': 'diamond', 'healer': 'cross', 'berserker': 'square',
+            'assassin': 'triangle', 'titan': 'big_circle',
+            'dragon': 'big_circle', 'mage': 'diamond', 'knight': 'square',
+        }
+        for u in self.units.units:
+            if not u.alive:
+                continue
+            utx, uty = int(u.x), int(u.y)
+            if utx < x0 - 2 or utx > x1 + 2 or uty < y0 - 2 or uty > y1 + 2:
+                continue
+            sx, sy = self.camera.tile_to_screen(utx, uty)
+            sy += TOPBAR_H
+            god_col = GOD_COLORS.get(u.god_id, (200, 200, 200))
+            sz = max(2, cell // 3)
+            cx_u = sx + cell // 2
+            cy_u = sy + cell // 2
+            shape = _UNIT_SHAPES.get(u.utype, 'circle')
+
+            # Veteran glow
+            if getattr(u, 'is_veteran', False):
+                pygame.draw.circle(self.screen, (255, 255, 100),
+                                   (cx_u, cy_u), sz + 2, 1)
+
+            if shape == 'diamond':
+                pts = [(cx_u, cy_u - sz), (cx_u + sz, cy_u),
+                       (cx_u, cy_u + sz), (cx_u - sz, cy_u)]
+                pygame.draw.polygon(self.screen, god_col, pts)
+                pygame.draw.polygon(self.screen, (20, 20, 30), pts, 1)
+            elif shape == 'square':
+                pygame.draw.rect(self.screen, god_col,
+                                 (cx_u - sz, cy_u - sz, sz * 2, sz * 2))
+                pygame.draw.rect(self.screen, (20, 20, 30),
+                                 (cx_u - sz, cy_u - sz, sz * 2, sz * 2), 1)
+            elif shape == 'triangle':
+                pts = [(cx_u, cy_u - sz), (cx_u + sz, cy_u + sz),
+                       (cx_u - sz, cy_u + sz)]
+                pygame.draw.polygon(self.screen, god_col, pts)
+                pygame.draw.polygon(self.screen, (20, 20, 30), pts, 1)
+            elif shape == 'cross':
+                pygame.draw.line(self.screen, god_col,
+                                 (cx_u - sz, cy_u), (cx_u + sz, cy_u), 2)
+                pygame.draw.line(self.screen, god_col,
+                                 (cx_u, cy_u - sz), (cx_u, cy_u + sz), 2)
+            elif shape == 'big_circle':
+                pygame.draw.circle(self.screen, god_col,
+                                   (cx_u, cy_u), sz + 1)
+                pygame.draw.circle(self.screen, (20, 20, 30),
+                                   (cx_u, cy_u), sz + 1, 1)
+            else:
+                pygame.draw.circle(self.screen, god_col,
+                                   (cx_u, cy_u), sz)
+                pygame.draw.circle(self.screen, (20, 20, 30),
+                                   (cx_u, cy_u), sz, 1)
+
+            # HP bar for damaged units
+            if u.hp < u.max_hp:
+                bw = max(4, cell)
+                bh = max(1, cell // 6)
+                bx = sx + cell // 2 - bw // 2
+                by = sy - 2
+                hp_ratio = u.hp / u.max_hp
+                pygame.draw.rect(self.screen, (40, 0, 0), (bx, by, bw, bh))
+                pygame.draw.rect(self.screen, (0, 200, 0), (bx, by, int(bw * hp_ratio), bh))
+
+        # ── Weather zone overlays ──────────────────────────────────────
+        for z in self.weather.zones:
+            zx, zy = z.x, z.y
+            zr = z.radius
+            if zx + zr < x0 or zx - zr > x1 or zy + zr < y0 or zy - zr > y1:
+                continue
+            sx, sy = self.camera.tile_to_screen(zx, zy)
+            sy += TOPBAR_H
+            rpx = zr * cell
+            ws = pygame.Surface((rpx * 2, rpx * 2), pygame.SRCALPHA)
+            if z.wtype == 'rain':
+                pygame.draw.circle(ws, (60, 100, 200, 20), (rpx, rpx), rpx)
+            elif z.wtype == 'storm':
+                pygame.draw.circle(ws, (80, 60, 120, 25), (rpx, rpx), rpx)
+            elif z.wtype == 'snow':
+                pygame.draw.circle(ws, (200, 210, 220, 18), (rpx, rpx), rpx)
+            elif z.wtype == 'heat':
+                pygame.draw.circle(ws, (200, 100, 40, 15), (rpx, rpx), rpx)
+            elif z.wtype == 'cold':
+                pygame.draw.circle(ws, (100, 160, 220, 18), (rpx, rpx), rpx)
+            self.screen.blit(ws, (sx - rpx, sy - rpx))
+
+        # ── Particles ─────────────────────────────────────────────────
+        for p in self.particles.particles:
+            sx, sy = self.camera.tile_to_screen(p.x, p.y)
+            sy += TOPBAR_H
+            if (sx < -20 or sx > SCR.w + 20
+                    or sy < TOPBAR_H - 20
+                    or sy > TOPBAR_H + SCR.viewport_h + 20):
+                continue
+            sz = max(1, int(p.size * cell / 4))
+            a  = p.alpha
+            if p.kind == 'cloud':
+                sz2 = max(4, int(p.size * cell / 2))
+                cs = pygame.Surface((sz2 * 3, sz2 * 2), pygame.SRCALPHA)
+                pygame.draw.ellipse(cs, (*p.color, min(a, 50)),
+                                    (0, 0, sz2 * 3, sz2 * 2))
+                self.screen.blit(cs, (sx - sz2, sy - sz2 // 2))
+            elif p.kind == 'magic':
+                gs = sz * 3
+                ms = pygame.Surface((gs * 2, gs * 2), pygame.SRCALPHA)
+                pygame.draw.circle(ms, (*p.color, a // 3), (gs, gs), gs)
+                pygame.draw.circle(ms, (*p.color, a), (gs, gs), sz)
+                self.screen.blit(ms, (sx - gs, sy - gs))
+            else:
+                if a > 200:
+                    pygame.draw.rect(self.screen, p.color, (sx, sy, sz, sz))
                 else:
-                    hover_zone = None
+                    ps = pygame.Surface((sz, sz), pygame.SRCALPHA)
+                    ps.fill((*p.color, a))
+                    self.screen.blit(ps, (sx, sy))
 
-            elif ev.type == pygame.MOUSEWHEEL:
-                mx2, my2 = pygame.mouse.get_pos()
-                if ui.map_y <= my2 < ui._panel_y and mx2 >= ui.map_x:
-                    f = Camera.ZOOM_STEP if ev.y > 0 else 1 / Camera.ZOOM_STEP
-                    cam.zoom_at(mx2, my2, f)
+        # Minimap
+        self.renderer.render_minimap(self.camera, y_offset=TOPBAR_H)
 
-        # WASD
-        keys = pygame.key.get_pressed()
-        spd  = 600 * dt / max(cam.zoom, 0.1)
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:  cam.offset_x -= spd
-        if keys[pygame.K_d] or keys[pygame.K_RIGHT]: cam.offset_x += spd
-        if keys[pygame.K_w] or keys[pygame.K_UP]:    cam.offset_y -= spd
-        if keys[pygame.K_s] or keys[pygame.K_DOWN]:  cam.offset_y += spd
 
-        cam.update()
-        part.update(dt)
-        ui.update(dt)
-        live_sync.update(dt)
-
-        # Update nature VFX particles (needs camera viewport)
-        map_h_cur = config.SCREEN_H - cam.map_y
-        vfx_clip = pygame.Rect(ui.map_x, cam.map_y, ui.map_w, map_h_cur)
-        nature_vfx.update_particles(dt, cam, ownership, gods, vfx_clip)
-
-        # Handle live sync data changes
-        if live_sync.consume_changes():
-            changed = live_sync.last_change_files
-            zones, gods, ownership, ancient_seals, global_stats, event_log, ancient_gods = load_data()
-            rend.zones = zones
-            rend.gods  = gods
-            struct_mgr.zones = zones
-            struct_mgr._initialized = False
-            struct_mgr.initialize()
-            nature_vfx.zones = zones
-            ui.mark_minimap_dirty()
-            ui.notify(f"Mundo atualizado ({', '.join(changed)})")
-
-        # ── Render ─────────────────────────────────────────────────────────
-        screen.fill((18, 14, 10))
-
-        # 1. Mapa
-        rend.draw(screen, ownership, selected_zone, hover_zone,
-                  ancient_seals, t_anim, ui.map_x, ui.map_w,
-                  active_filter=ui.active_filter,
-                  map_h=ui.map_h,
-                  event_log=event_log,
-                  dt=dt)
-
-        # 2. Partículas
-        part.draw(screen)
-
-        # 3. UI — ordem: filtros (topo), painel inferior, tooltip, notif, cantos
-        ui.draw_filter_bar(screen, gods, zones, ownership, cam, fps, t_anim)
-        ui.draw_bottom_panel_with_gods(screen, selected_zone, gods, zones,
-                                       ownership, ancient_seals, global_stats,
-                                       t_anim,
-                                       event_log=event_log,
-                                       ancient_gods=ancient_gods)
-        mx_cur, my_cur = pygame.mouse.get_pos()
-        ui.draw_hover_tooltip(screen, hover_zone, gods, ownership,
-                              ancient_seals, mx_cur, my_cur)
-        ui.draw_notif(screen)
-        ui.draw_corners(screen)
-
-        # 4. Intro fade
-        if intro_alpha > 0:
-            fade = pygame.Surface((SCREEN_W, SCREEN_H))
-            fade.fill((0, 0, 0))
-            fade.set_alpha(max(0, intro_alpha))
-            screen.blit(fade, (0, 0))
-            intro_alpha = max(0, intro_alpha - 3)
-
-        pygame.display.flip()
-
-    pygame.quit()
-    sys.exit()
+# ═══════════════════════════════════════════════════════════════════════════════
+def main():
+    app = WorldMap()
+    app.run()
 
 
 if __name__ == "__main__":
-    run()
+    main()

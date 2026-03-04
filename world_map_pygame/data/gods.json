@@ -1,85 +1,94 @@
 {
-  "_meta": {
-    "version": "1.0",
-    "description": "Neural Fights - God Registry. Each entry is a God claiming territory in Aethermoor.",
-    "nature_elements": [
-      "balanced",
-      "fire",
-      "ice",
-      "darkness",
-      "nature",
-      "chaos",
-      "void",
-      "greed",
-      "fear",
-      "arcane",
-      "blood",
-      "time",
-      "gravity"
-    ]
-  },
   "gods": [
     {
-      "god_id": "caleb_01",
-      "god_name": "Caleb",
+      "god_id": "god_balance",
+      "god_name": "Goddess of Balance",
       "nature": "Balance",
       "nature_element": "balanced",
-      "follower_count": 1,
-      "color_primary": "#00d9ff",
-      "color_secondary": "#e94560",
-      "champion_character_id": null,
-      "owned_zones": [
-        "slum_district"
-      ],
-      "is_ancient": false,
-      "is_player_god": false,
-      "is_protagonist": true,
-      "registered_at": "2026-02-24T00:00:00",
-      "source": "lore",
-      "api_source": null,
-      "border_style": "balance",
-      "lore_description": "Born in the Slum District. Thrown into an abyss. Chose to stand back up. Champion of the God of Balance — but the cost of his power breeds chaos wherever he wins."
-    }
-  ],
-  "ancient_gods": [
-    {
-      "god_id": "ancient_balance",
-      "god_name": "The God of Balance",
-      "nature": "Balance",
-      "nature_element": "balanced",
-      "color_primary": "#00d9ff",
-      "color_secondary": "#e94560",
-      "seal_zone": "twilight_nexus",
-      "crack_level": 3,
-      "is_ancient": true,
-      "status": "awakened",
-      "lore_description": "A corrupted Athena. First to wake. She does not speak — she tilts."
+      "color_primary": "#b4a0ff",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "The eternal arbiter of cosmic equilibrium."
     },
     {
-      "god_id": "ancient_fear",
-      "god_name": "The God of Fear",
+      "god_id": "god_fear",
+      "god_name": "God of Fear",
       "nature": "Fear",
       "nature_element": "fear",
-      "color_primary": "#2d0040",
-      "color_secondary": "#7a00aa",
-      "seal_zone": "dread_hollow",
-      "crack_level": 0,
-      "is_ancient": true,
-      "status": "sleeping",
-      "lore_description": "Still asleep. But the nightmares have been getting louder."
+      "color_primary": "#c81e1e",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Feeds on the terror of mortals."
     },
     {
-      "god_id": "ancient_greed",
-      "god_name": "The God of Greed",
+      "god_id": "god_greed",
+      "god_name": "God of Greed",
       "nature": "Greed",
       "nature_element": "greed",
-      "color_primary": "#b8860b",
-      "color_secondary": "#ffd700",
-      "seal_zone": "golden_abyss",
-      "crack_level": 1,
-      "is_ancient": true,
-      "status": "stirring",
-      "lore_description": "One eye has opened. It immediately looked at what others owned."
+      "color_primary": "#ffc800",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Hoards wealth and souls alike."
+    },
+    {
+      "god_id": "god_nature",
+      "god_name": "God of Nature",
+      "nature": "Nature",
+      "nature_element": "nature",
+      "color_primary": "#22aa44",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Guardian of the untamed wilds."
+    },
+    {
+      "god_id": "god_fire",
+      "god_name": "God of Fire",
+      "nature": "Fire",
+      "nature_element": "fire",
+      "color_primary": "#ff6622",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Sovereign of flame and fury."
+    },
+    {
+      "god_id": "god_ice",
+      "god_name": "God of Ice",
+      "nature": "Ice",
+      "nature_element": "ice",
+      "color_primary": "#44bbdd",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Ruler of the frozen wastes."
+    },
+    {
+      "god_id": "god_darkness",
+      "god_name": "God of Darkness",
+      "nature": "Darkness",
+      "nature_element": "darkness",
+      "color_primary": "#5522aa",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Dwells in the deepest shadow."
+    },
+    {
+      "god_id": "god_chaos",
+      "god_name": "God of Chaos",
+      "nature": "Chaos",
+      "nature_element": "chaos",
+      "color_primary": "#dd22aa",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Revels in entropy and disorder."
+    },
+    {
+      "god_id": "god_void",
+      "god_name": "God of the Void",
+      "nature": "Void",
+      "nature_element": "void",
+      "color_primary": "#225566",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Consumes all that exists."
     }
   ]
 }

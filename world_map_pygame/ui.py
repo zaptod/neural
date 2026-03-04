@@ -1,913 +1,630 @@
 """
-world_map_pygame/ui.py
-
-[PHASE 19] Total UI redesign.
-  - Minimap uses real terrain texture (no more Voronoi polygons)
-  - Bottom panel: immersive fantasy parchment design
-  - Aggressive text caching via LRU
-  - No per-frame Surface allocations for core HUD
-  - Same public API for drop-in replacement
+World Map — WorldBox-style UI
+Left sidebar toolbar, top control bar, info panel, brush cursor.
 """
-import math
 import pygame
-from typing import Optional, Dict, List, Tuple
+import math
+from config import GOD_COLORS, SCR
+from tools import TOOL_CATEGORIES, BRUSH_SIZES, MATERIALS, MAT_NAMES
 
-from . import config
-from .config import (
-    FILTER_BAR_H, BOTTOM_PANEL_H,
-    UI_BG, UI_BG2, UI_LINE, UI_PANEL,
-    GOLD, GOLD_DIM, CRIMSON, CYAN, TXT, TXT_DIM, TXT_MUTED,
-    NATURE_COLOR, SEAL_COLOR, scaled,
-    TEX_W, TEX_H, WORLD_W, WORLD_H,
-)
-from .data_loader import Zone, God, AncientGod
-from .camera import Camera
-from .world_events import EventLog, EventType, SEVERITY_COLOR, SEVERITY_LABEL, EVENT_VFX
+# ─── Layout ───────────────────────────────────────────────────────────────────
+SIDEBAR_W       = 52
+TOPBAR_H        = 32
+INFO_PANEL_W    = 260
+INFO_PANEL_H    = 340
+TOOL_PANEL_W    = 180
+BOTTOMBAR_H     = 80
+
+# colours
+C_BG_DARK   = (12, 12, 18)
+C_BG_MID    = (22, 22, 32)
+C_BG_LIGHT  = (32, 32, 46)
+C_BORDER    = (50, 50, 66)
+C_TEXT       = (180, 180, 200)
+C_TEXT_DIM   = (100, 100, 120)
+C_TEXT_BRIGHT= (230, 230, 240)
+C_ACCENT     = (80, 160, 255)
+C_HOVER      = (45, 45, 65)
+C_SELECTED   = (55, 55, 80)
+
+# ─── Pixel-art icon data (5x5 grids) ──────────────────────────────────────────
+_ICONS = {
+    'eye':     [[0,1,1,1,0],[1,0,1,0,1],[1,1,1,1,1],[1,0,1,0,1],[0,1,1,1,0]],
+    'mountain':[[0,0,1,0,0],[0,1,1,1,0],[0,1,0,1,0],[1,1,0,1,1],[1,0,0,0,1]],
+    'fire':    [[0,0,1,0,0],[0,1,1,0,0],[0,1,1,1,0],[1,1,1,1,0],[0,1,1,0,0]],
+    'tree':    [[0,0,1,0,0],[0,1,1,1,0],[1,1,1,1,1],[0,0,1,0,0],[0,0,1,0,0]],
+    'bolt':    [[0,0,1,0,0],[0,1,1,0,0],[1,1,1,1,0],[0,0,1,1,0],[0,0,1,0,0]],
+    'halo':    [[0,1,1,1,0],[1,0,0,0,1],[1,0,0,0,1],[1,0,0,0,1],[0,1,1,1,0]],
+    'eraser':  [[1,1,1,0,0],[1,0,1,0,0],[1,1,1,1,0],[0,0,1,0,1],[0,0,0,1,1]],
+    'flag':    [[1,1,1,0,0],[1,0,1,0,0],[1,1,1,0,0],[1,0,0,0,0],[1,0,0,0,0]],
+    'hammer':  [[1,1,1,0,0],[1,1,1,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,1,0,0]],
+    'sword':   [[0,0,0,0,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,1,0,0],[1,0,0,0,0]],
+    'cloud':   [[0,1,1,1,0],[1,1,1,1,1],[1,1,1,1,1],[0,0,0,0,0],[0,0,0,0,0]],
+}
 
 
-# ─── Text render cache ───────────────────────────────────────────────────────
-
-class _TextCache:
-    """LRU text render cache — avoids font.render() every frame."""
-    __slots__ = ["_cache", "_max"]
-
-    def __init__(self, max_entries: int = 512):
-        self._cache: Dict[tuple, pygame.Surface] = {}
-        self._max = max_entries
-
-    def get(self, font: pygame.font.Font, text: str,
-            color: tuple, antialias: bool = True) -> pygame.Surface:
-        key = (id(font), text, color[:3])
-        s = self._cache.get(key)
-        if s is not None:
-            return s
-        s = font.render(text, antialias, color[:3])
-        if len(self._cache) >= self._max:
-            keys = list(self._cache.keys())
-            for k in keys[: len(keys) // 4]:
-                del self._cache[k]
-        self._cache[key] = s
+def _render_icon(icon_key, color, size=20):
+    grid = _ICONS.get(icon_key)
+    if not grid:
+        s = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.rect(s, color, (2, 2, size - 4, size - 4))
         return s
-
-    def clear(self):
-        self._cache.clear()
-
-
-# ─── Font cache ───────────────────────────────────────────────────────────────
-
-class _FC:
-    """Font cache with serif/bold support."""
-    __slots__ = ["_c"]
-
-    def __init__(self):
-        self._c: Dict[tuple, pygame.font.Font] = {}
-
-    def get(self, size: int, bold: bool = False, serif: bool = False) -> pygame.font.Font:
-        k = (size, bold, serif)
-        f = self._c.get(k)
-        if f is not None:
-            return f
-        name = "georgia,times new roman,serif" if serif else "consolas"
-        f = pygame.font.SysFont(name, size, bold=bold)
-        self._c[k] = f
-        return f
+    rows, cols = len(grid), len(grid[0])
+    ps = max(1, size // cols)
+    surf = pygame.Surface((cols * ps, rows * ps), pygame.SRCALPHA)
+    for ry, row in enumerate(grid):
+        for rx, v in enumerate(row):
+            if v:
+                pygame.draw.rect(surf, color, (rx * ps, ry * ps, ps, ps))
+    return surf
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+class WorldBoxUI:
+    """Full WorldBox-style UI system."""
 
-def _wrap(text: str, font: pygame.font.Font, max_w: int) -> list:
-    words = text.split()
-    lines: List[str] = []
-    line = ""
-    for w in words:
-        test = (line + " " + w).strip()
-        if font.size(test)[0] <= max_w:
-            line = test
-        else:
-            if line:
-                lines.append(line)
-            line = w
-    if line:
-        lines.append(line)
-    return lines or [""]
+    def __init__(self, tool_state, gods):
+        self.ts         = tool_state
+        self.gods       = gods
+        self._ready     = False
+        self.font_lg    = None
+        self.font_sm    = None
+        self.font_xs    = None
+        self.font_title = None
 
+        # panels
+        self.show_info_panel  = False
+        self.show_tool_panel  = True
+        self.info_data        = {}
 
-def _draw_ornate_border(surf: pygame.Surface, rect: pygame.Rect,
-                        col: tuple = GOLD, thick: int = 1):
-    """Ornate golden border with L-shaped corner accents."""
-    r = rect
-    L = scaled(10)
-    pygame.draw.rect(surf, col[:3], r, thick, border_radius=2)
-    bright = tuple(min(255, c + 60) for c in col[:3])
-    for px, py, dx, dy in [
-        (r.left, r.top, 1, 1),
-        (r.right - 1, r.top, -1, 1),
-        (r.left, r.bottom - 1, 1, -1),
-        (r.right - 1, r.bottom - 1, -1, -1),
-    ]:
-        pygame.draw.line(surf, bright, (px, py), (px + dx * L, py), 2)
-        pygame.draw.line(surf, bright, (px, py), (px, py + dy * L), 2)
+        # hover state
+        self.hover_tile   = None
+        self.hover_biome  = ""
+        self.hover_god    = None
+        self.hover_str    = 0.0
+        self.hover_mat    = "none"
+        self.hover_elev   = 0.0
+        self.hover_moist  = 0.0
+        self.hover_temp   = 0.0
+        self.hover_weather = None
+        self.hover_building = None
+        self.hover_units  = 0
 
+        # events
+        self.events       = []
 
-def _alpha_rect(screen: pygame.Surface, color: tuple, rect, alpha: int,
-                border_radius: int = 0):
-    """Draw a translucent filled rect via a small SRCALPHA blit."""
-    r = pygame.Rect(rect)
-    s = pygame.Surface((r.width, r.height), pygame.SRCALPHA)
-    if border_radius > 0:
-        pygame.draw.rect(s, (*color[:3], alpha), (0, 0, r.width, r.height),
-                         border_radius=border_radius)
-    else:
-        s.fill((*color[:3], alpha))
-    screen.blit(s, r.topleft)
+        # standings
+        self.standings    = []
 
+        # rectangles for click detection
+        self._cat_rects   = []
+        self._tool_rects  = []
+        self._brush_rects = []
+        self._god_rects   = []
+        self._topbar_btns = {}
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  MAIN UI CLASS
-# ═══════════════════════════════════════════════════════════════════════════════
+        # icon cache
+        self._icon_cache  = {}
 
-class UI:
-    HUD_H = FILTER_BAR_H
-    SEALS_W = 0
-
-    _ALL_NATURES = [
-        "all", "arcane", "balanced", "chaos", "darkness",
-        "fear", "fire", "greed", "ice", "nature", "void",
-    ]
-
-    def __init__(self):
+    # ── lazy font init ─────────────────────────────────────────────────────
+    def _init_fonts(self):
+        if self._ready:
+            return
         pygame.font.init()
-        self._fc = _FC()
-        self._tc = _TextCache(512)
+        self.font_title = pygame.font.SysFont("consolas", 16, bold=True)
+        self.font_lg    = pygame.font.SysFont("consolas", 14, bold=True)
+        self.font_sm    = pygame.font.SysFont("consolas", 12)
+        self.font_xs    = pygame.font.SysFont("consolas", 10)
+        self._ready     = True
 
-        # Notification
-        self._notif_msg = ""
-        self._notif_alpha = 0.0
+    # ── setters ────────────────────────────────────────────────────────────
+    def set_hover(self, tx, ty, biome, god_id, strength, mat, elev, moist,
+                  temp=0.0, weather=None, building=None, unit_count=0):
+        self.hover_tile  = (tx, ty)
+        self.hover_biome = biome
+        self.hover_god   = god_id
+        self.hover_str   = strength
+        self.hover_mat   = mat
+        self.hover_elev  = elev
+        self.hover_moist = moist
+        self.hover_temp  = temp
+        self.hover_weather = weather
+        self.hover_building = building
+        self.hover_units = unit_count
 
-        # Bottom panel — slide animation
-        self._panel_open = False
-        self._panel_slide = 0.0
-        self._panel_scroll = 0
-        self._panel_content_h = 0
+    def set_info(self, data):
+        self.info_data = data
+        self.show_info_panel = True
 
-        # Filters
-        self.active_filter: str = "all"
-        self._god_filter: Optional[str] = None
+    def close_info(self):
+        self.show_info_panel = False
 
-        # Minimap
-        self._terrain_surf: Optional[pygame.Surface] = None
-        self._minimap_surf: Optional[pygame.Surface] = None
-        self._minimap_dirty = True
-        self._minimap_own_key = None
+    def add_event(self, text):
+        self.events.append(text)
+        if len(self.events) > 100:
+            self.events = self.events[-100:]
 
-        # Compat
-        self._panel_w_current = 0.0
+    def set_standings(self, standings):
+        self.standings = standings
 
-        # ── Reusable work surfaces ────────────────────────────────────────
-        SW, SH = config.SCREEN_W, config.SCREEN_H
+    # ── hit testing ────────────────────────────────────────────────────────
+    def handle_click(self, mx, my):
+        """Returns True if click was consumed by UI, False if it should go to map."""
+        # Sidebar categories
+        for i, r in enumerate(self._cat_rects):
+            if r.collidepoint(mx, my):
+                self.ts.set_category(i)
+                self.show_tool_panel = True
+                return True
 
-        # Filter bar bg
-        self._filter_bg = pygame.Surface((SW, self.HUD_H), pygame.SRCALPHA)
-        self._filter_bg.fill((*UI_BG, 255))
+        # Tool panel items
+        if self.show_tool_panel:
+            for i, r in enumerate(self._tool_rects):
+                if r.collidepoint(mx, my):
+                    self.ts.set_tool(i)
+                    return True
 
-        # Panel bg
-        self._panel_bg = pygame.Surface((SW, BOTTOM_PANEL_H), pygame.SRCALPHA)
-        self._panel_bg.fill((*UI_BG, 245))
-        for i in range(min(4, BOTTOM_PANEL_H)):
-            a = int(80 * (1 - i / 4))
-            pygame.draw.line(self._panel_bg, (*GOLD, a), (0, i), (SW, i))
+        # Brush sizes
+        for i, r in enumerate(self._brush_rects):
+            if r.collidepoint(mx, my):
+                self.ts.brush_idx = i
+                return True
 
-        # Tooltip work surface
-        self._tooltip_surf = pygame.Surface((400, 200), pygame.SRCALPHA)
+        # God selector
+        for i, r in enumerate(self._god_rects):
+            if r.collidepoint(mx, my):
+                self.ts.selected_god = i
+                return True
 
-        # Notification work surface
-        self._notif_surf = pygame.Surface((SW, scaled(50)), pygame.SRCALPHA)
+        # Top bar buttons
+        for key, r in self._topbar_btns.items():
+            if r.collidepoint(mx, my):
+                if key == 'pause':
+                    self.ts.toggle_pause()
+                elif key == 'speed':
+                    self.ts.cycle_speed()
+                elif key == 'info_toggle':
+                    self.show_info_panel = not self.show_info_panel
+                return True
 
-    # ── Terrain reference (set from main.py) ──────────────────────────────
+        # Info panel area
+        if self.show_info_panel:
+            ipx = SCR.w - INFO_PANEL_W - 10
+            ipy = TOPBAR_H + 10
+            ip_rect = pygame.Rect(ipx, ipy, INFO_PANEL_W, INFO_PANEL_H)
+            if ip_rect.collidepoint(mx, my):
+                return True
 
-    def set_terrain_surface(self, surf: pygame.Surface):
-        """Store reference to the base terrain texture for the minimap."""
-        self._terrain_surf = surf
-        self._minimap_dirty = True
+        return False
 
-    # ── Layout properties ─────────────────────────────────────────────────
-
-    @property
-    def panel_w(self) -> int:
-        return 0
-
-    @property
-    def map_x(self) -> int:
-        return 0
-
-    @property
-    def map_y(self) -> int:
-        return self.HUD_H
-
-    @property
-    def map_w(self) -> int:
-        return config.SCREEN_W
-
-    @property
-    def map_h(self) -> int:
-        panel_h = int(BOTTOM_PANEL_H * self._panel_slide)
-        return config.SCREEN_H - self.HUD_H - panel_h
-
-    @property
-    def _panel_y(self) -> int:
-        panel_h = int(BOTTOM_PANEL_H * self._panel_slide)
-        return config.SCREEN_H - panel_h
-
-    # ── Update ────────────────────────────────────────────────────────────
-
-    def update(self, dt: float):
-        target = 1.0 if self._panel_open else 0.0
-        diff = target - self._panel_slide
-        self._panel_slide += diff * min(1.0, dt * 14.0)
-        if abs(diff) < 0.002:
-            self._panel_slide = target
-        self._notif_alpha = max(0.0, self._notif_alpha - dt * 0.45)
-
-    def notify(self, msg: str):
-        self._notif_msg = msg
-        self._notif_alpha = 1.0
-
-    def open_panel(self, zone: Optional[Zone]):
-        self._panel_open = (zone is not None)
-
-    def scroll_panel(self, delta: int):
-        max_s = max(0, self._panel_content_h - BOTTOM_PANEL_H + scaled(8))
-        self._panel_scroll = max(0, min(max_s, self._panel_scroll + delta))
-
-    def mark_minimap_dirty(self):
-        self._minimap_dirty = True
-
-    # ── Text helpers (cached) ─────────────────────────────────────────────
-
-    def _txt(self, font: pygame.font.Font, text: str, color: tuple) -> pygame.Surface:
-        return self._tc.get(font, text, color)
-
-    def _txt_shadow(self, dest: pygame.Surface, font: pygame.font.Font,
-                    text: str, color: tuple, x: int, y: int):
-        shadow = self._txt(font, text, (0, 0, 0))
-        dest.blit(shadow, (x + 1, y + 1))
-        dest.blit(self._txt(font, text, color), (x, y))
-
-    # ── Filter button rects ───────────────────────────────────────────────
-
-    def _filter_btn_rects(self, natures_available: list,
-                          title_w: int = 0) -> List[Tuple[str, pygame.Rect]]:
-        FH = self.HUD_H
-        pad = scaled(8)
-        f_btn = self._fc.get(scaled(11), bold=True)
-
-        if title_w <= 0:
-            f_title = self._fc.get(scaled(13), bold=True, serif=True)
-            title_w = f_title.size("AETHERMOOR")[0]
-
-        x = scaled(12) + title_w + scaled(20)
-        rects = []
-        max_x = config.SCREEN_W - scaled(200)
-        for nat in ["all"] + list(natures_available):
-            lbl = "TODOS" if nat == "all" else nat.upper()
-            w = f_btn.size(lbl)[0] + pad * 2
-            if x + w > max_x:
-                break
-            rects.append((nat, pygame.Rect(x, 3, w, FH - 6)))
-            x += w + scaled(4)
-        return rects
-
-    # ── Event handlers ────────────────────────────────────────────────────
-
-    def handle_filter_click(self, mx: int, my: int,
-                            natures_available: list) -> bool:
-        if my >= self.HUD_H:
-            return False
-        for nat, btn in self._filter_btn_rects(natures_available):
-            if btn.collidepoint(mx, my):
-                self.active_filter = nat
+    def is_over_ui(self, mx, my):
+        """True if mouse is over any UI element."""
+        if mx < SIDEBAR_W:
+            return True
+        if my < TOPBAR_H:
+            return True
+        if my >= SCR.h - BOTTOMBAR_H:
+            return True
+        if self.show_tool_panel and mx < SIDEBAR_W + TOOL_PANEL_W + 4:
+            cat = self.ts.category
+            tool_count = len(cat['tools'])
+            panel_h = 40 + tool_count * 28 + 90 + len(BRUSH_SIZES) * 18 + 20
+            if my < TOPBAR_H + panel_h + 10:
+                return True
+        if self.show_info_panel:
+            ipx = SCR.w - INFO_PANEL_W - 10
+            ipy = TOPBAR_H + 10
+            if mx >= ipx and my >= ipy and my < ipy + INFO_PANEL_H + 80:
                 return True
         return False
 
-    def handle_minimap_click(self, mx: int, my: int,
-                             cam: Camera, zones) -> bool:
-        mm_rect = self._minimap_rect()
-        if mm_rect is None or not mm_rect.collidepoint(mx, my):
-            return False
-        wx = (mx - mm_rect.x) / mm_rect.width * WORLD_W
-        wy = (my - mm_rect.y) / mm_rect.height * WORLD_H
-        cam.fly_to(wx, wy)
-        return True
-
-    def _minimap_rect(self) -> Optional[pygame.Rect]:
-        if self._panel_slide < 0.05:
-            return None
-        SW = config.SCREEN_W
-        PH = int(BOTTOM_PANEL_H * self._panel_slide)
-        py = config.SCREEN_H - PH
-        MM_W = scaled(180)
-        MM_H = scaled(126)
-        pad = scaled(12)
-        return pygame.Rect(SW - MM_W - pad, py + (PH - MM_H) // 2, MM_W, MM_H)
-
     # ══════════════════════════════════════════════════════════════════════
-    #  FILTER BAR (top)
+    #  RENDER
     # ══════════════════════════════════════════════════════════════════════
+    def render(self, screen, fps=0, season='spring', pop=0, unit_count=0,
+               building_count=0, weather_zones=0, era='', army_count=0,
+               war_count=0):
+        self._init_fonts()
+        self._season = season
+        self._pop = pop
+        self._unit_count = unit_count
+        self._building_count = building_count
+        self._weather_zones = weather_zones
+        self._era = era
+        self._army_count = army_count
+        self._war_count = war_count
+        self._draw_topbar(screen, fps)
+        self._draw_sidebar(screen)
+        if self.show_tool_panel:
+            self._draw_tool_panel(screen)
+        if self.show_info_panel:
+            self._draw_info_panel(screen)
+        self._draw_bottom_bar(screen)
+        self._draw_brush_cursor(screen)
 
-    def draw_filter_bar(self, screen: pygame.Surface, gods, zones, ownership,
-                        cam: Camera, fps: float, t: float):
-        SW = config.SCREEN_W
-        FH = self.HUD_H
-
-        screen.blit(self._filter_bg, (0, 0))
-
-        # Pulsating gold line at bottom
-        p = int(140 + math.sin(t * 2) * 40)
-        pygame.draw.line(screen, (p, int(p * 0.83), int(p * 0.38)),
-                         (0, FH - 1), (SW, FH - 1), 1)
-
-        f_title = self._fc.get(scaled(13), bold=True, serif=True)
-        f_btn = self._fc.get(scaled(11), bold=True)
-        f_info = self._fc.get(scaled(10))
+    # ── top bar ────────────────────────────────────────────────────────────
+    def _draw_topbar(self, screen, fps):
+        pygame.draw.rect(screen, C_BG_DARK, (0, 0, SCR.w, TOPBAR_H))
+        pygame.draw.line(screen, C_BORDER, (0, TOPBAR_H - 1), (SCR.w, TOPBAR_H - 1))
 
         # Title
-        title = self._txt(f_title, "AETHERMOOR", GOLD)
-        screen.blit(title, (scaled(12), (FH - title.get_height()) // 2))
+        s = self.font_lg.render("AETHERMOOR", True, C_ACCENT)
+        screen.blit(s, (SIDEBAR_W + 8, 8))
 
-        # Filter buttons
-        natures_available = sorted(set(z.base_nature for z in zones.values()))
-        title_w = title.get_width()
+        # Sim controls
+        bx = SIDEBAR_W + 140
+        btn_w, btn_h = 60, 22
 
-        for nat, btn in self._filter_btn_rects(natures_available, title_w):
-            lbl = "TODOS" if nat == "all" else nat.upper()
-            col = NATURE_COLOR.get(nat, TXT_DIM) if nat != "all" else TXT
-            active = (self.active_filter == nat)
+        # Pause / Play
+        paused = self.ts.sim_paused
+        pr = pygame.Rect(bx, 5, btn_w, btn_h)
+        self._topbar_btns['pause'] = pr
+        pc = (200, 80, 80) if paused else (80, 200, 100)
+        pygame.draw.rect(screen, C_BG_LIGHT, pr, border_radius=3)
+        pygame.draw.rect(screen, pc, pr, 1, border_radius=3)
+        lbl = "PLAY" if paused else "PAUSE"
+        screen.blit(self.font_xs.render(lbl, True, pc), (bx + 10, 10))
 
-            if active:
-                _alpha_rect(screen, col, btn, 55, border_radius=3)
-                pygame.draw.rect(screen, col[:3], btn, 1, border_radius=3)
+        # Speed
+        bx += btn_w + 6
+        sr = pygame.Rect(bx, 5, 36, btn_h)
+        self._topbar_btns['speed'] = sr
+        pygame.draw.rect(screen, C_BG_LIGHT, sr, border_radius=3)
+        pygame.draw.rect(screen, C_BORDER, sr, 1, border_radius=3)
+        screen.blit(self.font_xs.render(f"{self.ts.sim_speed}x", True, C_TEXT), (bx + 8, 10))
+
+        # Info toggle
+        bx += 44
+        ir = pygame.Rect(bx, 5, 36, btn_h)
+        self._topbar_btns['info_toggle'] = ir
+        ic = C_ACCENT if self.show_info_panel else C_TEXT_DIM
+        pygame.draw.rect(screen, C_BG_LIGHT, ir, border_radius=3)
+        pygame.draw.rect(screen, ic, ir, 1, border_radius=3)
+        screen.blit(self.font_xs.render("INFO", True, ic), (bx + 4, 10))
+
+        # FPS
+        if fps > 0:
+            fs = self.font_xs.render(f"FPS:{int(fps)}", True, C_TEXT_DIM)
+            screen.blit(fs, (SCR.w - 56, 10))
+
+        # Season + stats
+        season = getattr(self, '_season', 'spring')
+        pop = getattr(self, '_pop', 0)
+        season_colors = {'spring': (120,200,80), 'summer': (220,180,40),
+                         'autumn': (200,120,40), 'winter': (140,180,220)}
+        sc = season_colors.get(season, C_TEXT)
+        s_season = self.font_xs.render(season.upper(), True, sc)
+        screen.blit(s_season, (SCR.w - 120, 10))
+
+        # Current tool name
+        tname = self.ts.tool['name']
+        tn = self.font_sm.render(tname, True, self.ts.category['color'])
+        screen.blit(tn, (SCR.w - 230, 9))
+
+    # ── sidebar ────────────────────────────────────────────────────────────
+    def _draw_sidebar(self, screen):
+        pygame.draw.rect(screen, C_BG_DARK, (0, TOPBAR_H, SIDEBAR_W, SCR.h - TOPBAR_H))
+        pygame.draw.line(screen, C_BORDER, (SIDEBAR_W - 1, TOPBAR_H), (SIDEBAR_W - 1, SCR.h))
+
+        self._cat_rects = []
+        cy = TOPBAR_H + 4
+        # Adaptive button size: shrink if too many categories
+        avail_h = SCR.h - TOPBAR_H - BOTTOMBAR_H - 8
+        btn_size = min(40, max(28, (avail_h - len(TOOL_CATEGORIES) * 3) // len(TOOL_CATEGORIES)))
+        gap = 3
+
+        for i, cat in enumerate(TOOL_CATEGORIES):
+            r = pygame.Rect(6, cy, btn_size, btn_size)
+            self._cat_rects.append(r)
+
+            is_sel = (i == self.ts.category_idx)
+            bg = C_SELECTED if is_sel else C_BG_MID
+            bc = cat['color'] if is_sel else C_BORDER
+
+            pygame.draw.rect(screen, bg, r, border_radius=4)
+            pygame.draw.rect(screen, bc, r, 1, border_radius=4)
+
+            # icon
+            icon_key = cat['icon']
+            icon_sz = max(12, btn_size - 12)
+            cache_key = (icon_key, cat['color'], is_sel, icon_sz)
+            if cache_key not in self._icon_cache:
+                c = cat['color'] if is_sel else tuple(min(255, v + 40) for v in C_TEXT_DIM)
+                self._icon_cache[cache_key] = _render_icon(icon_key, c, icon_sz)
+            icon_s = self._icon_cache[cache_key]
+            screen.blit(icon_s, (r.x + (btn_size - icon_s.get_width()) // 2,
+                                  r.y + (btn_size - icon_s.get_height()) // 2))
+
+            cy += btn_size + gap
+
+    # ── tool panel ─────────────────────────────────────────────────────────
+    def _draw_tool_panel(self, screen):
+        cat   = self.ts.category
+        tools = cat['tools']
+        px    = SIDEBAR_W + 2
+        py    = TOPBAR_H + 4
+
+        panel_h = 36 + len(tools) * 28 + 90 + len(BRUSH_SIZES) * 18 + 20
+        if cat['id'] == 'divine':
+            panel_h += len(self.gods) * 22 + 24
+
+        # Panel background
+        panel_r = pygame.Rect(px, py, TOOL_PANEL_W, panel_h)
+        pygame.draw.rect(screen, C_BG_DARK, panel_r, border_radius=6)
+        pygame.draw.rect(screen, C_BORDER, panel_r, 1, border_radius=6)
+
+        # Category title
+        s = self.font_lg.render(cat['name'].upper(), True, cat['color'])
+        screen.blit(s, (px + 10, py + 8))
+        ty = py + 32
+
+        # Tools
+        self._tool_rects = []
+        for i, t in enumerate(tools):
+            r = pygame.Rect(px + 6, ty, TOOL_PANEL_W - 12, 24)
+            self._tool_rects.append(r)
+
+            is_sel = (i == self.ts.tool_idx)
+            bg = C_SELECTED if is_sel else C_BG_MID
+            bc = cat['color'] if is_sel else C_BORDER
+
+            pygame.draw.rect(screen, bg, r, border_radius=3)
+            if is_sel:
+                pygame.draw.rect(screen, bc, r, 1, border_radius=3)
+
+            tc = C_TEXT_BRIGHT if is_sel else C_TEXT
+            screen.blit(self.font_sm.render(t['name'], True, tc), (r.x + 8, r.y + 5))
+            ty += 28
+
+        # Brush size section
+        ty += 8
+        screen.blit(self.font_xs.render("BRUSH SIZE", True, C_TEXT_DIM), (px + 10, ty))
+        ty += 16
+
+        self._brush_rects = []
+        for i, bs in enumerate(BRUSH_SIZES):
+            r = pygame.Rect(px + 10, ty, TOOL_PANEL_W - 20, 16)
+            self._brush_rects.append(r)
+
+            is_sel = (i == self.ts.brush_idx)
+            if is_sel:
+                pygame.draw.rect(screen, C_SELECTED, r, border_radius=2)
+
+            # visual bar
+            bw = min(int(bs / 32 * (TOOL_PANEL_W - 50)), TOOL_PANEL_W - 50)
+            bar_c = cat['color'] if is_sel else C_TEXT_DIM
+            pygame.draw.rect(screen, bar_c, (r.x + 28, r.y + 4, bw, 8), border_radius=2)
+            screen.blit(self.font_xs.render(str(bs), True, C_TEXT), (r.x + 4, r.y + 2))
+            ty += 18
+
+        # Tool description
+        ty += 8
+        desc = self.ts.tool.get('desc', '')
+        if desc:
+            words = desc.split()
+            line = ""
+            for w in words:
+                test = line + " " + w if line else w
+                if self.font_xs.size(test)[0] > TOOL_PANEL_W - 24:
+                    screen.blit(self.font_xs.render(line, True, C_TEXT_DIM), (px + 10, ty))
+                    ty += 13
+                    line = w
+                else:
+                    line = test
+            if line:
+                screen.blit(self.font_xs.render(line, True, C_TEXT_DIM), (px + 10, ty))
+                ty += 13
+
+        # God selector (for divine tools)
+        if cat['id'] == 'divine' and self.gods:
+            ty += 8
+            screen.blit(self.font_xs.render("SELECT GOD", True, C_TEXT_DIM), (px + 10, ty))
+            ty += 16
+            self._god_rects = []
+            for i, g in enumerate(self.gods):
+                r = pygame.Rect(px + 10, ty, TOOL_PANEL_W - 20, 18)
+                self._god_rects.append(r)
+                is_sel = (i == self.ts.selected_god)
+                gid = g.get('god_id', '')
+                gc = GOD_COLORS.get(gid, (128, 128, 128))
+                if is_sel:
+                    pygame.draw.rect(screen, C_SELECTED, r, border_radius=2)
+                    pygame.draw.rect(screen, gc, r, 1, border_radius=2)
+                pygame.draw.circle(screen, gc, (r.x + 8, r.y + 9), 5)
+                nm = g.get('god_name', gid)
+                if len(nm) > 22:
+                    nm = nm[:20] + "..."
+                screen.blit(self.font_xs.render(nm, True, gc if is_sel else C_TEXT), (r.x + 18, r.y + 3))
+                ty += 22
+        else:
+            self._god_rects = []
+
+    # ── info panel (right side) ────────────────────────────────────────────
+    def _draw_info_panel(self, screen):
+        px = SCR.w - INFO_PANEL_W - 10
+        py = TOPBAR_H + 10
+        # Dynamic height based on content
+        panel_h = INFO_PANEL_H + 80
+        panel_r = pygame.Rect(px, py, INFO_PANEL_W, panel_h)
+        pygame.draw.rect(screen, C_BG_DARK, panel_r, border_radius=6)
+        pygame.draw.rect(screen, C_BORDER, panel_r, 1, border_radius=6)
+
+        y = py + 10
+
+        # ── Hover info ─────────────────────
+        if self.hover_tile:
+            tx, ty2 = self.hover_tile
+            screen.blit(self.font_lg.render("TILE INFO", True, C_ACCENT), (px + 10, y))
+            y += 22
+
+            screen.blit(self.font_sm.render(f"Pos: ({tx}, {ty2})", True, C_TEXT), (px + 10, y))
+            y += 16
+            bio = self.hover_biome.replace('_', ' ').title()
+            screen.blit(self.font_sm.render(f"Biome: {bio}", True, C_TEXT), (px + 10, y))
+            y += 16
+            screen.blit(self.font_sm.render(f"Elevation: {self.hover_elev:.3f}", True, C_TEXT), (px + 10, y))
+            y += 16
+            screen.blit(self.font_sm.render(f"Moisture:  {self.hover_moist:.3f}", True, C_TEXT), (px + 10, y))
+            y += 16
+
+            # Temperature
+            temp = getattr(self, 'hover_temp', 0.0)
+            temp_col = (200, 60, 40) if temp > 0.65 else (60, 150, 220) if temp < 0.35 else C_TEXT
+            screen.blit(self.font_sm.render(f"Temp: {temp:.3f}", True, temp_col), (px + 10, y))
+            y += 16
+
+            # Weather
+            weather = getattr(self, 'hover_weather', None)
+            if weather:
+                wc = (80, 140, 220)
+                screen.blit(self.font_sm.render(f"Weather: {weather}", True, wc), (px + 10, y))
+                y += 16
+
+            if self.hover_mat and self.hover_mat != 'none':
+                mat_info = MATERIALS.get(self.hover_mat, {})
+                mat_col  = mat_info.get('color', C_TEXT)
+                screen.blit(self.font_sm.render(f"Material: {self.hover_mat}", True, mat_col), (px + 10, y))
+                y += 16
+
+            if self.hover_god:
+                gc   = GOD_COLORS.get(self.hover_god, (180, 180, 180))
+                name = self.hover_god.replace('god_', '').title()
+                screen.blit(self.font_sm.render(f"God: {name}", True, gc), (px + 10, y))
+                y += 16
+
+                # influence bar
+                bx, by2, bw, bh = px + 12, y, INFO_PANEL_W - 24, 10
+                pygame.draw.rect(screen, C_BG_LIGHT, (bx, by2, bw, bh), border_radius=2)
+                fw = int(bw * min(self.hover_str, 1.0))
+                if fw > 0:
+                    pygame.draw.rect(screen, gc, (bx, by2, fw, bh), border_radius=2)
+                pygame.draw.rect(screen, C_BORDER, (bx, by2, bw, bh), 1, border_radius=2)
+                y += 18
             else:
-                _alpha_rect(screen, UI_LINE, btn, 80, border_radius=3)
+                screen.blit(self.font_sm.render("Neutral territory", True, C_TEXT_DIM), (px + 10, y))
+                y += 16
 
-            lbl_s = self._txt(f_btn, lbl, col if active else TXT_MUTED)
-            screen.blit(lbl_s, lbl_s.get_rect(center=btn.center))
+            # Building info
+            building = getattr(self, 'hover_building', None)
+            if building:
+                y += 4
+                pygame.draw.line(screen, C_BORDER, (px + 10, y), (px + INFO_PANEL_W - 10, y))
+                y += 6
+                screen.blit(self.font_lg.render("BUILDING", True, (200, 170, 100)), (px + 10, y))
+                y += 18
+                screen.blit(self.font_sm.render(building.display_name, True, C_TEXT_BRIGHT), (px + 10, y))
+                y += 16
+                screen.blit(self.font_xs.render(f"HP: {building.hp}/{building.max_hp}  Pop: {int(building.population)}", True, C_TEXT), (px + 10, y))
+                y += 14
 
-        # Right info
-        n_claimed = sum(1 for v in ownership.values() if v)
-        info_text = (f"Zonas: {n_claimed}/{len(zones)}  |  "
-                     f"Zoom: {cam.zoom:.2f}x  |  FPS: {fps:.0f}")
-        info = self._txt(f_info, info_text, TXT_MUTED)
-        screen.blit(info, (SW - info.get_width() - scaled(14),
-                           (FH - info.get_height()) // 2))
+            # Units count
+            unit_count = getattr(self, 'hover_units', 0)
+            if unit_count > 0:
+                screen.blit(self.font_xs.render(f"Units here: {unit_count}", True, (200, 100, 100)), (px + 10, y))
+                y += 14
 
-    # ══════════════════════════════════════════════════════════════════════
-    #  BOTTOM PANEL — FANTASY DESIGN
-    # ══════════════════════════════════════════════════════════════════════
+        # ── Stronghold info ────────────────
+        sh = self.info_data.get('stronghold')
+        if sh:
+            y += 6
+            pygame.draw.line(screen, C_BORDER, (px + 10, y), (px + INFO_PANEL_W - 10, y))
+            y += 8
+            screen.blit(self.font_lg.render("STRONGHOLD", True, (220, 200, 100)), (px + 10, y))
+            y += 20
+            screen.blit(self.font_sm.render(sh.get('name', '?'), True, C_TEXT_BRIGHT), (px + 10, y))
+            y += 16
+            gid = sh.get('god_id', '')
+            gc  = GOD_COLORS.get(gid, (180, 180, 180))
+            screen.blit(self.font_sm.render(f"Owner: {gid.replace('god_','').title()}", True, gc), (px + 10, y))
+            y += 16
+            screen.blit(self.font_xs.render(f"Str: {sh.get('strength',0):.2f}  Rad: {sh.get('radius',0)}", True, C_TEXT_DIM), (px + 10, y))
+            y += 14
+            screen.blit(self.font_xs.render(f"Type: {sh.get('type','?')}", True, C_TEXT_DIM), (px + 10, y))
 
-    def draw_bottom_panel(self, screen: pygame.Surface, selected_zone,
-                          gods, zones, ownership, ancient_seals,
-                          global_stats, t: float,
-                          event_log=None, ancient_gods=None):
-        if self._panel_slide < 0.02:
+        # ── God standings ──────────────────
+        if not sh and self.standings:
+            y += 6
+            pygame.draw.line(screen, C_BORDER, (px + 10, y), (px + INFO_PANEL_W - 10, y))
+            y += 8
+            screen.blit(self.font_lg.render("DOMINION", True, C_ACCENT), (px + 10, y))
+            y += 20
+            for g in self.standings[:9]:
+                gid  = g.get('god_id', '')
+                gc   = GOD_COLORS.get(gid, (128, 128, 128))
+                terr = g.get('territories', 0)
+                nm   = g.get('god_name', gid)
+                if len(nm) > 20:
+                    nm = nm[:18] + "..."
+                pygame.draw.circle(screen, gc, (px + 16, y + 6), 4)
+                screen.blit(self.font_xs.render(nm, True, C_TEXT), (px + 26, y))
+                screen.blit(self.font_xs.render(str(terr), True, gc), (px + INFO_PANEL_W - 30, y))
+                y += 16
+
+    # ── bottom bar (event log) ──────────────────────────────────────────
+    def _draw_bottom_bar(self, screen):
+        top = SCR.h - BOTTOMBAR_H
+        pygame.draw.rect(screen, (10, 10, 16), (0, top, SCR.w, BOTTOMBAR_H))
+        pygame.draw.line(screen, C_BORDER, (0, top), (SCR.w, top))
+
+        # Event log
+        x = SIDEBAR_W + 10
+        screen.blit(self.font_xs.render("EVENT LOG", True, C_TEXT_DIM), (x, top + 4))
+        ey = top + 18
+        n  = 4
+        rec = self.events[-n:] if self.events else ["No events yet"]
+        for t in rec:
+            if len(t) > 80:
+                t = t[:77] + "..."
+            screen.blit(self.font_xs.render(t, True, (120, 120, 140)), (x, ey))
+            ey += 14
+
+        # World stats (middle section)
+        mid_x = SCR.w // 2 - 80
+        pop = getattr(self, '_pop', 0)
+        uc = getattr(self, '_unit_count', 0)
+        bc = getattr(self, '_building_count', 0)
+        wz = getattr(self, '_weather_zones', 0)
+        season = getattr(self, '_season', 'spring')
+
+        screen.blit(self.font_xs.render("WORLD", True, C_TEXT_DIM), (mid_x, top + 4))
+        season_colors = {'spring': (120,200,80), 'summer': (220,180,40),
+                         'autumn': (200,120,40), 'winter': (140,180,220)}
+        sc = season_colors.get(season, C_TEXT)
+        era = getattr(self, '_era', '')
+        ac = getattr(self, '_army_count', 0)
+        wc = getattr(self, '_war_count', 0)
+        era_str = f"  Era: {era}" if era else ""
+        screen.blit(self.font_xs.render(f"Season: {season.title()}{era_str}", True, sc), (mid_x, top + 18))
+        screen.blit(self.font_xs.render(f"Pop: {pop}  Units: {uc}  Armies: {ac}", True, C_TEXT), (mid_x, top + 32))
+        war_col = (220, 80, 80) if wc > 0 else C_TEXT
+        screen.blit(self.font_xs.render(f"Buildings: {bc}  Weather: {wz}  Wars: {wc}", True, war_col), (mid_x, top + 46))
+
+        # Mini standings on right side
+        sx = SCR.w - 300
+        screen.blit(self.font_xs.render("DOMINION", True, C_TEXT_DIM), (sx, top + 4))
+        col_x = sx
+        for i, g in enumerate(self.standings[:9]):
+            gid  = g.get('god_id', '')
+            gc   = GOD_COLORS.get(gid, (128, 128, 128))
+            terr = g.get('territories', 0)
+            nm   = gid.replace('god_', '')[:5].title()
+            row_y = top + 18 + (i % 5) * 12
+            col_off = (i // 5) * 140
+            pygame.draw.circle(screen, gc, (col_x + col_off + 5, row_y + 5), 3)
+            screen.blit(self.font_xs.render(f"{nm}: {terr}", True, C_TEXT_DIM), (col_x + col_off + 12, row_y))
+
+    # ── brush cursor ────────────────────────────────────────────────────
+    def _draw_brush_cursor(self, screen):
+        mx, my = pygame.mouse.get_pos()
+        if self.is_over_ui(mx, my):
             return
-
-        SW = config.SCREEN_W
-        PH = int(BOTTOM_PANEL_H * self._panel_slide)
-        py = config.SCREEN_H - PH
-        pad = scaled(14)
-
-        # Background
-        screen.blit(self._panel_bg, (0, py), area=(0, 0, SW, PH))
-        _draw_ornate_border(screen, pygame.Rect(0, py, SW, PH), col=GOLD, thick=1)
-
-        if PH < scaled(30):
-            return
-
-        # Layout: [Zone Info] | [World Overview] | [Minimap]
-        MM_W = scaled(180)
-        MM_PAD = scaled(12)
-        divider_x1 = SW * 2 // 5
-        divider_x2 = SW - MM_W - MM_PAD * 2
-
-        col1_x = pad
-        col1_w = divider_x1 - pad * 2
-        col2_x = divider_x1 + pad
-        col2_w = divider_x2 - divider_x1 - pad * 2
-
-        # Vertical dividers
-        for dx in [divider_x1, divider_x2]:
-            _alpha_rect(screen, UI_LINE, (dx, py + scaled(6), 1, PH - scaled(12)), 120)
-
-        # Column 1: Zone detail
-        content_h = 0
-        if selected_zone:
-            content_h = self._draw_zone_detail(
-                screen, selected_zone, gods, ownership,
-                ancient_seals, col1_x, py, col1_w, PH,
-                t, event_log=event_log, ancient_gods=ancient_gods)
-
-        # Column 2: World overview
-        col2_h = self._draw_world_overview(
-            screen, event_log, gods, zones, ownership,
-            ancient_seals, col2_x, py, col2_w, PH, t)
-
-        self._panel_content_h = max(content_h, col2_h)
-
-        # Column 3: Terrain minimap
-        self._draw_terrain_minimap(screen, zones, ownership, gods, py, PH)
-
-    # ── Zone Detail (col 1) ───────────────────────────────────────────────
-
-    def _draw_zone_detail(self, screen, zone: Zone, gods, ownership,
-                          ancient_seals, x, py, w, PH, t,
-                          event_log=None, ancient_gods=None) -> int:
-        pad = scaled(10)
-        y = py + pad
-        f_big = self._fc.get(scaled(16), bold=True, serif=True)
-        f_med = self._fc.get(scaled(12), serif=True)
-        f_sm = self._fc.get(scaled(11), serif=True)
-        f_xs = self._fc.get(scaled(10))
-
-        nc = NATURE_COLOR.get(zone.base_nature, TXT)
-
-        # Nature accent bar
-        bar_h = min(PH - pad * 2, scaled(100))
-        pygame.draw.rect(screen, nc[:3], (x, y, scaled(3), bar_h), border_radius=2)
-
-        # Zone name
-        name_surf = self._txt(f_big, zone.zone_name, GOLD)
-        if name_surf.get_width() > w - pad:
-            f_big2 = self._fc.get(scaled(13), bold=True, serif=True)
-            name_surf = self._txt(f_big2, zone.zone_name, GOLD)
-        screen.blit(name_surf, (x + scaled(8), y))
-        y += name_surf.get_height() + scaled(2)
-
-        # Region + Nature tag
-        sub_text = f"{zone.region_name}  |  {zone.base_nature.upper()}"
-        sub = self._txt(f_sm, sub_text, nc)
-        screen.blit(sub, (x + scaled(8), y))
-        y += sub.get_height() + scaled(6)
-
-        # Lore (up to 2 lines)
-        lore_lines = _wrap(zone.lore, f_xs, w - pad * 2)
-        for line in lore_lines[:2]:
-            ls = self._txt(f_xs, line, TXT_DIM)
-            screen.blit(ls, (x + scaled(8), y))
-            y += ls.get_height() + scaled(2)
-        if len(lore_lines) > 2:
-            screen.blit(self._txt(f_xs, "...", TXT_MUTED), (x + scaled(8), y))
-        y += scaled(6)
-
-        # ── Ownership status ──────────────────────────────────────────────
-        gid = ownership.get(zone.zone_id)
-        if gid:
-            god = gods.get(gid)
-            if god:
-                r2, g2, b2 = god.rgb()
-                screen.blit(self._txt(f_xs, "CONTROLADA POR", TXT_MUTED),
-                            (x + scaled(8), y))
-                y += f_xs.get_height() + scaled(2)
-                pygame.draw.rect(screen, (r2, g2, b2),
-                                 (x + scaled(8), y, scaled(3), scaled(14)),
-                                 border_radius=1)
-                screen.blit(self._txt(f_med, god.god_name, (r2, g2, b2)),
-                            (x + scaled(14), y))
-                y += scaled(16)
-        elif zone.ancient_seal:
-            sd = ancient_seals.get(zone.zone_id, {})
-            status = sd.get("status", "sleeping")
-            crack = sd.get("crack_level", zone.crack_level)
-            maxc = sd.get("max_cracks", zone.max_cracks)
-            scol = SEAL_COLOR.get(status, TXT_DIM)
-            screen.blit(self._txt(f_xs, "SELO ANTIGO", TXT_MUTED),
-                        (x + scaled(8), y))
-            y += f_xs.get_height() + scaled(2)
-            screen.blit(self._txt(f_med, status.upper(), scol),
-                        (x + scaled(8), y))
-            for ci in range(maxc):
-                col_c = GOLD if ci < crack else (55, 45, 30)
-                pygame.draw.rect(screen, col_c,
-                                 (x + scaled(75) + ci * scaled(14),
-                                  y + scaled(2), scaled(10), scaled(9)),
-                                 border_radius=2)
-            y += scaled(16)
-
-            # Ancient god info
-            if ancient_gods:
-                ag = next(
-                    (a for a in ancient_gods.values()
-                     if a.seal_zone == zone.zone_id), None)
-                if ag and y + scaled(14) < py + PH - pad:
-                    ar, ag2, ab = ag.rgb()
-                    screen.blit(self._txt(f_xs, "DEUS APRISIONADO", TXT_MUTED),
-                                (x + scaled(8), y))
-                    y += f_xs.get_height() + scaled(2)
-                    screen.blit(self._txt(f_med, ag.god_name, (ar, ag2, ab)),
-                                (x + scaled(8), y))
-                    y += f_med.get_height() + scaled(2)
-                    if ag.lore_description and y + scaled(10) < py + PH - pad:
-                        lore2 = _wrap(ag.lore_description, f_xs, w - pad * 2)
-                        for line in lore2[:1]:
-                            screen.blit(self._txt(f_xs, line, TXT_DIM),
-                                        (x + scaled(8), y))
-                            y += f_xs.get_height() + scaled(2)
-        else:
-            screen.blit(self._txt(f_med, "NAO REIVINDICADA", TXT_MUTED),
-                        (x + scaled(8), y))
-            y += f_med.get_height() + scaled(4)
-
-        # ── Zone events ───────────────────────────────────────────────────
-        if event_log and y + scaled(18) < py + PH - pad:
-            zone_evs = event_log.for_zone(zone.zone_id)
-            if zone_evs:
-                y += scaled(4)
-                _alpha_rect(screen, UI_LINE,
-                            (x + scaled(8), y, w - scaled(16), 1), 100)
-                y += scaled(5)
-                screen.blit(self._txt(f_xs, "EVENTOS", TXT_MUTED),
-                            (x + scaled(8), y))
-                y += f_xs.get_height() + scaled(3)
-                f_ev = self._fc.get(scaled(9))
-                for ev in zone_evs[:3]:
-                    if y + scaled(11) > py + PH - pad:
-                        break
-                    sev_col = SEVERITY_COLOR[ev.severity]
-                    sev_lbl = SEVERITY_LABEL.get(ev.severity, "")
-                    sl = self._txt(f_ev, sev_lbl, sev_col)
-                    desc_max = w - pad * 2 - sl.get_width() - scaled(5)
-                    desc_lines = _wrap(ev.description, f_ev, desc_max)
-                    dl = self._txt(f_ev,
-                                   desc_lines[0] if desc_lines else "", TXT_DIM)
-                    pygame.draw.rect(screen, sev_col[:3],
-                                     (x + scaled(8), y + scaled(2), scaled(2),
-                                      sl.get_height() - scaled(2)),
-                                     border_radius=1)
-                    screen.blit(sl, (x + scaled(13), y))
-                    screen.blit(dl,
-                                (x + scaled(13) + sl.get_width() + scaled(4), y))
-                    y += sl.get_height() + scaled(3)
-
-        return y - py
-
-    # ── World Overview (col 2) ────────────────────────────────────────────
-
-    def _draw_world_overview(self, screen, event_log, gods, zones, ownership,
-                             ancient_seals, x, py, w, PH, t) -> int:
-        pad = scaled(8)
-        y = py + pad
-        f_hdr = self._fc.get(scaled(11), bold=True, serif=True)
-        f_sm = self._fc.get(scaled(10))
-        f_xs = self._fc.get(scaled(9))
-
-        # ── Compact stats row ─────────────────────────────────────────────
-        n_claimed = sum(1 for v in ownership.values() if v)
-        n_seals = sum(1 for z in zones.values() if z.ancient_seal)
-        n_active = sum(1 for z in zones.values()
-                       if z.ancient_seal and
-                       ancient_seals.get(z.zone_id, {}).get("status") != "sleeping")
-
-        stats_pairs = [
-            ("Zonas", f"{n_claimed}/{len(zones)}", GOLD),
-            ("Selos", f"{n_active}/{n_seals}", CRIMSON),
-            ("Deuses", str(len(gods)), CYAN),
-        ]
-        sx = x
-        for lbl, val, col in stats_pairs:
-            ls = self._txt(f_xs, lbl + ":", TXT_MUTED)
-            vs = self._txt(f_xs, val, col)
-            screen.blit(ls, (sx, y))
-            screen.blit(vs, (sx + ls.get_width() + scaled(3), y))
-            sx += ls.get_width() + vs.get_width() + scaled(14)
-        y += f_xs.get_height() + scaled(4)
-
-        # Critical alert
-        if event_log:
-            crit = event_log.critical_count
-            high = event_log.high_count
-            if crit > 0:
-                alert_text = f"! {crit} CRITICO  {high} ALTO"
-                screen.blit(self._txt(f_sm, alert_text, CRIMSON), (x, y))
-                y += f_sm.get_height() + scaled(3)
-
-        _alpha_rect(screen, UI_LINE, (x, y, w, 1), 120)
-        y += scaled(5)
-
-        # ── God domain cards ──────────────────────────────────────────────
-        screen.blit(self._txt(f_hdr, "DOMINIOS", TXT_DIM), (x, y))
-        y += f_hdr.get_height() + scaled(4)
-
-        gods_sorted = sorted(gods.values(), key=lambda g: -sum(
-            1 for gid in ownership.values() if gid == g.god_id))
-
-        card_h = scaled(18)
-        for god in gods_sorted:
-            if y + card_h > py + PH - pad - scaled(30):
-                break
-            r2, g2, b2 = god.rgb()
-            owned = sum(1 for gid in ownership.values() if gid == god.god_id)
-            bar_w = max(0, int(w * owned / max(len(zones), 1)))
-            if bar_w > 0:
-                _alpha_rect(screen, (r2, g2, b2), (x, y, bar_w, card_h), 30)
-            pygame.draw.rect(screen, (r2, g2, b2),
-                             (x, y, scaled(2), card_h), border_radius=1)
-            ns = self._txt(f_xs, god.god_name, (r2, g2, b2))
-            nat_lbl = self._txt(f_xs, god.nature.upper(), TXT_MUTED)
-            zt = self._txt(f_xs, f"{owned}z", TXT_MUTED)
-            screen.blit(ns, (x + scaled(5),
-                             y + (card_h - ns.get_height()) // 2))
-            screen.blit(nat_lbl,
-                        (x + scaled(5) + ns.get_width() + scaled(6),
-                         y + (card_h - nat_lbl.get_height()) // 2))
-            screen.blit(zt, (x + w - zt.get_width() - scaled(3),
-                             y + (card_h - zt.get_height()) // 2))
-            y += card_h + scaled(2)
-
-        y += scaled(4)
-        _alpha_rect(screen, UI_LINE, (x, y, w, 1), 100)
-        y += scaled(5)
-
-        # ── Event feed ────────────────────────────────────────────────────
-        screen.blit(self._txt(f_hdr, "EVENTOS", TXT_DIM), (x, y))
-        y += f_hdr.get_height() + scaled(3)
-
-        events = event_log.recent if event_log else []
-        ev_h = f_xs.get_height() + scaled(4)
-
-        for ev in events[:5]:
-            if y + ev_h > py + PH - pad:
-                break
-
-            sev_col = SEVERITY_COLOR[ev.severity]
-            vfx_col = EVENT_VFX.get(ev.type, {}).get("color", sev_col)
-            shape = EVENT_VFX.get(ev.type, {}).get("shape", "circle")
-
-            # Geometric icon
-            ix = x + scaled(4)
-            iy = y + ev_h // 2
-            r = scaled(3)
-            if shape == "diamond":
-                pts = [(ix, iy - r), (ix + r, iy), (ix, iy + r), (ix - r, iy)]
-                pygame.draw.polygon(screen, vfx_col[:3], pts)
-            elif shape == "triangle":
-                pts = [(ix, iy - r), (ix + r, iy + r), (ix - r, iy + r)]
-                pygame.draw.polygon(screen, vfx_col[:3], pts)
-            elif shape == "square":
-                pygame.draw.rect(screen, vfx_col[:3],
-                                 (ix - r, iy - r, r * 2, r * 2), border_radius=1)
-            else:
-                pygame.draw.circle(screen, vfx_col[:3], (ix, iy), r)
-
-            # Description
-            max_desc_w = w - scaled(14)
-            desc_lines = _wrap(ev.description, f_xs, max_desc_w)
-            dl = self._txt(f_xs,
-                           desc_lines[0] if desc_lines else "", TXT_DIM)
-            screen.blit(dl, (x + scaled(10), y + scaled(1)))
-
-            # Timestamp
-            ts = ev.timestamp[11:16] if len(ev.timestamp) >= 16 else ""
-            if ts:
-                ts_s = self._txt(f_xs, ts, TXT_MUTED)
-                screen.blit(ts_s, (x + w - ts_s.get_width(), y + scaled(1)))
-
-            y += ev_h
-
-        return y - py
-
-    # ══════════════════════════════════════════════════════════════════════
-    #  TERRAIN MINIMAP (real terrain texture)
-    # ══════════════════════════════════════════════════════════════════════
-
-    def _draw_terrain_minimap(self, screen, zones, ownership, gods, py, PH):
-        mm_rect = self._minimap_rect()
-        if mm_rect is None:
-            return
-
-        own_key = tuple(sorted(ownership.items()))
-        if (self._minimap_dirty or self._minimap_surf is None
-                or own_key != self._minimap_own_key):
-            self._minimap_surf = self._build_terrain_minimap(
-                zones, ownership, gods, mm_rect.width, mm_rect.height)
-            self._minimap_dirty = False
-            self._minimap_own_key = own_key
-
-        # Dark frame behind minimap
-        pygame.draw.rect(screen, (20, 16, 10), mm_rect.inflate(4, 4),
-                         border_radius=4)
-        screen.blit(self._minimap_surf, mm_rect.topleft)
-        _draw_ornate_border(screen, mm_rect, col=GOLD, thick=1)
-
-        # "MAPA" label above
-        f_lbl = self._fc.get(scaled(8), bold=True)
-        lbl = self._txt(f_lbl, "MAPA", TXT_MUTED)
-        screen.blit(lbl, (mm_rect.centerx - lbl.get_width() // 2,
-                          mm_rect.top - lbl.get_height() - scaled(2)))
-
-    def _build_terrain_minimap(self, zones, ownership, gods, w, h) -> pygame.Surface:
-        """Build minimap from the actual terrain texture with ownership overlay."""
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        surf.fill((28, 22, 14, 255))
-
-        # Scale down terrain texture
-        if self._terrain_surf is not None:
-            terrain_mini = pygame.transform.scale(self._terrain_surf, (w, h))
-            surf.blit(terrain_mini, (0, 0))
-        else:
-            # Fallback: basic colored zones if no terrain ref
-            for zone in zones.values():
-                nc = NATURE_COLOR.get(zone.base_nature, TXT_DIM)
-                verts = [(int(vx / WORLD_W * w), int(vy / WORLD_H * h))
-                         for vx, vy in zone.vertices]
-                if len(verts) >= 3:
-                    pygame.draw.polygon(surf, (*nc[:3], 60), verts)
-
-        # Ownership highlights
-        ow_surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        for zone in zones.values():
-            gid = ownership.get(zone.zone_id)
-            if not gid:
-                continue
-            god = gods.get(gid)
-            if not god:
-                continue
-            r, g, b = god.rgb()
-            verts = [(int(vx / WORLD_W * w), int(vy / WORLD_H * h))
-                     for vx, vy in zone.vertices]
-            if len(verts) >= 3:
-                pygame.draw.polygon(ow_surf, (r, g, b, 70), verts)
-                pygame.draw.polygon(ow_surf, (r, g, b, 140), verts, 1)
-
-        surf.blit(ow_surf, (0, 0))
-
-        # Seal markers (small glowing dots)
-        for zone in zones.values():
-            if zone.ancient_seal:
-                cx = int(zone.centroid[0] / WORLD_W * w)
-                cy = int(zone.centroid[1] / WORLD_H * h)
-                pygame.draw.circle(surf, (220, 180, 50), (cx, cy), 3)
-                pygame.draw.circle(surf, (255, 220, 100), (cx, cy), 1)
-
-        return surf
-
-    # ── Compat: draw_bottom_panel_with_gods ───────────────────────────────
-
-    def draw_bottom_panel_with_gods(self, screen, selected_zone, gods, zones,
-                                    ownership, ancient_seals, global_stats, t,
-                                    event_log=None, ancient_gods=None):
-        self.draw_bottom_panel(screen, selected_zone, gods, zones,
-                               ownership, ancient_seals, global_stats, t,
-                               event_log=event_log, ancient_gods=ancient_gods)
-
-    # ── Compat stubs ──────────────────────────────────────────────────────
-
-    def draw_top_hud(self, screen, gods, zones, ownership, cam, fps, t):
-        self.draw_filter_bar(screen, gods, zones, ownership, cam, fps, t)
-
-    def draw_left_panel(self, screen, gods, zones, ownership,
-                        selected_zone, ancient_seals, global_stats):
-        return
-
-    def draw_seals_panel(self, screen, zones, ancient_seals, t):
-        return
-
-    # ══════════════════════════════════════════════════════════════════════
-    #  TOOLTIP
-    # ══════════════════════════════════════════════════════════════════════
-
-    def draw_hover_tooltip(self, screen, zone, gods, ownership,
-                           ancient_seals, mx: int, my: int):
-        SW = config.SCREEN_W
-        SH = config.SCREEN_H
-        if zone is None or mx < self.map_x or my < self.map_y:
-            return
-
-        f_hdr = self._fc.get(scaled(13), bold=True, serif=True)
-        f_sm = self._fc.get(scaled(11), serif=True)
-        f_xs = self._fc.get(scaled(10))
-        nc = NATURE_COLOR.get(zone.base_nature, TXT_DIM)
-
-        rows = [
-            (zone.zone_name, TXT, f_hdr),
-            (zone.region_name, TXT_DIM, f_xs),
-            (zone.base_nature.upper(), nc, f_xs),
-        ]
-        gid = ownership.get(zone.zone_id)
-        if gid:
-            god = gods.get(gid)
-            if god:
-                rows.append((f">> {god.god_name}", god.rgb(), f_sm))
-        elif zone.ancient_seal:
-            st = ancient_seals.get(zone.zone_id, {}).get("status", "sleeping")
-            rows.append((f"SELO: {st.upper()}", SEAL_COLOR.get(st, TXT_DIM), f_sm))
-        else:
-            rows.append(("Nao reivindicada", TXT_MUTED, f_xs))
-
-        TW = max(f.size(t_)[0] for t_, _, f in rows) + scaled(22)
-        TH = sum(f.get_height() + scaled(3) for _, _, f in rows) + scaled(16)
-        tx = mx + scaled(16)
-        ty = my - TH // 2
-        if tx + TW > SW - 4:
-            tx = mx - TW - scaled(8)
-        ty = max(self.map_y + 4, min(SH - TH - 4, ty))
-
-        if (self._tooltip_surf.get_width() < TW or
-                self._tooltip_surf.get_height() < TH):
-            self._tooltip_surf = pygame.Surface(
-                (max(TW, 400), max(TH, 200)), pygame.SRCALPHA)
-
-        ts = self._tooltip_surf
-        ts.fill((0, 0, 0, 0), (0, 0, TW, TH))
-        pygame.draw.rect(ts, (*UI_BG, 240), (0, 0, TW, TH), border_radius=3)
-        _draw_ornate_border(ts, pygame.Rect(0, 0, TW, TH), col=GOLD, thick=1)
-        pygame.draw.line(ts, nc[:3], (1, 4), (1, TH - 4), 2)
-
-        oy = scaled(8)
-        for text, col, font in rows:
-            ts.blit(self._txt(font, text, col), (scaled(10), oy))
-            oy += font.get_height() + scaled(3)
-
-        screen.blit(ts, (tx, ty), area=(0, 0, TW, TH))
-
-    # ══════════════════════════════════════════════════════════════════════
-    #  NOTIFICATION
-    # ══════════════════════════════════════════════════════════════════════
-
-    def draw_notif(self, screen):
-        if self._notif_alpha <= 0:
-            return
-        SW = config.SCREEN_W
-        f = self._fc.get(scaled(14), bold=True, serif=True)
-        s = self._txt(f, self._notif_msg, GOLD)
-        pw = s.get_width() + scaled(30)
-        ph = s.get_height() + scaled(16)
-        px = SW // 2 - pw // 2
-        py_ = self._panel_y - ph - scaled(10)
-        a = int(220 * self._notif_alpha)
-
-        ns = self._notif_surf
-        if ns.get_width() < pw or ns.get_height() < ph:
-            self._notif_surf = pygame.Surface(
-                (max(pw, SW), max(ph, scaled(50))), pygame.SRCALPHA)
-            ns = self._notif_surf
-
-        ns.fill((0, 0, 0, 0), (0, 0, pw, ph))
-        pygame.draw.rect(ns, (*UI_BG, a), (0, 0, pw, ph), border_radius=3)
-        _draw_ornate_border(ns, pygame.Rect(0, 0, pw, ph), col=GOLD, thick=1)
-        ns.blit(s, (scaled(15), scaled(8)))
-        screen.blit(ns, (px, py_), area=(0, 0, pw, ph))
-
-    # ══════════════════════════════════════════════════════════════════════
-    #  CORNERS + LOADING
-    # ══════════════════════════════════════════════════════════════════════
-
-    def draw_corners(self, screen):
-        SW = config.SCREEN_W
-        SH = config.SCREEN_H
-        L = scaled(22)
-        for px_, py_, w_, h_ in [
-            (0, 0, L, 2), (0, 0, 2, L),
-            (SW - L, 0, L, 2), (SW - 2, 0, 2, L),
-            (0, SH - 2, L, 2), (0, SH - L, 2, L),
-            (SW - L, SH - 2, L, 2), (SW - 2, SH - L, 2, L),
-        ]:
-            pygame.draw.rect(screen, GOLD[:3], (px_, py_, w_, h_))
-
-    def draw_loading(self, screen, msg: str, pct: float):
-        SW = config.SCREEN_W
-        SH = config.SCREEN_H
-        screen.fill(UI_BG)
-
-        f_title = self._fc.get(scaled(22), bold=True, serif=True)
-        f_sub = self._fc.get(scaled(11))
-        f_msg = self._fc.get(scaled(11))
-
-        t = f_title.render("NEURAL FIGHTS — AETHERMOOR", True, GOLD[:3])
-        screen.blit(t, ((SW - t.get_width()) // 2, SH // 2 - scaled(72)))
-
-        sub = f_sub.render("W O R L D  M A P  L O A D I N G", True, TXT_DIM[:3])
-        screen.blit(sub, ((SW - sub.get_width()) // 2, SH // 2 - scaled(44)))
-
-        BW = min(scaled(480), SW - scaled(60))
-        BH = scaled(6)
-        bx = (SW - BW) // 2
-        by = SH // 2 - scaled(4)
-
-        pygame.draw.rect(screen, UI_LINE[:3],
-                         (bx - 1, by - 1, BW + 2, BH + 2), border_radius=3)
-        pygame.draw.rect(screen, (35, 28, 16),
-                         (bx, by, BW, BH), border_radius=3)
-        if pct > 0:
-            pygame.draw.rect(screen, GOLD[:3],
-                             (bx, by, int(BW * pct), BH), border_radius=3)
-
-        m = f_msg.render(msg, True, TXT_DIM[:3])
-        screen.blit(m, ((SW - m.get_width()) // 2, by + BH + scaled(10)))
-
-        _draw_ornate_border(screen,
-                            pygame.Rect(scaled(20), scaled(20),
-                                        SW - scaled(40), SH - scaled(40)),
-                            col=GOLD_DIM, thick=1)
-
-        self.draw_corners(screen)
-        pygame.display.flip()
-        pygame.event.pump()
+        r = self.ts.brush_radius
+        cat_color = self.ts.category['color']
+
+        # Draw a circle outline for brush size indicator
+        radius_px = max(r * 2, 4)
+        cs = pygame.Surface((radius_px * 2 + 2, radius_px * 2 + 2), pygame.SRCALPHA)
+        pygame.draw.circle(cs, (*cat_color, 100), (radius_px + 1, radius_px + 1), radius_px, 1)
+        screen.blit(cs, (mx - radius_px - 1, my - radius_px - 1))
+
+        # Center dot
+        pygame.draw.circle(screen, cat_color, (mx, my), 2)
