@@ -424,6 +424,57 @@ class DramaticProjectileTrail:
                 cor, random.uniform(-22, 22), random.uniform(-15, 35),
                 random.uniform(3, 7), random.uniform(0.18, 0.38),
                 gravidade=90, arrasto=0.93, shape="drop"))
+        elif el == "TEMPO":
+            # v14.0: Trail temporal — partículas que "congelam" no ar e desvanecem
+            cor = random.choice(pal["mid"])
+            self.particulas.append(MagicParticle(
+                x + random.uniform(-4, 4), y + random.uniform(-4, 4),
+                cor, random.uniform(-8, 8), random.uniform(-8, 8),
+                random.uniform(3, 7), random.uniform(0.5, 1.0),
+                arrasto=0.99, shape="star", glow=True))
+            # Eco temporal (partícula ghost atrasada)
+            if random.random() < 0.3:
+                self.particulas.append(MagicParticle(
+                    x + random.uniform(-10, 10), y + random.uniform(-10, 10),
+                    pal["spark"], 0, 0,
+                    random.uniform(4, 8), random.uniform(0.3, 0.5),
+                    arrasto=1.0, shape="rune", glow=True))
+        elif el == "GRAVITACAO":
+            # v14.0: Trail gravitacional — partículas que orbitam o projétil
+            cor = random.choice(pal["mid"])
+            ang = random.uniform(0, math.pi * 2)
+            orbit_r = random.uniform(8, 18)
+            self.particulas.append(MagicParticle(
+                x + math.cos(ang) * orbit_r, y + math.sin(ang) * orbit_r,
+                cor, -math.cos(ang) * 40, -math.sin(ang) * 40,
+                random.uniform(3, 6), random.uniform(0.25, 0.45),
+                arrasto=0.92, shape="circle", glow=True))
+            # Distorção central
+            if random.random() < 0.3:
+                self.particulas.append(MagicParticle(
+                    x, y, pal["core"],
+                    random.uniform(-5, 5), random.uniform(-5, 5),
+                    random.uniform(5, 10), random.uniform(0.15, 0.25),
+                    arrasto=0.96, shape="wisp"))
+        elif el == "CAOS":
+            # v14.0: Trail caótico — formas e cores aleatórias
+            cor = (random.randint(80, 255), random.randint(80, 255), random.randint(80, 255))
+            shape = random.choice(["circle", "star", "shard", "ember", "rune"])
+            self.particulas.append(MagicParticle(
+                x + random.uniform(-8, 8), y + random.uniform(-8, 8),
+                cor, random.uniform(-60, 60), random.uniform(-60, 60),
+                random.uniform(3, 9), random.uniform(0.15, 0.40),
+                gravidade=random.uniform(-50, 80), arrasto=random.uniform(0.88, 0.96), shape=shape))
+        elif el == "VOID":
+            # v14.0: Trail void — partículas que implosionam para o centro
+            cor = random.choice(pal["mid"])
+            ang = random.uniform(0, math.pi * 2)
+            dist = random.uniform(12, 25)
+            self.particulas.append(MagicParticle(
+                x + math.cos(ang) * dist, y + math.sin(ang) * dist,
+                cor, -math.cos(ang) * 50, -math.sin(ang) * 50,
+                random.uniform(4, 9), random.uniform(0.20, 0.40),
+                arrasto=0.90, shape="wisp"))
         else:
             cor = random.choice(pal["mid"])
             self.particulas.append(MagicParticle(
@@ -719,8 +770,163 @@ class DramaticExplosion:
                     "cor": pal["spark"],
                     "num_dots": 12,
                 })
+            # v14.0: Buraco negro central sugando partículas
+            for _ in range(int(n * 0.5)):
+                ang = random.uniform(0, math.pi * 2)
+                dist_spawn = random.uniform(80, 160) * tam
+                px = self.x + math.cos(ang) * dist_spawn
+                py = self.y + math.sin(ang) * dist_spawn
+                self.particulas.append(MagicParticle(px, py, pal["core"],
+                    -math.cos(ang) * 180 * tam, -math.sin(ang) * 180 * tam,
+                    random.uniform(2, 5), random.uniform(0.3, 0.6),
+                    arrasto=0.92, glow=True))
+            # Distorção visual — anel externo escuro
+            self.shockwaves.append({
+                "raio": 120 * tam, "raio_max": 40 * tam,
+                "delay": 0, "cor": (10, 0, 20), "largura": 8, "alpha_max": 180,
+            })
 
-        else:  # DEFAULT / CAOS
+        elif el == "TEMPO":
+            # v14.0: Explosão temporal — relógios, distorção, ecos
+            self.vida = self.vida_max = 1.8
+            self.flash_raio = 40 * tam
+            self.flash_alpha = 200
+            # Partículas temporais que se movem em espiral
+            for _ in range(n):
+                ang = random.uniform(0, math.pi * 2)
+                vel = random.uniform(60, 200) * tam
+                cor = random.choice(pal["mid"])
+                self.particulas.append(MagicParticle(self.x, self.y, cor,
+                    math.cos(ang) * vel, math.sin(ang) * vel,
+                    random.uniform(3, 8) * tam, random.uniform(0.5, 1.0),
+                    arrasto=0.98, shape="star", glow=True))
+            # Ecos temporais — anéis que CONTRAEM (tempo revertendo)
+            for i in range(5):
+                self.shockwaves.append({
+                    "raio": (80 + i * 25) * tam, "raio_max": 5 * tam,
+                    "delay": i * 0.15, "cor": pal["mid"][i % len(pal["mid"])],
+                    "largura": 3, "alpha_max": 200 - i * 30,
+                })
+            # Relógio fantasma — cristais em 12 posições como marcadores de horas
+            for i in range(12):
+                ang = i * (math.pi * 2 / 12)
+                dist = 45 * tam
+                self.crystals.append({
+                    "x": self.x + math.cos(ang) * dist,
+                    "y": self.y + math.sin(ang) * dist,
+                    "ang": ang, "size": 5 * tam,
+                    "vida": 1.4, "vida_max": 1.4,
+                    "cor": pal["spark"], "grow_speed": 80, "current_size": 0,
+                })
+            # Ponteiros do relógio (2 pilares giratórios)
+            for i in range(2):
+                self.pillars.append({
+                    "x": self.x, "y": self.y,
+                    "ang": i * math.pi / 2, "length": (30 + i * 15) * tam,
+                    "vida": 1.6, "vida_max": 1.6,
+                    "cor": pal["core"], "largura": 4,
+                    "tem_offset": True,
+                })
+
+        elif el == "GRAVITACAO":
+            # v14.0: Explosão gravitacional — implosão seguida de explosão
+            self.vida = self.vida_max = 1.6
+            self.flash_raio = 50 * tam
+            self.flash_alpha = 180
+            # Fase 1: Partículas puxadas para dentro
+            for _ in range(int(n * 0.6)):
+                ang = random.uniform(0, math.pi * 2)
+                dist_spawn = random.uniform(80, 150) * tam
+                px = self.x + math.cos(ang) * dist_spawn
+                py = self.y + math.sin(ang) * dist_spawn
+                vel = random.uniform(120, 280) * tam
+                cor = random.choice(pal["mid"])
+                self.particulas.append(MagicParticle(px, py, cor,
+                    -math.cos(ang) * vel, -math.sin(ang) * vel,
+                    random.uniform(4, 10) * tam, random.uniform(0.3, 0.5),
+                    arrasto=0.88, shape="circle", glow=True))
+            # Fase 2: Partículas que explodem para fora (depois de colapsar)
+            for _ in range(int(n * 0.4)):
+                ang = random.uniform(0, math.pi * 2)
+                vel = random.uniform(150, 350) * tam
+                cor = random.choice(pal["mid"] + [pal["core"]])
+                self.particulas.append(MagicParticle(self.x, self.y, cor,
+                    math.cos(ang) * vel, math.sin(ang) * vel,
+                    random.uniform(5, 12) * tam, random.uniform(0.5, 0.9),
+                    gravidade=80, arrasto=0.95, shape="circle"))
+            # Vórtex gravitacional — espiral achatada
+            for i in range(3):
+                self.vortex_rings.append({
+                    "raio": (20 + i * 25) * tam,
+                    "raio_max": (50 + i * 30) * tam,
+                    "rot": i * 0.7, "vel_rot": (4 + i) * random.choice([-1, 1]),
+                    "vida": 1.3, "vida_max": 1.3,
+                    "cor": pal["mid"][i % len(pal["mid"])],
+                    "num_dots": 10 + i * 4,
+                })
+            # Onda de choque gravitacional invertida (contrai primeiro)
+            self.shockwaves.append({
+                "raio": 100 * tam, "raio_max": 10 * tam,
+                "delay": 0, "cor": pal["core"], "largura": 6, "alpha_max": 220,
+            })
+            # Seguida de explosão normal
+            self.shockwaves.append({
+                "raio": 0, "raio_max": 120 * tam,
+                "delay": 0.3, "cor": pal["mid"][0], "largura": 4, "alpha_max": 180,
+            })
+
+        elif el == "CAOS":
+            # v14.0: Explosão caótica — cores impossíveis, geometria quebrada
+            self.vida = self.vida_max = 1.3
+            self.flash_raio = 45 * tam
+            self.flash_alpha = 255
+            # Partículas multicoloridas com comportamento errático
+            for _ in range(int(n * 1.3)):
+                ang = random.uniform(0, math.pi * 2)
+                vel = random.uniform(100, 400) * tam
+                # Cores totalmente aleatórias
+                cor = (random.randint(50, 255), random.randint(50, 255), random.randint(50, 255))
+                shape = random.choice(["circle", "star", "shard", "rune", "ember", "drop"])
+                grav = random.uniform(-100, 150)
+                self.particulas.append(MagicParticle(self.x, self.y, cor,
+                    math.cos(ang) * vel, math.sin(ang) * vel,
+                    random.uniform(3, 12) * tam, random.uniform(0.2, 0.7),
+                    gravidade=grav, arrasto=random.uniform(0.85, 0.98), shape=shape, glow=random.random() < 0.3))
+            # Raios caóticos em direções aleatórias
+            for i in range(4):
+                ang = random.uniform(0, math.pi * 2)
+                length = random.uniform(40, 100) * tam
+                ex = self.x + math.cos(ang) * length
+                ey = self.y + math.sin(ang) * length
+                cor_raio = (random.randint(100, 255), random.randint(100, 255), random.randint(100, 255))
+                self.lightning_bolts.append({
+                    "x1": self.x, "y1": self.y, "x2": ex, "y2": ey,
+                    "vida": 0.4, "vida_max": 0.4,
+                    "cor": cor_raio, "width": random.randint(2, 5), "branches": [],
+                })
+            # Ondas de choque com cores diferentes
+            for i in range(3):
+                cor_sw = random.choice(pal["mid"] + pal["outer"])
+                self.shockwaves.append({
+                    "raio": 0, "raio_max": (60 + i * 40) * tam,
+                    "delay": i * 0.1, "cor": cor_sw, "largura": random.randint(2, 6),
+                    "alpha_max": 220 - i * 40,
+                })
+            # Cristais de caos — fragmentos de realidade
+            for i in range(6):
+                ang = random.uniform(0, math.pi * 2)
+                dist = random.uniform(20, 60) * tam
+                cor_c = (random.randint(100, 255), random.randint(50, 200), random.randint(100, 255))
+                self.crystals.append({
+                    "x": self.x + math.cos(ang) * dist,
+                    "y": self.y + math.sin(ang) * dist,
+                    "ang": random.uniform(0, math.pi * 2),
+                    "size": random.uniform(6, 15) * tam,
+                    "vida": 0.8, "vida_max": 0.8,
+                    "cor": cor_c, "grow_speed": 150, "current_size": 0,
+                })
+
+        else:  # DEFAULT
             for _ in range(n):
                 ang = random.uniform(0, math.pi * 2)
                 vel = random.uniform(80, 290) * tam

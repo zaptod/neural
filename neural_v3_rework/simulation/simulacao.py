@@ -473,27 +473,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             self.magic_vfx.update(dt)
             # === ATUALIZA TRAILS ELEMENTAIS v11.0 (movido de desenhar para ter acesso a dt) ===
             for proj in self.projeteis:
-                _nm = str(getattr(proj, 'nome', '')).lower()
-                _tp = str(getattr(proj, 'tipo', '')).lower()
-                _comb = _nm + _tp
-                if any(w in _comb for w in ["fogo","fire","chama","meteoro","inferno"]):
-                    _elem_trail = "FOGO"
-                elif any(w in _comb for w in ["gelo","ice","glacial","nevasca"]):
-                    _elem_trail = "GELO"
-                elif any(w in _comb for w in ["raio","lightning","thunder","eletric"]):
-                    _elem_trail = "RAIO"
-                elif any(w in _comb for w in ["trevas","shadow","dark","sombra","necro"]):
-                    _elem_trail = "TREVAS"
-                elif any(w in _comb for w in ["luz","light","holy","sagrado"]):
-                    _elem_trail = "LUZ"
-                elif any(w in _comb for w in ["sangue","blood"]):
-                    _elem_trail = "SANGUE"
-                elif any(w in _comb for w in ["arcano","arcane","mana"]):
-                    _elem_trail = "ARCANO"
-                elif any(w in _comb for w in ["veneno","poison","natureza","nature"]):
-                    _elem_trail = "NATUREZA"
-                else:
-                    _elem_trail = "ARCANO"  # default mágico
+                # v14.0: Usa cache de elemento (evita string parsing por frame)
+                _elem_trail = self._get_projetil_elemento(proj)
                 trail_vfx = self.magic_vfx.get_or_create_trail(id(proj), _elem_trail)
                 vel_proj = getattr(proj, 'vel', getattr(proj, 'vel_disparo', 10.0))
                 trail_vfx.update(dt, proj.x * PPM, proj.y * PPM, vel_proj * 0.1)
@@ -685,7 +666,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 
                 if alvo.tomar_dano(dano_final, dx/dist, dy/dist, tipo_efeito):
                     self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                    self.ativar_slow_motion(); self.vencedor = proj.dono.dados.nome
+                    self._registrar_kill(alvo, proj.dono.dados.nome)
                 else:
                     # Texto especial para execução
                     if bonus_condicao >= 5.0:
@@ -802,8 +783,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             
                             if alvo.tomar_dano(dano_final, dx/dist, dy/dist, "NORMAL"):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                                self.ativar_slow_motion()
-                                self.vencedor = orbe.dono.dados.nome
+                                self._registrar_kill(alvo, orbe.dono.dados.nome)
                             else:
                                 # Texto mágico colorido
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano_final), orbe.cor))
@@ -876,8 +856,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             tipo_dot = res.get("tipo", "FOGO")
                             if alvo.tomar_dano(dano_dot, 0, 0, tipo_dot):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                                self.ativar_slow_motion()
-                                self.vencedor = area.dono.dados.nome
+                                self._registrar_kill(alvo, area.dono.dados.nome)
                             else:
                                 cor_dot = self._get_cor_efeito(tipo_dot)
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano_dot), cor_dot, 14))
@@ -902,8 +881,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             dano = area.dono.get_dano_modificado(area.dano) if hasattr(area.dono, 'get_dano_modificado') else area.dano
                             if alvo.tomar_dano(dano, dx/(dist or 1), dy/(dist or 1), area.tipo_efeito):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                                self.ativar_slow_motion()
-                                self.vencedor = area.dono.dados.nome
+                                self._registrar_kill(alvo, area.dono.dados.nome)
                             else:
                                 cor_txt = self._get_cor_efeito(area.tipo_efeito)
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), cor_txt))
@@ -941,8 +919,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
 
                         if alvo.tomar_dano(dano, dx/dist, dy/dist, beam.tipo_efeito):
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                            self.ativar_slow_motion()
-                            self.vencedor = beam.dono.dados.nome
+                            self._registrar_kill(alvo, beam.dono.dados.nome)
                         else:
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), (255, 255, 100)))
                             self.cam.aplicar_shake(5.0, 0.06)
@@ -965,8 +942,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                         dist = math.hypot(dx, dy) or 1
                         if alvo.tomar_dano(dano, dx/dist, dy/dist, efeito):
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                            self.ativar_slow_motion()
-                            self.vencedor = summon.dono.dados.nome
+                            self._registrar_kill(alvo, summon.dono.dados.nome)
                         else:
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), summon.cor))
                             self.cam.aplicar_shake(3.0, 0.05)
@@ -1066,8 +1042,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             
                             if alvo.tomar_dano(dano, dx/dist, dy/dist, efeito):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                                self.ativar_slow_motion()
-                                self.vencedor = trap.dono.dados.nome
+                                self._registrar_kill(alvo, trap.dono.dados.nome)
                             else:
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), trap.cor))
                                 self.cam.aplicar_shake(4.0, 0.06)
@@ -1152,8 +1127,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                         
                         if alvo.tomar_dano(dano, 0, 0, efeito):
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                            self.ativar_slow_motion()
-                            self.vencedor = lutador.dados.nome
+                            self._registrar_kill(alvo, lutador.dados.nome)
                         else:
                             cor = self._get_cor_efeito(efeito)
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 30, int(dano), cor, 12))
@@ -1241,6 +1215,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         if self.attack_anims:
             self.attack_anims.update(dt)
         
+        # v14.0: Limita partículas para performance com muitos lutadores
+        MAX_PARTICULAS = 600
+        if len(self.particulas) > MAX_PARTICULAS:
+            # Remove as mais antigas (início da lista) para manter o limite
+            self.particulas = self.particulas[-MAX_PARTICULAS:]
+        
         alive_particulas = []
         for p in self.particulas:
             p.atualizar(dt)
@@ -1253,8 +1233,63 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         if len(self.decals) > 100: self.decals.pop(0)
 
     # =========================================================================
-    # v13.0: MÉTODOS AUXILIARES MULTI-COMBATENTE
+    # v14.0: MÉTODOS AUXILIARES MULTI-COMBATENTE + PERFORMANCE
     # =========================================================================
+    
+    def _registrar_kill(self, morto, killer_nome_fallback):
+        """Registra uma morte e determina se a luta acabou.
+        
+        v14.0: Team-aware — em multi-fighter, a luta só acaba
+        quando todos os membros de um time são eliminados.
+        Evita que fights acabem 'do nada' quando um membro morre
+        mas seu time ainda está vivo.
+        """
+        self.ativar_slow_motion()
+        resultado = self._determinar_vencedor_por_morte(morto)
+        if resultado:
+            self.vencedor = resultado
+    
+    def _get_projetil_elemento(self, proj):
+        """Retorna o elemento cacheado de um projétil (perf: evita re-parse de strings por frame)."""
+        cached = getattr(proj, '_cached_elemento', None)
+        if cached:
+            return cached
+        # Tenta campo direto primeiro
+        _el = getattr(proj, 'elemento', '')
+        if _el:
+            proj._cached_elemento = _el
+            return _el
+        _nm = str(getattr(proj, 'nome', '')).lower()
+        _tp = str(getattr(proj, 'tipo', '')).lower()
+        _comb = _nm + _tp
+        if any(w in _comb for w in ["fogo","fire","chama","meteoro","inferno","brasas","combustao"]):
+            elem = "FOGO"
+        elif any(w in _comb for w in ["gelo","ice","glacial","nevasca","cristal","congelar"]):
+            elem = "GELO"
+        elif any(w in _comb for w in ["raio","lightning","thunder","eletric","relampago"]):
+            elem = "RAIO"
+        elif any(w in _comb for w in ["trevas","shadow","dark","sombra","necro"]):
+            elem = "TREVAS"
+        elif any(w in _comb for w in ["luz","light","holy","sagrado","divino"]):
+            elem = "LUZ"
+        elif any(w in _comb for w in ["sangue","blood","vampir"]):
+            elem = "SANGUE"
+        elif any(w in _comb for w in ["arcano","arcane","mana","runa"]):
+            elem = "ARCANO"
+        elif any(w in _comb for w in ["veneno","poison","natureza","nature"]):
+            elem = "NATUREZA"
+        elif any(w in _comb for w in ["void","vazio","abismo"]):
+            elem = "VOID"
+        elif any(w in _comb for w in ["tempo","temporal","relogio","paradoxo"]):
+            elem = "TEMPO"
+        elif any(w in _comb for w in ["gravit","gravity","buraco negro","pulso"]):
+            elem = "GRAVITACAO"
+        elif any(w in _comb for w in ["caos","chaos","caotico"]):
+            elem = "CAOS"
+        else:
+            elem = "ARCANO"
+        proj._cached_elemento = elem
+        return elem
     
     def _encontrar_alvo_mais_proximo(self, x, y, dono):
         """Encontra o lutador vivo mais próximo das coordenadas, excluindo o dono.

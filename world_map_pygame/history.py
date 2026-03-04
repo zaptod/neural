@@ -195,11 +195,17 @@ class WorldHistory:
         self._prev_population = {}
         self._war_cooldowns = {}   # (godA, godB) → tick when war can happen
         self._disaster_cooldown = 0
+        self._initial_events_done = False
 
     def tick(self, dt, world):
         """Main history tick — detect events, update eras, shape world."""
         self.world_tick += 1
         self.era_timer += dt
+
+        # ── First-tick bootstrap: seed initial events & tension ──
+        if not self._initial_events_done:
+            self._seed_initial_events(world)
+            self._initial_events_done = True
 
         # Era progression
         if self.era_timer >= ERA_LENGTH:
@@ -216,12 +222,12 @@ class WorldHistory:
         # Detect population events
         self._detect_population_events(world)
 
-        # Auto-generate wars based on diplomacy + proximity
-        if self.world_tick % 50 == 0:
+        # Auto-generate wars based on diplomacy + proximity (every 5 ticks)
+        if self.world_tick % 5 == 0:
             self._check_war_triggers(world)
 
-        # Random natural disasters
-        if self.world_tick % 100 == 0:
+        # Random natural disasters (every 20 ticks)
+        if self.world_tick % 20 == 0:
             self._check_disasters(world)
 
         # Update war records
@@ -322,6 +328,43 @@ class WorldHistory:
             'total_events': len(era_events),
         }
 
+    # ── initial event seeding ──────────────────────────────────────────────
+    def _seed_initial_events(self, world):
+        """Seed the world with initial events and diplomatic tension."""
+        # Record stronghold_built for each god
+        for sh in getattr(world, 'strongholds', []):
+            gid = sh.get('god_id', '')
+            name = sh.get('name', 'Unknown')
+            self.record('stronghold_built',
+                        f"{gid} establishes the stronghold of {name}",
+                        god_id=gid, pos=(sh.get('x', 0), sh.get('y', 0)))
+
+        # Record settlement_founded for existing buildings
+        if hasattr(world, 'civilizations'):
+            for b in world.civilizations.active_buildings:
+                self.record('settlement_founded',
+                            f"{b.god_id} founds a {b.btype} at ({b.x},{b.y})",
+                            god_id=b.god_id, pos=(b.x, b.y))
+
+        # Seed initial diplomatic tension between all god pairs
+        # Gods that are thematically opposed get more tension
+        opposed_pairs = {
+            ('god_light', 'god_darkness'), ('god_life', 'god_death'),
+            ('god_fire', 'god_water'), ('god_order', 'god_chaos'),
+        }
+        for i, gid_a in enumerate(self.god_ids):
+            for gid_b in self.god_ids[i+1:]:
+                key = tuple(sorted([gid_a, gid_b]))
+                if key in opposed_pairs or (key[1], key[0]) in opposed_pairs:
+                    tension = -random.uniform(15, 30)
+                else:
+                    tension = -random.uniform(3, 12)
+                self.diplomacy.modify_relation(gid_a, gid_b, tension)
+
+        # Record the initial era
+        self.record('era_change',
+                    f"The Age of {self.era_name} dawns upon the world")
+
     # ── automatic event detection ──────────────────────────────────────────
     def _detect_territory_shifts(self, world):
         """Detect significant territory gains/losses."""
@@ -334,14 +377,14 @@ class WorldHistory:
             if territory > self.god_stats[gid].get('peak_territory', 0):
                 self.god_stats[gid]['peak_territory'] = territory
 
-            # Significant gain (>10% growth)
-            if prev > 100 and territory > prev * 1.1:
+            # Significant gain (>5% growth or first time exceeding 50)
+            if prev > 20 and territory > prev * 1.05:
                 self.record('territory_gained',
                             f"{gid} expands territory by {territory - prev} tiles",
                             god_id=gid)
 
-            # Significant loss (>10% loss)
-            if prev > 100 and territory < prev * 0.9:
+            # Significant loss (>5% loss)
+            if prev > 20 and territory < prev * 0.95:
                 self.record('territory_lost',
                             f"{gid} loses {prev - territory} tiles of territory",
                             god_id=gid)
@@ -359,14 +402,14 @@ class WorldHistory:
             if pop > self.god_stats[gid].get('peak_population', 0):
                 self.god_stats[gid]['peak_population'] = pop
 
-            # Population boom (>50% growth in one check)
-            if prev > 20 and pop > prev * 1.5:
+            # Population boom (>20% growth in one check)
+            if prev > 5 and pop > prev * 1.2:
                 self.record('population_boom',
                             f"{gid}'s population surges to {int(pop)}!",
                             god_id=gid)
 
-            # Famine (>30% population drop)
-            if prev > 20 and pop < prev * 0.7:
+            # Famine (>15% population drop)
+            if prev > 5 and pop < prev * 0.85:
                 self.record('famine',
                             f"Famine strikes {gid} — population drops to {int(pop)}",
                             god_id=gid)
@@ -379,36 +422,42 @@ class WorldHistory:
         if active_wars >= 3:
             return  # Too many wars already
 
-        # Find gods with high tension
+        # Natural border friction: neighbouring gods accumulate tension
         for i, gid_a in enumerate(self.god_ids):
+            terr_a = world.influence.get_god_territory_count(gid_a)
             for gid_b in self.god_ids[i+1:]:
                 if self.are_at_war(gid_a, gid_b):
                     continue
+                terr_b = world.influence.get_god_territory_count(gid_b)
+                # Both have some territory → generate natural tension
+                if terr_a > 30 and terr_b > 30:
+                    # Border friction: stronger tension per check
+                    friction = -random.uniform(2.0, 5.0)
+                    self.diplomacy.modify_relation(gid_a, gid_b, friction)
+
                 relation = self.diplomacy.get_relation(gid_a, gid_b)
-                if relation < -50:
+                if relation < -40:
                     # High tension — chance of war
-                    # Border friction increases chance
-                    terr_a = world.influence.get_god_territory_count(gid_a)
-                    terr_b = world.influence.get_god_territory_count(gid_b)
-                    if terr_a > 50 and terr_b > 50:
-                        if random.random() < 0.05:  # 5% per check
+                    if terr_a > 30 and terr_b > 30:
+                        war_chance = 0.03 + abs(relation) * 0.001
+                        if random.random() < war_chance:
                             self.start_war(gid_a, gid_b)
 
-        # Natural tension decay
-        if self.world_tick % 200 == 0:
+        # Slow natural tension decay (only for very negative relations)
+        if self.world_tick % 300 == 0:
             for key in self.diplomacy.relations:
                 val = self.diplomacy.relations[key]
-                if val < 0:
-                    self.diplomacy.relations[key] = min(0, val + 2)
-                elif val > 0:
-                    self.diplomacy.relations[key] = max(0, val - 1)
+                if val < -70:
+                    self.diplomacy.relations[key] = min(-70, val + 1)
+                elif val > 30:
+                    self.diplomacy.relations[key] = max(30, val - 1)
 
     def _check_disasters(self, world):
         """Random natural disasters that shape the world."""
         if self._disaster_cooldown > self.world_tick:
             return
 
-        if random.random() < 0.03:  # 3% per check
+        if random.random() < 0.08:  # 8% per check — disasters keep the world interesting
             disaster = random.choice([
                 'great_fire', 'great_flood', 'earthquake',
                 'blizzard', 'plague', 'corruption_spread',

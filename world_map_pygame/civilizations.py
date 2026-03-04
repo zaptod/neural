@@ -20,9 +20,9 @@ from config import (
 # ═══════════════════════════════════════════════════════════════════════════════
 
 BUILDING_DEFS = {
-    'village':   {'pop_cap': POP_MAX_VILLAGE, 'produces': {'food': 2},  'size': 5},
-    'city':      {'pop_cap': POP_MAX_CITY,    'produces': {'food': 1, 'gold': 3}, 'size': 7},
-    'farm':      {'pop_cap': 0, 'produces': {'food': 5},   'size': 4},
+    'village':   {'pop_cap': POP_MAX_VILLAGE, 'produces': {'food': 3, 'wood': 1.5},  'size': 5},
+    'city':      {'pop_cap': POP_MAX_CITY,    'produces': {'food': 2, 'gold': 3, 'wood': 1.0}, 'size': 7},
+    'farm':      {'pop_cap': 0, 'produces': {'food': 6},   'size': 4},
     'mine':      {'pop_cap': 0, 'produces': {'stone': 3, 'iron': 2}, 'size': 4,
                   'requires_biome': {'hills', 'mountain', 'high_mountain'}},
     'port':      {'pop_cap': 0, 'produces': {'gold': 2, 'food': 2},  'size': 4,
@@ -308,9 +308,7 @@ class CivilizationSystem:
 
             # ── Auto-build support structures ──────────────────────────
             for settlement in settlements:
-                if settlement.age % 60 != 0:  # Check every 60 ticks
-                    continue
-                if settlement.level < 2:
+                if settlement.age % 20 != 0:  # Check every 20 civ ticks
                     continue
                 self._auto_build_support(gid, settlement, resources, world,
                                           biome_map, biome_names, heightmap, influence)
@@ -318,18 +316,35 @@ class CivilizationSystem:
             # ── Auto-train units from barracks ─────────────────────────
             barracks = [b for b in buildings if b.btype == 'barracks']
             for bk in barracks:
-                if bk.age % 100 != 0:
+                if bk.age % 25 != 0:
                     continue
                 if resources.get('food', 0) > 20:
                     self._auto_train_unit(gid, bk, resources, world)
 
     def _auto_found_settlement(self, gid, existing_settlements, world,
                                 biome_map, biome_names, heightmap, influence):
-        """Find a good location and found a new village."""
-        # Search for good spot in friendly territory
-        for _ in range(30):
-            x = self._rng.randint(20, MAP_W - 20)
-            y = self._rng.randint(20, MAP_H - 20)
+        """Find a good location and found a new village near existing territory."""
+        # Search near existing buildings/strongholds (where territory actually is)
+        anchors = []
+        for b in self.active_buildings:
+            if b.god_id == gid:
+                anchors.append((b.x, b.y))
+        for sh in getattr(world, 'strongholds', []):
+            if sh.get('god_id') == gid:
+                anchors.append((sh['x'], sh['y']))
+        if not anchors:
+            return
+
+        for _ in range(40):
+            # Pick a random anchor and offset from it
+            ax, ay = anchors[self._rng.randint(0, len(anchors))]
+            dist = self._rng.uniform(SETTLE_MIN_DIST, SETTLE_MIN_DIST * 3)
+            angle = self._rng.uniform(0, 6.283)
+            x = int(ax + dist * math.cos(angle))
+            y = int(ay + dist * math.sin(angle))
+
+            if x < 20 or x >= MAP_W - 20 or y < 20 or y >= MAP_H - 20:
+                continue
 
             # Must be in our territory
             dom_gid, strength = influence.get_dominant_at(x, y)

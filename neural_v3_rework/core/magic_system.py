@@ -81,8 +81,8 @@ REACOES_ELEMENTAIS = {
     (Elemento.NATUREZA, Elemento.RAIO): ("ELETRIFICACAO", "CHAIN", 1.4),
     
     # Trevas + Luz = Caos Primordial (dano aleatório massivo)
-    (Elemento.TREVAS, Elemento.LUZ): ("CAOS_PRIMORDIAL", "DANO_ALEATORIO", 2.5),
-    (Elemento.LUZ, Elemento.TREVAS): ("CAOS_PRIMORDIAL", "DANO_ALEATORIO", 2.5),
+    (Elemento.TREVAS, Elemento.LUZ): ("CAOS_PRIMORDIAL", "DANO_ALEATORIO", 2.0),
+    (Elemento.LUZ, Elemento.TREVAS): ("CAOS_PRIMORDIAL", "DANO_ALEATORIO", 2.0),
     
     # Trevas + Fogo = Chamas Negras (ignora defesa)
     (Elemento.TREVAS, Elemento.FOGO): ("CHAMAS_NEGRAS", "IGNORA_DEFESA", 1.6),
@@ -111,6 +111,82 @@ REACOES_ELEMENTAIS = {
     # Tempo + Gravitação = Singularidade (puxa e stun)
     (Elemento.TEMPO, Elemento.GRAVITACAO): ("SINGULARIDADE", "VORTEX", 2.0),
     (Elemento.GRAVITACAO, Elemento.TEMPO): ("SINGULARIDADE", "VORTEX", 2.0),
+    
+    # =========================================================================
+    # v14.0: NOVAS REAÇÕES ELEMENTAIS
+    # =========================================================================
+    
+    # Caos + Arcano = Ruptura Dimensional (silencia + dano extra)
+    (Elemento.CAOS, Elemento.ARCANO): ("RUPTURA_DIMENSIONAL", "SILENCIADO", 1.8),
+    (Elemento.ARCANO, Elemento.CAOS): ("RUPTURA_DIMENSIONAL", "SILENCIADO", 1.8),
+    
+    # Caos + Natureza = Mutação (efeitos aleatórios no alvo)
+    (Elemento.CAOS, Elemento.NATUREZA): ("MUTACAO", "RANDOM_STATUS", 1.5),
+    (Elemento.NATUREZA, Elemento.CAOS): ("MUTACAO", "RANDOM_STATUS", 1.5),
+    
+    # Sangue + Fogo = Cauterizar (para sangramento + dano)
+    (Elemento.SANGUE, Elemento.FOGO): ("CAUTERIZAR", "QUEIMANDO", 1.6),
+    (Elemento.FOGO, Elemento.SANGUE): ("CAUTERIZAR", "QUEIMANDO", 1.6),
+    
+    # Sangue + Gelo = Sangue Congelado (imobiliza + fragiliza)
+    (Elemento.SANGUE, Elemento.GELO): ("SANGUE_CONGELADO", "ENRAIZADO", 1.5),
+    (Elemento.GELO, Elemento.SANGUE): ("SANGUE_CONGELADO", "ENRAIZADO", 1.5),
+    
+    # Sangue + Natureza = Simbiose (drena + cura o caster)
+    (Elemento.SANGUE, Elemento.NATUREZA): ("SIMBIOSE", "DRAIN_MASSIVO", 1.3),
+    (Elemento.NATUREZA, Elemento.SANGUE): ("SIMBIOSE", "DRAIN_MASSIVO", 1.3),
+    
+    # Tempo + Fogo = Combustão Acelerada (DoT muito rápido)
+    (Elemento.TEMPO, Elemento.FOGO): ("COMBUSTAO_ACELERADA", "QUEIMADURA_SEVERA", 1.6),
+    (Elemento.FOGO, Elemento.TEMPO): ("COMBUSTAO_ACELERADA", "QUEIMADURA_SEVERA", 1.6),
+    
+    # Tempo + Gelo = Crioestase (congelar + longa duração)
+    (Elemento.TEMPO, Elemento.GELO): ("CRIOESTASE", "CONGELADO", 1.4),
+    (Elemento.GELO, Elemento.TEMPO): ("CRIOESTASE", "CONGELADO", 1.4),
+    
+    # Tempo + Raio = Sobrecarga Temporal (paralisia + dano amplificado)
+    (Elemento.TEMPO, Elemento.RAIO): ("SOBRECARGA_TEMPORAL", "PARALISIA", 1.7),
+    (Elemento.RAIO, Elemento.TEMPO): ("SOBRECARGA_TEMPORAL", "PARALISIA", 1.7),
+    
+    # Gravitação + Fogo = Compressão Térmica (explosão concentrada)
+    (Elemento.GRAVITACAO, Elemento.FOGO): ("COMPRESSAO_TERMICA", "EXPLOSAO_MASSIVA", 1.8),
+    (Elemento.FOGO, Elemento.GRAVITACAO): ("COMPRESSAO_TERMICA", "EXPLOSAO_MASSIVA", 1.8),
+    
+    # Gravitação + Gelo = Criocolapso (esmaga + congela fragmentos)
+    (Elemento.GRAVITACAO, Elemento.GELO): ("CRIOCOLAPSO", "LENTO", 1.5),
+    (Elemento.GELO, Elemento.GRAVITACAO): ("CRIOCOLAPSO", "LENTO", 1.5),
+    
+    # Gravitação + Raio = Magnetismo (puxa + chain lightning)
+    (Elemento.GRAVITACAO, Elemento.RAIO): ("MAGNETISMO", "CHAIN", 1.6),
+    (Elemento.RAIO, Elemento.GRAVITACAO): ("MAGNETISMO", "CHAIN", 1.6),
+    
+    # Void + Trevas = Abismo (dano massivo + medo)
+    (Elemento.VOID, Elemento.TREVAS): ("ABISMO", "MEDO", 2.0),
+    (Elemento.TREVAS, Elemento.VOID): ("ABISMO", "MEDO", 2.0),
+    
+    # Void + Luz = Paradoxo da Existência (vulnerável + cego)
+    (Elemento.VOID, Elemento.LUZ): ("PARADOXO_EXISTENCIA", "VULNERAVEL", 1.8),
+    (Elemento.LUZ, Elemento.VOID): ("PARADOXO_EXISTENCIA", "VULNERAVEL", 1.8),
+    
+    # Void + Tempo = Rasgo no Espaço-Tempo (silencia + para tempo)
+    (Elemento.VOID, Elemento.TEMPO): ("RASGO_ESPACOTEMPO", "TEMPO_PARADO", 2.2),
+    (Elemento.TEMPO, Elemento.VOID): ("RASGO_ESPACOTEMPO", "TEMPO_PARADO", 2.2),
+    
+    # Caos + Sangue = Hemofolia (sangramento + buff aleatório)
+    (Elemento.CAOS, Elemento.SANGUE): ("HEMOFOLIA", "SANGRANDO", 1.5),
+    (Elemento.SANGUE, Elemento.CAOS): ("HEMOFOLIA", "SANGRANDO", 1.5),
+    
+    # Luz + Natureza = Fotossíntese Divina (cura + regeneração ao caster)
+    (Elemento.LUZ, Elemento.NATUREZA): ("FOTOSSINTESE_DIVINA", "REGENERANDO", 1.2),
+    (Elemento.NATUREZA, Elemento.LUZ): ("FOTOSSINTESE_DIVINA", "REGENERANDO", 1.2),
+    
+    # Trevas + Raio = Tempestade Sombria (paralisia + drenar)
+    (Elemento.TREVAS, Elemento.RAIO): ("TEMPESTADE_SOMBRIA", "PARALISIA", 1.6),
+    (Elemento.RAIO, Elemento.TREVAS): ("TEMPESTADE_SOMBRIA", "PARALISIA", 1.6),
+    
+    # Gravitação + Void = Horizonte de Eventos (puxa + aniquila)
+    (Elemento.GRAVITACAO, Elemento.VOID): ("HORIZONTE_EVENTOS", "VORTEX", 2.0),
+    (Elemento.VOID, Elemento.GRAVITACAO): ("HORIZONTE_EVENTOS", "VORTEX", 2.0),
 }
 
 
@@ -689,6 +765,93 @@ COMBOS_MAGICOS = {
         "efeito_bonus": "TEMPO_PARADO",
         "reset_cooldowns": True,
         "visual": "time_paradox"
+    },
+    
+    # =========================================================================
+    # v14.0: NOVOS COMBOS TRIPLOS
+    # =========================================================================
+    
+    # Caos -> Caos -> Caos = Apocalipse
+    ("CAOS", "CAOS", "CAOS"): {
+        "nome": "APOCALIPSE",
+        "bonus_dano": 2.5,
+        "efeito_bonus": "RANDOM_STATUS",
+        "visual": "chaos_apocalypse"
+    },
+    # Void -> Void -> Void = Fim de Tudo
+    ("VOID", "VOID", "VOID"): {
+        "nome": "FIM_DE_TUDO",
+        "bonus_dano": 2.5,
+        "efeito_bonus": "PURGE",
+        "purge_all": True,
+        "visual": "void_annihilation"
+    },
+    # Sangue -> Sangue -> Sangue = Hemorrragia Massiva
+    ("SANGUE", "SANGUE", "SANGUE"): {
+        "nome": "HEMORRAGIA_MASSIVA",
+        "bonus_dano": 1.8,
+        "efeito_bonus": "SANGRANDO",
+        "stacks_bonus": 5,
+        "lifesteal": 0.4,
+        "visual": "blood_explosion"
+    },
+    # Gravitacao -> Gravitacao -> Gravitacao = Colapso Dimensional
+    ("GRAVITACAO", "GRAVITACAO", "GRAVITACAO"): {
+        "nome": "COLAPSO_DIMENSIONAL",
+        "bonus_dano": 2.0,
+        "efeito_bonus": "VORTEX",
+        "pull_force": 3.0,
+        "visual": "gravity_collapse"
+    },
+    # Tempo -> Tempo -> Tempo = Paradoxo Infinito
+    ("TEMPO", "TEMPO", "TEMPO"): {
+        "nome": "PARADOXO_INFINITO",
+        "bonus_dano": 1.8,
+        "efeito_bonus": "TEMPO_PARADO",
+        "duracao_bonus": 3.0,
+        "reset_cooldowns": True,
+        "visual": "infinite_paradox"
+    },
+    # Fogo -> Trevas -> Sangue = Pacto Infernal
+    ("FOGO", "TREVAS", "SANGUE"): {
+        "nome": "PACTO_INFERNAL",
+        "bonus_dano": 2.2,
+        "efeito_bonus": "QUEIMADURA_SEVERA",
+        "lifesteal": 0.3,
+        "visual": "infernal_pact"
+    },
+    # Gelo -> Tempo -> Gravitacao = Entropia Absoluta
+    ("GELO", "TEMPO", "GRAVITACAO"): {
+        "nome": "ENTROPIA_ABSOLUTA",
+        "bonus_dano": 2.0,
+        "efeito_bonus": "LENTO",
+        "duracao_bonus": 4.0,
+        "visual": "absolute_entropy"
+    },
+    # Void -> Caos -> Arcano = Ruptura da Realidade
+    ("VOID", "CAOS", "ARCANO"): {
+        "nome": "RUPTURA_REALIDADE",
+        "bonus_dano": 2.3,
+        "efeito_bonus": "SILENCIADO",
+        "purge_all": True,
+        "visual": "reality_break"
+    },
+    # Luz -> Natureza -> Sangue = Ciclo da Vida
+    ("LUZ", "NATUREZA", "SANGUE"): {
+        "nome": "CICLO_DA_VIDA",
+        "bonus_dano": 1.5,
+        "efeito_bonus": "REGENERANDO",
+        "cura_caster": 0.4,
+        "lifesteal": 0.3,
+        "visual": "cycle_of_life"
+    },
+    # Raio -> Gravitacao -> Void = Colapso Estelar
+    ("RAIO", "GRAVITACAO", "VOID"): {
+        "nome": "COLAPSO_ESTELAR",
+        "bonus_dano": 2.5,
+        "efeito_bonus": "CHAIN",
+        "chain_count": 4,
+        "visual": "stellar_collapse"
     },
 }
 

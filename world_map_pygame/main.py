@@ -166,6 +166,9 @@ class WorldMap:
         self.synergy       = SynergyEngine()
         self.history       = WorldHistory(god_ids)
 
+        # ── Seed initial settlements near strongholds ──────────────────────
+        self._seed_world()
+
         # ── subsystems ─────────────────────────────────────────────────────
         self.camera     = Camera()
         self.renderer   = Renderer(self.screen,
@@ -227,6 +230,72 @@ class WorldMap:
             state["strongholds"] = self.strongholds
             save_world_state(state)
         self.influence.set_strongholds(self.strongholds)
+
+    def _seed_world(self):
+        """Bootstrap the living world: place initial village + farms + warriors near each stronghold."""
+        total_buildings = 0
+        total_units = 0
+        for sh in self.strongholds:
+            gid = sh['god_id']
+            sx, sy = sh['x'], sh['y']
+
+            # Place a village at the stronghold
+            b = self.civilizations.place_building('village', sx, sy, gid)
+            if b:
+                b.resources['food'] = 80
+                b.resources['wood'] = 50
+                b.resources['stone'] = 25
+                b.resources['gold'] = 10
+                b.population = 15
+                total_buildings += 1
+
+            # Place 2 farms nearby — try a wide spiral of offsets
+            farms_placed = 0
+            for dist in range(5, 20, 2):
+                if farms_placed >= 2:
+                    break
+                for dx, dy in [(dist, 0), (-dist, 0), (0, dist), (0, -dist),
+                               (dist, dist), (-dist, dist), (dist, -dist), (-dist, -dist)]:
+                    if farms_placed >= 2:
+                        break
+                    fx, fy = sx + dx, sy + dy
+                    if not (0 <= fx < MAP_W and 0 <= fy < MAP_H):
+                        continue
+                    if not self.land_mask[fy, fx]:
+                        continue
+                    fb = self.civilizations.place_building('farm', fx, fy, gid)
+                    if fb:
+                        farms_placed += 1
+                        total_buildings += 1
+
+            # Place a barracks nearby
+            for dist in range(6, 20, 2):
+                placed = False
+                for dx, dy in [(dist, dist//2), (-dist, dist//2), (dist//2, dist),
+                               (-dist//2, -dist), (dist, 0), (0, dist)]:
+                    bx, by = sx + dx, sy + dy
+                    if not (0 <= bx < MAP_W and 0 <= by < MAP_H):
+                        continue
+                    if not self.land_mask[by, bx]:
+                        continue
+                    bb = self.civilizations.place_building('barracks', bx, by, gid)
+                    if bb:
+                        total_buildings += 1
+                        placed = True
+                        break
+                if placed:
+                    break
+
+            # Spawn 4 warriors + 1 archer + 1 scout near the stronghold
+            for utype in ['warrior', 'warrior', 'warrior', 'warrior', 'archer', 'scout']:
+                ux = sx + random.randint(-3, 3)
+                uy = sy + random.randint(-3, 3)
+                ux = max(0, min(MAP_W - 1, ux))
+                uy = max(0, min(MAP_H - 1, uy))
+                self.units.spawn(utype, ux, uy, gid)
+                total_units += 1
+
+        print(f"  [Seed] {total_buildings} buildings, {total_units} units seeded.")
 
     def _refresh_standings(self):
         st = []
@@ -525,15 +594,15 @@ class WorldMap:
                     world=self)
                 self._unit_accum = 0.0
 
-            # World History tick
+            # World History tick (every 0.5 seconds)
             self._history_accum += dt * speed
-            if self._history_accum >= 1.0:
+            if self._history_accum >= 0.5:
                 self.history.tick(self._history_accum, self)
                 self._history_accum = 0.0
                 # Push recent history events to UI event log
                 for ev in self.history.events[-3:]:
                     if ev.tick == self.history.world_tick:
-                        self.ui.add_event(f"[{ev.era}] {ev.text}")
+                        self.ui.add_event(f"[{self.history.era_name}] {ev.text}")
 
     # ── draw ───────────────────────────────────────────────────────────────
     def _draw(self):

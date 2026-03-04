@@ -152,7 +152,7 @@ SKILL_DB = {
         "descricao": "Transforma em elemental de gelo - aura de slow"
     },
     "Morte Glacial": {
-        "tipo": "PROJETIL", "dano": 150.0, "velocidade": 10.0, "raio": 0.5,
+        "tipo": "PROJETIL", "dano": 100.0, "velocidade": 10.0, "raio": 0.5,
         "vida": 2.0, "cor": (200, 230, 255), "custo": 70.0, "cooldown": 40.0,
         "efeito": "CONGELADO", "elemento": "GELO",
         "condicao": "ALVO_BAIXA_VIDA", "executa": True,
@@ -592,7 +592,7 @@ SKILL_DB = {
         "descricao": "Explosão com efeito aleatório"
     },
     "Roleta Russa": {
-        "tipo": "PROJETIL", "dano": 100.0, "velocidade": 20.0, "raio": 0.3,
+        "tipo": "PROJETIL", "dano": 75.0, "velocidade": 20.0, "raio": 0.3,
         "vida": 1.5, "cor": (255, 0, 100), "custo": 30.0, "cooldown": 15.0,
         "elemento": "CAOS", "chance_backfire": 0.2,
         "descricao": "Dano massivo mas 20% chance de acertar você"
@@ -719,7 +719,7 @@ SKILL_DB = {
         "descricao": "Conecta almas - dano dividido 50/50"
     },
     "Sacrifício": {
-        "tipo": "AREA", "dano": 150.0, "raio_area": 3.0, "cor": (255, 0, 0),
+        "tipo": "AREA", "dano": 120.0, "raio_area": 3.0, "cor": (255, 0, 0),
         "custo": 0, "cooldown": 120.0, "custo_vida_percent": 0.5,
         "descricao": "Sacrifica 50% HP para dano massivo"
     },
@@ -1040,6 +1040,272 @@ SKILL_DB = {
         "custo": 30.0, "cooldown": 10.0, "efeito": "SILENCIADO", "elemento": "ARCANO",
         "delay": 0.5, "duracao": 2.0,
         "descricao": "Ruptura que silencia e causa dano contínuo"
+    },
+    
+    # =========================================================================
+    # v14.0: NOVAS MAGIAS
+    # =========================================================================
+    
+    # =========================================================================
+    # 🕐 TEMPO - Novas manipulações temporais
+    # =========================================================================
+    "Ricochete Temporal": {
+        "tipo": "PROJETIL", "dano": 20.0, "velocidade": 16.0, "raio": 0.35,
+        "vida": 3.0, "cor": (210, 195, 255), "custo": 22.0, "cooldown": 7.0,
+        "elemento": "TEMPO", "chain": 3, "chain_decay": 0.8,
+        "descricao": "Projétil que salta entre alvos corrigindo o passado"
+    },
+    "Estase": {
+        "tipo": "AREA", "dano": 15.0, "raio_area": 3.5, "cor": (190, 170, 255),
+        "custo": 35.0, "cooldown": 18.0, "efeito": "TEMPO_PARADO", "elemento": "TEMPO",
+        "duracao": 2.0, "delay": 0.5,
+        "descricao": "Bolha que congela o tempo em uma area"
+    },
+    "Aceleração Fatal": {
+        "tipo": "BUFF", "cor": (220, 200, 255), "custo": 25.0, "cooldown": 22.0,
+        "duracao": 6.0, "elemento": "TEMPO",
+        "bonus_velocidade_ataque": 2.5, "bonus_velocidade_movimento": 2.0,
+        "dano_recebido_bonus": 1.3,
+        "descricao": "Velocidade extrema ao custo de fragilidade"
+    },
+    "Rebobinar": {
+        "tipo": "BUFF", "cor": (200, 180, 255), "custo": 45.0, "cooldown": 40.0,
+        "duracao": 0.1, "elemento": "TEMPO",
+        "cura_percent": 0.3, "remove_debuffs": True,
+        "descricao": "Rebobina o tempo pessoal recuperando HP e removendo debuffs"
+    },
+    "Envelhecimento": {
+        "tipo": "BEAM", "dano": 20.0, "alcance": 7.0, "cor": (150, 130, 200),
+        "custo": 28.0, "cooldown": 12.0, "efeito": "EXAUSTO", "elemento": "TEMPO",
+        "dano_por_segundo": 25.0, "canalizavel": True, "duracao_max": 2.5,
+        "descricao": "Raio que envelhece o alvo reduzindo seus atributos"
+    },
+    
+    # =========================================================================
+    # 🌌 GRAVITAÇÃO - Novas manipulações gravitacionais
+    # =========================================================================
+    "Singularidade": {
+        "tipo": "AREA", "dano": 35.0, "raio_area": 5.0, "cor": (60, 20, 100),
+        "custo": 55.0, "cooldown": 30.0, "efeito": "VORTEX", "elemento": "GRAVITACAO",
+        "duracao": 4.0, "dano_por_segundo": 20.0, "puxa_continuo": True,
+        "descricao": "Cria uma singularidade que devora tudo ao redor"
+    },
+    "Inversão Gravitacional": {
+        "tipo": "AREA", "dano": 25.0, "raio_area": 3.5, "cor": (130, 90, 200),
+        "custo": 30.0, "cooldown": 14.0, "efeito": "KNOCK_UP", "elemento": "GRAVITACAO",
+        "forca_empurrao": 3.0,
+        "descricao": "Inverte a gravidade lançando todos para cima"
+    },
+    "Lente Gravitacional": {
+        "tipo": "BUFF", "cor": (100, 60, 160), "custo": 20.0, "cooldown": 16.0,
+        "duracao": 5.0, "elemento": "GRAVITACAO",
+        "refletir_projeteis": True, "bonus_velocidade": 1.3,
+        "descricao": "Curva projéteis ao redor do caster desviando-os"
+    },
+    "Compressão": {
+        "tipo": "PROJETIL", "dano": 45.0, "velocidade": 6.0, "raio": 0.6,
+        "vida": 4.0, "cor": (80, 40, 130), "custo": 32.0, "cooldown": 12.0,
+        "efeito": "LENTO", "elemento": "GRAVITACAO", "homing": True,
+        "raio_explosao": 2.0,
+        "descricao": "Esfera gravitacional lenta que implode ao impacto"
+    },
+    "Órbita Mortal": {
+        "tipo": "CHANNEL", "cor": (110, 70, 170), "custo": 40.0, "cooldown": 25.0,
+        "elemento": "GRAVITACAO", "canalizavel": True, "duracao_max": 4.0,
+        "dano_por_segundo": 30.0, "imobiliza": True,
+        "descricao": "Faz detritos orbitarem o caster causando dano massivo"
+    },
+    
+    # =========================================================================
+    # 💀 CAOS - Novas instabilidades
+    # =========================================================================
+    "Distorção da Realidade": {
+        "tipo": "AREA", "dano": 50.0, "raio_area": 4.0, "cor": (255, 80, 200),
+        "custo": 45.0, "cooldown": 20.0, "elemento": "CAOS",
+        "efeito_aleatorio": True, "efeitos_possiveis": [
+            "QUEIMANDO", "CONGELADO", "PARALISIA", "ENVENENADO",
+            "LENTO", "SILENCIADO", "CEGO", "MEDO"
+        ],
+        "delay": 1.5, "aviso_visual": True,
+        "descricao": "Rasga a realidade aplicando efeitos caóticos em área"
+    },
+    "Sobrecarga Entrópica": {
+        "tipo": "BUFF", "cor": (255, 120, 200), "custo": 30.0, "cooldown": 25.0,
+        "duracao": 8.0, "elemento": "CAOS",
+        "buff_dano": 1.8, "dano_variavel": (0.5, 2.0),
+        "chance_backfire": 0.1,
+        "descricao": "Amplifica dano caoticamente — cada hit é imprevisível"
+    },
+    "Duplicação Caótica": {
+        "tipo": "PROJETIL", "dano": 25.0, "velocidade": 14.0, "raio": 0.4,
+        "vida": 2.5, "cor": (255, 100, 180), "custo": 28.0, "cooldown": 8.0,
+        "elemento": "CAOS", "duplica_apos": 0.8, "split_aleatorio": True, "max_splits": 3,
+        "descricao": "Projétil instável que se divide e duplica"
+    },
+    "Espelho do Caos": {
+        "tipo": "TRAP", "dano": 0.0, "cor": (255, 140, 220),
+        "custo": 25.0, "cooldown": 15.0, "elemento": "CAOS",
+        "duracao": 12.0, "vida_estrutura": 60.0,
+        "efeito": "CHARME", "bloqueia_movimento": False,
+        "descricao": "Armadilha que confunde inimigos fazendo-os atacar aliados"
+    },
+    
+    # =========================================================================
+    # 🕳️ VOID - Novas aniquilações
+    # =========================================================================
+    "Marca do Vazio": {
+        "tipo": "PROJETIL", "dano": 15.0, "velocidade": 18.0, "raio": 0.3,
+        "vida": 2.0, "cor": (50, 10, 70), "custo": 18.0, "cooldown": 6.0,
+        "efeito": "MARCADO", "elemento": "VOID",
+        "descricao": "Marca o alvo — próximo ataque void causa dano dobrado"
+    },
+    "Devorar": {
+        "tipo": "BEAM", "dano": 35.0, "alcance": 6.0, "cor": (30, 0, 50),
+        "custo": 30.0, "cooldown": 12.0, "efeito": "DRENAR", "elemento": "VOID",
+        "penetra_escudo": True, "lifesteal": 0.3,
+        "canalizavel": True, "dano_por_segundo": 40.0, "duracao_max": 2.0,
+        "descricao": "Raio que devora a essência do alvo ignorando defesas"
+    },
+    "Anomalia Espacial": {
+        "tipo": "SUMMON", "cor": (40, 0, 65), "custo": 50.0, "cooldown": 35.0,
+        "duracao": 15.0, "summon_vida": 100.0, "summon_dano": 15.0,
+        "elemento": "VOID", "efeito": "SILENCIADO",
+        "aura_dano": 5.0, "aura_raio": 3.0,
+        "descricao": "Invoca uma anomalia que silencia e drena numa grande área"
+    },
+    "Colapso do Vazio": {
+        "tipo": "AREA", "dano": 70.0, "raio_area": 3.5, "cor": (15, 0, 30),
+        "custo": 55.0, "cooldown": 28.0, "efeito": "VULNERAVEL", "elemento": "VOID",
+        "delay": 2.5, "aviso_visual": True, "puxa_para_centro": True,
+        "descricao": "Concentra energia void que implode após longo carregamento"
+    },
+    
+    # =========================================================================
+    # 🩸 SANGUE - Novas hemomancias
+    # =========================================================================
+    "Estilhaço Sanguíneo": {
+        "tipo": "PROJETIL", "dano": 18.0, "velocidade": 20.0, "raio": 0.25,
+        "vida": 1.5, "cor": (200, 20, 40), "custo": 12.0, "cooldown": 3.0,
+        "efeito": "SANGRANDO", "elemento": "SANGUE", "multi_shot": 4,
+        "perfura": True,
+        "descricao": "Dispara 4 lâminas de sangue cristalizado que perfuram"
+    },
+    "Transfusão Forçada": {
+        "tipo": "BEAM", "dano": 15.0, "alcance": 7.0, "cor": (180, 0, 50),
+        "custo": 0, "cooldown": 15.0, "custo_vida": 30.0, "elemento": "SANGUE",
+        "lifesteal": 0.6, "canalizavel": True, "dano_por_segundo": 35.0,
+        "duracao_max": 3.0,
+        "descricao": "Sacrifica HP para drenar massivamente a vida do inimigo"
+    },
+    "Armadura de Sangue": {
+        "tipo": "TRANSFORM", "cor": (150, 0, 40), "custo": 0, "cooldown": 40.0,
+        "custo_vida_percent": 0.1, "duracao": 12.0, "elemento": "SANGUE",
+        "bonus_resistencia": 0.4, "lifesteal_global": 0.15,
+        "dano_contato": 10.0, "bonus_velocidade": 1.2,
+        "descricao": "Solidifica o sangue em armadura — regenera ao causar dano"
+    },
+    
+    # =========================================================================
+    # ⚡ RAIO - Novas descargas elétricas
+    # =========================================================================
+    "Indução Magnética": {
+        "tipo": "PROJETIL", "dano": 15.0, "velocidade": 25.0, "raio": 0.3,
+        "vida": 1.0, "cor": (200, 200, 255), "custo": 14.0, "cooldown": 3.5,
+        "efeito": "PARALISIA", "elemento": "RAIO",
+        "chain": 4, "chain_decay": 0.75,
+        "descricao": "Pulso eletromagnético que salta entre alvos metálicos"
+    },
+    "Tempestade Ascendente": {
+        "tipo": "CHANNEL", "cor": (255, 255, 200), "custo": 45.0, "cooldown": 25.0,
+        "elemento": "RAIO", "canalizavel": True, "duracao_max": 3.0,
+        "dano_por_segundo": 50.0, "imobiliza": True,
+        "descricao": "Canaliza uma tempestade elétrica devastadora ao redor"
+    },
+    
+    # =========================================================================
+    # 🌑 TREVAS - Novas corrupções
+    # =========================================================================
+    "Marca da Morte": {
+        "tipo": "PROJETIL", "dano": 10.0, "velocidade": 15.0, "raio": 0.4,
+        "vida": 2.0, "cor": (60, 0, 90), "custo": 20.0, "cooldown": 10.0,
+        "efeito": "MALDITO", "elemento": "TREVAS",
+        "delay_explosao": 3.0, "raio_explosao": 2.0,
+        "descricao": "Marca o alvo que explode em trevas após 3 segundos"
+    },
+    "Eclipse": {
+        "tipo": "AREA", "dano": 40.0, "raio_area": 5.0, "cor": (30, 0, 50),
+        "custo": 50.0, "cooldown": 30.0, "efeito": "CEGO", "elemento": "TREVAS",
+        "duracao": 4.0, "dano_por_segundo": 15.0,
+        "descricao": "Escurece uma área massiva cegando e drenando inimigos"
+    },
+    
+    # =========================================================================
+    # ❄️ GELO - Novas cristalizações
+    # =========================================================================
+    "Avalanche": {
+        "tipo": "AREA", "dano": 55.0, "raio_area": 6.0, "cor": (160, 220, 255),
+        "custo": 45.0, "cooldown": 22.0, "efeito": "LENTO", "elemento": "GELO",
+        "delay": 1.5, "ondas": 3, "forca_empurrao": 2.0,
+        "descricao": "3 ondas de gelo que empurram e congelam tudo no caminho"
+    },
+    "Espelho de Gelo": {
+        "tipo": "TRAP", "dano": 0.0, "cor": (200, 240, 255),
+        "custo": 20.0, "cooldown": 12.0, "elemento": "GELO",
+        "duracao": 15.0, "vida_estrutura": 80.0,
+        "bloqueia_movimento": True, "bloqueia_projeteis": True,
+        "dano_wall_contato_base": 5.0,
+        "descricao": "Parede de gelo inquebrável que reflete projéteis"
+    },
+    
+    # =========================================================================
+    # 🔥 FOGO - Novas conflagrações
+    # =========================================================================
+    "Cometa": {
+        "tipo": "PROJETIL", "dano": 50.0, "velocidade": 8.0, "raio": 0.6,
+        "vida": 4.0, "cor": (255, 150, 50), "custo": 40.0, "cooldown": 18.0,
+        "efeito": "QUEIMANDO", "elemento": "FOGO",
+        "raio_explosao": 3.0, "homing": True,
+        "descricao": "Cometa rastreador que explode em chamas ao atingir o alvo"
+    },
+    "Erupção Vulcânica": {
+        "tipo": "CHANNEL", "cor": (255, 80, 0), "custo": 50.0, "cooldown": 30.0,
+        "elemento": "FOGO", "canalizavel": True, "duracao_max": 3.0,
+        "dano_por_segundo": 45.0, "imobiliza": True,
+        "meteoros_aleatorios": 6,
+        "descricao": "Canaliza magma que erupciona em meteoros aleatórios"
+    },
+    
+    # =========================================================================
+    # ✨ LUZ - Novas iluminações
+    # =========================================================================
+    "Redenção": {
+        "tipo": "AREA", "dano": 0.0, "raio_area": 4.0, "cor": (255, 255, 200),
+        "custo": 40.0, "cooldown": 25.0, "elemento": "LUZ",
+        "cura": 50.0, "remove_debuffs": True,
+        "descricao": "Pulso de luz que cura aliados e remove todos os debuffs"
+    },
+    "Prisão de Luz": {
+        "tipo": "TRAP", "dano": 20.0, "cor": (255, 255, 180),
+        "custo": 25.0, "cooldown": 15.0, "elemento": "LUZ",
+        "duracao": 8.0, "efeito": "CEGO", "vida_estrutura": 50.0,
+        "bloqueia_movimento": False,
+        "descricao": "Armadilha de luz que cega e danifica quem ativar"
+    },
+    
+    # =========================================================================
+    # 💚 NATUREZA - Novas evoluções
+    # =========================================================================
+    "Simbiose": {
+        "tipo": "BUFF", "cor": (100, 200, 80), "custo": 30.0, "cooldown": 20.0,
+        "duracao": 10.0, "elemento": "NATUREZA",
+        "cura_por_segundo": 10.0, "escudo": 30.0,
+        "descricao": "Simbiose com a natureza que regenera HP e cria escudo vivo"
+    },
+    "Selva Viva": {
+        "tipo": "SUMMON", "cor": (60, 180, 40), "custo": 40.0, "cooldown": 25.0,
+        "duracao": 12.0, "summon_vida": 70.0, "summon_dano": 10.0,
+        "elemento": "NATUREZA", "efeito": "ENRAIZADO",
+        "descricao": "Invoca um treant que enraíza inimigos ao atacar"
     },
 }
 

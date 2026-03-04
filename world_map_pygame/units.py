@@ -27,7 +27,8 @@ class Unit:
                  '_building_atk', '_building_def',
                  '_morale',
                  'army_id', 'role', 'home_x', 'home_y',
-                 'xp', 'level', 'is_veteran')
+                 'xp', 'level', 'is_veteran',
+                 '_attack_cd', '_combat_timer')
 
     def __init__(self, utype, x, y, god_id=None):
         self.utype = utype
@@ -66,6 +67,8 @@ class Unit:
         self.xp       = 0
         self.level    = 1
         self.is_veteran = False
+        self._attack_cd   = 0.0   # attack cooldown timer (seconds)
+        self._combat_timer = 0.0  # time since last combat (for regen)
 
     @property
     def tile_pos(self):
@@ -251,9 +254,10 @@ class UnitSystem:
             cx = sum(u.x for u in members) / len(members)
             cy = sum(u.y for u in members) / len(members)
 
-            # Update morale based on strength and HP
+            # Update morale based on strength and HP (more forgiving for small armies)
             avg_hp_ratio = sum(u.hp / u.max_hp for u in members) / len(members)
-            army.morale = max(0.2, min(1.5, avg_hp_ratio * (1 + len(members) * 0.02)))
+            size_bonus = min(0.5, len(members) * 0.05)
+            army.morale = max(0.3, min(1.5, avg_hp_ratio * 0.7 + 0.3 + size_bonus))
             for u in members:
                 u._morale = army.morale
 
@@ -450,9 +454,17 @@ class UnitSystem:
                 changed = True
                 continue
 
-            # HP regeneration (slow, for non-combat units or when idle)
-            if u.state == 'idle' and u.hp < u.max_hp:
-                u.hp = min(u.max_hp, u.hp + 0.2 * dt)
+            # HP regeneration — all units heal passively, faster when idle
+            u._combat_timer += dt
+            if u.hp < u.max_hp:
+                if u._combat_timer > 3.0:  # 3 seconds since last combat
+                    u.hp = min(u.max_hp, u.hp + 1.5 * dt)  # fast regen out of combat
+                elif u.state == 'idle':
+                    u.hp = min(u.max_hp, u.hp + 0.3 * dt)  # slow regen even idle near combat
+
+            # Tick down attack cooldown
+            if u._attack_cd > 0:
+                u._attack_cd = max(0, u._attack_cd - dt)
 
             # Skip movement for army units (handled by army AI)
             if u.army_id >= 0:
@@ -490,10 +502,16 @@ class UnitSystem:
                                 u.gain_xp(1)
                                 break
 
-                # Scouts explore unexplored territory
+                # Scouts explore unexplored territory (scouts avoid combat)
                 if u.utype == 'scout' and self._rng.random() < 0.08:
                     u.target_x = self._rng.uniform(10, MAP_W - 10)
                     u.target_y = self._rng.uniform(10, MAP_H - 10)
+                    u.state = 'moving'
+
+                # Settlers stay near home and don't fight
+                if u.utype == 'settler':
+                    u.target_x = u.home_x + self._rng.uniform(-5, 5)
+                    u.target_y = u.home_y + self._rng.uniform(-5, 5)
                     u.state = 'moving'
 
             elif u.state == 'moving':
@@ -542,7 +560,24 @@ class UnitSystem:
                     u.y = max(0, min(MAP_H - 1, u.y))
 
             # ── Combat (all units, including army members) ─────────────
-            if u.state in ('idle', 'moving', 'fighting') and u.atk > 0:
+            # Scouts and settlers avoid combat — they flee instead
+            if u.utype in ('scout', 'settler') and u.state in ('idle', 'moving'):
+                for other in self.units:
+                    if (other.alive and other.god_id != u.god_id
+                            and abs(other.x - u.x) < 8 and abs(other.y - u.y) < 8):
+                        # Flee away from enemy
+                        dx = u.x - other.x
+                        dy = u.y - other.y
+                        d = max(0.1, math.sqrt(dx*dx + dy*dy))
+                        flee_speed = u.effective_speed * dt * 1.5
+                        u.x += dx/d * flee_speed
+                        u.y += dy/d * flee_speed
+                        u.x = max(0, min(MAP_W - 1, u.x))
+                        u.y = max(0, min(MAP_H - 1, u.y))
+                        u.state = 'retreating'
+                        break
+
+            if u.state in ('idle', 'moving', 'fighting') and u.atk > 0 and u._attack_cd <= 0:
                 combat_range = 3
                 if u.utype == 'archer':
                     combat_range = 6
@@ -593,8 +628,11 @@ class UnitSystem:
                     if target_def > 0:
                         eff_atk /= target_def
 
-                    # Apply damage
-                    best_target.hp -= eff_atk * dt
+                    # Apply damage as burst (not per-tick drip)
+                    best_target.hp -= eff_atk * 0.3  # fixed burst damage
+                    u._attack_cd = 0.5  # 0.5 second cooldown between attacks
+                    u._combat_timer = 0.0
+                    best_target._combat_timer = 0.0
                     u.state = 'fighting'
                     changed = True
 

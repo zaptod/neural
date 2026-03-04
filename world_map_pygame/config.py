@@ -183,7 +183,7 @@ ERA_NAMES           = ['Dawn', 'Expansion', 'Conflict', 'Empire', 'Decline', 'Re
 # ─── Auto-Civilization ────────────────────────────────────────────────────────
 AUTO_CIV_TICK       = 2.0      # seconds between auto-civ decisions
 SETTLE_MIN_DIST     = 30       # min tiles between settlements
-EXPAND_FOOD_THRESH  = 100      # food needed to expand
+EXPAND_FOOD_THRESH  = 40       # food needed to expand (lowered for early game)
 WAR_DECLARE_THRESH  = 0.6      # territory ratio threshold for war
 UNIT_TYPES = {
     'settler':   {'hp': 30,  'atk': 0,  'spd': 1.5, 'icon': 'settler',  'cost': {'food': 20, 'wood': 10}},

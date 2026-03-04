@@ -295,10 +295,12 @@ class SkillsMixin(_AIBrainMixinBase):
                         return True
             # 1b. Curas diretas (prioriza a de maior valor)
             cura_candidatos = [
-                (nome, skills[nome].data.get("cura", 0) + skills[nome].data.get("cura_por_segundo", 0) * 3)
+                (nome, skills[nome].data.get("cura", 0) + skills[nome].data.get("cura_por_segundo", 0) * 3
+                 + (skills[nome].data.get("cura_percent", 0) * p.vida_max))
                 for nome in plano.rotacao_critical
-                if nome in skills and skills[nome].tipo == "BUFF"
-                and (skills[nome].data.get("cura") or skills[nome].data.get("cura_por_segundo"))
+                if nome in skills and skills[nome].tipo in ("BUFF", "AREA")
+                and (skills[nome].data.get("cura") or skills[nome].data.get("cura_por_segundo")
+                     or skills[nome].data.get("cura_percent"))
             ]
             for nome, _ in sorted(cura_candidatos, key=lambda x: -x[1]):
                 if tentar(nome, "emergencia_cura"):
@@ -309,6 +311,18 @@ class SkillsMixin(_AIBrainMixinBase):
                 if sk and sk.data.get("escudo"):
                     if tentar(nome, "emergencia_escudo"):
                         return True
+            # 1c2. v14.0: Transformações defensivas (Armadura de Sangue, etc.)
+            for nome, sk in skills.items():
+                if sk.tipo == "TRANSFORM" and sk.data.get("bonus_resistencia", 0) > 0.2:
+                    if tentar(nome, "emergencia_transform_defensiva"):
+                        return True
+            # 1c3. v14.0: Lifesteal beams as sustain (drain to survive)
+            if distancia < 7.0:
+                for nome, sk in skills.items():
+                    if sk.data.get("lifesteal", 0) > 0.3 and sk.dano_total > 20:
+                        if alcance_ok(nome, 1.1):
+                            if tentar(nome, "emergencia_lifesteal"):
+                                return True
             # 1d. Escape / dash (prioritário se inimigo atacando)
             if inimigo_atk_iminente or hp_pct < 0.18:
                 for nome in plano.escapes:
@@ -377,14 +391,57 @@ class SkillsMixin(_AIBrainMixinBase):
                     if tentar(nome, "payload_congelado"):
                         return True
 
-            # 4c. Inicia um combo sinérgico se tiver mana suficiente
+            # 4c. v14.0: ELEMENTAL REACTION CHAINING
+            # Se a última skill usada tem um elemento, procura skill com elemento
+            # diferente que gera uma reação forte (multiplicador ≥ 1.5)
+            ultima = strategy.ultima_skill
+            if ultima and ultima in skills and skills[ultima].elemento:
+                ultimo_elem = skills[ultima].elemento
+                # Procura skills de elemento diferente que combinam
+                for nome, sk in skills.items():
+                    if not sk.elemento or sk.elemento == ultimo_elem:
+                        continue
+                    if not pode_usar(nome) or not alcance_ok(nome, 1.2):
+                        continue
+                    # Verifica se gera reação
+                    for combo_entry in strategy.plano.combos:
+                        if len(combo_entry) >= 3 and "elemental_" in combo_entry[2]:
+                            if combo_entry[0] == ultima and combo_entry[1] == nome:
+                                if tentar(nome, f"reaction_chain_{combo_entry[2]}"):
+                                    return True
+
+            # 4d. v14.0: MARCADO → follow-up burst
+            # Se inimigo tem status MARCADO, prioriza skill VOID de alto dano
+            inimigo_marcado = any(
+                getattr(e, 'nome', '').lower() in ('marcado', 'marked')
+                for e in getattr(inimigo, 'status_effects', [])
+            )
+            if inimigo_marcado:
+                # Skills void primeiro (dano dobrado em marcado)
+                void_skills = [(n, sk) for n, sk in skills.items()
+                               if sk.elemento == "VOID" and sk.dano_total > 15
+                               and alcance_ok(n)]
+                void_skills.sort(key=lambda x: x[1].dano_total, reverse=True)
+                for nome, _ in void_skills:
+                    if tentar(nome, "void_marcado_double"):
+                        return True
+                # Qualquer burst se não tem void
+                for nome in plano.bursts:
+                    if alcance_ok(nome) and tentar(nome, "burst_sobre_marcado"):
+                        return True
+
+            # 4e. Inicia um combo sinérgico se tiver mana suficiente
             combo = strategy.get_combo_recomendado()
             if combo:
                 sk1, sk2, razao = combo
-                custo_total = (skills[sk1].custo if sk1 in skills else 9999) +                               (skills[sk2].custo if sk2 in skills else 9999)
+                custo_total = (skills[sk1].custo if sk1 in skills else 9999) + \
+                              (skills[sk2].custo if sk2 in skills else 9999)
                 if p.mana >= custo_total * 0.88:
                     # Chance aumenta se inimigo está parado (stunado/encurralado)
                     chance_combo = 0.75 if (inimigo_stunado or oponente_encurralado) else 0.50
+                    # v14.0: Elemental combos get bonus chance
+                    if "elemental_" in razao:
+                        chance_combo = min(0.90, chance_combo + 0.20)
                     if random.random() < chance_combo:
                         if alcance_ok(sk1, 1.15) and tentar(sk1, f"combo_setup_{razao}"):
                             self.combo_state["em_combo"] = True
@@ -456,10 +513,24 @@ class SkillsMixin(_AIBrainMixinBase):
                 for nome in [n for n, sk in skills.items() if sk.tipo == "AREA" and alcance_ok(n)]:
                     if tentar(nome, "area_sobre_stunado"):
                         return True
+            # v14.0: Se stunado e temos channel — perfect window (can't interrupt)
+            if inimigo_stunado and distancia < 4.0:
+                for nome in [n for n, sk in skills.items()
+                             if sk.tipo == "CHANNEL" and alcance_ok(n)]:
+                    if tentar(nome, "channel_sobre_stunado"):
+                        return True
+            # v14.0: Se debuffado (vulnerável/marcado) — use penetrating attacks
+            if inimigo_debuffado:
+                penetra = [n for n, sk in skills.items()
+                           if sk.data.get("penetra_escudo") and alcance_ok(n)]
+                for nome in penetra:
+                    if tentar(nome, "penetra_sobre_debuffado"):
+                        return True
 
         # ================================================================
         # PRIORIDADE 7: OPENER — primeiros 8 segundos
         # Estabelecer vantagem: buffs de dano, summons, traps, transformações
+        # v14.0: Also considers lifesteal buffs and mark skills as openers
         # ================================================================
         if tempo_combate < 8.0:
             for nome in plano.rotacao_opening:
@@ -468,6 +539,10 @@ class SkillsMixin(_AIBrainMixinBase):
                     continue
                 if sk.tipo == "BUFF" and sk.data.get("buff_dano") and buffs_ativos == 0:
                     if tentar(nome, "opener_buff_dano"):
+                        return True
+                # v14.0: Lifesteal/resistance buffs as opener
+                elif sk.tipo == "BUFF" and (sk.data.get("lifesteal_global") or sk.data.get("bonus_resistencia")):
+                    if buffs_ativos == 0 and tentar(nome, "opener_buff_sustain"):
                         return True
                 elif sk.tipo == "SUMMON" and not tenho_summons and strategy.cd_por_tipo.get("SUMMON", 0) <= 0:
                     if tentar(nome, "opener_summon"):
@@ -483,23 +558,40 @@ class SkillsMixin(_AIBrainMixinBase):
                 elif sk.tipo == "BUFF" and sk.data.get("escudo") and hp_pct < 0.7:
                     if tentar(nome, "opener_escudo"):
                         return True
+            # v14.0: Mark skills as openers (setup combos for later)
+            for nome, sk in skills.items():
+                if sk.data.get("efeito") == "MARCADO" and alcance_ok(nome, 1.15):
+                    if tentar(nome, "opener_marca"):
+                        return True
 
         # ================================================================
         # PRIORIDADE 8: POKE / ZONING — fase neutra
         # Manter pressão sem se expor. Mais importante para ranged/arty.
+        # v14.0: Enhanced mana management — prefer efficient skills when low
         # ================================================================
         poke_dist_ok = distancia > 3.0 if role in ("artillery", "control_mage", "burst_mage") else distancia > 5.0
         if poke_dist_ok and mana_pct > 0.30:
             chance_poke = {
                 "artillery": 0.88, "control_mage": 0.80, "burst_mage": 0.70,
                 "summoner": 0.60, "battle_mage": 0.45, "trap_master": 0.75,
+                "channeler": 0.72,
             }.get(role, 0.38)
             if "SPAMMER" in self.tracos:
                 chance_poke = min(0.96, chance_poke + 0.14)
             if "CALCULISTA" in self.tracos:
                 chance_poke *= 0.80
+            # v14.0: When mana is medium-low, reduce poke frequency
+            if mana_pct < 0.45:
+                chance_poke *= 0.7
             if random.random() < chance_poke:
-                for nome in plano.pokes:
+                # v14.0: Sort pokes by mana efficiency when mana < 50%
+                poke_list = list(plano.pokes)
+                if mana_pct < 0.50:
+                    poke_list.sort(
+                        key=lambda n: skills[n].dano_por_mana if n in skills else 0,
+                        reverse=True
+                    )
+                for nome in poke_list:
                     if alcance_ok(nome, 1.12) and tentar(nome, "poke"):
                         return True
                 # Traps como zoning — diferencia wall vs trigger

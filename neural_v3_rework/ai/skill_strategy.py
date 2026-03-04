@@ -26,6 +26,21 @@ from dataclasses import dataclass, field
 
 from core.skills import get_skill_data
 
+# v14.0: Importa reações elementais para consciência de combos
+try:
+    from core.magic_system import REACOES_ELEMENTAIS, Elemento
+    _REACTION_LOOKUP_AVAILABLE = True
+except ImportError:
+    REACOES_ELEMENTAIS = {}
+    _REACTION_LOOKUP_AVAILABLE = False
+
+# Mapa de string→Elemento para lookup rápido
+_ELEM_STR_MAP: Dict[str, "Elemento"] = {}
+if _REACTION_LOOKUP_AVAILABLE:
+    for e in Elemento:
+        _ELEM_STR_MAP[e.name] = e
+        _ELEM_STR_MAP[e.value] = e
+
 
 # =============================================================================
 # ENUMS E CONSTANTES
@@ -116,6 +131,9 @@ class SkillProfile:
     requer_setup: bool = False
     setup_skill: Optional[str] = None  # Skill que prepara esta
     pode_combo_apos: List[str] = field(default_factory=list)
+    
+    # v14.0: Elemento da skill (para consciência de reações elementais)
+    elemento: Optional[str] = None
     
     # Scores
     score_ofensivo: float = 0.0
@@ -277,7 +295,8 @@ class SkillStrategySystem:
             custo=custo,
             cooldown=cooldown,
             data=data,
-            fonte=fonte
+            fonte=fonte,
+            elemento=data.get("elemento")
         )
         
         # Calcula métricas
@@ -295,7 +314,7 @@ class SkillStrategySystem:
             self.skills_por_tipo[tipo].append(perfil)
     
     def _calcular_metricas(self, perfil: SkillProfile):
-        """Calcula métricas numéricas da skill v3.0"""
+        """Calcula métricas numéricas da skill v4.0"""
         data = perfil.data
         tipo = perfil.tipo
         
@@ -307,6 +326,24 @@ class SkillStrategySystem:
         if data.get("dano_por_segundo"):
             duracao = data.get("duracao_max", 3.0)
             perfil.dano_total += data["dano_por_segundo"] * duracao
+        
+        # v14.0: Multi-shot multiplier
+        multi_shot = data.get("multi_shot", 1)
+        if multi_shot > 1:
+            perfil.dano_total *= multi_shot * 0.7  # Not all will hit
+        
+        # v14.0: Chain hit estimation
+        chain = data.get("chain", 0)
+        if chain > 0:
+            chain_decay = data.get("chain_decay", 0.8)
+            chain_bonus = sum(chain_decay ** i for i in range(1, chain))
+            perfil.dano_total *= (1.0 + chain_bonus * 0.5)  # Estimated chain hits
+        
+        # v14.0: Split/duplicate estimation
+        if data.get("duplica_apos") or data.get("split_aleatorio"):
+            max_splits = data.get("max_splits", 2)
+            perfil.dano_total *= (1.0 + max_splits * 0.35)
+        
         if tipo == "SUMMON":
             duracao = data.get("duracao", 10)
             summon_dano = data.get("summon_dano", 10)
@@ -324,14 +361,22 @@ class SkillStrategySystem:
                 perfil.dano_total = data.get("dano", 0)
             else:
                 # Walls: dano contato por segundo * estim duração de contato
-                dano_contato = data.get("dano_contato", 0)
+                dano_contato = data.get("dano_contato", 0) or data.get("dano_wall_contato_base", 0)
                 perfil.dano_total = dano_contato * 3.0  # ~3s contato estimado
+        
+        # v14.0: Lifesteal effective value (adds to defensive score later)
+        lifesteal = data.get("lifesteal", 0)
+        if lifesteal > 0:
+            perfil.dano_total *= (1.0 + lifesteal * 0.3)  # Lifesteal increases effective value
         
         # Alcance efetivo
         if tipo == "PROJETIL":
             vel = data.get("velocidade", 10)
             vida = data.get("vida", 1.5)
             perfil.alcance_efetivo = vel * vida * 0.8
+            # v14.0: Homing projectiles have extended effective range
+            if data.get("homing"):
+                perfil.alcance_efetivo *= 1.3
         elif tipo == "BEAM":
             perfil.alcance_efetivo = data.get("alcance", 6.0)
         elif tipo == "AREA":
@@ -342,6 +387,9 @@ class SkillStrategySystem:
             perfil.alcance_efetivo = 0  # Self-cast (summon persegue sozinho)
         elif tipo == "TRAP":
             perfil.alcance_efetivo = 0  # Coloca nos pés
+        elif tipo == "CHANNEL":
+            # v14.0: Channels have effective range based on their AoE
+            perfil.alcance_efetivo = data.get("raio_area", 3.0) if data.get("raio_area") else 2.5
         else:
             perfil.alcance_efetivo = 0  # Self-cast
         
@@ -377,17 +425,31 @@ class SkillStrategySystem:
             if data.get("cura") or data.get("cura_por_segundo"):
                 propositos.append(SkillPurpose.SUSTAIN)
                 perfil.hp_proprio_max = 0.7  # Usar quando HP < 70%
+            # v14.0: Percent heal and debuff removal are emergency sustain
+            if data.get("cura_percent") or data.get("remove_debuffs"):
+                propositos.append(SkillPurpose.SUSTAIN)
+                perfil.hp_proprio_max = 0.6
             if data.get("escudo"):
                 propositos.append(SkillPurpose.SUSTAIN)
                 propositos.append(SkillPurpose.OPENER)
             if data.get("buff_dano"):
                 propositos.append(SkillPurpose.OPENER)
                 propositos.append(SkillPurpose.BURST)
+            # v14.0: Variable damage buffs are risky burst
+            if data.get("dano_variavel"):
+                propositos.append(SkillPurpose.BURST)
             if data.get("buff_velocidade"):
                 propositos.append(SkillPurpose.ESCAPE)
                 propositos.append(SkillPurpose.ENGAGE)
-            if data.get("refletir"):
+            if data.get("refletir") or data.get("refletir_projeteis"):
                 propositos.append(SkillPurpose.SUSTAIN)
+            # v14.0: Lifesteal global = sustain when fighting
+            if data.get("lifesteal_global", 0) > 0:
+                propositos.append(SkillPurpose.SUSTAIN)
+                propositos.append(SkillPurpose.OPENER)
+            # v14.0: Fragile speed buffs (dano_recebido_bonus) — only when ahead
+            if data.get("dano_recebido_bonus", 1.0) > 1.0:
+                perfil.hp_proprio_min = 0.4  # Don't use when HP low
 
             # B7 fix: mapear efeito_buff → propósitos (antes ignorado → skills caíam no default UTILITY)
             efeito_buff = data.get("efeito_buff", "")
@@ -474,6 +536,15 @@ class SkillStrategySystem:
             if data.get("condicao") == "ALVO_BAIXA_VIDA" or data.get("executa"):
                 propositos.append(SkillPurpose.FINISHER)
                 perfil.hp_inimigo_max = 0.3
+            # v14.0: Homing + high damage = reliable burst
+            if data.get("homing") and perfil.dano_total > 30:
+                propositos.append(SkillPurpose.BURST)
+            # v14.0: Multi-shot or chain = zone control
+            if data.get("multi_shot", 1) > 2 or data.get("chain", 0) > 2:
+                propositos.append(SkillPurpose.ZONING)
+            # v14.0: Mark effects are openers (setup for combos)
+            if data.get("efeito") == "MARCADO":
+                propositos.append(SkillPurpose.OPENER)
         
         # BEAM
         elif tipo == "BEAM":
@@ -482,6 +553,13 @@ class SkillStrategySystem:
                 propositos.append(SkillPurpose.BURST)
             if data.get("efeito") in ["PARALISIA", "CEGO"]:
                 propositos.append(SkillPurpose.CONTROL)
+            # v14.0: Lifesteal beams are sustain tools
+            if data.get("lifesteal", 0) > 0:
+                propositos.append(SkillPurpose.SUSTAIN)
+            # v14.0: Penetra escudo = finisher potential
+            if data.get("penetra_escudo"):
+                propositos.append(SkillPurpose.FINISHER)
+                perfil.hp_inimigo_max = 0.4
         
         # AREA
         elif tipo == "AREA":
@@ -489,13 +567,25 @@ class SkillStrategySystem:
                 propositos.append(SkillPurpose.BURST)
             if data.get("duracao", 0) > 2:
                 propositos.append(SkillPurpose.ZONING)
-            if data.get("efeito") in ["LENTO", "PARALISIA", "CONGELADO", "MEDO"]:
+            if data.get("efeito") in ["LENTO", "PARALISIA", "CONGELADO", "MEDO", "TEMPO_PARADO"]:
                 propositos.append(SkillPurpose.CONTROL)
+            # v14.0: Pull/vortex areas are strong control
+            if data.get("puxa_continuo") or data.get("puxa_para_centro"):
+                propositos.append(SkillPurpose.CONTROL)
+            # v14.0: Heal areas are sustain
+            if data.get("cura", 0) > 0 or data.get("remove_debuffs"):
+                propositos.append(SkillPurpose.SUSTAIN)
+            # v14.0: Large AoE with delay = zoning
+            if data.get("delay", 0) > 1.0 and data.get("raio_area", 0) > 3.0:
+                propositos.append(SkillPurpose.ZONING)
         
         # CHANNEL
         elif tipo == "CHANNEL":
             propositos.append(SkillPurpose.BURST)
             propositos.append(SkillPurpose.POKE)
+            # v14.0: Immobilizing channels are also control
+            if data.get("imobiliza"):
+                propositos.append(SkillPurpose.ZONING)
         
         # Default
         if not propositos:
@@ -505,29 +595,53 @@ class SkillStrategySystem:
         perfil.proposito_principal = propositos[0]
     
     def _calcular_scores(self, perfil: SkillProfile):
-        """Calcula scores de ofensivo/defensivo/utilidade"""
+        """Calcula scores de ofensivo/defensivo/utilidade v4.0"""
         data = perfil.data
         
         # Ofensivo
         perfil.score_ofensivo = min(1.0, perfil.dano_total / 60)
         if perfil.proposito_principal in [SkillPurpose.BURST, SkillPurpose.POKE, SkillPurpose.FINISHER]:
             perfil.score_ofensivo += 0.2
+        # v14.0: Penetra escudo = high offensive value
+        if data.get("penetra_escudo"):
+            perfil.score_ofensivo += 0.15
+        # v14.0: Chain/multi-shot = better AoE offense
+        if data.get("chain") or data.get("multi_shot"):
+            perfil.score_ofensivo += 0.1
         
         # Defensivo
         if data.get("cura") or data.get("escudo"):
             perfil.score_defensivo = 0.8
-        if data.get("refletir"):
+        if data.get("cura_percent"):
+            perfil.score_defensivo = 0.85
+        if data.get("cura_por_segundo"):
+            perfil.score_defensivo = max(perfil.score_defensivo, 0.7)
+        if data.get("refletir") or data.get("refletir_projeteis"):
             perfil.score_defensivo = 0.7
         if perfil.tipo == "DASH":
             perfil.score_defensivo = 0.5
         if data.get("invencivel"):
             perfil.score_defensivo = 0.9
+        # v14.0: Lifesteal is both offensive and defensive
+        if data.get("lifesteal", 0) > 0:
+            perfil.score_defensivo = max(perfil.score_defensivo, 0.5 + data["lifesteal"])
+            perfil.score_ofensivo += 0.1
+        if data.get("remove_debuffs"):
+            perfil.score_defensivo = max(perfil.score_defensivo, 0.6)
+        if data.get("bonus_resistencia"):
+            perfil.score_defensivo = max(perfil.score_defensivo, 0.5 + data["bonus_resistencia"])
         
         # Utilidade
         if perfil.tipo in ["BUFF", "SUMMON", "TRAP"]:
             perfil.score_utilidade = 0.7
         if data.get("efeito") in ["LENTO", "PARALISIA", "CONGELADO"]:
             perfil.score_utilidade = 0.6
+        # v14.0: Silence/fear = high utility in mage matchups
+        if data.get("efeito") in ["SILENCIADO", "MEDO", "CEGO"]:
+            perfil.score_utilidade = max(perfil.score_utilidade, 0.65)
+        # v14.0: Vortex/pull effects = high utility
+        if data.get("puxa_continuo") or data.get("puxa_para_centro"):
+            perfil.score_utilidade = max(perfil.score_utilidade, 0.7)
     
     def _categorizar_por_proposito(self):
         """Organiza skills por propósito"""
@@ -554,6 +668,9 @@ class SkillStrategySystem:
             self.role_principal = StrategicRole.TRAP_MASTER
         elif contagem_tipo["TRANSFORM"] >= 1 and contagem_tipo["BUFF"] >= 2:
             self.role_principal = StrategicRole.TRANSFORMER
+        # v14.0: Channel-heavy characters
+        elif contagem_tipo.get("CHANNEL", 0) >= 2:
+            self.role_principal = StrategicRole.CHANNELER
         elif contagem_prop[SkillPurpose.BURST] >= 3 and dano_total > 150:
             self.role_principal = StrategicRole.BURST_MAGE
         elif contagem_prop[SkillPurpose.CONTROL] >= 2:
@@ -897,7 +1014,67 @@ class SkillStrategySystem:
             for trap in trigger_traps[:2]:
                 add(summon, trap, "summon_chase_into_trap")
 
-        self.plano.combos = combos[:25]
+        # =====================================================================
+        # v14.0: ELEMENTAL REACTION COMBOS
+        # Busca skills com elementos diferentes que geram reações fortes.
+        # Prioriza reações com multiplicador >= 1.5
+        # =====================================================================
+        if _REACTION_LOOKUP_AVAILABLE:
+            elem_skills: Dict[str, List[SkillProfile]] = {}
+            for sk in all_sk:
+                if sk.elemento:
+                    elem_skills.setdefault(sk.elemento, []).append(sk)
+            
+            # Para cada par de elementos que gera reação
+            checked = set()
+            for (e1, e2), (nome_reacao, efeito, mult) in REACOES_ELEMENTAIS.items():
+                pair_key = (e1.name, e2.name) if e1.name < e2.name else (e2.name, e1.name)
+                if pair_key in checked:
+                    continue
+                checked.add(pair_key)
+                
+                # Só se temos skills dos dois elementos
+                sk_e1 = elem_skills.get(e1.name, [])
+                sk_e2 = elem_skills.get(e2.name, [])
+                if not sk_e1 or not sk_e2:
+                    continue
+                
+                # Reações fortes (mult >= 1.5) — combos mais prioritários
+                razao_suffix = f"elemental_{nome_reacao}_{mult:.1f}x"
+                
+                # Melhor applicador de e1 → melhor dano de e2
+                best_e1 = sorted(sk_e1, key=lambda s: s.dano_total, reverse=True)[:2]
+                best_e2 = sorted(sk_e2, key=lambda s: s.dano_total, reverse=True)[:2]
+                
+                for s1 in best_e1:
+                    for s2 in best_e2:
+                        if s1.nome != s2.nome:
+                            add(s1, s2, razao_suffix)
+                # E a direção reversa também
+                for s2 in best_e2[:1]:
+                    for s1 in best_e1[:1]:
+                        if s2.nome != s1.nome:
+                            add(s2, s1, razao_suffix)
+
+            # v14.0: LIFESTEAL COMBO — debilitar → drenar
+            lifesteal_sk = [s for s in all_sk if s.data.get("lifesteal", 0) > 0]
+            for ls in lifesteal_sk:
+                # Debuff primeiro → lifesteal para maximizar drain
+                for deb in debuff_sk[:2]:
+                    add(deb, ls, "debuff_lifesteal")
+                # CC → lifesteal (alvo parado, drain livre)
+                for cc in cc_sk[:2]:
+                    add(cc, ls, "cc_lifesteal_free")
+
+            # v14.0: MARCADO → VOID combo (marca do vazio → habilidade void)
+            marcado_sk = [s for s in all_sk if s.data.get("efeito") == "MARCADO"]
+            void_burst = [s for s in all_sk if s.elemento == "VOID" and s.dano_total > 20]
+            for m in marcado_sk:
+                for vb in void_burst[:2]:
+                    if m.nome != vb.nome:
+                        add(m, vb, "marca_void_DOUBLE_DMG")
+
+        self.plano.combos = combos[:30]  # v14.0: increased from 25 to 30
 
     # =========================================================================
     # EXECUÇÃO DO PLANO
