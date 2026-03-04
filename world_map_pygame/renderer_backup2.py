@@ -50,9 +50,6 @@ class MapRenderer:
         self._lfonts:  Dict[tuple, pygame.font.Font] = {}
         self._ownership_surf: Optional[pygame.Surface] = None
         self._ownership_key  = None
-        # Terrain pixel modification for god ownership
-        self._base_surf_clean = map_surf.copy()  # pristine terrain copy
-        self._terrain_own_key = None              # ownership hash for terrain mod
         self._mask_cache: Dict[Tuple[int, int], Tuple[np.ndarray, np.ndarray]] = {}
         self._filter_surf: Optional[pygame.Surface] = None
         self._filter_key  = None
@@ -65,74 +62,8 @@ class MapRenderer:
         self._road_surf   = pygame.Surface((_sw, _sh), pygame.SRCALPHA)
         self._subdist_surf = pygame.Surface((_sw, _sh), pygame.SRCALPHA)
 
-        # Terrain viewport cache — avoids re-scaling every frame
-        self._viewport_key = None  # (tx0, ty0, tx1, ty1, dw, dh, terrain_own_key)
-        self._viewport_scaled: Optional[pygame.Surface] = None
-
         # Region name cache (LOD 0)
         self._region_data = self._build_region_data()
-
-    # ── Terrain pixel modification for god ownership ──────────────────────
-    def _apply_terrain_ownership(self, ownership: dict):
-        """
-        When a god owns a zone, blend the nature tint directly into the
-        terrain texture pixels. Restores pristine terrain for unowned zones.
-        Only rebuilds when ownership changes.
-        """
-        key = tuple(sorted(ownership.items()))
-        if key == self._terrain_own_key:
-            return
-        self._terrain_own_key = key
-
-        # Start from pristine terrain
-        self.surf.blit(self._base_surf_clean, (0, 0))
-
-        # Get pixel arrays
-        clean_arr = pygame.surfarray.pixels3d(self._base_surf_clean)
-        dest_arr = pygame.surfarray.pixels3d(self.surf)
-        idx_t = self.zone_idx.T  # (W, H) — matches surfarray layout
-
-        # Nature-to-terrain color blend map (r, g, b, blend_factor)
-        _NATURE_TERRAIN = {
-            "fire":      (180,  40,  20, 0.22),
-            "ice":       (160, 200, 240, 0.25),
-            "darkness":  ( 40,  20,  60, 0.30),
-            "nature":    ( 30, 140,  50, 0.18),
-            "chaos":     (180,  40, 160, 0.20),
-            "void":      ( 20,  30, 100, 0.25),
-            "holy":      (240, 210,  80, 0.15),
-            "death":     ( 60,  50,  45, 0.25),
-            "blood":     (150,  20,  20, 0.22),
-            "arcane":    (100,  60, 180, 0.18),
-            "storm":     ( 70, 100, 160, 0.20),
-            "earth":     (140, 100,  50, 0.15),
-        }
-
-        for i, zone in enumerate(self.zone_list):
-            gid = ownership.get(zone.zone_id)
-            if not gid:
-                continue  # unowned → pristine terrain (already restored)
-            god = self.gods.get(gid)
-            if not god:
-                continue
-
-            blend_info = _NATURE_TERRAIN.get(god.nature)
-            if not blend_info:
-                continue
-
-            tr, tg, tb, factor = blend_info
-            mask = (idx_t == i)
-
-            # Blend: dest = clean * (1 - factor) + nature_color * factor
-            inv = 1.0 - factor
-            dest_arr[mask, 0] = np.clip(
-                clean_arr[mask, 0] * inv + tr * factor, 0, 255).astype(np.uint8)
-            dest_arr[mask, 1] = np.clip(
-                clean_arr[mask, 1] * inv + tg * factor, 0, 255).astype(np.uint8)
-            dest_arr[mask, 2] = np.clip(
-                clean_arr[mask, 2] * inv + tb * factor, 0, 255).astype(np.uint8)
-
-        del clean_arr, dest_arr
 
     def _build_region_data(self) -> list:
         """Build region centroids from zone data for LOD 0 labels."""
@@ -217,18 +148,11 @@ class MapRenderer:
         # ── 1. Ocean fill ─────────────────────────────────────────────────
         screen.fill((48, 62, 92), clip)
 
-        # ── 1b. Apply terrain pixel modification for owned zones ──────────
-        if ownership:
-            self._apply_terrain_ownership(ownership)
-
-        # ── 2. Base terrain texture (cached viewport scale) ───────────────
-        vp_key = (tx0, ty0, tx1, ty1, dw, dh, self._terrain_own_key)
-        if vp_key != self._viewport_key or self._viewport_scaled is None:
-            chunk = self.surf.subsurface(src)
-            self._viewport_scaled = pygame.transform.scale(chunk, (dw, dh))
-            self._viewport_key = vp_key
+        # ── 2. Base terrain texture ───────────────────────────────────────
+        chunk = self.surf.subsurface(src)
+        scaled_surf = pygame.transform.smoothscale(chunk, (dw, dh))
         screen.set_clip(clip)
-        screen.blit(self._viewport_scaled, (sx0, sy0))
+        screen.blit(scaled_surf, (sx0, sy0))
         screen.set_clip(None)
 
         # ── 3. Ownership overlay (LOD 1+) ─────────────────────────────────
@@ -453,9 +377,9 @@ class MapRenderer:
                 icon = self.structure_mgr.get_icon(st.struct_type)
                 if icon:
                     isz = icon.get_width()
-                    draw_sz = max(14, int(isz * min(3.0, cam.zoom * 1.8)))
+                    draw_sz = max(6, int(isz * min(2.0, cam.zoom)))
                     if draw_sz != isz:
-                        icon = pygame.transform.scale(icon, (draw_sz, draw_sz))
+                        icon = pygame.transform.smoothscale(icon, (draw_sz, draw_sz))
                     surf.blit(icon, (sx - draw_sz // 2, sy - draw_sz // 2))
 
                 if st.importance >= 3 and cam.zoom >= 1.2:
@@ -497,7 +421,7 @@ class MapRenderer:
                     continue
 
                 base_sz = sprite.get_width()
-                draw_sz = max(14, int(base_sz * zoom * 1.2))
+                draw_sz = max(6, int(base_sz * zoom * 0.8))
                 if draw_sz != base_sz:
                     drawn = pygame.transform.scale(sprite, (draw_sz, draw_sz))
                 else:
@@ -733,7 +657,7 @@ class MapRenderer:
         dh = max(1, int((wb - wt) * cam.zoom))
 
         chunk  = self._ownership_surf.subsurface(src)
-        scaled_ow = pygame.transform.scale(chunk, (dw, dh))
+        scaled_ow = pygame.transform.smoothscale(chunk, (dw, dh))
         screen.set_clip(clip)
         screen.blit(scaled_ow, (sx0, sy0))
         screen.set_clip(None)

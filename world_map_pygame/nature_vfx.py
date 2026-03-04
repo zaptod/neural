@@ -106,15 +106,17 @@ class NatureVFX:
 
         zone_list = list(self.zones.values())
         for i, zone in enumerate(zone_list):
-            # Determine effective nature
+            # Only tint zones that are actually owned by a god
             gid = ownership.get(zone.zone_id)
-            if gid:
-                god = gods.get(gid)
-                nature = god.nature if god else zone.base_nature
-            else:
-                nature = zone.base_nature
+            if not gid:
+                continue  # unowned → no tint at all
 
-            tint = NATURE_TINT.get(nature, NATURE_TINT.get("unclaimed"))
+            god = gods.get(gid)
+            if not god:
+                continue
+            nature = god.nature
+
+            tint = NATURE_TINT.get(nature)
             if tint is None:
                 continue
 
@@ -148,12 +150,15 @@ class NatureVFX:
         zone_list = list(self.zones.values())
 
         for i, zone in enumerate(zone_list):
+            # Only draw corruption for owned zones
             gid = ownership.get(zone.zone_id)
-            if gid:
-                god = gods.get(gid)
-                nature = god.nature if god else zone.base_nature
-            else:
-                nature = zone.base_nature
+            if not gid:
+                continue  # unowned → no corruption overlay
+
+            god = gods.get(gid)
+            if not god:
+                continue
+            nature = god.nature
 
             vfx_cfg = NATURE_VFX.get(nature)
             if not vfx_cfg or not vfx_cfg.get("overlay"):
@@ -225,13 +230,15 @@ class NatureVFX:
             if not (wl <= cx <= wr and wt <= cy <= wb):
                 continue
 
-            # Determine nature
+            # Only emit particles for owned zones
             gid = ownership.get(zone.zone_id)
-            if gid:
-                god = gods.get(gid)
-                nature = god.nature if god else zone.base_nature
-            else:
-                nature = zone.base_nature
+            if not gid:
+                continue  # unowned → no particles
+
+            god = gods.get(gid)
+            if not god:
+                continue
+            nature = god.nature
 
             vfx_cfg = NATURE_VFX.get(nature)
             if not vfx_cfg or not vfx_cfg.get("particles"):
@@ -321,7 +328,7 @@ class NatureVFX:
         dh = max(1, int((wb - wt) * cam.zoom))
 
         chunk = tint_surf.subsurface(src)
-        scaled_ch = pygame.transform.smoothscale(chunk, (dw, dh))
+        scaled_ch = pygame.transform.scale(chunk, (dw, dh))
         screen.set_clip(clip)
         screen.blit(scaled_ch, (sx0, sy0))
         screen.set_clip(None)

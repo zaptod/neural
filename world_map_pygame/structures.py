@@ -57,195 +57,195 @@ class SubDistrict:
 # offsets are relative to zone centroid, in world coords
 
 ZONE_STRUCTURES: Dict[str, list] = {
-    # ── The Void Ridge ────────────────────────────────────────────────────
+    # ── The Northern Seas ──────────────────────────────────────────────────
     "shattered_peak": [
-        ("ruins", "Broken Observatory", -60, -20, 3, "Once tracked the movements of gods."),
-        ("outpost", "Storm Watchers' Camp", 40, 10, 1, "Scouts brave enough to watch the void."),
-        ("tower", "Void Spire", -20, 30, 2, "A twisted tower crackling with void energy."),
+        ("ruins", "Sunken Observatory", -60, -20, 3, "Half-submerged tower, once tracked stellar tides."),
+        ("outpost", "Fog Watchers' Buoy", 40, 10, 1, "Anchored scouts who chart the shallows."),
+        ("tower", "Barnacle Spire", -20, 30, 2, "A coral-crusted pillar rising from the seabed."),
     ],
     "ashen_wastes": [
-        ("ruins", "The Charnel", 0, -15, 3, "Bones of a forgotten army."),
-        ("outpost", "Ashen Outpost", -70, 20, 1, "Barely standing against the wind."),
-        ("village", "Dustwalker Camp", 50, -10, 1, "Nomads who breathe ash."),
+        ("ruins", "Storm-Wrack Reef", 0, -15, 3, "Ship bones piled on underwater rocks."),
+        ("outpost", "Driftwood Outpost", -70, 20, 1, "Floating platform lashed together from wreckage."),
+        ("village", "Sea Nomad Camp", 50, -10, 1, "Boat-dwellers who follow the currents."),
     ],
     "dead_crown": [
-        ("fortress", "Crown Ruins", 0, 0, 3, "Broken throne of a dead kingdom."),
-        ("ruins", "Shattered Gate", -50, 20, 2, "The kingdom's last defense."),
-        ("tower", "Silent Tower", 40, -15, 1, "No sound escapes its walls."),
+        ("fortress", "Bleached Rock Fort", 0, 0, 3, "A fortress on the only rock above water."),
+        ("ruins", "Drowned Gateway", -50, 20, 2, "Stone arch visible at low tide."),
+        ("tower", "Gull Tower", 40, -15, 1, "Seabird colony on a crumbling pillar."),
     ],
 
-    # ── The Verdant Reach ─────────────────────────────────────────────────
+    # ── The Emerald Coast ─────────────────────────────────────────────────
     "elderwood_grove": [
-        ("sacred", "The Heartwood", 0, 0, 3, "Oldest tree in Aethermoor."),
-        ("village", "Root Town", -40, 30, 2, "Built within the roots of giants."),
-        ("temple", "Druid's Circle", 30, -20, 2, "Stones older than memory."),
+        ("port", "Saltsong Harbor", 0, 0, 3, "The bay's only safe anchorage."),
+        ("village", "Cliff Hamlet", -40, 30, 2, "Homes carved into the sea cliffs."),
+        ("temple", "Tidekeeper's Shrine", 30, -20, 2, "Offerings to calm the waves."),
     ],
     "thornwall": [
-        ("fortress", "Thorn Gate", 10, 0, 3, "Living thorns form the walls."),
-        ("village", "Briar Hamlet", -30, 20, 1, "Hidden behind the wall of thorns."),
-        ("outpost", "Ranger Post", 20, -25, 1, "Eyes of the forest watch here."),
+        ("outpost", "Windmere Watch", 10, 0, 3, "Coastal lookout over the grasslands."),
+        ("village", "Dune Hamlet", -30, 20, 1, "Thatched roofs among the beach grass."),
+        ("outpost", "Shoreline Post", 20, -25, 1, "Patrols where sand meets green."),
     ],
     "misty_highlands": [
-        ("temple", "Fog Shrine", 0, 10, 3, "Prayers dissolve into mist."),
-        ("village", "Highland Settlement", -30, -15, 1, "They navigate by sound alone."),
-        ("tower", "Beacon Tower", 25, 20, 2, "Lit only when danger is near."),
+        ("temple", "Mist Shrine", 0, 10, 3, "Hidden in the coastal forest. Prayers dissolve into fog."),
+        ("village", "Canopy Village", -30, -15, 1, "Tree-houses above the waterline."),
+        ("tower", "Shore Beacon", 25, 20, 2, "Guides ships past the forested coast."),
     ],
 
-    # ── The Iron Heartlands ───────────────────────────────────────────────
+    # ── The Worldspine ─────────────────────────────────────────────────────
     "iron_gate": [
-        ("fortress", "The Iron Gate", 0, 0, 3, "The great northern passage."),
-        ("city", "Gatekeep Town", -50, 20, 2, "Merchants and soldiers."),
-        ("outpost", "Northern Watchtower", 30, -30, 1, "First to see invaders."),
-        ("market", "Gate Market", 40, 15, 1, "Trading post for travelers."),
+        ("fortress", "Canopy Fortress", 0, 0, 3, "A stronghold hidden beneath the endless forest."),
+        ("city", "Greenhollow Town", -50, 20, 2, "A settlement carved from the living forest."),
+        ("outpost", "Treetop Lookout", 30, -30, 1, "Eyes above the canopy."),
+        ("market", "Timber Market", 40, 15, 1, "Trade in rare woods and forest herbs."),
     ],
     "anvil_plains": [
-        ("fortress", "Battle Arena", 0, -10, 3, "Where champions are forged."),
-        ("village", "Smith's Rest", -40, 20, 1, "Blacksmiths serve the war machine."),
-        ("outpost", "Scout Ridge", 50, -5, 1, "Overlooks the entire plain."),
+        ("fortress", "Stormcrest Keep", 0, -10, 3, "A fortress hammered into the mountain rock."),
+        ("village", "Snowmelt Camp", -40, 20, 1, "Shelters where the snowline begins."),
+        ("outpost", "Peak Watchtower", 50, -5, 1, "Overlooks the range from a windswept ridge."),
     ],
     "warriors_rest": [
-        ("city", "Champions' Hall", 0, 0, 3, "Hall of legendary fighters."),
-        ("temple", "Memorial Shrine", -35, 25, 2, "Names of every fallen warrior."),
-        ("village", "Veteran's Village", 40, -10, 1, "Retired warriors live here."),
-        ("market", "Arms Market", -15, -25, 1, "Best weapons in the heartlands."),
+        ("fortress", "Titan's Hall", 0, 0, 3, "Ancient hall carved into the highest peaks."),
+        ("temple", "Glacier Shrine", -35, 25, 2, "A frozen altar where offerings never melt."),
+        ("village", "Summit Camp", 40, -10, 1, "The highest settlement in Aethermoor."),
+        ("outpost", "Ridge Watch", -15, -25, 1, "Guards the mountain passes below."),
     ],
 
-    # ── The Ember Barrens ─────────────────────────────────────────────────
+    # ── The Eastern Reach ─────────────────────────────────────────────────
     "char_fields": [
-        ("ruins", "Burned Citadel", 0, 0, 3, "A fortress consumed by its own fire."),
-        ("mine", "Carbon Mine", -40, 15, 2, "Digging through ancient ash."),
-        ("outpost", "Ember Watch", 35, -10, 1, "Guards against fire storms."),
+        ("port", "Dawn Harbor", 0, 0, 3, "Easternmost port, first to greet the sunrise."),
+        ("ruins", "Coral Lighthouse", -40, 15, 2, "Ancient beacon crusted with sea growth."),
+        ("outpost", "Eastern Buoy", 35, -10, 1, "Marker for ships approaching the continent."),
     ],
     "cinder_pit": [
-        ("mine", "The Deep Forge", 0, 10, 3, "A forge powered by the earth's wound."),
-        ("ruins", "Slag Hill", -30, -15, 2, "Ruins melted into the rock."),
-        ("tower", "Flame Spire", 25, 20, 2, "Burns eternally atop the pit."),
+        ("fortress", "Ironwood Bastion", 0, 10, 3, "Fortress built from iron-hard forest timber."),
+        ("village", "Ridgewood Camp", -30, -15, 2, "Settlement where forest meets mountain."),
+        ("tower", "Canopy Spire", 25, 20, 2, "Tower rising above the forest crown."),
     ],
     "dragonfault": [
-        ("ruins", "Impact Crater", 0, 0, 3, "Whatever fell here left a scar forever."),
-        ("sacred", "Dragon Bones", -40, 20, 2, "Petrified remains of something massive."),
-        ("outpost", "Fault Watch", 30, -15, 1, "Monitors seismic activity."),
+        ("outpost", "Steppe Garrison", 0, 0, 3, "Military outpost overlooking the golden grass."),
+        ("sacred", "Wind Altar", -40, 20, 2, "A stone circle where the steppe wind is worshipped."),
+        ("village", "Grassrunner Camp", 30, -15, 1, "Nomadic herders of the amber hills."),
     ],
 
-    # ── The Bone Marches ──────────────────────────────────────────────────
+    # ── The Abyssal Deep ──────────────────────────────────────────────────
     "bleached_path": [
-        ("ruins", "Bone Road", 0, 0, 3, "Paved with the bones of fleeing refugees."),
-        ("tower", "Death Beacon", -25, 20, 2, "Warns travelers to turn back."),
-        ("outpost", "Last Hope Camp", 30, -10, 1, "Final rest before the darkness."),
+        ("ruins", "Whale-Bone Arch", 0, 0, 3, "A colossal rib cage arching above the waves."),
+        ("tower", "Depth Beacon", -25, 20, 2, "Warns ships of the shelf's edge."),
+        ("outpost", "Tide Watcher Raft", 30, -10, 1, "Anchored platform charting the deep."),
     ],
     "grave_hollow": [
-        ("temple", "Silent Crypt", 0, 0, 3, "Even prayers don't echo here."),
-        ("ruins", "Hollow Graves", -35, 15, 2, "Graves that were emptied from below."),
-        ("village", "Mourner's Den", 20, -20, 1, "Those who refuse to leave the dead."),
+        ("sacred", "The Void Maw", 0, 0, 3, "Where the ocean floor drops into blackness."),
+        ("ruins", "Drowned Pillars", -35, 15, 2, "Stone columns visible far beneath the water."),
+        ("outpost", "Abyss Marker", 20, -20, 1, "A buoy that drifts but never sinks."),
     ],
     "widows_pass": [
-        ("city", "Widow's Fortress", 0, 0, 3, "City of war widows. None are welcome."),
-        ("market", "Black Market", -25, 15, 2, "Trade in forbidden goods."),
-        ("tower", "Widow's Watch", 20, -10, 1, "Guards against male intruders."),
+        ("ruins", "Ghost Fleet", 0, 0, 3, "Ships that sailed here and stopped forever."),
+        ("sacred", "Still-Water Altar", -25, 15, 2, "An offering stone floating on motionless water."),
+        ("outpost", "Silent Vigil", 20, -10, 1, "The loneliest watch in Aethermoor."),
     ],
 
-    # ── The Crown Districts ───────────────────────────────────────────────
+    # ── The Summit Throne ─────────────────────────────────────────────────
     "slum_district": [
-        ("city", "The Slums", -30, 0, 3, "Where Caleb was born and left to die."),
-        ("ruins", "The Abyss Edge", 30, -15, 3, "Where Caleb was thrown. The God War began."),
-        ("market", "Rat Market", -10, 25, 1, "Stolen goods and desperate trades."),
-        ("village", "Beggar's Row", 40, 15, 1, "The poorest street in Aethermoor."),
-        ("tower", "Broke Tower", -40, -20, 1, "Leaning, crumbling, still standing."),
+        ("sacred", "The Crown Peak", -30, 0, 3, "The highest point in Aethermoor. Where Caleb fell."),
+        ("ruins", "The Precipice", 30, -15, 3, "Where Caleb was cast down. The God War began."),
+        ("outpost", "Summit Camp", -10, 25, 1, "Harsh shelters clinging to the peak."),
+        ("village", "Wind-Scoured Huts", 40, 15, 1, "The only settlement daring to exist this high."),
+        ("tower", "Sky Needle", -40, -20, 1, "A spire of stone reaching into the clouds."),
     ],
     "merchant_quarter": [
-        ("city", "Grand Bazaar", 0, 0, 3, "Heart of trade in all Aethermoor."),
-        ("market", "Gold Exchange", -40, 15, 2, "Where fortunes are made and lost."),
-        ("city", "Merchant Guildhall", 35, -10, 2, "Power behind the throne."),
-        ("temple", "Coin Temple", 20, 25, 1, "They worship commerce here."),
+        ("fortress", "Skyreach Citadel", 0, 0, 3, "A fortress on the high plateau above the clouds."),
+        ("outpost", "Cloud Watch", -40, 15, 2, "Observation post with views to every horizon."),
+        ("village", "Plateau Settlement", 35, -10, 2, "Hardy folk who live in thin air."),
+        ("temple", "Wind Temple", 20, 25, 1, "Prayers carried directly to the gods by altitude."),
     ],
     "high_citadel": [
-        ("fortress", "The High Citadel", 0, 0, 3, "Throne of a dead king."),
-        ("city", "Royal Quarter", -35, 20, 2, "Where nobility once lived."),
-        ("temple", "Hall of Memory", 30, -15, 2, "Records of all Aethermoor's history."),
-        ("tower", "Crown Tower", 40, 15, 1, "Tallest point in the districts."),
+        ("fortress", "The Granite Bastion", 0, 0, 3, "A natural fortress of sheer mountain walls."),
+        ("outpost", "Stone Gate", -35, 20, 2, "Mountain pass fortified with cut granite."),
+        ("temple", "Echo Hall", 30, -15, 2, "Carved into the mountainside. Every whisper returns."),
+        ("tower", "Bastion Tower", 40, 15, 1, "Tallest structure on the mountain slopes."),
     ],
 
-    # ── The Tidal Expanse ─────────────────────────────────────────────────
+    # ── The Tidal Reach ──────────────────────────────────────────────────
     "drowned_shore": [
-        ("port", "Shipwreck Harbor", 0, 0, 3, "A coast where ships go to die."),
-        ("ruins", "Tidal Ruins", -30, 20, 2, "Submerged at high tide."),
-        ("village", "Fisher's End", 25, -15, 1, "Last fishing village."),
+        ("port", "Driftwood Harbor", 0, 0, 3, "A grey-sand beach where wreckage accumulates."),
+        ("ruins", "Storm-Beaten Ruins", -30, 20, 2, "Half-buried foundations under grey sand."),
+        ("village", "Beachcomber Camp", 25, -15, 1, "Scavengers who live off the storm's gifts."),
     ],
     "salt_flats": [
-        ("ruins", "Salt Pillars", 0, 0, 3, "Crystallized formations that hum."),
-        ("outpost", "Flat Beacon", -25, 15, 1, "Visible for miles across the white."),
-        ("mine", "Salt Works", 25, -10, 2, "Mining cursed salt."),
+        ("ruins", "Pearl Pillars", 0, 0, 3, "Crystal formations rising from white sand below the shallows."),
+        ("outpost", "Shoal Beacon", -25, 15, 1, "Marks the edge of navigable water."),
+        ("sacred", "Tideless Stone", 25, -10, 2, "A rock where the water never rises or falls."),
     ],
     "deep_current": [
-        ("port", "Current's Edge", 0, 0, 3, "Port on the edge of the whirlpool."),
-        ("ruins", "Drowner's Rest", -20, 15, 2, "Bones from below wash up here."),
-        ("sacred", "Tidal Stone", 20, -10, 2, "An ancient marker. The water obeys it."),
+        ("ruins", "The Lost Anchorage", 0, 0, 3, "Chains descend into the water but hold nothing."),
+        ("sacred", "Current Stone", -20, 15, 2, "An ancient marker the riptides bend around."),
+        ("outpost", "Warning Buoy", 20, -10, 2, "Painted red. The last thing captains see."),
     ],
 
-    # ── The Golden Reaches ────────────────────────────────────────────────
+    # ── The Southern Wilds ────────────────────────────────────────────────
     "gilded_road": [
-        ("market", "Golden Mile", 0, 0, 3, "Every stone worth more than a life."),
-        ("city", "Toll Town", -30, 15, 2, "You pay to walk, breathe, and leave."),
-        ("outpost", "Road Guard Post", 30, -10, 1, "Protecting the wealthy from the poor."),
+        ("port", "Moonrise Pier", 0, 0, 3, "A silver-lit pier where southern ships dock."),
+        ("ruins", "Tidal Shrine", -30, 15, 2, "Half-sunken temple to a forgotten sea god."),
+        ("outpost", "Bay Watch", 30, -10, 1, "Lantern post guiding nighttime arrivals."),
     ],
     "dusthaven": [
-        ("city", "Dusthaven Crossroads", 0, 0, 3, "Built on debt. Everyone owes something."),
-        ("market", "Debt Exchange", -30, 15, 2, "Buy and sell debts here."),
-        ("temple", "Creditor's Shrine", 25, -10, 1, "Pray your debts are forgiven."),
-        ("village", "Debtor's Quarter", 35, 20, 1, "Those who couldn't pay."),
+        ("city", "Darkwood Outpost", 0, 0, 3, "The only clearing in the impenetrable thicket."),
+        ("sacred", "Root Altar", -30, 15, 2, "A living shrine of twisted ancient roots."),
+        ("temple", "Canopy Temple", 25, -10, 1, "Built high among the oldest branches."),
+        ("village", "Undergrowth Camp", 35, 20, 1, "Shelters woven from the forest itself."),
     ],
     "old_crossing": [
-        ("sacred", "The First Bargain", 0, 0, 3, "Where the first human bargained with a god."),
-        ("ruins", "Broken Altar", -25, 15, 2, "The deal is still unpaid."),
-        ("village", "Crossing Settlement", 20, -15, 1, "Built near the sacred site."),
+        ("sacred", "Coral Throne", 0, 0, 3, "A vast coral formation shaped like a seat of power."),
+        ("ruins", "Luminous Reef", -25, 15, 2, "Bioluminescent reef that glows beneath the surface."),
+        ("outpost", "Reef Marker", 20, -15, 1, "Navigation post above the coral shelf."),
     ],
 
-    # ── The Sunken Archive (Seal Zones) ───────────────────────────────────
-    "seal_of_fear": [
-        ("temple", "Seal of Fear", 0, 0, 3, "The ground breathes here."),
-        ("sacred", "Nightmare Pool", -20, 10, 2, "Reflections show your death."),
+    # ── The Forbidden Depths (Seal Zones) ──────────────────────────────────
+    "dread_hollow": [
+        ("temple", "The Dread Hollow", 0, 0, 3, "The water churns without wind above this seal."),
+        ("sacred", "Nightmare Pool", -20, 10, 2, "Look into the shallows and see your death."),
     ],
-    "seal_of_balance": [
-        ("temple", "Seal of Balance", 0, 0, 3, "Cracked. Light and dark bleed out."),
-        ("sacred", "Scale of Judgment", -15, 10, 2, "Weighs all who approach."),
+    "twilight_nexus": [
+        ("temple", "The Twilight Nexus", 0, 0, 3, "Where coast meets forest and light bleeds into dark."),
+        ("sacred", "Scale of Judgment", -15, 10, 2, "A stone that tips between land and sea."),
     ],
-    "seal_of_greed": [
-        ("temple", "Seal of Greed", 0, 0, 3, "Mountain of offerings. Still watching."),
-        ("sacred", "Offering Mound", 15, 10, 2, "Mortals left gifts to appease it."),
+    "golden_abyss": [
+        ("temple", "The Golden Abyss", 0, 0, 3, "The water glows gold from below. Something watches."),
+        ("sacred", "Offering Mound", 15, 10, 2, "Treasures dropped into the golden glow."),
     ],
 }
 
 # ─── SUB-DISTRICT DEFINITIONS ────────────────────────────────────────────────
 ZONE_SUBDISTRICTS: Dict[str, list] = {
     "slum_district": [
-        ("Rua dos Condenados", -60, -20, 50, "Where criminals and outcasts gather."),
-        ("Beco do Abismo", 50, -10, 40, "Near where Caleb fell."),
-        ("Praça da Fome", -10, 30, 45, "Center of the slum's desperation."),
+        ("Pico do Exílio", -60, -20, 50, "Where Caleb was cast from the summit."),
+        ("Borda do Precipício", 50, -10, 40, "The edge where everything began."),
+        ("Acampamento dos Ventos", -10, 30, 45, "Wind-battered shelters near the peak."),
     ],
     "merchant_quarter": [
-        ("Distrito dos Ourives", -50, -15, 55, "Goldsmiths and jewelers."),
-        ("Via do Comércio", 20, 0, 60, "Main trading avenue."),
-        ("Beco dos Ladrões", 40, 25, 35, "Thieves prey on merchants."),
+        ("Platô dos Vigilantes", -50, -15, 55, "Observation point above the clouds."),
+        ("Passagem do Céu", 20, 0, 60, "The skyward passage between plateaus."),
+        ("Ninho da Águia", 40, 25, 35, "Eagle nests among the crags."),
     ],
     "high_citadel": [
-        ("Pátio Real", -30, -10, 50, "Royal courtyard."),
-        ("Torres da Memória", 25, 0, 45, "Archives of world history."),
-        ("Jardim Morto", 0, 25, 40, "Dead garden of the last queen."),
+        ("Portão de Granito", -30, -10, 50, "The mountain's natural gateway."),
+        ("Salão dos Ecos", 25, 0, 45, "Chamber where whispers carry forever."),
+        ("Terraço de Pedra", 0, 25, 40, "Flat stone terrace overlooking the descent."),
     ],
     "iron_gate": [
-        ("Praça da Guerra", 0, -20, 50, "War council meets here."),
-        ("Barracas do Norte", -50, 15, 40, "Northern barracks."),
-        ("Passagem de Ferro", 40, 5, 35, "The gate itself."),
+        ("Clareira Oculta", 0, -20, 50, "A hidden clearing in the endless canopy."),
+        ("Raízes Antigas", -50, 15, 40, "Where the oldest roots intertwine."),
+        ("Trilha do Dossel", 40, 5, 35, "Path running above the forest floor."),
     ],
     "warriors_rest": [
-        ("Arena dos Campeões", 0, -15, 55, "Combat arena."),
-        ("Vila dos Veteranos", -40, 15, 45, "Retired warriors."),
-        ("Feira de Armas", 35, 10, 40, "Weapons market."),
+        ("Crista do Titã", 0, -15, 55, "The ridge of the highest peaks."),
+        ("Vale Glacial", -40, 15, 45, "A frozen valley between summits."),
+        ("Passo da Névoa", 35, 10, 40, "Mountain pass wreathed in cloud."),
     ],
     "dusthaven": [
-        ("Cruzamento Central", 0, 0, 55, "The main crossroads."),
-        ("Vila dos Devedores", -35, 20, 40, "Debtor's quarter."),
-        ("Mercado de Dívidas", 30, -10, 40, "Debt exchange."),
+        ("Coração do Bosque", 0, 0, 55, "The darkest center of the thicket."),
+        ("Clareira das Raízes", -35, 20, 40, "A rare break in the canopy."),
+        ("Trilha Sombria", 30, -10, 40, "Path through permanent twilight."),
     ],
 }
 
@@ -508,15 +508,44 @@ class StructureManager:
     """
     Manages all structures in the world.
     Handles placement, sprite generation, and LOD-based rendering.
+    Validates that structures are placed on land (above SEA_LEVEL).
     """
 
-    def __init__(self, zones: dict):
+    def __init__(self, zones: dict, heightmap=None):
         self.zones = zones
+        self.heightmap = heightmap  # (TEX_H, TEX_W) float32
         self.structures: Dict[str, List[Structure]] = {}  # zone_id → structures
         self.subdistricts: Dict[str, List[SubDistrict]] = {}  # zone_id → subdistricts
         self._sprites: Dict[str, Dict[str, pygame.Surface]] = {}  # zone_id → {name: sprite}
         self._icon_sprites: Dict[str, pygame.Surface] = {}  # struct_type → icon sprite
         self._initialized = False
+
+    def _is_land(self, wx: float, wy: float) -> bool:
+        """Check if a world position is on land based on heightmap."""
+        if self.heightmap is None:
+            return True  # no heightmap, assume land
+        from .config import SEA_LEVEL
+        tx = int(max(0, min(TEX_W - 1, wx / WORLD_W * TEX_W)))
+        ty = int(max(0, min(TEX_H - 1, wy / WORLD_H * TEX_H)))
+        return float(self.heightmap[ty, tx]) >= SEA_LEVEL
+
+    def _find_land_near(self, wx: float, wy: float, max_tries: int = 20,
+                        step: float = 15.0) -> Tuple[float, float]:
+        """Find the nearest land position spiraling outward from (wx, wy)."""
+        if self._is_land(wx, wy):
+            return wx, wy
+        rng = random.Random(hash((wx, wy)) & 0xFFFFFFFF)
+        for i in range(max_tries):
+            angle = rng.uniform(0, math.pi * 2)
+            dist = step * (1 + i * 0.5)
+            nx = wx + math.cos(angle) * dist
+            ny = wy + math.sin(angle) * dist
+            nx = max(10, min(WORLD_W - 10, nx))
+            ny = max(10, min(WORLD_H - 10, ny))
+            if self._is_land(nx, ny):
+                return nx, ny
+        # Fallback: use zone centroid (should always be land)
+        return wx, wy
 
     def initialize(self):
         """Generate all structures and sprites. Call once after zones are loaded."""
@@ -536,11 +565,17 @@ class StructureManager:
                 jx = rng.uniform(-5, 5)
                 jy = rng.uniform(-5, 5)
 
+                world_x = cx + ox + jx
+                world_y = cy + oy + jy
+
+                # Validate land placement
+                world_x, world_y = self._find_land_near(world_x, world_y)
+
                 st = Structure(
                     struct_type=stype,
                     name=name,
-                    world_x=cx + ox + jx,
-                    world_y=cy + oy + jy,
+                    world_x=world_x,
+                    world_y=world_y,
                     size=rng.randint(*STRUCTURE_TYPES.get(stype, {}).get(
                         "size_range", (8, 12))),
                     importance=importance,
@@ -556,15 +591,16 @@ class StructureManager:
             self.structures[zone_id] = structs
             self._sprites[zone_id] = sprites
 
-            # Sub-districts
+            # Sub-districts (also validate land placement)
             subdefs = ZONE_SUBDISTRICTS.get(zone_id, [])
             subs = []
             for sname, sox, soy, srad, sdesc in subdefs:
                 cx, cy = zone.centroid
+                swx, swy = self._find_land_near(cx + sox, cy + soy)
                 subs.append(SubDistrict(
                     name=sname,
-                    world_x=cx + sox,
-                    world_y=cy + soy,
+                    world_x=swx,
+                    world_y=swy,
                     radius=srad,
                     description=sdesc,
                 ))

@@ -9,14 +9,14 @@
   "regions": [
     {
       "region_id": "void_ridge",
-      "region_name": "The Northern Seas",
-      "description": "The frozen waters north of the continent. Ships that sail too far never return.",
+      "region_name": "The Void Ridge",
+      "description": "The brutal northern wastes. Unclaimed and chaotic.",
       "base_nature": "chaos",
       "zones": [
         {
           "zone_id": "shattered_peak",
-          "zone_name": "The Pale Shallows",
-          "lore": "Fog-blanketed waters where the ocean floor is barely visible. Shipwrecks litter the seabed.",
+          "zone_name": "The Shattered Peak",
+          "lore": "Where the sky splits and storms are born.",
           "vertices": [[0,0],[660,0],[700,80],[640,220],[0,190]],
           "centroid": [400, 98],
           "neighboring_zones": ["ashen_wastes","elderwood_grove"],
@@ -25,8 +25,8 @@
         },
         {
           "zone_id": "ashen_wastes",
-          "zone_name": "The Mistral Sea",
-          "lore": "An open expanse of restless ocean. Storms are born here and carried south to batter the continent.",
+          "zone_name": "The Ashen Wastes",
+          "lore": "A dead plain blanketed in the ash of a forgotten war.",
           "vertices": [[660,0],[1340,0],[1360,80],[1300,220],[640,220],[700,80]],
           "centroid": [1000, 100],
           "neighboring_zones": ["shattered_peak","dead_crown","iron_gate","elderwood_grove"],
@@ -35,8 +35,8 @@
         },
         {
           "zone_id": "dead_crown",
-          "zone_name": "The Ashen Strait",
-          "lore": "Dry winds sweep these northeastern narrows. The few rocks that break the surface are bleached white.",
+          "zone_name": "The Dead Crown",
+          "lore": "Ruins of a kingdom that tried to rule the Void.",
           "vertices": [[1340,0],[2000,0],[2000,190],[1960,220],[1300,220],[1360,80]],
           "centroid": [1660, 118],
           "neighboring_zones": ["ashen_wastes","char_fields"],
@@ -47,14 +47,14 @@
     },
     {
       "region_id": "verdant_reach",
-      "region_name": "The Emerald Coast",
-      "description": "The western shore where forest meets the sea. The land is green and the air tastes of salt.",
+      "region_name": "The Verdant Reach",
+      "description": "Ancient forests. Nature gods thrive here.",
       "base_nature": "nature",
       "zones": [
         {
           "zone_id": "elderwood_grove",
-          "zone_name": "Saltsong Bay",
-          "lore": "A sheltered bay where the waves sing against ancient cliffs. Seabirds circle endlessly overhead.",
+          "zone_name": "The Elderwood Grove",
+          "lore": "Trees older than the gods. They remember everything.",
           "vertices": [[0,190],[640,220],[610,440],[15,415]],
           "centroid": [316, 316],
           "neighboring_zones": ["shattered_peak","ashen_wastes","thornwall","iron_gate"],
@@ -63,8 +63,8 @@
         },
         {
           "zone_id": "thornwall",
-          "zone_name": "The Windmere Coast",
-          "lore": "Rolling grasslands meet sandy shores. The wind carries salt spray and wildflower seeds inland.",
+          "zone_name": "The Thornwall",
+          "lore": "A living wall of razor thorns that grows overnight.",
           "vertices": [[15,415],[610,440],[580,660],[10,635]],
           "centroid": [304, 538],
           "neighboring_zones": ["elderwood_grove","misty_highlands","iron_gate","anvil_plains"],
@@ -73,8 +73,8 @@
         },
         {
           "zone_id": "misty_highlands",
-          "zone_name": "The Verdant Shore",
-          "lore": "Dense green forest grows right down to the waterline. Mist hangs between the ancient trunks at dawn.",
+          "zone_name": "The Misty Highlands",
+          "lore": "Fog so thick mortals forget their own names.",
           "vertices": [[10,635],[580,660],[545,790],[0,770]],
           "centroid": [284, 714],
           "neighboring_zones": ["thornwall","bleached_path","warriors_rest","slum_district"],
@@ -85,14 +85,14 @@
     },
     {
       "region_id": "iron_heartlands",
-      "region_name": "The Worldspine",
-      "description": "The continental backbone. Dense forests give way to soaring mountain peaks that scrape the sky.",
+      "region_name": "The Iron Heartlands",
+      "description": "The central military zone. Where armies clash.",
       "base_nature": "balanced",
       "zones": [
         {
           "zone_id": "iron_gate",
-          "zone_name": "The Greenhollow",
-          "lore": "An endless canopy stretches in every direction. Light barely reaches the forest floor below.",
+          "zone_name": "The Iron Gate",
+          "lore": "The great passage through the north. Every conqueror starts here.",
           "vertices": [[640,220],[1300,220],[1315,395],[655,405]],
           "centroid": [978, 310],
           "neighboring_zones": ["ashen_wastes","elderwood_grove","thornwall","anvil_plains","char_fields"],
@@ -101,8 +101,8 @@
         },
         {
           "zone_id": "anvil_plains",
-          "zone_name": "The Stormcrest Range",
-          "lore": "Jagged peaks breach the clouds. Snow and howling wind rule here even in the warmest months.",
+          "zone_name": "The Anvil Plains",
+          "lore": "Flat lands perfect for battle. The gods use it as a proving ground.",
           "vertices": [[655,405],[1315,395],[1322,572],[652,582]],
           "centroid": [986, 489],
           "neighboring_zones": ["iron_gate","thornwall","warriors_rest"],
@@ -111,8 +111,8 @@
         },
         {
           "zone_id": "warriors_rest",
-          "zone_name": "The Titan's Spine",
-          "lore": "The highest mountains in Aethermoor. Glaciers cling to peaks so tall that even the gods tread carefully.",
+          "zone_name": "The Warrior's Rest",
+          "lore": "Where champions go after their last battle. Not all of them die.",
           "vertices": [[652,582],[1322,572],[1312,705],[642,710]],
           "centroid": [982, 642],
           "neighboring_zones": ["anvil_plains","misty_highlands","slum_district","dragonfault","drowned_shore"],
@@ -123,14 +123,14 @@
     },
     {
       "region_id": "ember_barrens",
-      "region_name": "The Eastern Reach",
-      "description": "Beyond the mountains, the land slopes into golden steppe and eastern waters.",
+      "region_name": "The Ember Barrens",
+      "description": "Volcanic east. The soil itself is hot.",
       "base_nature": "fire",
       "zones": [
         {
           "zone_id": "char_fields",
-          "zone_name": "The Dawn Sea",
-          "lore": "The eastern waters where the sun first touches Aethermoor each morning. Warm currents brush the continental shelf.",
+          "zone_name": "The Char Fields",
+          "lore": "Nothing grows here. The soil is pure carbon from ancient fires.",
           "vertices": [[1300,220],[2000,190],[2000,435],[1332,448]],
           "centroid": [1658, 323],
           "neighboring_zones": ["dead_crown","ashen_wastes","iron_gate","cinder_pit"],
@@ -139,8 +139,8 @@
         },
         {
           "zone_id": "cinder_pit",
-          "zone_name": "The Ironwood Heights",
-          "lore": "Where thick forest clings to steep mountain slopes. The trees here grow as hard as iron in the volcanic soil.",
+          "zone_name": "The Cinder Pit",
+          "lore": "A great wound in the earth that never stops burning.",
           "vertices": [[1332,448],[2000,435],[2000,648],[1358,662]],
           "centroid": [1673, 548],
           "neighboring_zones": ["char_fields","dragonfault"],
@@ -149,8 +149,8 @@
         },
         {
           "zone_id": "dragonfault",
-          "zone_name": "The Amber Steppe",
-          "lore": "Golden grass stretches across rolling hills where the mountains finally relent. The land is dry and windswept.",
+          "zone_name": "The Dragonfault",
+          "lore": "A rift where something massive once crashed through the earth.",
           "vertices": [[1358,662],[2000,648],[2000,800],[1382,800]],
           "centroid": [1685, 728],
           "neighboring_zones": ["cinder_pit","warriors_rest","drowned_shore"],
@@ -161,14 +161,14 @@
     },
     {
       "region_id": "bone_marches",
-      "region_name": "The Abyssal Deep",
-      "description": "The southwestern ocean — dark, fathomless water where the continental shelf drops into nothingness.",
+      "region_name": "The Bone Marches",
+      "description": "Cursed western lowlands. Death follows you here.",
       "base_nature": "darkness",
       "zones": [
         {
           "zone_id": "bleached_path",
-          "zone_name": "The Wailing Shallows",
-          "lore": "Where the seafloor begins its plunge into darkness. Whales sing here, and the sound carries for leagues.",
+          "zone_name": "The Bleached Path",
+          "lore": "A road paved with the bones of those who tried to flee.",
           "vertices": [[0,770],[545,790],[518,958],[0,942]],
           "centroid": [266, 865],
           "neighboring_zones": ["misty_highlands","grave_hollow","slum_district"],
@@ -177,8 +177,8 @@
         },
         {
           "zone_id": "grave_hollow",
-          "zone_name": "The Sunless Trench",
-          "lore": "A chasm in the ocean floor so deep that no light has ever touched its bottom. Sailors refuse to anchor here.",
+          "zone_name": "The Grave Hollow",
+          "lore": "A valley so silent even prayers don't echo here.",
           "vertices": [[0,942],[518,958],[508,1098],[0,1080]],
           "centroid": [257, 1020],
           "neighboring_zones": ["bleached_path","widows_pass","merchant_quarter"],
@@ -187,8 +187,8 @@
         },
         {
           "zone_id": "widows_pass",
-          "zone_name": "The Silent Abyss",
-          "lore": "Still, black water with no current and no wind. Ships that drift here are found empty days later.",
+          "zone_name": "The Widow's Pass",
+          "lore": "Where the war widows built their own city. None are welcome.",
           "vertices": [[0,1080],[508,1098],[490,1162],[0,1162]],
           "centroid": [250, 1126],
           "neighboring_zones": ["grave_hollow","high_citadel","gilded_road"],
@@ -199,14 +199,14 @@
     },
     {
       "region_id": "crown_districts",
-      "region_name": "The Summit Throne",
-      "description": "The towering heart of the continent. Mountain peaks, high plateaus, and the highest point in all of Aethermoor.",
+      "region_name": "The Crown Districts",
+      "description": "The center of the world. The most contested land in Aethermoor.",
       "base_nature": "balanced",
       "zones": [
         {
           "zone_id": "slum_district",
-          "zone_name": "The World's Crown",
-          "lore": "The highest peak in Aethermoor. Where Caleb was cast down from the summit and survived the fall that ignited the God War.",
+          "zone_name": "The Slum District",
+          "lore": "Where Caleb was born, beaten, and thrown into the abyss to die. Where the God War truly began.",
           "vertices": [[642,710],[1312,705],[1308,858],[648,868]],
           "centroid": [978, 785],
           "neighboring_zones": ["warriors_rest","misty_highlands","bleached_path","merchant_quarter","drowned_shore"],
@@ -216,8 +216,8 @@
         },
         {
           "zone_id": "merchant_quarter",
-          "zone_name": "The Skyreach Plateau",
-          "lore": "A windswept plateau high above the clouds. The air is thin and carries the scent of stone and eternity.",
+          "zone_name": "The Merchant Quarter",
+          "lore": "Gold changes hands here faster than prayers reach the gods.",
           "vertices": [[648,868],[1308,858],[1298,1005],[652,1012]],
           "centroid": [977, 936],
           "neighboring_zones": ["slum_district","high_citadel","grave_hollow","drowned_shore"],
@@ -226,8 +226,8 @@
         },
         {
           "zone_id": "high_citadel",
-          "zone_name": "The Granite Bastion",
-          "lore": "A natural fortress of sheer stone walls. Mountains form ramparts that no army could breach.",
+          "zone_name": "The High Citadel",
+          "lore": "The throne of a dead king. Whoever controls this controls the world's memory.",
           "vertices": [[652,1012],[1298,1005],[1288,1128],[658,1128]],
           "centroid": [974, 1068],
           "neighboring_zones": ["merchant_quarter","widows_pass","dusthaven","salt_flats"],
@@ -238,14 +238,14 @@
     },
     {
       "region_id": "tidal_expanse",
-      "region_name": "The Tidal Reach",
-      "description": "The southeastern coast and open waters. Storm-tossed beaches give way to treacherous shallows.",
+      "region_name": "The Tidal Expanse",
+      "description": "The eastern coast. Calm on the surface. Deadly underneath.",
       "base_nature": "void",
       "zones": [
         {
           "zone_id": "drowned_shore",
-          "zone_name": "The Driftwood Strand",
-          "lore": "A storm-battered coast where broken ships and driftwood pile against the rocks. Grey sand stretches to the horizon.",
+          "zone_name": "The Drowned Shore",
+          "lore": "A coast where ships go to die. The water here remembers every storm.",
           "vertices": [[1382,800],[2000,800],[2000,965],[1405,975]],
           "centroid": [1697, 885],
           "neighboring_zones": ["dragonfault","warriors_rest","slum_district","merchant_quarter","salt_flats"],
@@ -254,8 +254,8 @@
         },
         {
           "zone_id": "salt_flats",
-          "zone_name": "The Pearl Shallows",
-          "lore": "Crystal-clear water over white sand stretches to the horizon. Beautiful, calm, and utterly lifeless.",
+          "zone_name": "The Salt Flats",
+          "lore": "Endless white plains. Nothing rots here. Nothing heals either.",
           "vertices": [[1405,975],[2000,965],[2000,1105],[1415,1112]],
           "centroid": [1705, 1040],
           "neighboring_zones": ["drowned_shore","high_citadel","deep_current"],
@@ -264,8 +264,8 @@
         },
         {
           "zone_id": "deep_current",
-          "zone_name": "The Riptide Narrows",
-          "lore": "Treacherous waters with invisible currents beneath a deceptively calm surface. Ships vanish without warning.",
+          "zone_name": "The Deep Current",
+          "lore": "An inland sea that drains to nowhere. The water flows down and never returns.",
           "vertices": [[1415,1112],[2000,1105],[2000,1162],[1418,1162]],
           "centroid": [1708, 1135],
           "neighboring_zones": ["salt_flats","old_crossing"],
@@ -276,14 +276,14 @@
     },
     {
       "region_id": "golden_reaches",
-      "region_name": "The Southern Wilds",
-      "description": "The southern edge of the world. Deep ancient forest surrounded by open waters.",
+      "region_name": "The Golden Reaches",
+      "description": "The southern trade roads. Wealth and rot in equal measure.",
       "base_nature": "greed",
       "zones": [
         {
           "zone_id": "gilded_road",
-          "zone_name": "Moonrise Bay",
-          "lore": "A calm bay that catches the moonlight like a silver mirror. Sailors navigate the southern passages by its glow.",
+          "zone_name": "The Gilded Road",
+          "lore": "The ancient trade road. Every stone is worth more than a peasant's life.",
           "vertices": [[0,1162],[660,1162],[648,1298],[0,1298]],
           "centroid": [327, 1230],
           "neighboring_zones": ["widows_pass","dusthaven","dread_hollow"],
@@ -292,8 +292,8 @@
         },
         {
           "zone_id": "dusthaven",
-          "zone_name": "The Darkwood Thicket",
-          "lore": "An impenetrable tangle of ancient trees. The canopy is so dense that permanent twilight reigns at the forest floor.",
+          "zone_name": "The Dusthaven",
+          "lore": "A crossroads city built on debt. Everyone here owes someone something.",
           "vertices": [[660,1162],[1382,1162],[1372,1298],[648,1298]],
           "centroid": [1016, 1230],
           "neighboring_zones": ["gilded_road","old_crossing","high_citadel","twilight_nexus"],
@@ -302,8 +302,8 @@
         },
         {
           "zone_id": "old_crossing",
-          "zone_name": "The Coral Reach",
-          "lore": "Shallow waters over vast coral formations. The sea here glows with bioluminescence on moonless nights.",
+          "zone_name": "The Old Crossing",
+          "lore": "Where the first human bargained with a god. The deal is still unpaid.",
           "vertices": [[1372,1162],[2000,1162],[2000,1298],[1372,1298]],
           "centroid": [1686, 1230],
           "neighboring_zones": ["dusthaven","deep_current","golden_abyss"],
@@ -315,13 +315,13 @@
     {
       "region_id": "forbidden_depths",
       "region_name": "The Forbidden Depths",
-      "description": "The southernmost edge where the ancient gods sleep beneath cracked seals. Coastal waters that cannot be claimed.",
+      "description": "Where the ancient gods sleep beneath cracked seals. These lands cannot be claimed.",
       "base_nature": "ancient",
       "zones": [
         {
           "zone_id": "dread_hollow",
           "zone_name": "The Dread Hollow",
-          "lore": "Coastal shallows where the water churns without wind. The God of Fear sleeps beneath the seabed, and those who sail here hear echoes of their own deaths.",
+          "lore": "A sunken valley where the ground itself breathes. The God of Fear sleeps beneath, and mortals who approach hear echoes of their own deaths.",
           "vertices": [[0,1298],[648,1298],[638,1400],[0,1400]],
           "centroid": [322, 1349],
           "neighboring_zones": ["gilded_road","twilight_nexus"],
@@ -334,7 +334,7 @@
         {
           "zone_id": "twilight_nexus",
           "zone_name": "The Twilight Nexus",
-          "lore": "Where the southern coast meets tangled forest and the boundary between land and sea blurs. Light and darkness bleed together above the God of Balance's fractured prison.",
+          "lore": "The central seal where light and darkness bleed into each other. The God of Balance was the first to wake — three cracks now weep duality.",
           "vertices": [[648,1298],[1372,1298],[1362,1400],[638,1400]],
           "centroid": [1005, 1349],
           "neighboring_zones": ["dread_hollow","golden_abyss","dusthaven"],
@@ -347,7 +347,7 @@
         {
           "zone_id": "golden_abyss",
           "zone_name": "The Golden Abyss",
-          "lore": "Shallow waters that glow with an unnatural golden light from below. The God of Greed's prison radiates avarice upward through the ocean floor.",
+          "lore": "A pit of gilded offerings where the God of Greed sleeps atop a mountain of bribes. One eye has opened — it already gazes at what others own.",
           "vertices": [[1362,1298],[2000,1298],[2000,1400],[1362,1400]],
           "centroid": [1681, 1349],
           "neighboring_zones": ["twilight_nexus","old_crossing"],

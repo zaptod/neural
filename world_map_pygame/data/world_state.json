@@ -27,23 +27,23 @@
     "gilded_road": null,
     "dusthaven": null,
     "old_crossing": null,
-    "seal_of_fear": null,
-    "seal_of_balance": null,
-    "seal_of_greed": null
+    "dread_hollow": null,
+    "twilight_nexus": null,
+    "golden_abyss": null
   },
   "contested_borders": [],
   "ancient_seals": {
-    "seal_of_balance": {
+    "twilight_nexus": {
       "crack_level": 3,
       "max_cracks": 5,
       "status": "awakened"
     },
-    "seal_of_fear": {
+    "dread_hollow": {
       "crack_level": 0,
       "max_cracks": 5,
       "status": "sleeping"
     },
-    "seal_of_greed": {
+    "golden_abyss": {
       "crack_level": 1,
       "max_cracks": 5,
       "status": "stirring"
@@ -61,25 +61,25 @@
       "event_id": "evt_001",
       "type": "seal_awakened",
       "timestamp": "2026-02-25T06:12:00",
-      "description": "The God of Balance has awakened — the seal of balance fractures from within",
+      "description": "The God of Balance has awakened — the Twilight Nexus fractures from within",
       "severity": "critical",
-      "zone_id": "seal_of_balance",
+      "zone_id": "twilight_nexus",
       "ancient_id": "ancient_balance"
     },
     {
       "event_id": "evt_002",
       "type": "seal_stirring",
       "timestamp": "2026-02-24T18:30:00",
-      "description": "The God of Greed stirs in its prison — one crack opens in the seal of greed",
+      "description": "The God of Greed stirs in its prison — one crack opens in the Golden Abyss",
       "severity": "high",
-      "zone_id": "seal_of_greed",
+      "zone_id": "golden_abyss",
       "ancient_id": "ancient_greed"
     },
     {
       "event_id": "evt_003",
       "type": "zone_conquered",
       "timestamp": "2026-02-24T00:00:00",
-      "description": "Caleb claimed the Slum District — his first foothold in Aethermoor",
+      "description": "Caleb claimed the World's Crown — his first foothold in Aethermoor",
       "severity": "medium",
       "zone_id": "slum_district",
       "god_id": "caleb_01"
@@ -88,18 +88,18 @@
       "event_id": "evt_004",
       "type": "ancient_stirs",
       "timestamp": "2026-02-23T03:00:00",
-      "description": "Nightmares spread outward from the Seal of Fear — something stirs beneath",
+      "description": "Nightmares spread outward from the Dread Hollow — something stirs beneath",
       "severity": "medium",
-      "zone_id": "seal_of_fear",
+      "zone_id": "dread_hollow",
       "ancient_id": "ancient_fear"
     },
     {
       "event_id": "evt_005",
       "type": "seal_cracked",
       "timestamp": "2026-02-22T14:00:00",
-      "description": "Caleb's first victory sent tremors through the Seal of Balance — 3 cracks now visible",
+      "description": "Caleb's first victory sent tremors through the Twilight Nexus — 3 cracks now visible",
       "severity": "high",
-      "zone_id": "seal_of_balance",
+      "zone_id": "twilight_nexus",
       "ancient_id": "ancient_balance",
       "god_id": "caleb_01"
     },

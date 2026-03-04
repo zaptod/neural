@@ -15,7 +15,7 @@ import pygame
 from .config        import SCREEN_W, SCREEN_H, FPS, GOLD, scaled
 from . import config
 from .data_loader   import load_data
-from .terrain       import generate_heightmap, build_base_texture
+from .terrain       import generate_heightmap, generate_moisture, build_base_texture
 from .territories   import build_territory_maps, extract_border_mask, zone_at_pixel, world_to_tex
 from .camera        import Camera
 from .renderer      import MapRenderer
@@ -42,6 +42,7 @@ def run():
 
     ui.draw_loading(screen, "Gerando heightmap procedural (fBm)...", 0.20)
     heightmap = generate_heightmap()
+    moisture  = generate_moisture()
 
     ui.draw_loading(screen, "Computando territórios (Voronoi warp)...", 0.45)
     zone_idx, zone_list = build_territory_maps(zones)
@@ -50,12 +51,12 @@ def run():
     border_mask = extract_border_mask(zone_idx)
 
     ui.draw_loading(screen, "Renderizando textura cartográfica...", 0.75)
-    img_u8   = build_base_texture(heightmap, border_mask)
+    img_u8   = build_base_texture(heightmap, border_mask, moisture=moisture)
     map_surf = pygame.Surface((img_u8.shape[1], img_u8.shape[0]))
     pygame.surfarray.blit_array(map_surf, img_u8.swapaxes(0, 1))
 
     ui.draw_loading(screen, "Gerando estruturas e VFX...", 0.85)
-    struct_mgr = StructureManager(zones)
+    struct_mgr = StructureManager(zones, heightmap=heightmap)
     struct_mgr.initialize()
     nature_vfx = NatureVFX(zones, zone_idx)
     live_sync  = LiveSync()
@@ -65,6 +66,9 @@ def run():
     rend = MapRenderer(map_surf, zone_idx, zone_list, zones, gods, cam,
                        structure_mgr=struct_mgr, nature_vfx=nature_vfx)
     part = Particles()
+
+    # Give UI access to terrain texture for the minimap
+    ui.set_terrain_surface(map_surf)
 
     ui.draw_loading(screen, "Pronto!", 1.0)
     pygame.time.wait(300)
