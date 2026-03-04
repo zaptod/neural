@@ -21,6 +21,9 @@ from .camera        import Camera
 from .renderer      import MapRenderer
 from .ui            import UI
 from .particles     import Particles
+from .structures    import StructureManager
+from .nature_vfx    import NatureVFX
+from .live_sync     import LiveSync
 
 
 def run():
@@ -51,9 +54,16 @@ def run():
     map_surf = pygame.Surface((img_u8.shape[1], img_u8.shape[0]))
     pygame.surfarray.blit_array(map_surf, img_u8.swapaxes(0, 1))
 
+    ui.draw_loading(screen, "Gerando estruturas e VFX...", 0.85)
+    struct_mgr = StructureManager(zones)
+    struct_mgr.initialize()
+    nature_vfx = NatureVFX(zones, zone_idx)
+    live_sync  = LiveSync()
+
     ui.draw_loading(screen, "Inicializando câmera...", 0.92)
     cam  = Camera(map_x=ui.map_x, map_w=ui.map_w, map_y=ui.map_y)
-    rend = MapRenderer(map_surf, zone_idx, zone_list, zones, gods, cam)
+    rend = MapRenderer(map_surf, zone_idx, zone_list, zones, gods, cam,
+                       structure_mgr=struct_mgr, nature_vfx=nature_vfx)
     part = Particles()
 
     ui.draw_loading(screen, "Pronto!", 1.0)
@@ -98,6 +108,10 @@ def run():
                     zones, gods, ownership, ancient_seals, global_stats, event_log, ancient_gods = load_data()
                     rend.zones = zones
                     rend.gods  = gods
+                    struct_mgr.zones = zones
+                    struct_mgr._initialized = False
+                    struct_mgr.initialize()
+                    nature_vfx.zones = zones
                     ui.mark_minimap_dirty()
                     ui.notify("Dados recarregados ✓")
 
@@ -189,6 +203,25 @@ def run():
         cam.update()
         part.update(dt)
         ui.update(dt)
+        live_sync.update(dt)
+
+        # Update nature VFX particles (needs camera viewport)
+        map_h_cur = config.SCREEN_H - cam.map_y
+        vfx_clip = pygame.Rect(ui.map_x, cam.map_y, ui.map_w, map_h_cur)
+        nature_vfx.update_particles(dt, cam, ownership, gods, vfx_clip)
+
+        # Handle live sync data changes
+        if live_sync.consume_changes():
+            changed = live_sync.last_change_files
+            zones, gods, ownership, ancient_seals, global_stats, event_log, ancient_gods = load_data()
+            rend.zones = zones
+            rend.gods  = gods
+            struct_mgr.zones = zones
+            struct_mgr._initialized = False
+            struct_mgr.initialize()
+            nature_vfx.zones = zones
+            ui.mark_minimap_dirty()
+            ui.notify(f"Mundo atualizado ({', '.join(changed)})")
 
         # ── Render ─────────────────────────────────────────────────────────
         screen.fill((18, 14, 10))
@@ -198,7 +231,8 @@ def run():
                   ancient_seals, t_anim, ui.map_x, ui.map_w,
                   active_filter=ui.active_filter,
                   map_h=ui.map_h,
-                  event_log=event_log)
+                  event_log=event_log,
+                  dt=dt)
 
         # 2. Partículas
         part.draw(screen)

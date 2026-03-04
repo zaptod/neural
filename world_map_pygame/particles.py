@@ -33,11 +33,22 @@ class Particle:
 
 
 class Particles:
+    MAX_PARTICLES = 300
+
     def __init__(self):
         self._ps: List[Particle] = []
+        self._surf_cache: dict = {}  # (sz,) → Surface
+
+    def _get_surf(self, sz: int) -> pygame.Surface:
+        """Get or create a reusable particle surface for the given size."""
+        if sz not in self._surf_cache:
+            self._surf_cache[sz] = pygame.Surface((sz * 2, sz * 2), pygame.SRCALPHA)
+        return self._surf_cache[sz]
 
     def emit(self, x: float, y: float, col,
              n: int = 10, spd: float = 55, life: float = 1.1, sz: int = 2):
+        budget = max(0, self.MAX_PARTICLES - len(self._ps))
+        n = min(n, budget)
         for _ in range(n):
             a  = random.uniform(0, math.pi * 2)
             sp = random.uniform(spd * 0.35, spd)
@@ -55,6 +66,7 @@ class Particles:
 
     def draw(self, screen: pygame.Surface):
         for p in self._ps:
-            s = pygame.Surface((p.sz * 2, p.sz * 2), pygame.SRCALPHA)
+            s = self._get_surf(p.sz)
+            s.fill((0, 0, 0, 0))
             pygame.draw.circle(s, (*p.col[:3], p.alpha), (p.sz, p.sz), p.sz)
             screen.blit(s, (int(p.x - p.sz), int(p.y - p.sz)))
