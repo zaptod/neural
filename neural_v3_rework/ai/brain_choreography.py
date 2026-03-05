@@ -93,8 +93,8 @@ class ChoreographyMixin(_AIBrainMixinBase):
             return True
         
         if reacao == "CONTRA_CIRCULAR":
-            if hasattr(inimigo, 'ai') and inimigo.ai:
-                self.dir_circular = -inimigo.ai.dir_circular
+            if hasattr(inimigo, 'brain') and inimigo.brain:
+                self.dir_circular = -inimigo.brain.dir_circular
             self.acao_atual = "CIRCULAR"
             return True
         
@@ -133,8 +133,8 @@ class ChoreographyMixin(_AIBrainMixinBase):
             return True
         
         if acao == "CIRCULAR_SINCRONIZADO":
-            if hasattr(inimigo, 'ai') and inimigo.ai:
-                self.dir_circular = inimigo.ai.dir_circular
+            if hasattr(inimigo, 'brain') and inimigo.brain:
+                self.dir_circular = inimigo.brain.dir_circular
             self.acao_atual = "CIRCULAR"
             return True
         
@@ -238,6 +238,19 @@ class ChoreographyMixin(_AIBrainMixinBase):
             self.reacao_pendente = "FUGIR"
         elif "REATIVO" in self.tracos:
             self.reacao_pendente = "CONTRA_ATAQUE"
+
+
+    def on_ritmo_mudou(self, ritmo):
+        """Callback do CombatChoreographer quando o ritmo da luta muda.
+        Ajusta emoções e postura de acordo com o novo ritmo."""
+        if ritmo == "EXPLOSIVO":
+            self.excitacao = min(1.0, self.excitacao + 0.15)
+            self.adrenalina = min(1.0, self.adrenalina + 0.1)
+        elif ritmo == "AGRESSIVO":
+            self.excitacao = min(1.0, self.excitacao + 0.1)
+        elif ritmo == "CAUTELOSO":
+            self.excitacao = max(0.0, self.excitacao - 0.1)
+            self.tedio = min(0.5, self.tedio + 0.05)
 
 
     def on_bloqueio_sucesso(self):

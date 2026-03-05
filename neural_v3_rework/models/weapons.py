@@ -122,6 +122,9 @@ class Arma:
         self.cor_raridade = rar_data["cor"]
         self.efeito_visual = rar_data.get("efeito_visual")
         
+        # Flag de aviso de arma quebrada (setado externamente pela simulação)
+        self._aviso_quebrada_exibido: bool = False
+        
 
 
     def get_dano_total(self):
@@ -199,7 +202,7 @@ def validar_arma_personagem(arma, personagem):
             "proporcao": 0
         }
     
-    tamanho_arma = calcular_tamanho_arma(arma)
+    tamanho_arma = (arma.peso_base if hasattr(arma, 'peso_base') else arma.peso) * 0.1
     tamanho_char = personagem.tamanho / 10.0
     
     if tamanho_char <= 0:

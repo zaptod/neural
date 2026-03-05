@@ -254,6 +254,9 @@ class EmotionsMixin(_AIBrainMixinBase):
         hp_pct = p.vida / max(p.vida_max, 1)
         inimigo_hp_pct = inimigo.vida / max(inimigo.vida_max, 1)
         
+        # Reset flag de morte de aliado (consumido durante este frame)
+        self._ally_just_died = False
+        
         decay = 0.005 if "FRIO" in self.tracos else 0.015
         if "EMOTIVO" in self.tracos:
             decay *= 0.5
@@ -330,7 +333,7 @@ class EmotionsMixin(_AIBrainMixinBase):
             prev_ally_count = getattr(self, '_prev_ally_alive', alive_count)
             if alive_count < prev_ally_count:
                 # Aliado morreu!
-                ally_died = True
+                self._ally_just_died = True
                 if "VINGATIVO" in self.tracos:
                     self.raiva = min(1.0, self.raiva + 0.4)
                     self.adrenalina = min(1.0, self.adrenalina + 0.3)
@@ -489,8 +492,8 @@ class EmotionsMixin(_AIBrainMixinBase):
                 (setattr(self, 'modo_burst', True), setattr(self, 'acao_atual', "MATAR")),
             "FURIA_CEGA": lambda: self.raiva > 0.9 and
                 (setattr(self, 'modo_berserk', True), setattr(self, 'modo_defensivo', False), setattr(self, 'acao_atual', "MATAR")),
-            "PROVOCADOR": lambda: distancia > 3.0 and random.random() < 0.02 and setattr(self, 'acao_atual', "BLOQUEAR"),
-            "INSTINTO_ANIMAL": lambda: distancia < 2.0 and self.tempo_desde_dano < 1.0 and setattr(self, 'acao_atual', "RECUAR"),
+            "PROVOCADOR": lambda: distancia > 3.0 and random.random() < 0.02 and (setattr(self, 'acao_atual', "BLOQUEAR"), True),
+            "INSTINTO_ANIMAL": lambda: distancia < 2.0 and self.tempo_desde_dano < 1.0 and (setattr(self, 'acao_atual', "RECUAR"), True),
         }
         
         if quirk == "ESQUIVA_REFLEXA":
@@ -677,7 +680,7 @@ class EmotionsMixin(_AIBrainMixinBase):
                 triggered = True
             elif trigger == "oponente_whiff" and self.janela_ataque.get("tipo") == "whiff":
                 triggered = True
-            elif trigger == "oponente_recuando" and hasattr(inimigo, 'ai') and inimigo.ai and inimigo.ai.acao_atual in ["RECUAR", "FUGIR"]:
+            elif trigger == "oponente_recuando" and hasattr(inimigo, 'brain') and inimigo.brain and inimigo.brain.acao_atual in ["RECUAR", "FUGIR"]:
                 triggered = True
             elif trigger == "vantagem_hp" and hp_pct > inimigo_hp_pct + 0.2:
                 triggered = True

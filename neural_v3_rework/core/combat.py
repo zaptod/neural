@@ -533,6 +533,7 @@ class AreaEffect:
         
         # Animação
         self.raio_atual = 0.0
+        self.raio_max: float = self.raio  # Pode ser sobrescrito para explosões de projétil
         self.alpha = 255
         
         # === NOVOS ATRIBUTOS v2.0 ===
@@ -622,7 +623,7 @@ class AreaEffect:
                 self.timer_onda = 0
                 self.onda_atual += 1
                 self.alvos_atingidos.clear()  # Nova onda = novo dano
-                resultados.append({"nova_onda": True})
+                resultados.append({"nova_onda": True, "x": self.x, "y": self.y})
         
         # === METEOROS ALEATÓRIOS ===
         if self.meteoros > 0 and self.meteoros_spawned < self.meteoros:
@@ -913,22 +914,30 @@ class DotEffect:
             self.tick_timer = 0
             # Aplica dano respeitando escudos e modificadores
             if not self.alvo.morto:
-                dano = self.dano_por_tick
+                # Respeita invencibilidade
+                if getattr(self.alvo, 'invencivel_timer', 0) > 0:
+                    pass  # Skip tick during invincibility
+                else:
+                    dano = self.dano_por_tick
 
-                # Respeita vulnerabilidade e debuffs de dano recebido
-                dano *= getattr(self.alvo, 'vulnerabilidade', 1.0)
+                    # Respeita vulnerabilidade e debuffs de dano recebido
+                    dano *= getattr(self.alvo, 'vulnerabilidade', 1.0)
 
-                # Absorção por escudos de buff (ex: BLINDADO)
-                for buff in getattr(self.alvo, 'buffs_ativos', []):
-                    if getattr(buff, 'escudo_atual', 0) > 0:
-                        dano = buff.absorver_dano(dano)
-                        if dano <= 0:
-                            break
+                    # Redução de dano por classe
+                    if "Cavaleiro" in getattr(self.alvo, 'classe_nome', ''):
+                        dano *= 0.70
 
-                if dano > 0:
-                    self.alvo.vida -= dano
-                    if self.alvo.vida <= 0:
-                        self.alvo.morrer()
+                    # Absorção por escudos de buff (ex: BLINDADO)
+                    for buff in getattr(self.alvo, 'buffs_ativos', []):
+                        if getattr(buff, 'escudo_atual', 0) > 0:
+                            dano = buff.absorver_dano(dano)
+                            if dano <= 0:
+                                break
+
+                    if dano > 0:
+                        self.alvo.vida -= dano
+                        if self.alvo.vida <= 0:
+                            self.alvo.morrer()
         
         if self.vida <= 0:
             self.ativo = False

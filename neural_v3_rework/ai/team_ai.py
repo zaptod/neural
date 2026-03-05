@@ -256,8 +256,8 @@ class TeamCoordinator:
         # Skills ofensivas
         if hasattr(fighter, 'brain') and fighter.brain and hasattr(fighter.brain, 'skill_strategy'):
             ss = fighter.brain.skill_strategy
-            if ss and hasattr(ss, 'profiles'):
-                for p in ss.profiles.values():
+            if ss and hasattr(ss, 'skills'):
+                for p in ss.skills.values():
                     dano += getattr(p, 'dano_total', 0) * 0.3
         return dano
 

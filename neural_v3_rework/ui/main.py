@@ -39,6 +39,7 @@ from ui.view_luta import TelaLuta
 from ui.view_multi import TelaMultiBatalha
 from ui.view_sons import TelaSons
 from ui.view_worldmap import TelaWorldMap
+from ui.view_horde import TelaHorde
 
 COR_FUNDO = "#2C3E50"
 COR_TEXTO = "#ECF0F1"
@@ -66,7 +67,7 @@ class SistemaApp(tk.Tk):
         container.grid_columnconfigure(0, weight=1)
 
         self.frames = {}
-        for F in (MenuPrincipal, TelaArmas, TelaPersonagens, TelaLuta, TelaMultiBatalha, TelaInteracoes, TelaSons, TelaWorldMap):
+        for F in (MenuPrincipal, TelaArmas, TelaPersonagens, TelaLuta, TelaMultiBatalha, TelaInteracoes, TelaSons, TelaWorldMap, TelaHorde):
             page_name = F.__name__
             frame = F(parent=container, controller=self)
             self.frames[page_name] = frame
@@ -163,6 +164,7 @@ class MenuPrincipal(tk.Frame):
             ("Simulacao (Luta)",       lambda: controller.show_frame("TelaLuta")),
             ("Batalha em Equipe",      lambda: controller.show_frame("TelaMultiBatalha")),
             ("Modo Torneio",           lambda: self.abrir_torneio(controller)),
+            ("Modo Horda",             lambda: controller.show_frame("TelaHorde")),
             ("Configurar Sons",        lambda: controller.show_frame("TelaSons")),
             ("Interacoes Sociais",     lambda: controller.show_frame("TelaInteracoes")),
             ("World Map - God War",    lambda: controller.show_frame("TelaWorldMap")),

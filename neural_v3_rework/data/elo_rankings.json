@@ -1,0 +1,188 @@
+{
+  "TestA": {
+    "elo": 1020,
+    "partidas": 1,
+    "vitorias": 1,
+    "derrotas": 0,
+    "ko_count": 1,
+    "melhor_elo": 1020,
+    "pior_elo": 1000,
+    "streak_atual": 1,
+    "melhor_streak": 1,
+    "historico": [
+      {
+        "oponente": "TestB",
+        "resultado": "V",
+        "delta": 20,
+        "data": "2026-03-04"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-04T21:39:09.405226"
+  },
+  "TestB": {
+    "elo": 980,
+    "partidas": 1,
+    "vitorias": 0,
+    "derrotas": 1,
+    "ko_count": 0,
+    "melhor_elo": 1000,
+    "pior_elo": 980,
+    "streak_atual": -1,
+    "melhor_streak": 0,
+    "historico": [
+      {
+        "oponente": "TestA",
+        "resultado": "D",
+        "delta": -20,
+        "data": "2026-03-04"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-04T21:39:09.405226"
+  },
+  "Alice": {
+    "elo": 1020,
+    "partidas": 1,
+    "vitorias": 1,
+    "derrotas": 0,
+    "ko_count": 1,
+    "melhor_elo": 1020,
+    "pior_elo": 1000,
+    "streak_atual": 1,
+    "melhor_streak": 1,
+    "historico": [
+      {
+        "oponente": "Bob",
+        "resultado": "V",
+        "delta": 20,
+        "data": "2026-03-04"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-04T22:09:33.097192"
+  },
+  "Bob": {
+    "elo": 980,
+    "partidas": 1,
+    "vitorias": 0,
+    "derrotas": 1,
+    "ko_count": 0,
+    "melhor_elo": 1000,
+    "pior_elo": 980,
+    "streak_atual": -1,
+    "melhor_streak": 0,
+    "historico": [
+      {
+        "oponente": "Alice",
+        "resultado": "D",
+        "delta": -20,
+        "data": "2026-03-04"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-04T22:09:33.097192"
+  },
+  "Horda-W1-1": {
+    "elo": 1039,
+    "partidas": 2,
+    "vitorias": 2,
+    "derrotas": 0,
+    "ko_count": 2,
+    "melhor_elo": 1039,
+    "pior_elo": 1000,
+    "streak_atual": 2,
+    "melhor_streak": 2,
+    "historico": [
+      {
+        "oponente": "Astrid a Impiedosa",
+        "resultado": "V",
+        "delta": 20,
+        "data": "2026-03-04"
+      },
+      {
+        "oponente": "Wolfgang a Destruidora",
+        "resultado": "V",
+        "delta": 19,
+        "data": "2026-03-04"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-04T23:27:16.283850"
+  },
+  "Astrid a Impiedosa": {
+    "elo": 980,
+    "partidas": 1,
+    "vitorias": 0,
+    "derrotas": 1,
+    "ko_count": 0,
+    "melhor_elo": 1000,
+    "pior_elo": 980,
+    "streak_atual": -1,
+    "melhor_streak": 0,
+    "historico": [
+      {
+        "oponente": "Horda-W1-1",
+        "resultado": "D",
+        "delta": -20,
+        "data": "2026-03-04"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-04T23:22:25.531872"
+  },
+  "Wolfgang a Destruidora": {
+    "elo": 981,
+    "partidas": 1,
+    "vitorias": 0,
+    "derrotas": 1,
+    "ko_count": 0,
+    "melhor_elo": 1000,
+    "pior_elo": 981,
+    "streak_atual": -1,
+    "melhor_streak": 0,
+    "historico": [
+      {
+        "oponente": "Horda-W1-1",
+        "resultado": "D",
+        "delta": -19,
+        "data": "2026-03-04"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-04T23:27:16.283850"
+  },
+  "Kai a Lendária": {
+    "elo": 1025,
+    "partidas": 1,
+    "vitorias": 1,
+    "derrotas": 0,
+    "ko_count": 1,
+    "melhor_elo": 1025,
+    "pior_elo": 1000,
+    "streak_atual": 1,
+    "melhor_streak": 1,
+    "historico": [
+      {
+        "oponente": "Lin a Lendária",
+        "resultado": "V",
+        "delta": 25,
+        "data": "2026-03-05"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-05T01:32:23.227184"
+  },
+  "Lin a Lendária": {
+    "elo": 980,
+    "partidas": 1,
+    "vitorias": 0,
+    "derrotas": 1,
+    "ko_count": 0,
+    "melhor_elo": 1000,
+    "pior_elo": 980,
+    "streak_atual": -1,
+    "melhor_streak": 0,
+    "historico": [
+      {
+        "oponente": "Kai a Lendária",
+        "resultado": "D",
+        "delta": -20,
+        "data": "2026-03-05"
+      }
+    ],
+    "ultima_atualizacao": "2026-03-05T01:32:23.227184"
+  }
+}

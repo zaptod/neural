@@ -360,3 +360,129 @@ class WorldBridge:
                 AppState.get().claim_territory(zone_id, zone_id.replace("_", " ").title(), god_id)
         except Exception:
             pass
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LEITURA BIDIRECIONAL — World Map → Sistema de Luta  (v16.0)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    def get_territory_bonus(self, god_id: str) -> dict:
+        """
+        Retorna bônus de combate baseados no domínio territorial do deus.
+        Quanto mais territórios o deus controla, mais forte são seus campeões.
+
+        Retorno:
+            {"dano_mult": float, "def_mult": float, "mana_mult": float,
+             "descricao": str}
+        """
+        base = {"dano_mult": 1.0, "def_mult": 1.0, "mana_mult": 1.0, "descricao": ""}
+        if not WORLDMAP_AVAILABLE or not god_id:
+            return base
+
+        territories = self.get_territory_count(god_id)
+        total = self.get_total_zones()
+        if total <= 0:
+            return base
+
+        # Domínio percentual (0.0 — 1.0)
+        dominio = territories / total
+
+        # Bônus escalonado: até +12% de dano, +8% defesa e +10% mana em domínio total
+        bonus_dano = 1.0 + dominio * 0.12
+        bonus_def  = 1.0 + dominio * 0.08
+        bonus_mana = 1.0 + dominio * 0.10
+
+        descricao = ""
+        if dominio >= 0.5:
+            descricao = "Domínio Absoluto"
+        elif dominio >= 0.3:
+            descricao = "Influência Grande"
+        elif dominio >= 0.1:
+            descricao = "Influência Moderada"
+        elif territories > 0:
+            descricao = "Influência Menor"
+
+        return {
+            "dano_mult": round(bonus_dano, 3),
+            "def_mult":  round(bonus_def, 3),
+            "mana_mult": round(bonus_mana, 3),
+            "territorios": territories,
+            "dominio_pct": round(dominio * 100, 1),
+            "descricao": descricao,
+        }
+
+    def get_arena_climate(self) -> dict:
+        """
+        Lê o clima/estado do mundo e retorna pesos de clima preferencial
+        para o WeatherSystem, baseado nos deuses dominantes.
+
+        Retorno:
+            {"clima_preferido": str|None, "pesos_override": dict|None,
+             "evento_ativo": str|None}
+        """
+        result = {"clima_preferido": None, "pesos_override": None, "evento_ativo": None}
+        if not WORLDMAP_AVAILABLE:
+            return result
+
+        ws = _load_json_safe(_wm_path("world_state.json"), {})
+        ownership = ws.get("zone_ownership", {})
+
+        # Conta territórios por deus
+        god_territories: dict[str, int] = {}
+        for zone_id, gid in ownership.items():
+            if gid:
+                god_territories[gid] = god_territories.get(gid, 0) + 1
+
+        if not god_territories:
+            return result
+
+        # Deus dominante
+        dom_god = max(god_territories, key=god_territories.get)
+
+        # Mapeamento deus → clima preferido
+        _GOD_CLIMA = {
+            "god_war":     "tempestade",
+            "god_nature":  "chuva",
+            "god_death":   "eclipse",
+            "god_chaos":   "tempestade",
+            "god_time":    "neblina",
+            "god_wisdom":  "limpo",
+            "god_fear":    "neblina",
+            "god_greed":   "limpo",
+            "god_balance": None,   # sem preferência
+        }
+
+        clima = _GOD_CLIMA.get(dom_god)
+        if clima:
+            result["clima_preferido"] = clima
+            # Aumenta peso do clima preferido em 50%
+            result["pesos_override"] = {clima: 1.5}
+
+        # Verifica eventos mundiais recentes
+        events = ws.get("world_events", [])
+        for ev in reversed(events[-5:]):
+            if ev.get("type") == "cataclysm":
+                result["evento_ativo"] = ev.get("cataclysm_type", "tempestade")
+                break
+
+        return result
+
+    def get_fighter_god_bonus(self, char_name: str) -> dict:
+        """
+        Conveniência: dado o nome de um personagem, retorna seus bônus
+        territoriais do deus que ele segue.
+        Usado por simulacao.py na hora de aplicar mods de combate.
+        """
+        god_id = self._get_god_id(char_name)
+        return self.get_territory_bonus(god_id)
+
+    def get_world_summary(self) -> dict:
+        """
+        Retorna resumo completo do estado do mundo para exibição na UI.
+        Inclui deuses, territórios, eventos recentes e clima.
+        """
+        return {
+            "standings":  self.get_god_standings(),
+            "total_zones": self.get_total_zones(),
+            "climate":     self.get_arena_climate(),
+            "recent_events": self.get_recent_events(5),
+        }

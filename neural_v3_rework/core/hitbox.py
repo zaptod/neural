@@ -588,7 +588,8 @@ class SistemaHitbox:
             fator_arma = 2.0
 
         alcance_px = raio_char * fator_arma
-        largura_ang = max(60.0, getattr(arma, 'largura', 30) * 2)
+        _perfil = HITBOX_PROFILES.get(arma.tipo, HITBOX_PROFILES.get("Mágica", {}))
+        largura_ang = max(60.0, _perfil.get("base_arc", 120))
 
         debug_log(f"  Área: raio_char={raio_char:.1f} fator={fator_arma} alcance_px={alcance_px:.1f} largura={largura_ang}°", "CALC")
 
@@ -615,7 +616,7 @@ class SistemaHitbox:
             centro=(cx, cy),
             alcance=dist_orbital,
             angulo=lutador.angulo_arma_visual,
-            largura_angular=arma.largura,
+            largura_angular=360.0,
             ativo=True
         )
     

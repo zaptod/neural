@@ -1,0 +1,1 @@
+{"meta": {"p1": "P1", "p2": "P2", "p1_classe": "Guerreiro", "p2_classe": "Mago", "arena": "Arena", "timestamp": "2026-03-04 22:09:33", "versao": "1.0", "vencedor": "P1", "duracao": 30.0, "total_frames": 1}, "frames": [{"t": 0.0, "f": [], "e": [{"tipo": "hit", "dano": 25, "atacante": "P1"}]}]}

@@ -1,0 +1,229 @@
+{
+    "_comment": "NEURAL FIGHTS — Arquivo centralizado de balanceamento v1.0",
+    "_comment2": "Todos os magic numbers do projeto reunidos aqui para facilitar ajustes.",
+
+    "physics": {
+        "ppm": 50,
+        "gravidade_z": 35.0,
+        "atrito": 8.0,
+        "atrito_aereo": 1.6,
+        "altura_padrao": 1.70,
+        "aceleracao_base": 45.0,
+        "aceleracao_adrenalina": 70.0,
+        "vel_giro_normal": 10.0,
+        "vel_giro_assassino": 20.0
+    },
+
+    "combat": {
+        "invencibilidade_apos_dano": 0.3,
+        "hp_adrenalina_threshold": 0.3,
+        "knockback_base": 15.0,
+        "knockback_hp_bonus": 10.0,
+        "knockback_dano_mult": 0.2,
+        "knockback_cap_suave": 1.2,
+        "clash_knockback": 25.0,
+        "clash_stun": 0.5,
+        "dano_critico_mult": 1.5,
+        "encantamento_proc_chance": 0.5
+    },
+
+    "weapon_durability": {
+        "enabled": true,
+        "perda_por_ataque": 0.5,
+        "perda_por_skill": 1.0,
+        "perda_por_clash": 2.0,
+        "bonus_raridade": {
+            "Comum": 1.0,
+            "Incomum": 0.85,
+            "Raro": 0.7,
+            "Épico": 0.55,
+            "Lendário": 0.4,
+            "Mítico": 0.25
+        },
+        "dano_mult_quebrada": 0.4,
+        "velocidade_mult_quebrada": 0.6
+    },
+
+    "combo": {
+        "enabled": true,
+        "janela_combo_seg": 1.2,
+        "dano_escalonamento": [1.0, 1.1, 1.2, 1.35, 1.5],
+        "max_combo_hits": 5,
+        "knockback_escalonamento": [1.0, 1.0, 1.1, 1.2, 1.5],
+        "stun_bonus_por_hit": 0.05,
+        "combo_breaker_custo_estamina": 30.0,
+        "finisher_tipos": {
+            "launch": {"vel_z": 14.0, "stun": 0.8},
+            "wallbounce": {"knockback_mult": 2.5, "stun": 0.6},
+            "ground_slam": {"dano_mult": 1.8, "area_raio": 2.0}
+        }
+    },
+
+    "weather": {
+        "enabled": true,
+        "duracao_min": 20.0,
+        "duracao_max": 45.0,
+        "transicao_seg": 3.0,
+        "tipos": {
+            "limpo": {
+                "descricao": "Céu limpo",
+                "mod_velocidade": 1.0,
+                "mod_visao": 1.0,
+                "efeito": null,
+                "peso_chance": 35
+            },
+            "chuva": {
+                "descricao": "Chuva torrencial",
+                "mod_velocidade": 0.92,
+                "mod_visao": 0.8,
+                "efeito": "escorregar",
+                "chance_escorregar": 0.03,
+                "peso_chance": 20
+            },
+            "tempestade": {
+                "descricao": "Tempestade elétrica",
+                "mod_velocidade": 0.88,
+                "mod_visao": 0.65,
+                "efeito": "raio_aleatorio",
+                "raio_intervalo": 5.0,
+                "raio_dano": 15.0,
+                "raio_area": 2.0,
+                "peso_chance": 10
+            },
+            "neblina": {
+                "descricao": "Neblina densa",
+                "mod_velocidade": 1.0,
+                "mod_visao": 0.4,
+                "efeito": "reducao_percepcao",
+                "peso_chance": 15
+            },
+            "neve": {
+                "descricao": "Nevasca congelante",
+                "mod_velocidade": 0.85,
+                "mod_visao": 0.7,
+                "efeito": "gelo_chao",
+                "chance_slow": 0.02,
+                "slow_duracao": 1.5,
+                "peso_chance": 12
+            },
+            "eclipse": {
+                "descricao": "Eclipse sombrio",
+                "mod_velocidade": 1.0,
+                "mod_visao": 0.5,
+                "efeito": "trevas_buff",
+                "buff_trevas": 1.25,
+                "nerf_luz": 0.75,
+                "peso_chance": 8
+            }
+        }
+    },
+
+    "hazards": {
+        "enabled": true,
+        "lava_dano_por_seg": 8.0,
+        "lava_slow_fator": 0.6,
+        "espinho_dano": 12.0,
+        "espinho_cooldown": 1.5,
+        "barril_explosivo_dano": 35.0,
+        "barril_explosivo_raio": 3.0,
+        "barril_hp": 30,
+        "zona_veneno_dano_por_seg": 5.0,
+        "zona_veneno_encolhe_por_seg": 0.05,
+        "pilar_destrutivel_hp": 80
+    },
+
+    "divine": {
+        "enabled": true,
+        "blessing_cooldown": 45.0,
+        "blessing_duracao": 8.0,
+        "passiva_mult": 1.0
+    },
+
+    "elo": {
+        "k_factor_base": 32,
+        "k_factor_novato": 40,
+        "k_factor_veterano": 24,
+        "elo_inicial": 1000,
+        "partidas_novato": 10,
+        "partidas_veterano": 30,
+        "bonus_ko_rapido": 5,
+        "bonus_ko_rapido_threshold": 15.0
+    },
+
+    "narrator": {
+        "enabled": true,
+        "primeiro_sangue_threshold": 0.1,
+        "comeback_threshold": 0.3,
+        "quase_morte_hp": 0.05,
+        "combo_impressionante": 4,
+        "dominacao_threshold": 0.7,
+        "intervalo_minimo": 3.0
+    },
+
+    "horde": {
+        "waves_base_enemies": 2,
+        "waves_incremento": 1,
+        "enemy_hp_escalonamento": 1.15,
+        "enemy_dano_escalonamento": 1.1,
+        "boss_wave_intervalo": 5,
+        "boss_hp_mult": 3.0,
+        "boss_dano_mult": 1.5,
+        "boss_tamanho_mult": 1.4,
+        "cura_entre_waves_pct": 0.3,
+        "mana_entre_waves_pct": 0.5
+    },
+
+    "replay": {
+        "enabled": true,
+        "keyframe_intervalo": 2,
+        "max_frames": 18000,
+        "salvar_automatico": false
+    },
+
+    "roster_generation": {
+        "stats_por_classe": {
+            "Guerreiro (Força Bruta)":  {"forca": [6, 9], "mana": [2, 4], "tamanho": [1.7, 2.0]},
+            "Berserker (Fúria)":        {"forca": [7, 10], "mana": [1, 3], "tamanho": [1.8, 2.1]},
+            "Gladiador (Combate)":      {"forca": [5, 8], "mana": [3, 5], "tamanho": [1.7, 1.95]},
+            "Cavaleiro (Defesa)":       {"forca": [5, 7], "mana": [3, 6], "tamanho": [1.8, 2.05]},
+            "Assassino (Crítico)":      {"forca": [5, 7], "mana": [4, 6], "tamanho": [1.55, 1.75]},
+            "Ladino (Evasão)":          {"forca": [4, 6], "mana": [5, 7], "tamanho": [1.5, 1.7]},
+            "Ninja (Velocidade)":       {"forca": [4, 6], "mana": [5, 7], "tamanho": [1.5, 1.7]},
+            "Duelista (Precisão)":      {"forca": [5, 7], "mana": [4, 6], "tamanho": [1.65, 1.85]},
+            "Mago (Arcano)":            {"forca": [2, 4], "mana": [7, 10], "tamanho": [1.55, 1.8]},
+            "Piromante (Fogo)":         {"forca": [2, 5], "mana": [7, 9], "tamanho": [1.6, 1.8]},
+            "Criomante (Gelo)":         {"forca": [2, 4], "mana": [7, 9], "tamanho": [1.6, 1.8]},
+            "Necromante (Trevas)":      {"forca": [3, 5], "mana": [7, 9], "tamanho": [1.65, 1.85]},
+            "Paladino (Sagrado)":       {"forca": [5, 7], "mana": [5, 7], "tamanho": [1.75, 1.95]},
+            "Druida (Natureza)":        {"forca": [4, 6], "mana": [6, 8], "tamanho": [1.6, 1.85]},
+            "Feiticeiro (Caos)":        {"forca": [2, 4], "mana": [8, 10], "tamanho": [1.55, 1.75]},
+            "Monge (Chi)":              {"forca": [5, 7], "mana": [5, 8], "tamanho": [1.6, 1.8]}
+        },
+        "distribuicao_raridade": {
+            "Comum": 0.35,
+            "Incomum": 0.25,
+            "Raro": 0.20,
+            "Épico": 0.12,
+            "Lendário": 0.06,
+            "Mítico": 0.02
+        },
+        "armas_preferidas_por_classe": {
+            "Guerreiro (Força Bruta)": ["Reta", "Corrente"],
+            "Berserker (Fúria)": ["Reta", "Dupla"],
+            "Gladiador (Combate)": ["Reta", "Dupla", "Corrente"],
+            "Cavaleiro (Defesa)": ["Reta", "Orbital"],
+            "Assassino (Crítico)": ["Dupla", "Reta"],
+            "Ladino (Evasão)": ["Dupla", "Arremesso"],
+            "Ninja (Velocidade)": ["Dupla", "Arremesso"],
+            "Duelista (Precisão)": ["Reta", "Dupla"],
+            "Mago (Arcano)": ["Mágica", "Orbital"],
+            "Piromante (Fogo)": ["Mágica", "Reta"],
+            "Criomante (Gelo)": ["Mágica", "Orbital"],
+            "Necromante (Trevas)": ["Mágica", "Corrente"],
+            "Paladino (Sagrado)": ["Reta", "Orbital"],
+            "Druida (Natureza)": ["Corrente", "Mágica"],
+            "Feiticeiro (Caos)": ["Mágica", "Corrente"],
+            "Monge (Chi)": ["Dupla", "Reta"]
+        }
+    }
+}

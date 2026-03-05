@@ -84,8 +84,8 @@ class PerceptionMixin(_AIBrainMixinBase):
             # Cooldown baixo = recém atacou ou prestes a atacar; só relevante se perto
             if distancia < distancia_ameaca * 1.2:
                 ataque_prep = True
-        if hasattr(inimigo, 'ai') and inimigo.ai:
-            ai_ini = inimigo.ai
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            ai_ini = inimigo.brain
             if ai_ini.acao_atual in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO", "CONTRA_ATAQUE"]:
                 # FP-03 fix: intenção de ataque só é iminente se o inimigo está próximo o suficiente
                 if distancia < distancia_ameaca:
@@ -131,8 +131,8 @@ class PerceptionMixin(_AIBrainMixinBase):
             leitura["previsibilidade"] = max(0.1, min(0.9, 1.0 - (media_var / 20.0)))
         
         # Percebe agressividade do oponente
-        if hasattr(inimigo, 'ai') and inimigo.ai:
-            ai_ini = inimigo.ai
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            ai_ini = inimigo.brain
             if ai_ini.acao_atual in ["MATAR", "ESMAGAR", "PRESSIONAR", "APROXIMAR"]:
                 leitura["agressividade_percebida"] = min(1.0, leitura["agressividade_percebida"] + 0.03)
             elif ai_ini.acao_atual in ["RECUAR", "FUGIR", "BLOQUEAR"]:
@@ -141,8 +141,8 @@ class PerceptionMixin(_AIBrainMixinBase):
         # === BUG-AI-01 fix: detecta se inimigo está reposicionando ===
         # Reposicionando = movimentação lateral/recuo sem intenção de ataque imediato
         inimigo_reposiciona = False
-        if hasattr(inimigo, 'ai') and inimigo.ai:
-            acao_ini = inimigo.ai.acao_atual
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            acao_ini = inimigo.brain.acao_atual
             inimigo_reposiciona = acao_ini in ["CIRCULAR", "FLANQUEAR", "APROXIMAR", "RECUAR"]
             # Só conta como reposicionamento se NÃO está em iminência de ataque
             if leitura["ataque_iminente"]:
@@ -152,8 +152,8 @@ class PerceptionMixin(_AIBrainMixinBase):
         # === BUG-AI-02 fix: detecta whiff (ataque do inimigo que não acertou) ===
         inimigo_atacando_agora = (
             (hasattr(inimigo, 'atacando') and inimigo.atacando) or
-            (hasattr(inimigo, 'ai') and inimigo.ai and
-             inimigo.ai.acao_atual in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO"])
+            (hasattr(inimigo, 'brain') and inimigo.brain and
+             inimigo.brain.acao_atual in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO"])
         )
         if self._inimigo_estava_atacando and not inimigo_atacando_agora:
             # Inimigo parou de atacar — verifica se não acertou (hits_recebidos não aumentou)
@@ -290,10 +290,11 @@ class PerceptionMixin(_AIBrainMixinBase):
         
         perc["estrategia_recomendada"] = avaliacao["recomendacao"]
         
-        # Ajusta alcance ideal baseado no matchup
+        # Ajusta alcance ideal baseado no matchup — capped ao alcance real da arma
+        _alcance_cap = getattr(self, '_calcular_alcance_efetivo', lambda: 2.0)() * 1.2
         if perc["matchup_favoravel"] > 0.3:
             # Matchup favorável - fico na minha distância ideal
-            p.alcance_ideal = perc.get("distancia_ataque", 2.0)
+            p.alcance_ideal = min(perc.get("distancia_ataque", 2.0), _alcance_cap)
         elif perc["matchup_favoravel"] < -0.3:
             # Matchup desfavorável - ajusto baseado no estilo
             perfil_ini = perc.get("arma_inimigo_perfil")
@@ -301,10 +302,10 @@ class PerceptionMixin(_AIBrainMixinBase):
                 # Se inimigo tem mais alcance, aproximo; se menos, afasto
                 if perc["vantagem_alcance"] < -0.5:
                     # Preciso aproximar pra atacar
-                    p.alcance_ideal = max(1.0, perfil_ini.zona_morta * 0.8)
+                    p.alcance_ideal = max(0.6, min(perfil_ini.zona_morta * 0.8, _alcance_cap))
                 elif perc["vantagem_alcance"] > 0.5:
                     # Mantenho distância segura
-                    p.alcance_ideal = perc["distancia_segura"] * 0.9
+                    p.alcance_ideal = min(perc["distancia_segura"] * 0.9, _alcance_cap)
 
     
     def _aplicar_modificadores_armas(self, distancia, inimigo):
@@ -328,11 +329,12 @@ class PerceptionMixin(_AIBrainMixinBase):
         estrategia = perc.get("estrategia_recomendada", "neutro")
         matchup = perc.get("matchup_favoravel", 0.0)
         
-        # Ajustes de confiança baseados no matchup
+        # Ajustes de confiança baseados no matchup (escalado por dt para estabilidade)
+        dt = getattr(self, '_dt', 1/60)
         if matchup > 0.3:
-            self.confianca = min(1.0, self.confianca + 0.1)
+            self.confianca = min(1.0, self.confianca + 0.1 * dt * 60)
         elif matchup < -0.3:
-            self.confianca = max(0.0, self.confianca - 0.1)
+            self.confianca = max(0.0, self.confianca - 0.1 * dt * 60)
         
         # Aplica estratégia recomendada (com chance de ignorar baseado em personalidade)
         segue_estrategia = random.random() < 0.7  # 70% de chance base
@@ -446,7 +448,7 @@ class PerceptionMixin(_AIBrainMixinBase):
             elif "Corrente com Peso" in arma_ini_estilo:
                 # v5.0 CONTRA CORRENTE COM PESO: Pull + Slow é letal
                 # Estratégia: manter distância máxima, nunca deixar puxar
-                is_slowed = getattr(self.lutador, 'slow_timer', 0) > 0
+                is_slowed = getattr(self.parent, 'slow_timer', 0) > 0
                 if is_slowed:
                     # Estou lento: foge desesperadamente
                     self.acao_atual = random.choice(["RECUAR", "RECUAR", "FLANQUEAR"])
@@ -489,10 +491,10 @@ class PerceptionMixin(_AIBrainMixinBase):
     
     def _observar_oponente(self, inimigo, distancia):
         """Observa o que o oponente está fazendo"""
-        if not hasattr(inimigo, 'ai') or not inimigo.ai:
+        if not hasattr(inimigo, 'brain') or not inimigo.brain:
             return
         
-        ai_ini = inimigo.ai
+        ai_ini = inimigo.brain
         mem = self.memoria_oponente
         
         acao_oponente = ai_ini.acao_atual
@@ -534,7 +536,8 @@ class PerceptionMixin(_AIBrainMixinBase):
         elif acao_oponente == "FUGIR":
             if "PERSEGUIDOR" in self.tracos or "PREDADOR" in self.tracos:
                 self.reacao_pendente = "PERSEGUIR"
-                self.confianca = min(1.0, self.confianca + 0.1)
+                dt = getattr(self, '_dt', 1/60)
+                self.confianca = min(1.0, self.confianca + 0.1 * dt * 60)
             elif "PACIENTE" in self.tracos:
                 self.reacao_pendente = "ESPERAR"
             elif random.random() < 0.4:
@@ -554,7 +557,7 @@ class PerceptionMixin(_AIBrainMixinBase):
             elif self.filosofia == "PACIENCIA":
                 self.reacao_pendente = "ESPERAR"
 
-    def _id_oponente(oponente) -> str:
+    def _id_oponente(self, oponente) -> str:
         """Gera uma chave única para identificar o oponente entre lutas."""
         nome = getattr(getattr(oponente, 'dados', None), 'nome', None) or str(id(oponente))
         classe = getattr(oponente, 'classe_nome', '') or ''

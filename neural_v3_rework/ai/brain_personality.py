@@ -165,9 +165,22 @@ class PersonalityMixin(_AIBrainMixinBase):
         
         if self.arquetipo in ARQUETIPO_DATA:
             data = ARQUETIPO_DATA[self.arquetipo]
-            p.alcance_ideal = data["alcance"]
             self.estilo_luta = data["estilo"]
             self.agressividade_base = data["agressividade"]
+            # Cap alcance_ideal ao alcance real da arma para melee
+            alcance_arq = data["alcance"]
+            arma = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
+            if arma and arma.tipo in ("Reta", "Dupla", "Orbital", "Corrente", "Transformável"):
+                try:
+                    perfil_hb = HITBOX_PROFILES.get(arma.tipo, HITBOX_PROFILES.get("Reta", {}))
+                    range_mult = perfil_hb.get("range_mult", 2.0)
+                except (KeyError, AttributeError):
+                    range_mult = 2.0
+                raio = p.raio_fisico if hasattr(p, 'raio_fisico') else 0.4
+                alcance_real = raio * range_mult
+                p.alcance_ideal = min(alcance_arq, alcance_real * 1.1)
+            else:
+                p.alcance_ideal = alcance_arq
 
 
     def _definir_arquetipo_por_arma(self):
@@ -286,18 +299,58 @@ class PersonalityMixin(_AIBrainMixinBase):
 
 
     def _selecionar_estilo(self):
-        """Seleciona estilo de luta"""
-        if random.random() < 0.7:
-            return
-        
+        """Seleciona estilo de luta — v15.0: mais variação (65% chance de alternativo)"""
+        if random.random() < 0.35:
+            return  # 35% mantém o padrão do arquétipo
+
         estilos_alternativos = {
-            "MAGO": ["BURST", "CONTROL", "KITE"],
-            "ASSASSINO": ["AMBUSH", "COMBO", "OPPORTUNIST"],
-            "GUERREIRO": ["AGGRO", "COUNTER", "TANK"],
-            "ARQUEIRO": ["RANGED", "MOBILE", "POKE"],
-            "BERSERKER": ["AGGRO", "BURST", "BERSERK"],
+            # Magos
+            "MAGO": ["BURST", "CONTROL", "KITE", "SIEGE", "GUERRILLA", "SNIPER"],
+            "MAGO_AGRESSIVO": ["BURST", "BLITZ", "CHAOS_MAGIC", "AGGRO"],
+            "MAGO_CONTROLE": ["CONTROL", "SIEGE", "TACTICIAN", "GUERRILLA"],
+            "INVOCADOR": ["SUMMON", "KITE", "SIEGE", "CONTROL"],
+            "PIROMANTE": ["BURST", "BLITZ", "AGGRO", "CHAOS_MAGIC"],
+            "CRIOMANTE": ["CONTROL", "KITE", "SIEGE", "TACTICIAN"],
+            "ELETROMANTE": ["COMBO", "BURST", "SKIRMISHER", "WHIRLWIND"],
+            "NECROMANTE": ["DRAIN", "CONTROL", "SUMMON", "GHOST"],
+            "ARCANO": ["CHAOS_MAGIC", "BURST", "RANGED", "KITE"],
+            # Assassinos
+            "ASSASSINO": ["AMBUSH", "COMBO", "OPPORTUNIST", "HIT_RUN", "ASSASSIN", "GHOST"],
+            "NINJA": ["HIT_RUN", "GHOST", "ASSASSIN", "SKIRMISHER"],
+            "LADINO": ["OPPORTUNIST", "SKIRMISHER", "GUERRILLA", "ASSASSIN"],
+            "SOMBRA": ["AMBUSH", "GHOST", "ASSASSIN", "HIT_RUN"],
+            "SICARIO": ["EXECUTE", "AMBUSH", "BURST", "ASSASSIN"],
+            "PHANTOM": ["GHOST", "KITE", "GUERRILLA", "SKIRMISHER"],
+            # Guerreiros
+            "GUERREIRO": ["AGGRO", "COUNTER", "TANK", "BALANCED", "BRAWLER", "DUELIST"],
+            "GUERREIRO_PESADO": ["TANK", "JUGGERNAUT", "CONQUEROR", "HIT_TRADE"],
+            "BERSERKER": ["AGGRO", "BURST", "BERSERK", "BLITZ", "HIT_TRADE", "BRAWLER"],
+            "DUELISTA": ["COUNTER", "DUELIST", "BULLFIGHT", "MATADOR", "SKIRMISHER"],
+            "GLADIADOR": ["BRAWLER", "BALANCED", "PRESSURE", "WHIRLWIND"],
+            "ESPARTANO": ["TANK", "JUGGERNAUT", "CONQUEROR", "TURTLE"],
+            "VIKING": ["RAIDER", "BERSERK", "BLITZ", "HIT_TRADE", "CONQUEROR"],
+            "CONQUISTADOR": ["CONQUEROR", "PRESSURE", "JUGGERNAUT", "AGGRO"],
+            # Defensivos
+            "SENTINELA": ["TANK", "TURTLE", "FORTRESS", "ROPE_A_DOPE"],
+            "PALADINO": ["BALANCED", "HOLY_WARRIOR", "TEMPLAR", "TANK"],
+            "COLOSSO": ["TANK", "JUGGERNAUT", "CONQUEROR", "HIT_TRADE"],
+            "GUARDIAO": ["TURTLE", "FORTRESS", "ROPE_A_DOPE", "TANK"],
+            "MURALHA": ["FORTRESS", "TURTLE", "ROPE_A_DOPE", "TANK"],
+            "TEMPLARIO": ["HOLY_WARRIOR", "TEMPLAR", "BALANCED", "PRESSURE"],
+            # Ranged
+            "LANCEIRO": ["POKE", "SKIRMISHER", "KITE", "GUERRILLA"],
+            "ARQUEIRO": ["RANGED", "MOBILE", "POKE", "KITE", "SNIPER", "GUERRILLA", "SIEGE"],
+            # Híbridos
+            "ACROBATA": ["MOBILE", "WHIRLWIND", "GINGA", "SKIRMISHER", "HIT_RUN"],
+            "MONGE": ["COMBO", "COUNTER", "BALANCED", "BRAWLER", "GINGA", "BULLFIGHT"],
+            "DRUIDA": ["ADAPTIVE", "SUMMON", "CONTROL", "KITE", "BALANCED"],
+            "SAMURAI": ["IAIDO", "COUNTER", "EXECUTE", "DUELIST", "BULLFIGHT"],
+            "RONIN": ["AGGRO", "HIT_RUN", "BRAWLER", "SKIRMISHER"],
+            "CAPOEIRISTA": ["GINGA", "WHIRLWIND", "MOBILE", "HIT_RUN"],
+            "PUGILISTA": ["BOXER", "BRAWLER", "PRESSURE", "HIT_TRADE"],
+            "PREDADOR": ["HUNTER", "PRESSURE", "PREDATOR", "EXECUTE"],
         }
-        
+
         if self.arquetipo in estilos_alternativos:
             self.estilo_luta = random.choice(estilos_alternativos[self.arquetipo])
         else:
@@ -305,13 +358,37 @@ class PersonalityMixin(_AIBrainMixinBase):
 
 
     def _selecionar_filosofia(self):
-        """Seleciona filosofia de combate"""
+        """Seleciona filosofia de combate — v15.0: mais opções por estilo"""
         filosofias_por_estilo = {
-            "BERSERK": ["DOMINACAO", "PRESSAO", "EXECUCAO"],
-            "TANK": ["RESISTENCIA", "SOBREVIVENCIA", "EQUILIBRIO"],
-            "KITE": ["SOBREVIVENCIA", "PACIENCIA", "OPORTUNISMO"],
-            "BURST": ["EXECUCAO", "OPORTUNISMO", "DOMINACAO"],
-            "COUNTER": ["PACIENCIA", "OPORTUNISMO", "EQUILIBRIO"],
+            "BERSERK": ["DOMINACAO", "PRESSAO", "EXECUCAO", "ANIQUILACAO", "SACRIFICIO", "ABSOLUTO"],
+            "TANK": ["RESISTENCIA", "SOBREVIVENCIA", "EQUILIBRIO", "FORTALEZA"],
+            "KITE": ["SOBREVIVENCIA", "PACIENCIA", "OPORTUNISMO", "DESGASTE", "GUERRILHA"],
+            "BURST": ["EXECUCAO", "OPORTUNISMO", "DOMINACAO", "BLITZ", "EXPLOSAO"],
+            "COUNTER": ["PACIENCIA", "OPORTUNISMO", "EQUILIBRIO", "RETALIACAO", "VINGANCA"],
+            "RANGED": ["DESGASTE", "GUERRILHA", "PACIENCIA", "CERCO"],
+            "HIT_RUN": ["OPORTUNISMO", "GUERRILHA", "CAOS", "EMBOSCADA"],
+            "CONTROL": ["CONTROLE_TOTAL", "DOMINACAO", "CERCO", "DESGASTE"],
+            "COMBO": ["PRESSAO", "MOMENTUM", "EXECUCAO", "BLITZ"],
+            "AGGRO": ["DOMINACAO", "PRESSAO", "ANIQUILACAO", "SUPREMACIA", "ABSOLUTO"],
+            "GHOST": ["SOMBRAS", "EMBOSCADA", "GUERRILHA", "CAOS"],
+            "POKE": ["DESGASTE", "GUERRILHA", "PACIENCIA"],
+            "MOBILE": ["CAOS", "FLUXO", "EMBOSCADA", "OPORTUNISMO"],
+            "SIEGE": ["CERCO", "DESGASTE", "PRESSAO"],
+            "SNIPER": ["PACIENCIA", "DESGASTE", "GUERRILHA"],
+            "BRAWLER": ["PRESSAO", "SACRIFICIO", "DOMINACAO", "ABSOLUTO"],
+            "BLITZ": ["BLITZ", "ANIQUILACAO", "ABSOLUTO", "PRESSAO"],
+            "DUELIST": ["RETALIACAO", "PACIENCIA", "EQUILIBRIO"],
+            "WHIRLWIND": ["CAOS", "FLUXO", "PRESSAO"],
+            "BULLFIGHT": ["RETALIACAO", "OPORTUNISMO", "FLUXO"],
+            "PRESSURE": ["PRESSAO", "SUPREMACIA", "DOMINACAO", "CERCO"],
+            "GUERRILLA": ["GUERRILHA", "EMBOSCADA", "DESGASTE"],
+            "ASSASSIN": ["SOMBRAS", "EMBOSCADA", "EXECUCAO"],
+            "TURTLE": ["FORTALEZA", "VINGANCA", "SOBREVIVENCIA"],
+            "JUGGERNAUT": ["SUPREMACIA", "DOMINACAO", "PRESSAO"],
+            "SKIRMISHER": ["FLUXO", "GUERRILHA", "OPORTUNISMO"],
+            "ROPE_A_DOPE": ["VINGANCA", "PACIENCIA", "RETALIACAO"],
+            "HIT_TRADE": ["SACRIFICIO", "PRESSAO", "ABSOLUTO"],
+            "TEMPLAR": ["DOMINACAO", "EQUILIBRIO", "SUPREMACIA"],
         }
         
         if self.estilo_luta in filosofias_por_estilo:
@@ -392,9 +469,9 @@ class PersonalityMixin(_AIBrainMixinBase):
 
 
     def _aplicar_modificadores_iniciais(self):
-        """Aplica modificadores baseados na personalidade"""
+        """Aplica modificadores baseados na personalidade — v15.0 expandido"""
         p = self.parent
-        
+
         if "IMPRUDENTE" in self.tracos:
             p.alcance_ideal *= 0.7
             self.confianca = 0.8
@@ -412,6 +489,28 @@ class PersonalityMixin(_AIBrainMixinBase):
         if "FRIO" in self.tracos:
             self.medo = 0.0
             self.raiva = 0.0
+        # v15.0: novos modificadores de alcance
+        if "KITER" in self.tracos or "SNIPER" in self.tracos:
+            p.alcance_ideal *= 1.4
+        if "COLADO" in self.tracos or "TOURO" in self.tracos:
+            p.alcance_ideal *= 0.65
+        if "FANTASMA" in self.tracos or "EVASIVO" in self.tracos:
+            p.alcance_ideal *= 1.15
+        if "KAMIKAZE" in self.tracos:
+            p.alcance_ideal *= 0.5
+        if "DOMINADOR" in self.tracos or "ALPHA" in self.tracos:
+            p.alcance_ideal *= 0.9
+        if "PARANOICO" in self.tracos:
+            p.alcance_ideal *= 1.25
+            self.medo = 0.15
+        if "CONFIANTE" in self.tracos:
+            self.confianca = max(getattr(self, 'confianca', 0.5), 0.7)
+        if "PSICOPATA" in self.tracos:
+            self.medo = 0.0
+            self.confianca = 0.9
+        
+        # Garante alcance mínimo após todos os modificadores de traço
+        p.alcance_ideal = max(0.6, p.alcance_ideal)
 
     
     def _aplicar_preset(self, preset_nome):

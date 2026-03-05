@@ -30,6 +30,15 @@ from core.arena import Arena, ARENAS, get_arena, set_arena  # v9.0 Sistema de Ar
 from ai import CombatChoreographer  # Sistema de Coreografia v5.0
 from core.game_feel import GameFeelManager, HitStopManager  # Sistema de Game Feel v8.0
 
+# === v16.0: NOVOS SISTEMAS ===
+from core.divine import DivineBlessingManager
+from core.combo import ComboSystem
+from core.weather import WeatherSystem
+from core.hazards import HazardSystem
+from core.elo import EloSystem
+from core.narrator import NarratorSystem
+from core.replay import ReplaySystem
+
 # ── Mixin imports ──
 from simulation.sim_renderer import SimuladorRenderer
 from simulation.sim_combat import SimuladorCombat
@@ -49,7 +58,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     if self.slow_mo_timer <= 0:
                         self.time_scale = 1.0
                         # Som de fim do slow-mo e vitória
-                        if not self._slow_mo_ended and self.vencedor:
+                        if not self._slow_mo_ended and self.vencedor and self.audio:
                             self.audio.play_special("slowmo_end", 0.5)
                             self.audio.play_special("arena_victory", 1.0)
                             self._slow_mo_ended = True
@@ -307,6 +316,49 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             MagicVFXManager.reset()
             self.magic_vfx = MagicVFXManager.get_instance()
             
+            # === v16.0: INICIALIZA SISTEMA DIVINO ===
+            DivineBlessingManager.reset()
+            self.divine = DivineBlessingManager.get_instance()
+            for f in self.fighters:
+                if f:
+                    self.divine.registrar_lutador(f)
+            
+            # === v16.0: INICIALIZA SISTEMA DE COMBO ===
+            ComboSystem.reset()
+            self.combo_sys = ComboSystem.get_instance()
+            for f in self.fighters:
+                if f:
+                    self.combo_sys.registrar_lutador(f)
+            
+            # === v16.0: INICIALIZA SISTEMA DE CLIMA ===
+            WeatherSystem.reset()
+            self.weather = WeatherSystem.get_instance()
+            arena_nome = getattr(self.arena, 'nome', 'Arena') if self.arena else 'Arena'
+            self.weather.iniciar()
+            
+            # === v16.0: INICIALIZA SISTEMA DE HAZARDS ===
+            HazardSystem.reset()
+            self.hazard_sys = HazardSystem.get_instance()
+            if self.arena:
+                self.hazard_sys.carregar_da_arena(self.arena)
+            
+            # === v16.0: INICIALIZA NARRADOR ===
+            NarratorSystem.reset()
+            self.narrator = NarratorSystem.get_instance()
+            for f in self.fighters:
+                if f:
+                    self.narrator.registrar_lutadores(f)
+            
+            # === v16.0: INICIALIZA REPLAY ===
+            ReplaySystem.reset()
+            self.replay = ReplaySystem.get_instance()
+            if self.p1 and self.p2:
+                self.replay.iniciar_gravacao(
+                    self.p1.dados.nome, self.p2.dados.nome,
+                    arena_nome,
+                    self.p1.classe_nome, self.p2.classe_nome
+                )
+            
             # Som de início de arena/luta
             self.audio.play_special("arena_start", 0.8)
                 
@@ -363,8 +415,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 return l1, l2, cenario, portrait_mode
         
         # Modo legado: 2 lutadores
-        l1 = Lutador(montar(config["p1_nome"]), 5.0, 8.0, team_id=0)
-        l2 = Lutador(montar(config["p2_nome"]), 19.0, 8.0, team_id=1)
+        dados_p1 = montar(config["p1_nome"])
+        dados_p2 = montar(config["p2_nome"])
+        if not dados_p1 or not dados_p2:
+            raise ValueError(f"Personagem não encontrado: p1={config['p1_nome']}, p2={config['p2_nome']}")
+        l1 = Lutador(dados_p1, 5.0, 8.0, team_id=0)
+        l2 = Lutador(dados_p2, 19.0, 8.0, team_id=1)
         self.fighters = [l1, l2]
         self.modo_multi = False
         return l1, l2, cenario, portrait_mode
@@ -729,7 +785,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             from core.combat import Projetil
                             proj.chain_count += 1
                             proj.chain_targets.add(id(alvo))
-                            chain_proj = Projetil(proj.nome, alvo.pos[0], alvo.pos[1], math.atan2(dy, dx), proj.dono)
+                            chain_proj = Projetil(proj.nome, alvo.pos[0], alvo.pos[1], math.degrees(math.atan2(dy, dx)), proj.dono)
                             chain_proj.dano = proj.dano * proj.chain_decay
                             chain_proj.chain = proj.chain
                             chain_proj.chain_count = proj.chain_count
@@ -1148,6 +1204,23 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 self.ativar_slow_motion()
             
             # v13.0: Verifica se algum time foi eliminado (last team standing)
+            # Detecta mortes indiretas (DoT, veneno, hazard) que não passam por _registrar_kill
+            if not self.vencedor:
+                for f in self.fighters:
+                    if f.morto and not getattr(f, '_kill_registered', False):
+                        f._kill_registered = True
+                        # Tenta identificar o último atacante (passiva, DoT, hazard)
+                        ultimo = getattr(f, 'ultimo_atacante', None)
+                        if ultimo is not None and hasattr(ultimo, 'dados'):
+                            fonte = ultimo.dados.nome
+                        elif hasattr(f, 'dots_ativos') and f.dots_ativos:
+                            fonte = f.dots_ativos[0].tipo if f.dots_ativos else "Efeito"
+                        else:
+                            fonte = "Efeito"
+                        self._registrar_kill(f, fonte)
+                        if self.vencedor:
+                            break
+
             if not self.vencedor:
                 self.vencedor = self._verificar_last_team_standing()
 
@@ -1159,6 +1232,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 # === SWORD CLASH v6.1 - Detecta início do momento CLASH ===
                 if self.choreographer.momento_atual == "CLASH" and momento_anterior != "CLASH":
                     self._executar_sword_clash()
+                    # v16.0: Notifica narrador do clash
+                    if hasattr(self, 'narrator') and self.narrator:
+                        try:
+                            self.narrator.on_clash()
+                        except Exception:
+                            pass
             
             # v13.0: Atualiza TeamCoordinator ANTES dos lutadores individuais
             if self.modo_multi:
@@ -1181,6 +1260,95 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 for lutador_id in list(self._wall_sound_cooldown.keys()):
                     self._wall_sound_cooldown[lutador_id] = max(0, self._wall_sound_cooldown[lutador_id] - dt)
             
+            # === v16.0: ATUALIZA SISTEMAS NOVOS ===
+            # Divine blessings (Gaia regen, Chronos dilation, chaos drain)
+            if hasattr(self, 'divine') and self.divine:
+                self.divine.update(dt, self.fighters)
+            
+            # Combo system (timers de combo decaem)
+            if hasattr(self, 'combo_sys') and self.combo_sys:
+                self.combo_sys.update(dt)
+            
+            # Weather system (transições de clima, efeitos)
+            if hasattr(self, 'weather') and self.weather:
+                eventos_clima = self.weather.update(dt, self.fighters, self.arena)
+                for ev in eventos_clima:
+                    if ev.get("tipo") == "raio":
+                        raio_area = ev.get("raio", 2.0)
+                        for f in self.fighters:
+                            if not f.morto:
+                                dist = math.hypot(f.pos[0] - ev["x"], f.pos[1] - ev["y"])
+                                if dist < raio_area:
+                                    # Dano escala com distância (mais perto = mais dano)
+                                    dano_raio = ev.get("dano", 15) * (1.0 - dist / raio_area)
+                                    if f.tomar_dano(dano_raio, 0, 0, "RAIO"):
+                                        self._registrar_kill(f, "Tempestade")
+                                    else:
+                                        self.textos.append(FloatingText(
+                                            f.pos[0]*PPM, f.pos[1]*PPM - 40,
+                                            f"RAIO! {int(dano_raio)}", (255, 255, 100), 22
+                                        ))
+                                        self.cam.aplicar_shake(6.0, 0.08)
+                    elif ev.get("tipo") == "clima_mudou":
+                        self.textos.append(FloatingText(
+                            self.screen_width // 2, 80,
+                            ev.get("nome_clima", ""), (200, 200, 255), 20
+                        ))
+            
+            # Hazards (lava, spikes, etc.)
+            if hasattr(self, 'hazard_sys') and self.hazard_sys:
+                eventos_hazard = self.hazard_sys.update(dt, self.fighters)
+                for ev in eventos_hazard:
+                    tipo_h = ev.get("tipo", "")
+                    
+                    # Dano de hazard (lava, espinhos, armadilha) — dano já aplicado por hazards.py
+                    if tipo_h in ("lava_dano", "espinhos_dano", "armadilha"):
+                        lutador = ev.get("lutador")
+                        if lutador and lutador.morto:
+                            self._registrar_kill(lutador, ev.get("fonte", "Hazard"))
+                        elif lutador and not lutador.morto:
+                            cores_hazard = {
+                                "lava_dano": (255, 100, 30),
+                                "espinhos_dano": (200, 50, 50),
+                                "armadilha": (180, 80, 40),
+                            }
+                            cor_h = cores_hazard.get(tipo_h, (255, 100, 50))
+                            self.textos.append(FloatingText(
+                                lutador.pos[0]*PPM, lutador.pos[1]*PPM - 30,
+                                tipo_h.replace("_dano", "").upper(), cor_h, 16
+                            ))
+                    
+                    # Explosão de barril
+                    elif tipo_h == "barril_explosao":
+                        px = ev["x"] * PPM
+                        py = ev["y"] * PPM
+                        self.impact_flashes.append(ImpactFlash(px, py, (255, 150, 50), 2.0, "explosion"))
+                        self.shockwaves.append(Shockwave(px, py, (255, 150, 50), tamanho=2.0))
+                        self.cam.aplicar_shake(5.0, 0.06)
+                        # Verifica mortes por explosão
+                        for f in self.fighters:
+                            if f.morto and not getattr(f, '_kill_registered', False):
+                                self._registrar_kill(f, "Barril Explosivo")
+                    
+                    # Pilar destruído
+                    elif tipo_h == "pilar_destruido":
+                        px = ev["x"] * PPM
+                        py = ev["y"] * PPM
+                        self.impact_flashes.append(ImpactFlash(px, py, (150, 150, 150), 1.5, "explosion"))
+                        self.cam.aplicar_shake(3.0, 0.04)
+            
+            # Narrator update
+            if hasattr(self, 'narrator') and self.narrator:
+                self.narrator.update(dt, self.tempo_luta)
+                # Atualiza HP% para tracking de narrator
+                for f in self.fighters:
+                    hp_pct = f.vida / max(f.vida_max, 1) * 100
+                    self.narrator.on_hp_change(f.dados.nome, hp_pct)
+            
+            # Replay recording
+            if hasattr(self, 'replay') and self.replay:
+                self.replay.update_gravacao(dt, self.fighters)
+            
             # === APLICA LIMITES DA ARENA v9.0 ===
             if self.arena:
                 # v13.0: Aplica limites para TODOS os lutadores
@@ -1201,8 +1369,10 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 if f in self.vida_visual:
                     self.vida_visual[f] += (f.vida - self.vida_visual[f]) * 5 * dt
             # Backward compat
-            self.vida_visual_p1 += (self.p1.vida - self.vida_visual_p1) * 5 * dt
-            self.vida_visual_p2 += (self.p2.vida - self.vida_visual_p2) * 5 * dt
+            if self.p1:
+                self.vida_visual_p1 += (self.p1.vida - self.vida_visual_p1) * 5 * dt
+            if self.p2:
+                self.vida_visual_p2 += (self.p2.vida - self.vida_visual_p2) * 5 * dt
             
             # === DETECTA EVENTOS DE MOVIMENTO v8.0 ===
             self._detectar_eventos_movimento()
@@ -1245,9 +1415,44 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         mas seu time ainda está vivo.
         """
         self.ativar_slow_motion()
+        morto._kill_registered = True
+        
+        # === v16.0: Notifica narrador ===
+        if hasattr(self, 'narrator') and self.narrator:
+            try:
+                self.narrator.on_kill(killer_nome_fallback, morto.dados.nome, self.tempo_luta)
+            except Exception:
+                pass
+        
+        # === v16.0: Registra evento no replay ===
+        if hasattr(self, 'replay') and self.replay:
+            try:
+                self.replay.registrar_evento("kill", atacante=killer_nome_fallback, 
+                                            defensor=morto.dados.nome, tempo=round(self.tempo_luta, 2))
+            except Exception:
+                pass
+        
         resultado = self._determinar_vencedor_por_morte(morto)
         if resultado:
             self.vencedor = resultado
+            
+            # === v16.0: Registra ELO + finaliza replay ===
+            try:
+                elo = EloSystem.get_instance()
+                elo.registrar_resultado(
+                    vencedor=resultado if not resultado.startswith("Time") else killer_nome_fallback,
+                    perdedor=morto.dados.nome,
+                    duracao=self.tempo_luta,
+                    ko_type="KO"
+                )
+            except Exception:
+                pass
+            
+            try:
+                if hasattr(self, 'replay') and self.replay:
+                    self.replay.finalizar_gravacao(resultado, self.tempo_luta)
+            except Exception:
+                pass
     
     def _get_projetil_elemento(self, proj):
         """Retorna o elemento cacheado de um projétil (perf: evita re-parse de strings por frame)."""
@@ -1345,6 +1550,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         """Determina vencedor por HP% quando o tempo esgota."""
         if not self.modo_multi:
             # Modo legado
+            if not self.p1 or not self.p2:
+                return "Empate"
             pct_p1 = self.p1.vida / max(self.p1.vida_max, 1)
             pct_p2 = self.p2.vida / max(self.p2.vida_max, 1)
             if pct_p1 > pct_p2:

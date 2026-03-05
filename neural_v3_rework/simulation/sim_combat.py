@@ -78,7 +78,7 @@ class SimuladorCombat:
 
             # Usa o novo sistema de dano modificado
             dano_base = arma.dano * (atacante.dados.forca / 2.0)
-            dano, is_critico = atacante.calcular_dano_ataque(dano_base) if hasattr(atacante, 'calcular_dano_ataque') else (dano_base, False)
+            dano, is_critico = atacante.calcular_dano_ataque(dano_base, alvo=defensor) if hasattr(atacante, 'calcular_dano_ataque') else (dano_base, False)
 
             # CM-09 fix: desgasta durabilidade da arma a cada hit confirmado
             if hasattr(arma, 'durabilidade'):
@@ -325,8 +325,7 @@ class SimuladorCombat:
                 
                 self.shockwaves.append(Shockwave(dx, dy, VERMELHO_SANGUE, 2.0))
                 self.textos.append(FloatingText(dx, dy - 50, "FATAL!", VERMELHO_SANGUE, 45))
-                self.ativar_slow_motion()
-                self.vencedor = atacante.dados.nome
+                # Kill registration (ELO, narrator, replay, slow-mo) handled by caller
                 return True
             else:
                 # === ÁUDIO v10.0 - SOM DE IMPACTO ===
@@ -376,6 +375,18 @@ class SimuladorCombat:
                     tamanho_txt = 20
                 
                 self.textos.append(FloatingText(dx, dy - 30, int(dano), cor_txt, tamanho_txt))
+                
+                # === v16.0: Notifica narrador de hit ===
+                try:
+                    from core.narrator import NarratorSystem
+                    narrator = NarratorSystem.get_instance()
+                    narrator.on_hit(atacante.dados.nome, defensor.dados.nome, dano, is_critico)
+                except Exception:
+                    pass
+                
+                # === PASSIVA em hit — processa lifesteal, execute, double_hit, etc (BUG-03) ===
+                if hasattr(atacante, 'aplicar_passiva_em_hit'):
+                    atacante.aplicar_passiva_em_hit(dano, defensor)
         return False
 
 
@@ -406,8 +417,8 @@ class SimuladorCombat:
                     continue
                 morreu = self.checar_ataque(atacante, defensor)
                 if morreu:
-                    self.ativar_slow_motion()
-                    self.vencedor = self._determinar_vencedor_por_morte(defensor) if hasattr(self, '_determinar_vencedor_por_morte') else atacante.dados.nome
+                    # Usa _registrar_kill para ELO, narrador, replay e slow-motion
+                    self._registrar_kill(defensor, atacante.dados.nome)
 
 
     def resolver_fisica_corpos(self, dt):
@@ -448,7 +459,7 @@ class SimuladorCombat:
                     p2.pos[0] += nx * separacao
                     p2.pos[1] += ny * separacao
         
-        # Velocidade de repulsão para pares próximos
+        # Velocidade de repulsão para pares próximos (escalada por dt)
         for i in range(len(vivos)):
             for j in range(i + 1, len(vivos)):
                 p1, p2 = vivos[i], vivos[j]
@@ -457,9 +468,11 @@ class SimuladorCombat:
                 dist = math.hypot(dx, dy)
                 soma_raios = p1.raio_fisico + p2.raio_fisico
                 
-                if dist < soma_raios * 1.2 and dist > 0.001:
+                if dist < soma_raios * 1.3 and dist > 0.001:
                     nx, ny = dx / dist, dy / dist
-                    fator_repulsao = 6.0
+                    # Repulsão escala com proximidade, multiplicada por dt
+                    overlap_ratio = 1.0 - (dist / (soma_raios * 1.3))
+                    fator_repulsao = (80.0 + overlap_ratio * 120.0) * dt  # ~1.3-3.3/frame @60fps
                     p1.vel[0] -= nx * fator_repulsao
                     p1.vel[1] -= ny * fator_repulsao
                     p2.vel[0] += nx * fator_repulsao
@@ -530,7 +543,10 @@ class SimuladorCombat:
         # === EFEITOS DE CÂMERA DRAMÁTICOS v15.0 ===
         self.cam.aplicar_shake(14.0, 0.15)
         self.cam.zoom_punch(0.08, 0.1)
-        self.hit_stop_timer = 0.12  # Pausa dramática
+        if self.game_feel:
+            self.game_feel.forcar_hitstop(0.12, camera_shake=14.0)
+        else:
+            self.hit_stop_timer = 0.12  # Pausa dramática
         
         # Shockwave grande
         self.shockwaves.append(Shockwave(mx, my, BRANCO, 1.5))
@@ -566,12 +582,16 @@ class SimuladorCombat:
         self.textos.append(FloatingText(mx * PPM, my * PPM - 40, "CLASH!", AMARELO_FAISCA, 35))
         
         # SOM DE CLASH
-        listener_x = (self.p1.pos[0] + self.p2.pos[0]) / 2
-        self.audio.play_positional("clash_magic", mx, listener_x, volume=1.0)
+        if self.p1 and self.p2 and self.audio:
+            listener_x = (self.p1.pos[0] + self.p2.pos[0]) / 2
+            self.audio.play_positional("clash_magic", mx, listener_x, volume=1.0)
         
         # Camera shake e hit stop dramáticos
         self.cam.aplicar_shake(25.0, 0.25)
-        self.hit_stop_timer = 0.15
+        if self.game_feel:
+            self.game_feel.forcar_hitstop(0.15, camera_shake=25.0)
+        else:
+            self.hit_stop_timer = 0.15
         
         # Partículas extras
         for _ in range(30):
@@ -607,8 +627,8 @@ class SimuladorCombat:
         my = (self.p1.pos[1] + self.p2.pos[1]) / 2
         
         # Cores das armas/lutadores
-        cor1 = self.p1.dados.cor if hasattr(self.p1, 'dados') and hasattr(self.p1.dados, 'cor') else (255, 180, 80)
-        cor2 = self.p2.dados.cor if hasattr(self.p2, 'dados') and hasattr(self.p2.dados, 'cor') else (80, 180, 255)
+        cor1 = (self.p1.dados.cor_r, self.p1.dados.cor_g, self.p1.dados.cor_b) if hasattr(self.p1, 'dados') else (255, 180, 80)
+        cor2 = (self.p2.dados.cor_r, self.p2.dados.cor_g, self.p2.dados.cor_b) if hasattr(self.p2, 'dados') else (80, 180, 255)
         
         # === EFEITOS VISUAIS ===
         # Flash de impacto principal
@@ -647,7 +667,10 @@ class SimuladorCombat:
         
         # === CAMERA SHAKE E HIT STOP DRAMÁTICOS v15.0 ===
         self.cam.aplicar_shake(12.0, 0.15)
-        self.hit_stop_timer = 0.12  # Pausa dramática
+        if self.game_feel:
+            self.game_feel.forcar_hitstop(0.12, camera_shake=12.0)
+        else:
+            self.hit_stop_timer = 0.12  # Pausa dramática
         
         # === PARTÍCULAS DE FAÍSCAS ===
         for _ in range(40):
@@ -673,39 +696,44 @@ class SimuladorCombat:
     # =========================================================================
     
     def _verificar_clash_projeteis(self):
-        """Verifica colisão entre projéteis de diferentes donos"""
-        projs_p1 = [p for p in self.projeteis if p.dono == self.p1 and p.ativo]
-        projs_p2 = [p for p in self.projeteis if p.dono == self.p2 and p.ativo]
+        """Verifica colisão entre projéteis de diferentes times/donos"""
+        # Agrupa projéteis por team_id para suportar multi-fighter
+        from collections import defaultdict
+        projs_por_time = defaultdict(list)
         
-        # Também checa orbes mágicos
-        orbes_p1 = []
-        orbes_p2 = []
-        if hasattr(self.p1, 'buffer_orbes'):
-            orbes_p1 = [o for o in self.p1.buffer_orbes if o.ativo and o.estado == "disparando"]
-        if hasattr(self.p2, 'buffer_orbes'):
-            orbes_p2 = [o for o in self.p2.buffer_orbes if o.ativo and o.estado == "disparando"]
+        for p in self.projeteis:
+            if not p.ativo:
+                continue
+            dono = getattr(p, 'dono', None)
+            tid = getattr(dono, 'team_id', id(dono)) if dono else 0
+            projs_por_time[tid].append(p)
         
-        # Combina projéteis e orbes
-        todos_p1 = projs_p1 + orbes_p1
-        todos_p2 = projs_p2 + orbes_p2
+        # Também inclui orbes mágicos disparando
+        for f in (self.fighters if hasattr(self, 'fighters') else [self.p1, self.p2]):
+            if f and hasattr(f, 'buffer_orbes'):
+                for o in f.buffer_orbes:
+                    if o.ativo and o.estado == "disparando":
+                        tid = getattr(f, 'team_id', id(f))
+                        projs_por_time[tid].append(o)
         
-        for p1 in todos_p1:
-            for p2 in todos_p2:
-                if not (getattr(p1, 'ativo', True) and getattr(p2, 'ativo', True)):
-                    continue
-                
-                # Distância entre projéteis
-                dx = p1.x - p2.x
-                dy = p1.y - p2.y
-                dist = math.hypot(dx, dy)
-                
-                # Raio de colisão (soma dos raios)
-                r1 = getattr(p1, 'raio', 0.2)
-                r2 = getattr(p2, 'raio', 0.2)
-                
-                if dist < r1 + r2 + 0.3:  # Margem extra para visual
-                    # CLASH DETECTADO!
-                    self._executar_clash_magico(p1, p2)
+        # Checa todos os pares de times distintos
+        tids = list(projs_por_time.keys())
+        for i in range(len(tids)):
+            for j in range(i + 1, len(tids)):
+                for p1 in projs_por_time[tids[i]]:
+                    for p2 in projs_por_time[tids[j]]:
+                        if not (getattr(p1, 'ativo', True) and getattr(p2, 'ativo', True)):
+                            continue
+                        
+                        dx = p1.x - p2.x
+                        dy = p1.y - p2.y
+                        dist = math.hypot(dx, dy)
+                        
+                        r1 = getattr(p1, 'raio', 0.2)
+                        r2 = getattr(p2, 'raio', 0.2)
+                        
+                        if dist < r1 + r2 + 0.3:
+                            self._executar_clash_magico(p1, p2)
 
     
     # =========================================================================
@@ -779,9 +807,9 @@ class SimuladorCombat:
             self.audio.play_special("shield_block", volume=0.7)
         
         # CB-01: notifica IA do bloqueio bem-sucedido (abre janela pos_bloqueio)
-        if hasattr(bloqueador, 'ai') and bloqueador.ai:
-            if hasattr(bloqueador.ai, 'on_bloqueio_sucesso'):
-                bloqueador.ai.on_bloqueio_sucesso()
+        if hasattr(bloqueador, 'brain') and bloqueador.brain:
+            if hasattr(bloqueador.brain, 'on_bloqueio_sucesso'):
+                bloqueador.brain.on_bloqueio_sucesso()
         
         # Direção do impacto
         ang = math.atan2(proj.y * PPM - pos_escudo[1], proj.x * PPM - pos_escudo[0])
@@ -803,7 +831,10 @@ class SimuladorCombat:
         
         # Shake leve
         self.cam.aplicar_shake(5.0, 0.06)
-        self.hit_stop_timer = 0.03
+        if self.game_feel:
+            self.game_feel.forcar_hitstop(0.03, camera_shake=5.0)
+        else:
+            self.hit_stop_timer = 0.03
 
     
     def _efeito_desvio_dash(self, proj, desviador):
@@ -825,9 +856,9 @@ class SimuladorCombat:
     def _efeito_parry(self, proj, parryer):
         """Efeito visual de parry (defesa com ataque)"""
         # CB-01: notifica IA do parry (também conta como bloqueio — abre janela pos_bloqueio)
-        if hasattr(parryer, 'ai') and parryer.ai:
-            if hasattr(parryer.ai, 'on_bloqueio_sucesso'):
-                parryer.ai.on_bloqueio_sucesso()
+        if hasattr(parryer, 'brain') and parryer.brain:
+            if hasattr(parryer.brain, 'on_bloqueio_sucesso'):
+                parryer.brain.on_bloqueio_sucesso()
         
         # Cor do parryer
         cor = (parryer.dados.cor_r, parryer.dados.cor_g, parryer.dados.cor_b)
@@ -847,4 +878,7 @@ class SimuladorCombat:
         
         # Camera e timing
         self.cam.aplicar_shake(8.0, 0.1)
-        self.hit_stop_timer = 0.06
+        if self.game_feel:
+            self.game_feel.forcar_hitstop(0.06, camera_shake=8.0)
+        else:
+            self.hit_stop_timer = 0.06

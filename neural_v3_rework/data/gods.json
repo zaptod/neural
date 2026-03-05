@@ -1,37 +1,94 @@
 {
     "gods": {
         "god_balance": {
-            "name": "The Goddess of Balance",
+            "name": "Libra, Deusa do Equilíbrio",
             "nature": "Balance",
-            "color": [
-                180,
-                160,
-                255
-            ],
+            "color": [180, 160, 255],
             "followers": 1,
-            "territories": []
+            "territories": [],
+            "descricao": "Patrona da harmonia. Concede adaptação — fortalece onde o devoto fraqueja.",
+            "passiva": "Equilíbrio Divino: Quando HP < 50%, regen mana +50%. Quando mana < 30%, dano +10%.",
+            "bencao": "Balança Cósmica: Iguala HP de ambos à média."
         },
         "god_fear": {
-            "name": "The God of Fear",
+            "name": "Phobos, Deus do Medo",
             "nature": "Fear",
-            "color": [
-                80,
-                0,
-                0
-            ],
+            "color": [80, 0, 0],
             "followers": 0,
-            "territories": []
+            "territories": [],
+            "descricao": "Senhor do terror absoluto. Enfraquece os covardes e fortalece os devotos.",
+            "passiva": "Aura de Terror: Inimigos abaixo de 30% HP causam -15% de dano.",
+            "bencao": "Grito do Pavor: MEDO massivo por 3s + stun 1s."
         },
         "god_greed": {
-            "name": "The God of Greed",
+            "name": "Mammon, Deus da Ganância",
             "nature": "Greed",
-            "color": [
-                255,
-                200,
-                0
-            ],
+            "color": [255, 200, 0],
             "followers": 0,
-            "territories": []
+            "territories": [],
+            "descricao": "Insaciável acumulador. Transforma sofrimento alheio em vantagem própria.",
+            "passiva": "Ouro Sangrento: Recupera 3% HP ao matar ou aplicar status.",
+            "bencao": "Toque de Midas: 3 ataques com +50% dano e MARCADO."
+        },
+        "god_war": {
+            "name": "Ares, Deus da Guerra",
+            "nature": "War",
+            "color": [200, 30, 30],
+            "followers": 0,
+            "territories": [],
+            "descricao": "Forjado no fogo do conflito. Quanto mais sangra, mais forte fica.",
+            "passiva": "Sede de Sangue: +5% dano por cada 10% HP perdida (máx +25%).",
+            "bencao": "Fúria Marcial: 6s de +30% dano, +20% vel ataque, imune a stun."
+        },
+        "god_wisdom": {
+            "name": "Athena, Deusa da Sabedoria",
+            "nature": "Wisdom",
+            "color": [100, 180, 255],
+            "followers": 0,
+            "territories": [],
+            "descricao": "Estrategista suprema. Favorece mentes afiadas e uso eficiente de recursos.",
+            "passiva": "Mente Tática: Cooldown -15%. Esquiva +10% com mana cheia.",
+            "bencao": "Prelúdio Perfeito: 5s sem cooldown e mana -50%."
+        },
+        "god_nature": {
+            "name": "Gaia, Deusa da Natureza",
+            "nature": "Nature",
+            "color": [50, 180, 50],
+            "followers": 0,
+            "territories": [],
+            "descricao": "Mãe terrena. Protege contra venenos e garante vitalidade constante.",
+            "passiva": "Regeneração Natural: +0.8% HP/s, venenos -50% duração.",
+            "bencao": "Abraço de Gaia: Cura 35% HP, remove debuffs, enraíza inimigos 2s."
+        },
+        "god_death": {
+            "name": "Thanatos, Deus da Morte",
+            "nature": "Death",
+            "color": [40, 0, 60],
+            "followers": 0,
+            "territories": [],
+            "descricao": "O ceifador inevitável. Pune os fracos com golpes letais.",
+            "passiva": "Marca da Morte: +40% dano contra inimigos abaixo de 20% HP.",
+            "bencao": "Ceifar: Executa inimigo < 25% HP. Senão, causa 30% do HP atual."
+        },
+        "god_chaos": {
+            "name": "Eris, Deusa do Caos",
+            "nature": "Chaos",
+            "color": [200, 50, 200],
+            "followers": 0,
+            "territories": [],
+            "descricao": "Agente da entropia. Imprevisível, cada golpe carrega potencial inexplicável.",
+            "passiva": "Entropia: 10% de chance de efeito elemental aleatório em ataques.",
+            "bencao": "Loucura Cósmica: 4s de elementos aleatórios, +40% vel, -2% HP/s."
+        },
+        "god_time": {
+            "name": "Chronos, Deus do Tempo",
+            "nature": "Time",
+            "color": [200, 180, 255],
+            "followers": 0,
+            "territories": [],
+            "descricao": "Mestre das eras. Manipula o fluxo temporal a favor de seus devotos.",
+            "passiva": "Dilatação Temporal: A cada 10s, ganha 1s de slow-mo pessoal (+30% vel).",
+            "bencao": "Parar o Tempo: Congela todos os inimigos por 2.5s."
         }
     },
     "territories": {
@@ -46,11 +103,6 @@
             "type": "awakening",
             "god_id": "god_balance",
             "trigger": "Caleb cursed the world's unfairness"
-        },
-        {
-            "type": "territory_claimed",
-            "god_id": "caleb_01",
-            "territory_id": "warriors_rest"
         },
         {
             "type": "territory_claimed",

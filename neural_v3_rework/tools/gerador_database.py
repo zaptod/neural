@@ -401,29 +401,52 @@ def gerar_arma(tipo, raridade, variante_idx=None, encantamento=None, skill=None)
 
 
 def gerar_personagem(classe, personalidade, arma_nome, cor=None):
-    """Gera um personagem diverso"""
+    """Gera um personagem diverso — v16.0: usa balance.json para stats por classe"""
     nome = gerar_nome_personagem()
     
     if cor is None:
         cor = gerar_cor_personagem()
     
-    forca_base = 5.0 + random.uniform(-2, 3)
-    mana_base = 5.0 + random.uniform(-2, 3)
+    # v16.0: Carrega ranges de balance.json se disponível
+    _balance_ranges = {}
+    try:
+        balance_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "balance.json")
+        if os.path.exists(balance_path):
+            with open(balance_path, "r", encoding="utf-8") as f:
+                _balance_data = json.load(f)
+            _balance_ranges = _balance_data.get("roster_generation", {}).get("stats_por_classe", {})
+    except Exception:
+        pass
     
-    # LEG-C3: Usa mod_forca/mod_mana de CLASSES_DATA em vez de lógica duplicada por substring.
-    # Cobre todas as 16 classes, inclusive Duelista, Druida, Piromante, etc.
-    cd = get_class_data(classe)
-    forca_bias = (cd.get("mod_forca", 1.0) - 1.0) * 4   # ex: mod_forca=1.5 → +2.0
-    mana_bias  = (cd.get("mod_mana",  1.0) - 1.0) * 4
-    forca_base += forca_bias
-    mana_base  += mana_bias
+    ranges = _balance_ranges.get(classe)
+    if ranges:
+        # Usa ranges do balance.json — stats verdadeiramente variados por classe
+        forca_base = random.uniform(ranges["forca"][0], ranges["forca"][1])
+        mana_base = random.uniform(ranges["mana"][0], ranges["mana"][1])
+        tamanho = random.uniform(ranges["tamanho"][0], ranges["tamanho"][1])
+    else:
+        # Fallback: método antigo com bias da classe
+        forca_base = 5.0 + random.uniform(-2, 3)
+        mana_base = 5.0 + random.uniform(-2, 3)
     
-    # BUG-C5: clampar após todos os bônus — evita valores acima de 10 (fora do range do slider)
+        # LEG-C3: Usa mod_forca/mod_mana de CLASSES_DATA em vez de lógica duplicada por substring.
+        cd = get_class_data(classe)
+        forca_bias = (cd.get("mod_forca", 1.0) - 1.0) * 4
+        mana_bias  = (cd.get("mod_mana",  1.0) - 1.0) * 4
+        forca_base += forca_bias
+        mana_base  += mana_bias
+        tamanho = random.uniform(1.4, 2.2)
+    
+    # BUG-C5: clampar após todos os bônus
     forca_base = max(1.0, min(10.0, forca_base))
     mana_base  = max(1.0, min(10.0, mana_base))
     
-    tamanho = random.uniform(1.4, 2.2)
-    # LEG-C1: campos "resistencia" e "agilidade" removidos — Personagem.__init__ nunca os lê
+    # v16.0: Atribui deus aleatório entre os 9 disponíveis (ou None)
+    gods_pool = [
+        "god_balance", "god_fear", "god_greed", "god_war", "god_wisdom",
+        "god_nature", "god_death", "god_chaos", "god_time"
+    ]
+    god_id = random.choice(gods_pool) if random.random() < 0.7 else None
     
     personagem = {
         "nome": nome,
@@ -435,16 +458,32 @@ def gerar_personagem(classe, personalidade, arma_nome, cor=None):
         "cor_g": cor[1],
         "cor_b": cor[2],
         "classe": classe,
-        "personalidade": personalidade
+        "personalidade": personalidade,
+        "god_id": god_id,
+        "lore": ""
     }
     
     return personagem
 
 
 def selecionar_arma_por_classe(classe, armas):
-    """Seleciona armas apropriadas para uma classe"""
-    # BUG-C4: usa busca parcial (k in classe) para casar com nomes completos como
-    # "Guerreiro (Força Bruta)" — a busca exata preferencias.get(classe) sempre retornava None.
+    """Seleciona armas apropriadas para uma classe — v16.0: usa balance.json"""
+    # v16.0: Tenta carregar preferências do balance.json
+    try:
+        balance_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "balance.json")
+        if os.path.exists(balance_path):
+            with open(balance_path, "r", encoding="utf-8") as f:
+                _balance_data = json.load(f)
+            armas_pref = _balance_data.get("roster_generation", {}).get("armas_preferidas_por_classe", {})
+            tipos_preferidos = armas_pref.get(classe)
+            if tipos_preferidos:
+                resultado = [a for a in armas if a["tipo"] in tipos_preferidos]
+                if resultado:
+                    return resultado
+    except Exception:
+        pass
+    
+    # Fallback: busca parcial por substring
     preferencias = {
         "Guerreiro": ["Reta", "Transformável"],
         "Mago": ["Mágica", "Orbital"],
@@ -609,6 +648,86 @@ def salvar_database(armas, personagens, substituir=True):
         pass  # Gerador pode ser executado standalone sem AppState ativo; silenciar erro
     
     return armas_final, personagens_final
+
+
+def gerar_database_completa(num_personagens=64, modo="balanceada"):
+    """
+    v16.0: Gera database completa usando balance.json para distribuição de raridade.
+    modo: "balanceada" (usa pesos do balance.json), "representativa" (1 por classe = num fixo)
+    """
+    # Carrega pesos de raridade do balance.json
+    distribuicao = {"Comum": 0.35, "Incomum": 0.25, "Raro": 0.20, "Épico": 0.12, "Lendário": 0.06, "Mítico": 0.02}
+    try:
+        balance_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "balance.json")
+        if os.path.exists(balance_path):
+            with open(balance_path, "r", encoding="utf-8") as f:
+                balance_data = json.load(f)
+            distribuicao = balance_data.get("roster_generation", {}).get("distribuicao_raridade", distribuicao)
+    except Exception:
+        pass
+
+    armas = []
+    nomes_armas_usados = set()
+
+    # Gera armas com distribuição ponderada de raridade
+    raridades_pool = []
+    for rar, peso in distribuicao.items():
+        count = max(1, int(peso * num_personagens * 1.5))  # mais armas que personagens
+        raridades_pool.extend([rar] * count)
+    random.shuffle(raridades_pool)
+
+    for i, raridade in enumerate(raridades_pool):
+        tipo = LISTA_TIPOS_ARMA[i % len(LISTA_TIPOS_ARMA)]
+        enc = random.choice(LISTA_ENCANTAMENTOS) if raridade in ["Raro", "Épico", "Lendário", "Mítico"] else None
+        elemento = ENCANTAMENTOS.get(enc, {}).get("elemento", "FISICO") if enc else "FISICO"
+        skills_elem = SKILLS_OFENSIVAS.get(elemento, SKILLS_OFENSIVAS["FISICO"])
+        skill = random.choice(skills_elem)
+        arma = gerar_arma(tipo, raridade, None, enc, skill)
+
+        tentativas = 0
+        while arma["nome"] in nomes_armas_usados and tentativas < 10:
+            arma = gerar_arma(tipo, raridade, None, enc, skill)
+            tentativas += 1
+        if arma["nome"] not in nomes_armas_usados:
+            armas.append(arma)
+            nomes_armas_usados.add(arma["nome"])
+
+    # Gera personagens
+    personagens = []
+    nomes_usados = set()
+
+    if modo == "representativa":
+        # Um personagem de cada classe com personalidade variada
+        for i, classe in enumerate(LISTA_CLASSES):
+            personalidade = LISTA_PERSONALIDADES[i % len(LISTA_PERSONALIDADES)]
+            armas_ok = selecionar_arma_por_classe(classe, armas)
+            arma = random.choice(armas_ok) if armas_ok else random.choice(armas)
+            p = gerar_personagem(classe, personalidade, arma["nome"])
+            tentativas = 0
+            while p["nome"] in nomes_usados and tentativas < 10:
+                p = gerar_personagem(classe, personalidade, arma["nome"])
+                tentativas += 1
+            if p["nome"] not in nomes_usados:
+                personagens.append(p)
+                nomes_usados.add(p["nome"])
+
+    # Preenche até num_personagens com distribuição equilibrada de classes
+    while len(personagens) < num_personagens:
+        classe = LISTA_CLASSES[len(personagens) % len(LISTA_CLASSES)]
+        personalidade = random.choice(LISTA_PERSONALIDADES)
+        armas_ok = selecionar_arma_por_classe(classe, armas)
+        arma = random.choice(armas_ok) if armas_ok else random.choice(armas)
+        p = gerar_personagem(classe, personalidade, arma["nome"])
+        tentativas = 0
+        while p["nome"] in nomes_usados and tentativas < 10:
+            p = gerar_personagem(classe, personalidade, arma["nome"])
+            tentativas += 1
+        if p["nome"] not in nomes_usados:
+            personagens.append(p)
+            nomes_usados.add(p["nome"])
+
+    print(f"  → {len(armas)} armas, {len(personagens)} personagens gerados (modo: {modo})")
+    return armas, personagens
 
 
 if __name__ == "__main__":
