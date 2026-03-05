@@ -15,36 +15,27 @@ from utils.config import (
     AI_RAND_POOL_SIZE,
 )
 from ai.personalities import (
-    TODOS_TRACOS, TRACOS_AGRESSIVIDADE, TRACOS_DEFENSIVO, TRACOS_MOBILIDADE,
-    TRACOS_SKILLS, TRACOS_MENTAL, TRACOS_ESPECIAIS,
-    ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES,
-    PERSONALIDADES_PRESETS, INSTINTOS, RITMOS, RITMO_MODIFICADORES
+    ESTILOS_LUTA, FILOSOFIAS, HUMORES,
 )
+from ai.behavior_profiles import get_behavior_profile, get_trait_effects, FALLBACK_PROFILE
 
 try:
     from core.weapon_analysis import (
         analisador_armas, get_weapon_profile, compare_weapons,
         get_safe_distance, evaluate_combat_position, ThreatLevel, WeaponStyle
     )
-    WEAPON_ANALYSIS_AVAILABLE = True
 except ImportError:
-    WEAPON_ANALYSIS_AVAILABLE = False
+    pass
 
 try:
     from ai.skill_strategy import SkillStrategySystem, CombatSituation, SkillPriority
-    SKILL_STRATEGY_AVAILABLE = True
 except ImportError:
-    SKILL_STRATEGY_AVAILABLE = False
+    pass
 
 try:
     from core.hitbox import HITBOX_PROFILES
 except ImportError:
     HITBOX_PROFILES = {}
-
-try:
-    from core.arena import get_arena as _get_arena
-except ImportError:
-    _get_arena = None
 
 from ai._brain_mixin_base import _AIBrainMixinBase
 
@@ -77,23 +68,25 @@ class CombatMixin(_AIBrainMixinBase):
         
         # === ATAQUE DIRETO SE NO ALCANCE E NÃO ATACANDO ===
         if no_alcance and not p.atacando:
-            # Chance base de atacar quando no alcance
-            chance_base = 0.6
+            # Behavior profile drive attack chance
+            bp = getattr(self, '_behavior_profile', FALLBACK_PROFILE)
+            chance_base = bp.get("ataque_min_chance", 0.5) + bp.get("ataque_bonus_chance", 0.0)
             
-            # Aumenta chance se inimigo com pouca vida
-            if inimigo.vida / max(inimigo.vida_max, 1) < 0.3:
-                chance_base = 0.85
-            
-            # Modificadores de personalidade
-            if "AGRESSIVO" in self.tracos or "BERSERKER" in self.tracos:
-                chance_base += 0.2
-            if "CAUTELOSO" in self.tracos:
-                chance_base -= 0.15
-            if "OPORTUNISTA" in self.tracos:
-                chance_base += 0.1
+            # Aumenta chance se inimigo com pouca vida (execute zone)
+            inimigo_hp_r = inimigo.vida / max(inimigo.vida_max, 1)
+            if inimigo_hp_r < bp.get("execute_threshold", 0.25):
+                chance_base = min(0.95, chance_base + 0.30)
             
             # Momentum
             chance_base += self.momentum * 0.15
+            
+            # Emotion modifiers amplified by profile
+            if self.raiva > 0.5:
+                chance_base += self.raiva * 0.2 * bp.get("raiva_ganho_mult", 1.0)
+            if self.medo > 0.5:
+                chance_base -= self.medo * 0.15 * bp.get("medo_ganho_mult", 1.0)
+            
+            chance_base = max(0.05, min(0.95, chance_base))
             
             if random.random() < chance_base:
                 self._executar_ataque(distancia, inimigo)
@@ -396,8 +389,8 @@ class CombatMixin(_AIBrainMixinBase):
         # - Você recua
         # - Seu HP cai
         
-        # Decay natural para o neutro
-        self.momentum *= 0.995
+        # Decay natural para o neutro (frame-rate independent)
+        self.momentum *= 0.995 ** (dt * 60)
         
         # Baseado em hits recentes
         diff_hits = self.hits_dados_recente - self.hits_recebidos_recente
@@ -776,23 +769,72 @@ class CombatMixin(_AIBrainMixinBase):
         elif longe or muito_longe:
             votar("APROXIMAR", 1.0); votar("PRESSIONAR", 0.4)
 
-        # ── 2. TRAÇOS DE PERSONALIDADE ─────────────────────────────────────────
-        if "COVARDE" in self.tracos and hp_pct < 0.35:
-            # CB-07: vezes_que_fugiu é incrementado apenas em _tentar_dash_emergencia (execução real)
+        # ── 2. BEHAVIOR PROFILE + TRAÇOS (data-driven) ──────────────────────
+        bp = getattr(self, '_behavior_profile', FALLBACK_PROFILE)
+
+        # Profile: retreat behavior — personality controls when/if retreat happens
+        if hp_pct < bp.get("recuar_threshold", 0.30):
+            if bp.get("nunca_recua", False):
+                # Berserker/Viking: low HP = MORE aggression, not retreat
+                votar("MATAR", 2.5); votar("ESMAGAR", 1.5)
+            else:
+                votar("RECUAR", 1.5 * bp.get("retreat_weight", 1.0))
+                votar("FUGIR", 0.8 * bp.get("retreat_weight", 1.0))
+        elif hp_pct < 0.50 and bp.get("nunca_recua", False):
+            votar("MATAR", 1.5)  # Even at medium HP, aggressive profiles push forward
+
+        # Profile: pressure multiplier — how much they push advantages
+        if inimigo_hp_pct < bp.get("execute_threshold", 0.25):
+            votar("MATAR", 2.0 * bp.get("pressao_mult", 1.0))
+            votar("ESMAGAR", 1.0 * bp.get("pressao_mult", 1.0))
+        elif inimigo_hp_pct < 0.50:
+            votar("PRESSIONAR", 1.0 * bp.get("pressao_mult", 1.0))
+
+        # Profile: pursuit behavior
+        if bp.get("perseguir_sempre", False) and distancia > alcance_efetivo * 1.2:
+            votar("APROXIMAR", 1.5 * bp.get("approach_weight", 1.0))
+            votar("PRESSIONAR", 0.8 * bp.get("approach_weight", 1.0))
+
+        # Profile: damage reaction (applied via emotional system)
+        # This sets the tendency, actual emotion update happens in brain_emotions
+
+        # Data-driven trait effects — ALL traits processed from lookup table
+        for trait in self.tracos:
+            effects = get_trait_effects(trait)
+            for acao, peso in effects.items():
+                votar(acao, peso)
+
+        # Dynamic trait effects (context-dependent)
+        if "COVARDE" in self.tracos and hp_pct < bp.get("recuar_threshold", 0.30) + 0.10:
             if self.vezes_que_fugiu > 4:
                 votar("MATAR", 2.0); self.raiva = 0.9
             else:
-                votar("FUGIR", 2.0)
+                votar("FUGIR", 2.0 * bp.get("retreat_weight", 1.0))
         if "BERSERKER" in self.tracos and hp_pct < 0.45:
+            rage_bonus = (1.0 - hp_pct) * 3.0  # More HP lost = bigger bonus
+            votar("MATAR", rage_bonus)
+        if "FINALIZADOR_NATO" in self.tracos and inimigo_hp_pct < 0.25:
             votar("MATAR", 2.0)
-        if "SANGUINARIO" in self.tracos and inimigo_hp_pct < 0.3:
-            votar("MATAR", 1.8)
-        if "PREDADOR" in self.tracos and inimigo_hp_pct < 0.4:
-            votar("APROXIMAR", 1.5)
-        if "PERSEGUIDOR" in self.tracos and distancia > 5.0:
-            votar("APROXIMAR", 1.5)
+        if "CLUTCH_PLAYER" in self.tracos and hp_pct < 0.30:
+            votar("MATAR", 1.5); votar("CONTRA_ATAQUE", 1.0)
+        if "TILTER" in self.tracos and hp_pct < 0.30:
+            votar("FUGIR", 0.8); votar("RECUAR", 0.5)
+        if "PHOENIX" in self.tracos and hp_pct < 0.20:
+            votar("MATAR", 2.5)
+        if "ULTIMO_SUSPIRO" in self.tracos and hp_pct < 0.10:
+            votar("MATAR", 3.0); votar("ESMAGAR", 2.0)
+        if "UNDERDOG" in self.tracos and hp_pct < inimigo_hp_pct - 0.2:
+            votar("MATAR", 1.2); votar("PRESSIONAR", 0.8)
+        if "MOMENTUM_RIDER" in self.tracos and self.momentum > 0.3:
+            votar("MATAR", 1.0); votar("PRESSIONAR", 0.8)
+        if "MASOQUISTA" in self.tracos:
+            dano_bonus = (1.0 - hp_pct) * 2.0
+            votar("MATAR", dano_bonus * 0.5); votar("PRESSIONAR", dano_bonus * 0.3)
         if "KAMIKAZE" in self.tracos:
             votar("MATAR", 3.0)
+        if "EMOTIVO" in self.tracos:
+            votar("MATAR", self.raiva * 0.6)
+            votar("FUGIR", self.medo * 0.6)
 
         # ── 3. ESTILO DE LUTA ──────────────────────────────────────────────────
         estilo_data   = ESTILOS_LUTA.get(self.estilo_luta, ESTILOS_LUTA["BALANCED"])
@@ -808,28 +850,26 @@ class CombatMixin(_AIBrainMixinBase):
         else:
             votar(estilo_data["acao_medio"], agressividade * 0.8)
 
-        # ── 4. TRAÇOS MODIFICADORES ────────────────────────────────────────────
-        if "AGRESSIVO" in self.tracos:
-            votar("MATAR", 0.4); votar("APROXIMAR", 0.3); votar("PRESSIONAR", 0.3)
-        if "CALCULISTA" in self.tracos and distancia > 4.0:
-            votar("FLANQUEAR", 0.4)
-        if "PACIENTE" in self.tracos:
-            votar("COMBATE", 0.3)
-        if "IMPRUDENTE" in self.tracos:
-            votar("MATAR", 0.5); votar("ESMAGAR", 0.4)
-        if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
-            for a in ["FLANQUEAR", "APROXIMAR", "ATAQUE_RAPIDO", "MATAR", "ESMAGAR", "POKE"]:
-                votar(a, 0.15)
-        if "FLANQUEADOR" in self.tracos:
-            votar("FLANQUEAR", 0.5)
-        if "VELOZ" in self.tracos:
-            votar("FLANQUEAR", 0.3); votar("ATAQUE_RAPIDO", 0.3)
-        if "SELVAGEM" in self.tracos:
-            votar("MATAR", 0.3); votar("ESMAGAR", 0.2); votar("ATAQUE_RAPIDO", 0.2)
-        if "TEIMOSO" in self.tracos:
-            votar("MATAR", 0.3)
-        if "FRIO" not in self.tracos and self.raiva > 0.6:
-            votar("MATAR", self.raiva * 0.4); votar("ESMAGAR", self.raiva * 0.3)
+        # ── 4. PROFILE-DRIVEN MOVEMENT MODIFIERS ─────────────────────────────
+        # Apply profile-based weight multipliers to movement actions
+        for acao_key, mult_key in [
+            ("APROXIMAR", "approach_weight"), ("RECUAR", "retreat_weight"),
+            ("FUGIR", "retreat_weight"), ("FLANQUEAR", "flank_weight"),
+            ("POKE", "poke_weight"),
+        ]:
+            if acao_key in pesos:
+                mult = bp.get(mult_key, 1.0)
+                pesos[acao_key] = pesos[acao_key] * mult
+
+        # Emotion-based voting with profile amplification
+        raiva_mult = bp.get("raiva_ganho_mult", 1.0)
+        medo_mult = bp.get("medo_ganho_mult", 1.0)
+        if "FRIO" not in self.tracos and self.raiva > 0.4:
+            votar("MATAR", self.raiva * 0.6 * raiva_mult)
+            votar("ESMAGAR", self.raiva * 0.4 * raiva_mult)
+        if "FRIO" not in self.tracos and self.medo > 0.4:
+            votar("RECUAR", self.medo * 0.5 * medo_mult)
+            votar("FUGIR", self.medo * 0.3 * medo_mult)
 
         # ── 5. HUMOR ───────────────────────────────────────────────────────────
         humor_data = HUMORES.get(self.humor, HUMORES["CALMO"])
@@ -855,8 +895,11 @@ class CombatMixin(_AIBrainMixinBase):
         leitura = self.leitura_oponente
         if leitura["previsibilidade"] > AI_PREVISIBILIDADE_ALTA:
             tend_esq = leitura.get("tendencia_esquerda", 0.5)
-            if tend_esq > 0.60: self.dir_circular = 1
-            elif tend_esq < 0.40: self.dir_circular = -1
+            if self._dir_circular_cd <= 0:
+                if tend_esq > 0.60:
+                    self.dir_circular = 1; self._dir_circular_cd = 0.4
+                elif tend_esq < 0.40:
+                    self.dir_circular = -1; self._dir_circular_cd = 0.4
 
             # M-N01: calcula posição futura real do oponente e armazena como alvo de intercepção
             tempo_reacao = getattr(self, 'timer_decisao', 0.2)
@@ -882,8 +925,11 @@ class CombatMixin(_AIBrainMixinBase):
             votar("COMBATE", 0.25)
         if distancia < 4.0:
             tend = leitura.get("tendencia_esquerda", 0.5)
-            if tend > 0.65: self.dir_circular = 1
-            elif tend < 0.35: self.dir_circular = -1
+            if self._dir_circular_cd <= 0:
+                if tend > 0.65:
+                    self.dir_circular = 1; self._dir_circular_cd = 0.4
+                elif tend < 0.35:
+                    self.dir_circular = -1; self._dir_circular_cd = 0.4
 
         # ── 9. MODIFICADORES ESPACIAIS ─────────────────────────────────────────
         self._aplicar_modificadores_espaciais(distancia, inimigo)    # ainda seta acao_atual diretamente

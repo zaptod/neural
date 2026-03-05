@@ -180,6 +180,7 @@ class EmotionsMixin(_AIBrainMixinBase):
             # A cada 2-3 circulares seguidos, inverte a direção pra não parecer robótico
             if self.circular_consecutivo >= random.randint(2, 3):
                 self.dir_circular *= -1
+                self.circular_consecutivo = 0  # BUG-FIX: reset após flip para não inverter todo frame
         else:
             self.circular_consecutivo = 0
         
@@ -208,6 +209,7 @@ class EmotionsMixin(_AIBrainMixinBase):
         self.cd_buff = max(0, self.cd_buff - dt)
         self.cd_quirk = max(0, self.cd_quirk - dt)
         self.cd_mudanca_humor = max(0, self.cd_mudanca_humor - dt)
+        self._dir_circular_cd = max(0, self._dir_circular_cd - dt)
         self.tempo_desde_dano += dt
         self.tempo_desde_hit += dt
         # BUG-AI-03 fix: incrementa contador de bloqueio para o trigger "bloqueio_sucesso"
@@ -231,21 +233,42 @@ class EmotionsMixin(_AIBrainMixinBase):
 
 
     def _reagir_ao_dano(self, dano):
-        """Reações emocionais ao dano"""
+        """Reações emocionais ao dano — amplified by behavior profile"""
+        from ai.behavior_profiles import FALLBACK_PROFILE
+        bp = getattr(self, '_behavior_profile', FALLBACK_PROFILE)
+        raiva_mult = bp.get("raiva_ganho_mult", 1.0)
+        medo_mult = bp.get("medo_ganho_mult", 1.0)
+        dano_reacao = bp.get("dano_recebido_reacao", "neutro")
+
         if "VINGATIVO" in self.tracos:
-            self.raiva = min(1.0, self.raiva + 0.25)
+            self.raiva = min(1.0, self.raiva + 0.25 * raiva_mult)
         if "BERSERKER" in self.tracos or "BERSERKER_RAGE" in self.tracos:
-            self.raiva = min(1.0, self.raiva + 0.15)
+            self.raiva = min(1.0, self.raiva + 0.15 * raiva_mult)
             self.adrenalina = min(1.0, self.adrenalina + 0.2)
         if "FURIOSO" in self.tracos:
-            self.raiva = min(1.0, self.raiva + 0.2)
+            self.raiva = min(1.0, self.raiva + 0.2 * raiva_mult)
         if "COVARDE" in self.tracos or "MEDROSO" in self.tracos:
-            self.medo = min(1.0, self.medo + 0.2)
+            self.medo = min(1.0, self.medo + 0.2 * medo_mult)
         if "PARANOICO" in self.tracos:
-            self.medo = min(1.0, self.medo + 0.15)
+            self.medo = min(1.0, self.medo + 0.15 * medo_mult)
         if "FRIO" not in self.tracos:
-            self.raiva = min(1.0, self.raiva + 0.05)
+            self.raiva = min(1.0, self.raiva + 0.05 * raiva_mult)
         self.frustracao = min(1.0, self.frustracao + 0.1)
+
+        # Profile-driven damage reaction
+        if dano_reacao in ("RAIVA", "FURIA"):
+            self.raiva = min(1.0, self.raiva + 0.10 * raiva_mult)
+        elif dano_reacao == "RECUAR":
+            self.medo = min(1.0, self.medo + 0.08 * medo_mult)
+        elif dano_reacao == "FOCO":
+            # Foco: reduz medo, leve boost de confiança
+            self.medo = max(0.0, self.medo - 0.05)
+            self.confianca = min(1.0, self.confianca + 0.05)
+        elif dano_reacao == "ADAPTAR":
+            # Adaptar: leve raiva + leve cautela simultâneos
+            self.raiva = min(1.0, self.raiva + 0.05 * raiva_mult)
+            self.confianca = min(1.0, self.confianca + 0.03)
+        # "NADA" = sem reação adicional (por design)
 
 
     def _atualizar_emocoes(self, dt, distancia, inimigo):

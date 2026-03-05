@@ -55,6 +55,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             self._slow_mo_ended = True
                             # CB-04: persiste memória de rivalidade para o sistema MEL-AI-07
                             self._salvar_memorias_rivais()
+                            # v14.0: Flush match stats to DB
+                            self._flush_match_stats()
                 dt = raw_dt * self.time_scale
                 self.processar_inputs(); self.update(dt); self.desenhar(); pygame.display.flip()
             except Exception as e:
@@ -72,7 +74,13 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 except Exception as _e:
                     _log.debug("%s", _e)
                 self.rodando = False
-        pygame.quit()
+        # Cleanup pygame display sem destruir o subsistema inteiro,
+        # para que a próxima luta possa reinicializar sem invalidar caches globais.
+        try:
+            pygame.display.quit()
+            pygame.mixer.quit()
+        except Exception:
+            pass
 
 
     def _check_portrait_mode(self) -> bool:
@@ -85,6 +93,14 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
 
     def __init__(self):
         pygame.init()
+        
+        # Limpa caches de classe que contêm objetos pygame invalidados por pygame.quit()
+        SimuladorRenderer._font_cache.clear()
+        
+        # Reseta sistema de hitbox global (impede referências a lutadores antigos)
+        from core.hitbox import sistema_hitbox
+        sistema_hitbox.ultimo_ataque_info.clear()
+        sistema_hitbox.hits_registrados = []
         
         # Carrega config primeiro para saber o modo de tela
         self.portrait_mode = self._check_portrait_mode()
@@ -303,6 +319,13 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             self._prev_stagger = {f: False for f in self.fighters}
             self._prev_dash = {f: 0 for f in self.fighters}
             
+            # === INICIALIZA MATCH STATS COLLECTOR v14.0 ===
+            from data.match_stats import MatchStatsCollector
+            self.stats_collector = MatchStatsCollector()
+            for f in self.fighters:
+                if f and hasattr(f, 'dados'):
+                    self.stats_collector.register(f.dados.nome)
+
             # === INICIALIZA MAGIC VFX v11.0 ===
             MagicVFXManager.reset()
             self.magic_vfx = MagicVFXManager.get_instance()
@@ -1138,6 +1161,9 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         if not self.vencedor:
             # DES-4: Incrementa timer de luta e declara vencedor por HP se tempo esgotar
             self.tempo_luta += dt
+            # v14.0: Update stats collector frame (approx frame from elapsed time)
+            if hasattr(self, 'stats_collector'):
+                self.stats_collector.set_frame(int(self.tempo_luta * 60))
             if self.tempo_luta >= self.TEMPO_MAX_LUTA:
                 # v13.0: Winner por HP no timeout - time com mais HP% total ganha
                 self.vencedor = self._determinar_vencedor_por_tempo()
@@ -1235,6 +1261,19 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
     # =========================================================================
     # v14.0: MÉTODOS AUXILIARES MULTI-COMBATENTE + PERFORMANCE
     # =========================================================================
+
+    def _flush_match_stats(self):
+        """v14.0: Save stats_collector to AppState for later persistence.
+        
+        Does NOT call record_fight_result — that is done by the caller
+        (view_luta for standalone, tournament_mode for tournaments).
+        """
+        try:
+            if hasattr(self, 'stats_collector'):
+                from data.app_state import AppState
+                AppState.get()._pending_stats_collector = self.stats_collector
+        except Exception:
+            pass
     
     def _registrar_kill(self, morto, killer_nome_fallback):
         """Registra uma morte e determina se a luta acabou.

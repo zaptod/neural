@@ -20,6 +20,7 @@ from ai.personalities import (
     ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES,
     PERSONALIDADES_PRESETS, INSTINTOS, RITMOS, RITMO_MODIFICADORES
 )
+from ai.behavior_profiles import get_behavior_profile, FALLBACK_PROFILE
 
 try:
     from core.weapon_analysis import (
@@ -85,6 +86,8 @@ class PersonalityMixin(_AIBrainMixinBase):
         self._gerar_instintos()
         self._gerar_ritmo()
         self._calcular_agressividade()
+        # Random personalities get fallback profile
+        self._behavior_profile = FALLBACK_PROFILE
         self._categorizar_skills()
         self._aplicar_modificadores_iniciais()
         self._inicializar_skill_strategy()
@@ -468,6 +471,9 @@ class PersonalityMixin(_AIBrainMixinBase):
         self._calcular_agressividade()
         self.agressividade_base = max(0.0, min(1.0, self.agressividade_base + preset["agressividade_mod"]))
         
+        # Load behavior profile for this preset
+        self._behavior_profile = get_behavior_profile(preset_nome)
+
         # Categoriza skills e aplica modificadores
         self._categorizar_skills()
         self._aplicar_modificadores_iniciais()

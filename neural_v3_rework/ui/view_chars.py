@@ -333,7 +333,7 @@ class TelaPersonagens(tk.Frame):
         scroll = ttk.Scrollbar(frame_tree)
         scroll.pack(side="right", fill="y")
         
-        cols = ("Nome", "Classe", "Arma")
+        cols = ("Nome", "Classe", "Arma", "ELO")
         self.tree = ttk.Treeview(
             frame_tree, columns=cols, show="headings", height=15,
             yscrollcommand=scroll.set
@@ -346,6 +346,8 @@ class TelaPersonagens(tk.Frame):
         self.tree.column("Classe", width=100)
         self.tree.heading("Arma", text="Arma")
         self.tree.column("Arma", width=80)
+        self.tree.heading("ELO", text="ELO")
+        self.tree.column("ELO", width=55, anchor="center")
         
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.selecionar_personagem)
@@ -1548,8 +1550,17 @@ class TelaPersonagens(tk.Frame):
         for p in self.controller.lista_personagens:
             classe = getattr(p, "classe", "Guerreiro (Força Bruta)")
             classe_curta = classe.split(" (")[0]
+            # v14.0 Fase 2: ELO column
+            elo_txt = "—"
+            try:
+                from data.battle_db import BattleDB
+                cs = BattleDB.get().get_character_stats(p.nome)
+                if cs and cs.get("matches_played", 0) > 0:
+                    elo_txt = f"{cs['elo']:.0f}"
+            except Exception:
+                pass
             self.tree.insert("", "end", values=(
-                p.nome, classe_curta, p.nome_arma or "Nenhuma"
+                p.nome, classe_curta, p.nome_arma or "Nenhuma", elo_txt
             ))
         
         # BUG-C3: era passo 5 (Aparência) — corrigido para passo 6 (Equipamento),

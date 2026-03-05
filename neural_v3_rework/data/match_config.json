@@ -1,7 +1,7 @@
 {
-    "p1_nome": "xerekasssassozasso",
-    "p2_nome": "pintolossaurosasso",
-    "cenario": "Arena",
+    "p1_nome": "teste1",
+    "p2_nome": "teste2",
+    "cenario": "Gelo",
     "best_of": 1,
-    "portrait_mode": false
+    "portrait_mode": true
 }

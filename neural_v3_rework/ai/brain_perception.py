@@ -106,13 +106,14 @@ class PerceptionMixin(_AIBrainMixinBase):
         if len(leitura["padrao_movimento"]) > 15:
             leitura["padrao_movimento"].pop(0)
         
-        # Analisa tendência lateral
+        # Analisa tendência lateral (com dead zone para evitar oscilação com vel ≈ 0)
         if len(leitura["padrao_movimento"]) >= 5:
             lateral_sum = sum(m[0] for m in leitura["padrao_movimento"][-5:])
-            if lateral_sum > 0:
-                leitura["tendencia_esquerda"] = max(0.2, leitura["tendencia_esquerda"] - 0.02)
-            else:
-                leitura["tendencia_esquerda"] = min(0.8, leitura["tendencia_esquerda"] + 0.02)
+            if abs(lateral_sum) > 0.5:
+                if lateral_sum > 0:
+                    leitura["tendencia_esquerda"] = max(0.2, leitura["tendencia_esquerda"] - 0.02)
+                else:
+                    leitura["tendencia_esquerda"] = min(0.8, leitura["tendencia_esquerda"] + 0.02)
         
         # Detecta frequência de pulos
         pulos_recentes = sum(1 for m in leitura["padrao_movimento"] if m[2] > 0)
@@ -554,6 +555,7 @@ class PerceptionMixin(_AIBrainMixinBase):
             elif self.filosofia == "PACIENCIA":
                 self.reacao_pendente = "ESPERAR"
 
+    @staticmethod
     def _id_oponente(oponente) -> str:
         """Gera uma chave única para identificar o oponente entre lutas."""
         nome = getattr(getattr(oponente, 'dados', None), 'nome', None) or str(id(oponente))

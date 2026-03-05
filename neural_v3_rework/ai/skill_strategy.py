@@ -335,7 +335,7 @@ class SkillStrategySystem:
         # v14.0: Chain hit estimation
         chain = data.get("chain", 0)
         if chain > 0:
-            chain_decay = data.get("chain_decay", 0.8)
+            chain_decay = min(data.get("chain_decay", 0.8), 0.99)  # Clamp to prevent explosion
             chain_bonus = sum(chain_decay ** i for i in range(1, chain))
             perfil.dano_total *= (1.0 + chain_bonus * 0.5)  # Estimated chain hits
         
@@ -624,12 +624,16 @@ class SkillStrategySystem:
             perfil.score_defensivo = 0.9
         # v14.0: Lifesteal is both offensive and defensive
         if data.get("lifesteal", 0) > 0:
-            perfil.score_defensivo = max(perfil.score_defensivo, 0.5 + data["lifesteal"])
+            perfil.score_defensivo = max(perfil.score_defensivo, min(1.0, 0.5 + data["lifesteal"]))
             perfil.score_ofensivo += 0.1
         if data.get("remove_debuffs"):
             perfil.score_defensivo = max(perfil.score_defensivo, 0.6)
         if data.get("bonus_resistencia"):
-            perfil.score_defensivo = max(perfil.score_defensivo, 0.5 + data["bonus_resistencia"])
+            perfil.score_defensivo = max(perfil.score_defensivo, min(1.0, 0.5 + data["bonus_resistencia"]))
+        
+        # Clamp all scores to [0, 1]
+        perfil.score_ofensivo = min(1.0, perfil.score_ofensivo)
+        perfil.score_defensivo = min(1.0, perfil.score_defensivo)
         
         # Utilidade
         if perfil.tipo in ["BUFF", "SUMMON", "TRAP"]:
@@ -1185,8 +1189,15 @@ class SkillStrategySystem:
         skill = self.skills[nome]
         p = self.parent
         
-        # Mana
-        if p.mana < skill.custo:
+        # Mana (com descontos de classe/buff)
+        custo_efetivo = skill.custo
+        if "Mago" in p.classe_nome:
+            custo_efetivo *= 0.8
+        for buff in p.buffs_ativos:
+            if getattr(buff, 'custo_mana_metade', False):
+                custo_efetivo *= 0.5
+                break
+        if p.mana < custo_efetivo:
             return False
         
         # Cooldown do jogo
@@ -1275,8 +1286,8 @@ class SkillStrategySystem:
         if nome in self.skills:
             skill = self.skills[nome]
             if skill.tipo in self.cd_por_tipo:
-                # M-N03: usa metade do cooldown real — evita dead zones de 3s fixos
-                self.cd_por_tipo[skill.tipo] = max(0.5, skill.cooldown * 0.5)
+                # GCD por tipo — curto para não bloquear demais
+                self.cd_por_tipo[skill.tipo] = min(2.0, max(0.5, skill.cooldown * 0.15))
             self.cd_global = 0.3  # Pequeno delay entre skills
     
     def registrar_uso_skill(self, nome: str):

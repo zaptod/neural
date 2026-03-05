@@ -485,7 +485,7 @@ class Lutador:
                 break
         
         self.cd_skills[nome_skill] = cd
-        self.cd_skill_arma = cd
+        self.cd_skill_arma = min(cd, 0.8)  # GCD curto — per-skill CDs já controlam spam
         
         rad = math.radians(self.angulo_olhar)
         spawn_x = self.pos[0] + math.cos(rad) * 0.6

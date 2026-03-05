@@ -41,14 +41,27 @@ class MatchCard(ctk.CTkFrame):
         # Status
         status_text = "✅" if match.completed else ("⚔️" if is_current else "⏳")
         ctk.CTkLabel(self, text=status_text, font=("Arial", 16), width=30).grid(row=0, column=0, rowspan=2, padx=5)
-        
+
+        # v14.0 Fase 2: ELO lookup helper
+        def _elo_tag(name):
+            try:
+                from data.battle_db import BattleDB
+                cs = BattleDB.get().get_character_stats(name)
+                if cs and cs.get("matches_played", 0) > 0:
+                    return f" [{cs['elo']:.0f}]"
+            except Exception:
+                pass
+            return ""
+
         # Fighter 1
+        f1_elo = _elo_tag(match.fighter1_name)
         f1_style = {"font": ("Arial", 12, "bold"), "text_color": "gold"} if match.winner_name == match.fighter1_name else {"font": ("Arial", 12)}
-        ctk.CTkLabel(self, text=match.fighter1_name[:25], **f1_style).grid(row=0, column=1, sticky="w", padx=5)
+        ctk.CTkLabel(self, text=f"{match.fighter1_name[:25]}{f1_elo}", **f1_style).grid(row=0, column=1, sticky="w", padx=5)
         
         # Fighter 2
+        f2_elo = _elo_tag(match.fighter2_name)
         f2_style = {"font": ("Arial", 12, "bold"), "text_color": "gold"} if match.winner_name == match.fighter2_name else {"font": ("Arial", 12)}
-        ctk.CTkLabel(self, text=match.fighter2_name[:25], **f2_style).grid(row=1, column=1, sticky="w", padx=5)
+        ctk.CTkLabel(self, text=f"{match.fighter2_name[:25]}{f2_elo}", **f2_style).grid(row=1, column=1, sticky="w", padx=5)
         
         # Botão de ação
         if not match.completed and not match.fighter1_name.startswith("BYE") and not match.fighter2_name.startswith("BYE"):

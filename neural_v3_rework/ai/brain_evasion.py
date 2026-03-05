@@ -151,20 +151,20 @@ class EvasionMixin(_AIBrainMixinBase):
         opcao1 = ang_ataque + 90
         opcao2 = ang_ataque - 90
         
-        # Escolhe direção baseado em fatores
+        # Escolhe direção baseado em fatores (prioridade crescente)
         escolha = opcao1 if random.random() < 0.5 else opcao2
         
-        # Leitura do oponente influencia
-        if leitura["tendencia_esquerda"] > 0.6:
-            escolha = opcao2  # Oponente tende a ir pra esquerda, vou pra direita
-        elif leitura["tendencia_esquerda"] < 0.4:
-            escolha = opcao1
-        
-        # Usa direção circular estabelecida
+        # Usa direção circular como base
         if self.dir_circular > 0:
             escolha = opcao1
         else:
             escolha = opcao2
+        
+        # Leitura do oponente pode sobrescrever (maior prioridade)
+        if leitura["tendencia_esquerda"] > 0.6:
+            escolha = opcao2  # Oponente tende a ir pra esquerda, vou pra direita
+        elif leitura["tendencia_esquerda"] < 0.4:
+            escolha = opcao1
         
         # Adiciona variação humana
         escolha += random.uniform(-20, 20)

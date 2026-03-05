@@ -287,8 +287,9 @@ class AppState:
         self._save_tournament()
         self._notify("tournament_changed", self._tournament)
 
-    def record_fight_result(self, winner: str, loser: str, duration: float, ko: bool):
-        """Append a fight result to tournament stats and session log."""
+    def record_fight_result(self, winner: str, loser: str, duration: float, ko: bool,
+                           arena: str = "", tournament_id: str = None):
+        """Append a fight result to tournament stats, session log, AND SQLite."""
         self._session["total_fights"] += 1
         if ko:
             self._session["total_kos"] += 1
@@ -311,6 +312,57 @@ class AppState:
         self._save_tournament()
         self._notify("tournament_changed", self._tournament)
         self._notify("session_stats_changed", self._session)
+
+        # ── [v14.0] Persist to SQLite + ELO update ─────────────────────────────
+        try:
+            from data.battle_db import BattleDB
+            from core.elo_system import calculate_elo, get_tier
+            db = BattleDB.get()
+
+            # Resolve character metadata
+            w_char = self.get_character(winner)
+            l_char = self.get_character(loser)
+
+            # Get current ELO from DB (or default 1600)
+            w_stats = db.get_character_stats(winner)
+            l_stats = db.get_character_stats(loser)
+            w_elo = w_stats["elo"] if w_stats else 1600.0
+            l_elo = l_stats["elo"] if l_stats else 1600.0
+            w_matches = w_stats["matches_played"] if w_stats else 0
+            l_matches = l_stats["matches_played"] if l_stats else 0
+
+            # Calculate ELO deltas
+            delta_w, delta_l = calculate_elo(
+                winner_elo=w_elo, loser_elo=l_elo,
+                winner_matches=w_matches, loser_matches=l_matches,
+                ko=ko, duration=duration or 0.0,
+            )
+
+            # Insert match with ELO snapshots
+            match_id = db.insert_match(
+                p1=winner, p2=loser, winner=winner, loser=loser,
+                duration=duration,
+                ko_type="KO" if ko else "TIMEOUT",
+                arena=arena,
+                p1_class=w_char.classe if w_char else "",
+                p2_class=l_char.classe if l_char else "",
+                p1_weapon=w_char.nome_arma if w_char else "",
+                p2_weapon=l_char.nome_arma if l_char else "",
+                p1_elo_before=w_elo, p2_elo_before=l_elo,
+                p1_elo_after=w_elo + delta_w,
+                p2_elo_after=max(0, l_elo + delta_l),
+                tournament_id=tournament_id,
+            )
+
+            # Update character stats + ELO
+            db.update_character_stats(winner, won=True, elo_delta=delta_w,
+                                      tier=get_tier(w_elo + delta_w))
+            db.update_character_stats(loser, won=False, elo_delta=delta_l,
+                                      tier=get_tier(max(0, l_elo + delta_l)))
+            return match_id
+        except Exception as e:
+            print(f"[AppState] BattleDB/ELO write failed (non-fatal): {e}")
+        return None
 
     # ── Gods / World State (Neural Fights Lore) ───────────────────────────────
 

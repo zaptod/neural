@@ -67,7 +67,11 @@ class SkillsMixin(_AIBrainMixinBase):
         """Processa uso de skills com sistema de estratégia inteligente"""
         p = self.parent
         
-        # Verifica cooldown global
+        # Atualiza timers do strategy ANTES do gate (para cd_por_tipo decrementar)
+        if self.skill_strategy is not None:
+            self.skill_strategy.atualizar(dt)
+        
+        # Verifica GCD global (curto — per-skill CDs controlam spam)
         if hasattr(p, 'cd_skill_arma') and p.cd_skill_arma > 0:
             return False
         
@@ -139,7 +143,7 @@ class SkillsMixin(_AIBrainMixinBase):
         if strategy is None:
             return False
 
-        strategy.atualizar(dt)
+        # (atualizar já foi chamado em _processar_skills antes do GCD gate)
 
         # ── Estado de combate ──
         hp_pct          = p.vida / p.vida_max if p.vida_max > 0 else 1.0
@@ -216,7 +220,15 @@ class SkillsMixin(_AIBrainMixinBase):
             if nome not in skills:
                 return False
             sk = skills[nome]
-            if p.mana < sk.custo:
+            # Custo efetivo com descontos de classe/buff
+            custo_efetivo = sk.custo
+            if "Mago" in p.classe_nome:
+                custo_efetivo *= 0.8
+            for buff in p.buffs_ativos:
+                if getattr(buff, 'custo_mana_metade', False):
+                    custo_efetivo *= 0.5
+                    break
+            if p.mana < custo_efetivo:
                 return False
             if nome in p.cd_skills and p.cd_skills[nome] > 0:
                 return False

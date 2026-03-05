@@ -66,6 +66,10 @@ class SimuladorCombat:
         # Usa o novo sistema modular para armas melee
         acertou, motivo = verificar_hit(atacante, defensor)
         
+        # === v14.0 MATCH STATS — record attack attempt (melee) ===
+        if hasattr(self, 'stats_collector'):
+            self.stats_collector.record_attack_attempt(atacante.dados.nome)
+
         if acertou:
             # === v10.1: MARCA ALVO COMO ATINGIDO NESTE ATAQUE ===
             if hasattr(atacante, 'alvos_atingidos_neste_ataque'):
@@ -300,6 +304,14 @@ class SimuladorCombat:
                         self.cam.zoom_punch(impact_result['zoom_punch'], 0.15)
             
             if defensor.tomar_dano(dano, kb_x, kb_y, "NORMAL", atacante=atacante):
+                # === v14.0 MATCH STATS — record hit + death ===
+                if hasattr(self, 'stats_collector'):
+                    self.stats_collector.record_hit(
+                        atacante.dados.nome, defensor.dados.nome, dano,
+                        critico=is_critico,
+                        elemento=getattr(arma, 'elemento', '') if arma else '',
+                    )
+                    self.stats_collector.record_death(defensor.dados.nome, killer=atacante.dados.nome)
                 # === PASSIVA em hit — processa lifesteal, execute, double_hit, etc (BUG-03) ===
                 if hasattr(atacante, 'aplicar_passiva_em_hit'):
                     atacante.aplicar_passiva_em_hit(dano, defensor)
@@ -329,6 +341,13 @@ class SimuladorCombat:
                 self.vencedor = atacante.dados.nome
                 return True
             else:
+                # === v14.0 MATCH STATS — record hit (no death) ===
+                if hasattr(self, 'stats_collector'):
+                    self.stats_collector.record_hit(
+                        atacante.dados.nome, defensor.dados.nome, dano,
+                        critico=is_critico,
+                        elemento=getattr(arma, 'elemento', '') if arma else '',
+                    )
                 # === ÁUDIO v10.0 - SOM DE IMPACTO ===
                 if self.audio:
                     listener_x = self.cam.x / PPM
@@ -773,6 +792,9 @@ class SimuladorCombat:
     
     def _efeito_bloqueio(self, proj, bloqueador, pos_escudo):
         """Efeito visual de bloqueio"""
+        # === v14.0 MATCH STATS — record block ===
+        if hasattr(self, 'stats_collector'):
+            self.stats_collector.record_block(bloqueador.dados.nome)
         # === ÁUDIO v10.0 - SOM DE BLOQUEIO ===
         if self.audio:
             listener_x = self.cam.x / PPM
@@ -808,6 +830,9 @@ class SimuladorCombat:
     
     def _efeito_desvio_dash(self, proj, desviador):
         """Efeito visual de desvio com dash"""
+        # === v14.0 MATCH STATS — record dodge ===
+        if hasattr(self, 'stats_collector'):
+            self.stats_collector.record_dodge(desviador.dados.nome)
         # Trail do dash
         if hasattr(desviador, 'pos_historico') and len(desviador.pos_historico) > 2:
             posicoes = [(p[0] * PPM, p[1] * PPM) for p in desviador.pos_historico[-8:]]
@@ -824,6 +849,9 @@ class SimuladorCombat:
     
     def _efeito_parry(self, proj, parryer):
         """Efeito visual de parry (defesa com ataque)"""
+        # === v14.0 MATCH STATS — parry counts as block ===
+        if hasattr(self, 'stats_collector'):
+            self.stats_collector.record_block(parryer.dados.nome)
         # CB-01: notifica IA do parry (também conta como bloqueio — abre janela pos_bloqueio)
         if hasattr(parryer, 'ai') and parryer.ai:
             if hasattr(parryer.ai, 'on_bloqueio_sucesso'):

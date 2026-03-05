@@ -739,6 +739,14 @@ class TeamCoordinator:
     def request_help(self, fighter, urgency: float = 0.8):
         """Membro pede ajuda ao time."""
         if self.callout_cooldown > 0:
+            # Cooldown ativo — enfileira se urgência suficiente
+            if urgency >= 0.9:
+                self.callouts.append({
+                    "type": "HELP",
+                    "from": id(fighter),
+                    "pos": tuple(fighter.pos) if hasattr(fighter, 'pos') else (0, 0),
+                    "urgency": urgency,
+                })
             return
         self.callouts.append({
             "type": "HELP",
@@ -751,6 +759,14 @@ class TeamCoordinator:
     def callout_target(self, fighter, target, reason: str = "FOCUS"):
         """Membro indica um alvo para o time."""
         if self.callout_cooldown > 0:
+            # Cooldown ativo — aceita FOCUS mesmo assim
+            if reason == "FOCUS":
+                self.callouts.append({
+                    "type": "TARGET",
+                    "from": id(fighter),
+                    "target": id(target),
+                    "reason": reason,
+                })
             return
         self.callouts.append({
             "type": "TARGET",

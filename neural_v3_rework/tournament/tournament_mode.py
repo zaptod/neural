@@ -283,12 +283,22 @@ class Tournament:
             self.stats["total_kos"] += 1
 
         # Propagate result to AppState (centralizes session stats + fires tournament_changed)
-        AppState.get().record_fight_result(
+        match_id = AppState.get().record_fight_result(
             winner=match.winner_name,
             loser=match.loser_name,
             duration=duration,
             ko=("KO" in ko_type),
         )
+        # v14.0: Flush match stats events if available
+        if match_id:
+            try:
+                from data.app_state import AppState as _AS
+                _pending = getattr(_AS.get(), '_pending_stats_collector', None)
+                if _pending:
+                    _pending.flush_to_db(match_id)
+                    _AS.get()._pending_stats_collector = None
+            except Exception:
+                pass
 
         # ── WorldBridge: conquista de território pelo deus do vencedor ───────
         try:

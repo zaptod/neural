@@ -82,6 +82,7 @@ from ai.personalities import (
     ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES,
     PERSONALIDADES_PRESETS, INSTINTOS, RITMOS, RITMO_MODIFICADORES
 )
+from ai.behavior_profiles import FALLBACK_PROFILE
 
 try:
     from core.weapon_analysis import (
@@ -137,6 +138,7 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self.timer_decisao = 0.0
         self.acao_atual = "NEUTRO"
         self.dir_circular = random.choice([-1, 1])
+        self._dir_circular_cd = 0.0  # Cooldown antes de permitir nova mudança de dir_circular
         self.circular_consecutivo = 0  # Conta decisões CIRCULAR seguidas
         
         # === EMOÇÕES (0.0 a 1.0) ===
@@ -184,6 +186,9 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self.ritmo_fase_atual = 0  # Índice da fase atual
         self.ritmo_timer = 0.0     # Timer para mudança de fase
         self.ritmo_modificadores = {"agressividade": 0, "defesa": 0, "mobilidade": 0}
+
+        # === BEHAVIOR PROFILE (Phase 1 AI Overhaul) ===
+        self._behavior_profile = FALLBACK_PROFILE
 
         # MEL-ARQ-06: flag de debug de decisão de movimento.
         # Quando True, cada frame que chamar _decidir_movimento emite um log DEBUG
@@ -475,7 +480,7 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self._observar_oponente(inimigo, distancia)
         
         choreographer = CombatChoreographer.get_instance()
-        acao_sync = choreographer.get_acao_sincronizada(p)
+        acao_sync = choreographer.get_acao_sincronizada(p) if choreographer else None
         
         if acao_sync:
             if self._executar_acao_sincronizada(acao_sync, distancia, inimigo):

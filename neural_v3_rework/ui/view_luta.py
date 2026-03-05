@@ -243,7 +243,16 @@ class TelaLuta(tk.Frame):
         # Popula listas
         for p in personagens:
             classe = getattr(p, 'classe', 'Guerreiro')
-            texto = f"{p.nome} ({classe})"
+            # v14.0 Fase 2: Show ELO in listbox if available
+            elo_tag = ""
+            try:
+                from data.battle_db import BattleDB
+                cs = BattleDB.get().get_character_stats(p.nome)
+                if cs and cs.get("matches_played", 0) > 0:
+                    elo_tag = f" [{cs['elo']:.0f}]"
+            except Exception:
+                pass
+            texto = f"{p.nome} ({classe}){elo_tag}"
             self.listbox_p1.insert(tk.END, texto)
             self.listbox_p2.insert(tk.END, texto)
         
@@ -318,6 +327,31 @@ class TelaLuta(tk.Frame):
         # Stats
         arma_txt = p.nome_arma if p.nome_arma else "Mãos Vazias"
         stats = f"VEL: {p.velocidade:.1f} | RES: {p.resistencia:.1f}\n🗡️ {arma_txt}"
+
+        # ── v14.0 Fase 2: ELO / Tier / W-L from BattleDB ─────────────────
+        try:
+            from data.battle_db import BattleDB
+            db = BattleDB.get()
+            char_stats = db.get_character_stats(p.nome)
+            if char_stats and char_stats.get("matches_played", 0) > 0:
+                elo = char_stats["elo"]
+                tier = char_stats["tier"]
+                wins = char_stats["wins"]
+                losses = char_stats["losses"]
+                mp = max(char_stats["matches_played"], 1)
+                wr = wins / mp * 100
+
+                TIER_EMOJI = {
+                    "MASTER": "👑", "DIAMOND": "💎", "PLATINUM": "🏆",
+                    "GOLD": "🥇", "SILVER": "🥈", "BRONZE": "🥉",
+                }
+                emoji = TIER_EMOJI.get(tier, "🥉")
+                stats += f"\n{emoji} {tier} — ELO {elo:.0f}"
+                stats += f"\n{wins}W — {losses}L ({wr:.0f}%)"
+        except Exception:
+            pass
+        # ──────────────────────────────────────────────────────────────────
+
         lbl_stats.config(text=stats)
 
     def _atualizar_botao(self):
@@ -376,13 +410,87 @@ class TelaLuta(tk.Frame):
             sim.run()
             duration = time.time() - t_start
 
-            # ── WorldBridge: propaga resultado para o mapa ──────────────────
+            post_fight_result = None
+
+            # ── v14.0: Persiste resultado no BattleDB + ELO ─────────────────
             if sim.vencedor:
                 loser = (
                     sim.p2.dados.nome
                     if sim.vencedor == sim.p1.dados.nome
                     else sim.p1.dados.nome
                 )
+                ko = any(f.morto for f in sim.fighters
+                         if f.dados.nome == loser)
+
+                # Capture ELO BEFORE the update
+                elo_before_w, elo_before_l = 1600.0, 1600.0
+                try:
+                    from data.battle_db import BattleDB
+                    from core.elo_system import get_tier
+                    db = BattleDB.get()
+                    ws = db.get_character_stats(sim.vencedor)
+                    ls = db.get_character_stats(loser)
+                    if ws:
+                        elo_before_w = ws["elo"]
+                    if ls:
+                        elo_before_l = ls["elo"]
+                except Exception:
+                    pass
+
+                try:
+                    match_id = AppState.get().record_fight_result(
+                        winner=sim.vencedor, loser=loser,
+                        duration=duration, ko=ko,
+                        arena=sim.cenario if hasattr(sim, 'cenario') else '',
+                    )
+                    if match_id and hasattr(sim, 'stats_collector'):
+                        sim.stats_collector.flush_to_db(match_id)
+                except Exception as e:
+                    print(f"[view_luta] BattleDB/ELO write failed (non-fatal): {e}")
+                    match_id = None
+
+                # Capture ELO AFTER the update
+                elo_after_w, elo_after_l = elo_before_w, elo_before_l
+                tier_w, tier_l = "BRONZE", "BRONZE"
+                try:
+                    ws2 = db.get_character_stats(sim.vencedor)
+                    ls2 = db.get_character_stats(loser)
+                    if ws2:
+                        elo_after_w = ws2["elo"]
+                        tier_w = ws2["tier"]
+                    if ls2:
+                        elo_after_l = ls2["elo"]
+                        tier_l = ls2["tier"]
+                except Exception:
+                    pass
+
+                # Build stats summary
+                w_stats, l_stats = {}, {}
+                if hasattr(sim, 'stats_collector'):
+                    try:
+                        summary = sim.stats_collector.get_summary()
+                        w_stats = summary.get(sim.vencedor, {})
+                        l_stats = summary.get(loser, {})
+                    except Exception:
+                        pass
+
+                post_fight_result = {
+                    "winner": sim.vencedor,
+                    "loser": loser,
+                    "ko_type": "KO" if ko else "TIMEOUT",
+                    "duration": duration,
+                    "winner_elo_before": elo_before_w,
+                    "winner_elo_after": elo_after_w,
+                    "winner_tier": tier_w,
+                    "loser_elo_before": elo_before_l,
+                    "loser_elo_after": elo_after_l,
+                    "loser_tier": tier_l,
+                    "winner_stats": w_stats,
+                    "loser_stats": l_stats,
+                }
+
+            # ── WorldBridge: propaga resultado para o mapa ──────────────────
+            if sim.vencedor:
                 try:
                     from data.world_bridge import WorldBridge
                     conquered = WorldBridge.get().on_fight_result(
@@ -402,8 +510,17 @@ class TelaLuta(tk.Frame):
 
         except Exception as e:
             messagebox.showerror("Erro", f"Simulação falhou:\n{e}")
+            post_fight_result = None
         
         self.controller.deiconify()
+
+        # ── v14.0 Fase 2: Post-Fight Results Screen ────────────────────────
+        if post_fight_result:
+            try:
+                from ui.view_resultado import show_post_fight
+                show_post_fight(self.controller, post_fight_result)
+            except Exception as e:
+                print(f"[view_luta] PostFight screen failed (non-fatal): {e}")
 
     # Compatibilidade
     def atualizar_previews(self, event=None):
