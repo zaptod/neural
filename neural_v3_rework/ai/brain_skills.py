@@ -203,8 +203,7 @@ class SkillsMixin(_AIBrainMixinBase):
             if ally_no_caminho and random.random() < 0.80:
                 return False
             # Checa raio de AoE vs posição de aliados
-            # BUG-12 fix: usa alcance_efetivo (calcula raio_area/alcance/largura corretamente por tipo)
-            raio_aoe = sk.alcance_efetivo if sk.alcance_efetivo > 0 else 2.0
+            raio_aoe = sk.data.get("raio", 0) or sk.data.get("largura", 0) or 2.0
             aliados = getattr(self, 'multi_awareness', {}).get("aliados", [])
             for aliado in aliados:
                 if aliado["distancia"] < raio_aoe * 1.3 and aliado["distancia"] < distancia:
@@ -449,10 +448,6 @@ class SkillsMixin(_AIBrainMixinBase):
                             self.combo_state["pode_followup"] = True
                             self.combo_state["timer_followup"] = 0.5
                             self._proximo_skill_combo = sk2
-                            # Registra combo no SkillStrategy para execução sequencial
-                            if strategy.combo_em_andamento is None:
-                                strategy.combo_em_andamento = [sk1, sk2]
-                                strategy.combo_index = 1  # sk1 já foi usado
                             return True
 
         # ================================================================
@@ -873,7 +868,7 @@ class SkillsMixin(_AIBrainMixinBase):
         """Usa skills ofensivas"""
         p = self.parent
         
-        chance = self.get_agressividade_efetiva()
+        chance = self.agressividade_base
         if "SPAMMER" in self.tracos:
             chance += 0.25
         if self.raiva > 0.6:
@@ -1125,9 +1120,8 @@ class SkillsMixin(_AIBrainMixinBase):
                 for idx, sk in enumerate(getattr(p, 'skills_arma', [])):
                     if sk.get("nome") == nome:
                         return p.usar_skill_arma(skill_idx=idx)
-                # Skill não encontrada na lista — não usa fallback cego
-                _log.warning("[IA] _usar_skill: skill '%s' não encontrada em skills_arma, abortando", nome)
-                return False
+                # Fallback: tenta pelo índice 0 se não encontrar (compatibilidade legada)
+                return p.usar_skill_arma(skill_idx=0)
         elif skill_info["fonte"] == "classe":
             if hasattr(p, 'usar_skill_classe'):
                 return p.usar_skill_classe(skill_info["nome"])

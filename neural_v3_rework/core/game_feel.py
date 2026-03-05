@@ -366,27 +366,7 @@ class HitStopManager:
         
         if self.on_hitstop_start:
             self.on_hitstop_start(evento)
-
-    def forcar_hitstop(self, duracao: float, camera_shake: float = 0.0, camera_zoom: float = 0.0):
-        """Força um hitstop por duração fixa (para clashes, bloqueios, parries)."""
-        evento = HitStopEvent(
-            duracao=duracao,
-            intensidade=min(1.0, duracao / 0.3),
-            atacante=None,
-            alvo=None,
-            tipo_golpe="EVENTO",
-            posicao=(0, 0),
-            camera_shake=camera_shake,
-            camera_zoom_punch=camera_zoom,
-        )
-        if self.timer_ativo > 0 and self.evento_atual:
-            if duracao > self.timer_ativo:
-                self.timer_ativo = duracao
-                self.evento_atual = evento
-        else:
-            self.fila_eventos.clear()
-            self._iniciar_hitstop(evento)
-
+    
     def update(self, dt: float) -> float:
         """
         Atualiza o sistema de hit stop.
@@ -1281,10 +1261,6 @@ class GameFeelManager:
     def em_hitstop(self) -> bool:
         """Verifica se está em hit stop global"""
         return self.hit_stop.em_hitstop
-
-    def forcar_hitstop(self, duracao: float, camera_shake: float = 0.0, camera_zoom: float = 0.0):
-        """Força um hitstop por duração fixa (delega para HitStopManager)."""
-        self.hit_stop.forcar_hitstop(duracao, camera_shake, camera_zoom)
     
     def get_channeling_system(self, lutador) -> Optional[ChannelingSystem]:
         """Retorna o sistema de channeling de um lutador"""

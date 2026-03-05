@@ -2,13 +2,10 @@
 NEURAL FIGHTS - Entidade Lutador
 Classe principal do lutador com sistema de combate.
 """
+
 import math
 import random
-from typing import TYPE_CHECKING
 from utils.config import PPM, GRAVIDADE_Z, ATRITO, ALTURA_PADRAO
-
-if TYPE_CHECKING:
-    from models.characters import Personagem
 
 
 class Lutador:
@@ -19,7 +16,7 @@ class Lutador:
     - Efeitos de status (DoT, buffs, debuffs)
     - Batalhas multi-lutador com equipes (v13.0)
     """
-    def __init__(self, dados_char: 'Personagem', pos_x, pos_y, team_id=0):  # type: ignore[name-defined]
+    def __init__(self, dados_char, pos_x, pos_y, team_id=0):
         # Importações tardias para evitar circular imports
         from ai import AIBrain
         from core.skills import get_skill_data
@@ -106,9 +103,6 @@ class Lutador:
             self.arma_encantamentos = getattr(arma, 'encantamentos', [])
             self.arma_passiva = getattr(arma, 'passiva', None)
             self.arma_tipo = arma.tipo
-            # v16.0: Sistema de durabilidade de arma
-            self.arma_durabilidade = getattr(arma, 'durabilidade', 100.0)
-            self.arma_durabilidade_max = getattr(arma, 'durabilidade_max', 100.0)
         else:
             self.arma_raridade = 'Comum'
             self.arma_critico = 0.0
@@ -116,8 +110,6 @@ class Lutador:
             self.arma_encantamentos = []
             self.arma_passiva = None
             self.arma_tipo = None
-            self.arma_durabilidade = 100.0
-            self.arma_durabilidade_max = 100.0
         
         # Carrega skills de afinidade da classe
         for skill_nome in self.class_data.get("skills_afinidade", []):
@@ -148,7 +140,6 @@ class Lutador:
 
         # Estado de combate
         self.morto = False
-        self._kill_registered: bool = False  # Flag para detectar mortes indiretas (DoT, hazard)
         self.invencivel_timer = 0.0
         self.flash_timer = 0.0
         self.flash_cor = (255, 255, 255)  # Cor do flash de dano
@@ -170,7 +161,6 @@ class Lutador:
         self.timer_animacao = 0.0
         self.atacando = False
         self.modo_ataque_aereo = False
-        self.ultimo_atacante = None  # Rastreia quem causou o último dano
         
         # === SISTEMA DE PREVENÇÃO DE MULTI-HIT v10.1 ===
         # Cada ataque recebe um ID único para evitar múltiplos hits no mesmo swing
@@ -255,41 +245,15 @@ class Lutador:
             return None
         return self.skills_arma[self.skill_atual_idx]
     
-    def calcular_dano_ataque(self, dano_base, alvo=None):
+    def calcular_dano_ataque(self, dano_base):
         """Calcula dano final com crítico, encantamentos e PASSIVA da arma (BUG-03 fix)"""
         from models import ENCANTAMENTOS
 
         dano = dano_base * self.mod_dano
 
-        # === v16.0: penalidade de durabilidade de arma ===
-        dano *= self._get_durabilidade_mult()
-
         # FP-2: aplica penalidade de FRACO se ativa (antes era setado mas nunca lido)
         if getattr(self, 'dano_reduzido', 1.0) != 1.0:
             dano *= self.dano_reduzido
-
-        # === v16.0: PASSIVAS DE CLASSE — dano ofensivo ===
-        if "Guerreiro" in self.classe_nome:
-            dano *= 1.10  # "Golpes físicos causam 10% mais dano"
-        if "Berserker" in self.classe_nome:
-            hp_ratio = self.vida / max(self.vida_max, 1)
-            if hp_ratio < 1.0:
-                # Escala linear: 0% HP → +30%, 100% HP → +0%
-                bonus_berserk = (1.0 - hp_ratio) * 0.30
-                dano *= 1.0 + bonus_berserk
-        if "Piromante" in self.classe_nome:
-            # "+15% dano em magias de fogo" — verifica elemento da arma/encantamento
-            for enc_nome in self.arma_encantamentos:
-                if enc_nome in ("Chamas",):
-                    dano *= 1.15
-                    break
-        if "Duelista" in self.classe_nome:
-            # "+10% dano em 1v1" — sempre ativo em duelos
-            dano *= 1.10
-        if "Monge" in self.classe_nome:
-            # "Ataques desarmados causam dano mágico" — bonus escala com mana
-            mana_ratio = self.mana / max(self.mana_max, 1)
-            dano *= 1.0 + mana_ratio * 0.15  # até +15% com mana cheia
 
         # === PASSIVA: dano_bonus ===
         passiva = self.arma_passiva or {}
@@ -325,14 +289,6 @@ class Lutador:
                 enc = ENCANTAMENTOS[enc_nome]
                 dano += enc.get("dano_bonus", 0)
 
-        # === v16.0: BÊNÇÃO DIVINA — modificador de dano ofensivo ===
-        try:
-            from core.divine import DivineBlessingManager
-            divine = DivineBlessingManager.get_instance()
-            dano = divine.aplicar_passiva_dano(self, dano, alvo=alvo)
-        except Exception:
-            pass
-
         return dano, is_critico
 
     def aplicar_passiva_em_hit(self, dano_aplicado, alvo, pos_impacto_px=None):
@@ -355,10 +311,9 @@ class Lutador:
         # === PASSIVA: execute (golpe final em HP baixo) ===
         if efeito == "execute":
             if alvo.vida / max(alvo.vida_max, 1) < (valor / 100.0):
-                if not alvo.morto and getattr(alvo, 'invencivel_timer', 0) <= 0:
-                    # Usa tomar_dano para respeitar shields, sobreviver, class reduction
-                    alvo.tomar_dano(alvo.vida + 10, 0, 0, "NORMAL", atacante=self)
-                    resultado["execute"] = True
+                alvo.vida = 0
+                alvo.morrer()
+                resultado["execute"] = True
 
         # === PASSIVA: double_hit (chance de aplicar dano novamente) ===
         if efeito == "double_hit" and random.random() < (valor / 100.0):
@@ -366,8 +321,6 @@ class Lutador:
                 dano_eco = dano_aplicado * 0.5
                 alvo.vida = max(0, alvo.vida - dano_eco)
                 resultado["double_hit"] = dano_eco
-                if alvo.vida <= 0 and not alvo.morto:
-                    alvo.morrer()
 
         # === PASSIVA: aoe_damage (porcentagem do dano em área ao redor do alvo) ===
         if efeito == "aoe_damage":
@@ -391,52 +344,6 @@ class Lutador:
             if not alvo.morto:
                 alvo.dots_ativos.append(dot)
             resultado["random_element"] = elemento
-
-        # === v16.0: PASSIVAS DE CLASSE — on_hit ===
-        # Necromante: Drena 10% do dano causado como vida
-        if "Necromante" in self.classe_nome:
-            cura_necro = dano_aplicado * 0.10
-            self.vida = min(self.vida_max, self.vida + cura_necro)
-            resultado["necro_lifesteal"] = cura_necro
-
-        # Feiticeiro: 15% chance de "lançar duas vezes" — aplica 50% do dano novamente
-        if "Feiticeiro" in self.classe_nome and random.random() < 0.15:
-            if not alvo.morto:
-                dano_eco = dano_aplicado * 0.50
-                alvo.vida = max(0, alvo.vida - dano_eco)
-                resultado["feiticeiro_duplo"] = dano_eco
-                if alvo.vida <= 0 and not alvo.morto:
-                    alvo.morrer()
-
-        # Criomante: Ataques sempre aplicam slow (simplificado como dot de gelo curto)
-        if "Criomante" in self.classe_nome and not alvo.morto:
-            from core.combat import DotEffect
-            jah_congelado = any(d.tipo == "CONGELADO" for d in getattr(alvo, 'dots_ativos', []))
-            if not jah_congelado:
-                dot_gelo = DotEffect("CONGELADO", alvo, 0, 1.5, (150, 220, 255))
-                alvo.dots_ativos.append(dot_gelo)
-                resultado["criomante_slow"] = True
-
-        # Druida: Venenos duram 50% mais — aplicado em aplicar_efeitos_encantamento
-        # (hookado separadamente pois precisa modificar duração do DOT)
-
-        # === v16.0: BÊNÇÃO DIVINA — on_hit ===
-        try:
-            from core.divine import DivineBlessingManager
-            divine = DivineBlessingManager.get_instance()
-            divine.aplicar_passiva_on_hit(self, alvo, dano_aplicado)
-        except Exception:
-            pass
-
-        # === v16.0: COMBO SYSTEM — registra hit ===
-        try:
-            from core.combo import ComboSystem
-            combo = ComboSystem.get_instance()
-            combo_evento = combo.on_hit(self, alvo, dano_aplicado)
-            if combo_evento:
-                resultado["combo"] = combo_evento
-        except Exception:
-            pass
 
         return resultado
     
@@ -462,12 +369,8 @@ class Lutador:
                 alvo.slow_timer = 2.0
                 alvo.slow_fator = 0.5
             elif efeito == "poison":
-                duracao_veneno = enc.get("dot_duracao", 5.0)
-                # v16.0: Druida — venenos duram 50% mais
-                if "Druida" in self.classe_nome:
-                    duracao_veneno *= 1.50
                 dot = DotEffect("Envenenado", alvo, enc.get("dot_dano", 3),
-                               duracao_veneno, (100, 255, 100))
+                               enc.get("dot_duracao", 5.0), (100, 255, 100))
                 alvo.dots_ativos.append(dot)
             elif efeito == "lifesteal":
                 # BUG-F3: lifesteal deve ser baseado no dano aplicado, não no HP do alvo
@@ -522,14 +425,6 @@ class Lutador:
             if self.vida <= custo_vida:
                 return False
             self.vida -= custo_vida
-        
-        # === v16.0: BÊNÇÃO DIVINA — redução de custo de mana ===
-        try:
-            from core.divine import DivineBlessingManager
-            divine = DivineBlessingManager.get_instance()
-            custo_real *= divine.get_mod_custo_mana(self)
-        except Exception:
-            pass
         
         if self.mana < custo_real:
             return False
@@ -587,19 +482,8 @@ class Lutador:
                 cd = 0
                 break
         
-        # === v16.0: BÊNÇÃO DIVINA — modificador de cooldown ===
-        try:
-            from core.divine import DivineBlessingManager
-            divine = DivineBlessingManager.get_instance()
-            cd *= divine.get_mod_cooldown(self)
-        except Exception:
-            pass
-        
         self.cd_skills[nome_skill] = cd
         self.cd_skill_arma = cd
-        
-        # === v16.0: DURABILIDADE — perda por uso de skill ===
-        self._perder_durabilidade(1.0)
         
         rad = math.radians(self.angulo_olhar)
         spawn_x = self.pos[0] + math.cos(rad) * 0.6
@@ -982,8 +866,6 @@ class Lutador:
                 self.congelado = False
         if self.cd_skill_arma > 0:
             self.cd_skill_arma -= dt
-        if self.cooldown_ataque > 0:
-            self.cooldown_ataque -= dt
         if self.slow_timer > 0:
             self.slow_timer -= dt
             if self.slow_timer <= 0:
@@ -996,14 +878,6 @@ class Lutador:
             val = getattr(self, attr, 0)
             if val > 0:
                 setattr(self, attr, val - dt)
-
-        # Decrementar possesso_timer
-        if getattr(self, 'possesso_timer', 0) > 0:
-            self.possesso_timer -= dt
-
-        # Limpar flag dormindo quando stun expira naturalmente
-        if getattr(self, 'dormindo', False) and self.stun_timer <= 0:
-            self.dormindo = False
 
         # FP-4: enraizado_timer decrementado separadamente para restaurar slow_fator ao expirar
         enraizado_val = getattr(self, 'enraizado_timer', 0)
@@ -1041,10 +915,11 @@ class Lutador:
             self.bomba_relogio_timer -= dt
             if self.bomba_relogio_timer <= 0:
                 dano_bomba = getattr(self, 'bomba_relogio_dano', 80.0)
+                self.vida = max(0, self.vida - dano_bomba)
                 self.flash_timer = 0.3
                 self.flash_cor = (255, 100, 0)
-                # Usa tomar_dano para respeitar invencibilidade, shields, sobreviver
-                self.tomar_dano(dano_bomba, 0, 0, "EXPLOSAO")
+                if self.vida <= 0:
+                    self.morrer()
 
         # Reset em_vortex / sendo_puxado when stun expires
         if self.stun_timer <= 0:
@@ -1082,16 +957,10 @@ class Lutador:
             mana_regen *= 0.3  # BUG-C2: penalidade temporária enquanto EXAUSTO estiver ativo
         if "Mago" in self.classe_nome:
             mana_regen *= 1.5
-        # v16.0: Gladiador — regen mana 30% mais rápido (análogo a "stamina regen")
-        if "Gladiador" in self.classe_nome:
-            mana_regen *= 1.30
         self.mana = min(self.mana_max, self.mana + mana_regen * dt)
         
-        if "Paladino" in self.classe_nome and getattr(self, 'cura_bloqueada', 0) <= 0:
-            self.vida = min(self.vida_max, self.vida + self.vida_max * 0.005 * dt)  # 0.5% HP/s
-        
-        # v16.0: Necromante — drena 10% do dano causado como vida (processado em aplicar_passiva_em_hit)
-        # (já hookado via on_hit)
+        if "Paladino" in self.classe_nome:
+            self.vida = min(self.vida_max, self.vida + self.vida_max * 0.005 * dt)  # Reduzido de 2% para 0.5%
         
         # v13.0: Multi-fighter targeting - encontra inimigo mais próximo vivo
         if todos_lutadores is not None:
@@ -1125,10 +994,7 @@ class Lutador:
         diff = normalizar_angulo(angulo_alvo - self.angulo_olhar)
         
         vel_giro = 20.0 if "Assassino" in self.classe_nome or "Ninja" in self.classe_nome else 10.0
-        
-        # Bug fix: não rotacionar durante stun (hitbox ativa não deve rastrear inimigo)
-        if self.stun_timer <= 0:
-            self.angulo_olhar += diff * vel_giro * dt
+        self.angulo_olhar += diff * vel_giro * dt
 
         # v13.0: Verifica se há QUALQUER inimigo vivo (não só o principal)
         algum_inimigo_vivo = not inimigo.morto
@@ -1137,12 +1003,6 @@ class Lutador:
                 not f.morto for f in todos_lutadores
                 if f is not self and f.team_id != self.team_id
             )
-
-        # Bug fix: cancelar ataque ao ser stunado (previne dano melee durante stun)
-        if self.stun_timer > 0 and self.atacando:
-            self.atacando = False
-            self.timer_animacao = 0
-            self.alvos_atingidos_neste_ataque.clear()
 
         if self.stun_timer <= 0 and algum_inimigo_vivo:
             # Só processa IA se tiver brain (não em modo manual)
@@ -1234,26 +1094,6 @@ class Lutador:
         for buff in self.buffs_ativos:
             acc *= buff.buff_velocidade
         
-        # === v16.0: PASSIVA DE CLASSE — Ninja: +30% velocidade de movimento ===
-        if "Ninja" in self.classe_nome:
-            acc *= 1.30
-        
-        # === v16.0: CLIMA — modificador de velocidade ===
-        try:
-            from core.weather import WeatherSystem
-            weather = WeatherSystem.get_instance()
-            acc *= weather.get_mod_velocidade()
-        except Exception:
-            pass
-        
-        # === v16.0: BÊNÇÃO DIVINA — modificador de velocidade ===
-        try:
-            from core.divine import DivineBlessingManager
-            divine = DivineBlessingManager.get_instance()
-            acc *= divine.get_mod_velocidade(self)
-        except Exception:
-            pass
-        
         # v8.0: Aplica variação humana na aceleração
         if hasattr(self.brain, 'ritmo_combate'):
             acc *= self.brain.ritmo_combate
@@ -1268,10 +1108,6 @@ class Lutador:
         mx, my = 0, 0
         rad = math.radians(self.angulo_olhar)
         
-        # Anti-overlap: quando praticamente dentro do oponente, reduz aproximação
-        muito_perto = distancia < self.raio_fisico * 1.5
-        fator_aprox = 0.4 if muito_perto else 1.0
-        
         if acao in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO", "APROXIMAR", "CONTRA_ATAQUE", "PRESSIONAR"]:
             mx = math.cos(rad)
             my = math.sin(rad)
@@ -1279,8 +1115,8 @@ class Lutador:
                 "MATAR": 1.0, "ESMAGAR": 0.85, "ATAQUE_RAPIDO": 1.25,
                 "APROXIMAR": 1.0, "CONTRA_ATAQUE": 1.4, "PRESSIONAR": 1.1
             }.get(acao, 1.0)
-            mx *= mult * fator_aprox
-            my *= mult * fator_aprox
+            mx *= mult
+            my *= mult
             
             # v8.0: Micro-ajustes durante ataques para parecer mais humano
             if hasattr(self.brain, 'micro_ajustes'):
@@ -1288,8 +1124,8 @@ class Lutador:
                 my += random.uniform(-0.05, 0.05)
             
         elif acao == "COMBATE":
-            mx = math.cos(rad) * 0.6 * fator_aprox
-            my = math.sin(rad) * 0.6 * fator_aprox
+            mx = math.cos(rad) * 0.6
+            my = math.sin(rad) * 0.6
             # v8.0: Mais variação no combate
             chance_strafe = 0.35 if "ESPACAMENTO_MESTRE" in self.brain.tracos else 0.3
             if random.random() < chance_strafe:
@@ -1330,12 +1166,11 @@ class Lutador:
             if random.random() < 0.12:
                 mx *= 0.3
                 my *= 0.3
-            # Ajuste de distância enquanto circula — usa alcance_ideal relativo
-            alcance_ref = self.alcance_ideal
-            if distancia < alcance_ref * 0.8:
+            # Ajuste de distância enquanto circula
+            if distancia < 2.5:
                 mx -= math.cos(rad) * 0.35  # Afasta mais agressivamente
                 my -= math.sin(rad) * 0.35
-            elif distancia > alcance_ref * 1.8:
+            elif distancia > 4.0:
                 mx += math.cos(rad) * 0.2  # Aproxima um pouco
                 my += math.sin(rad) * 0.2
             # v8.1: Na faixa ideal, pequeno approach aleatório em vez de constante
@@ -1351,8 +1186,8 @@ class Lutador:
             my = math.sin(rad_f)
             
         elif acao == "APROXIMAR_LENTO":
-            mx = math.cos(rad) * 0.55 * fator_aprox
-            my = math.sin(rad) * 0.55 * fator_aprox
+            mx = math.cos(rad) * 0.55
+            my = math.sin(rad) * 0.55
             # v8.0: Pequenos movimentos laterais ao aproximar
             if random.random() < 0.2:
                 rad_lat = math.radians(self.angulo_olhar + (90 * random.choice([-1, 1])))
@@ -1381,8 +1216,8 @@ class Lutador:
         
         # v8.0: Nova ação - pressionar continuamente
         elif acao == "PRESSIONAR_CONTINUO":
-            mx = math.cos(rad) * 1.1 * fator_aprox
-            my = math.sin(rad) * 1.1 * fator_aprox
+            mx = math.cos(rad) * 1.1
+            my = math.sin(rad) * 1.1
             # Pequenos ajustes laterais
             if random.random() < 0.25:
                 rad_lat = math.radians(self.angulo_olhar + (30 * self.brain.dir_circular))
@@ -1426,6 +1261,8 @@ class Lutador:
         """Executa ataques físicos com sistema de animação aprimorado v2.0"""
         from core.combat import ArmaProjetil, FlechaProjetil, OrbeMagico
         from effects.weapon_animations import get_weapon_animation_manager, WEAPON_PROFILES
+        
+        self.cooldown_ataque -= dt
         
         arma_tipo = self.dados.arma_obj.tipo if self.dados.arma_obj else "Reta"
         arma_estilo = getattr(self.dados.arma_obj, 'estilo', '') if self.dados.arma_obj else ''
@@ -1552,47 +1389,13 @@ class Lutador:
                     base_cd = 0.8 + random.random() * 0.4
                 elif arma_tipo == "Mágica":
                     base_cd = 1.0 + random.random() * 0.5
-                if "Assassino" in self.classe_nome:
-                    base_cd *= 0.75  # Assassino: precisão mortal
-                if "Ninja" in self.classe_nome:
-                    base_cd *= 0.70  # Ninja: +30% velocidade de ataque (v16.0)
+                if "Assassino" in self.classe_nome or "Ninja" in self.classe_nome:
+                    base_cd *= 0.7
                 elif "Colosso" in self.brain.arquetipo:
                     base_cd *= 1.3
                 # BUG-06 fix: velocidade_ataque da arma reduz o cooldown
                 vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
                 self.cooldown_ataque = base_cd / vel_ataque
-                
-                # === v16.0: DURABILIDADE — perda por ataque ===
-                self._perder_durabilidade(0.5)
-
-    # =====================================================================
-    # === v16.0: SISTEMA DE DURABILIDADE DE ARMA =========================
-    # =====================================================================
-
-    def _perder_durabilidade(self, perda_base: float):
-        """
-        Reduz durabilidade da arma. Raridades altas perdem menos.
-        perda_base: valor bruto de perda (0.5 por ataque, 1.0 por skill, 2.0 por clash)
-        """
-        from models.constants import RARIDADES
-        rar_data = RARIDADES.get(self.arma_raridade, {})
-        # Raridade reduz perda: Mítico perde 70% menos
-        mod = rar_data.get("mod_durabilidade", 1.0)
-        perda_real = perda_base / max(mod, 0.5)  # mod_durabilidade alto = menos perda
-        self.arma_durabilidade = max(0.0, self.arma_durabilidade - perda_real)
-
-    def _get_durabilidade_mult(self) -> float:
-        """Retorna multiplicador de dano/velocidade baseado na durabilidade restante."""
-        if self.arma_durabilidade_max <= 0:
-            return 1.0
-        ratio = self.arma_durabilidade / self.arma_durabilidade_max
-        if ratio <= 0:
-            return 0.4  # Arma quebrada: -60% dano
-        elif ratio < 0.25:
-            return 0.7  # Quase quebrada: -30% dano
-        elif ratio < 0.5:
-            return 0.85  # Desgastada: -15% dano
-        return 1.0
 
     # =====================================================================
     # === SISTEMA DE CORRENTE v5.0 — Mecânicas únicas por estilo ========
@@ -1993,10 +1796,6 @@ class Lutador:
         if self.morto or self.invencivel_timer > 0:
             return False
         
-        # Rastreia último atacante para atribuição de kills indiretas
-        if atacante is not None:
-            self.ultimo_atacante = atacante
-        
         # SONO: acordar ao tomar dano
         if getattr(self, 'dormindo', False):
             self.dormindo = False
@@ -2005,15 +1804,9 @@ class Lutador:
         dano_final = dano
 
         if "Cavaleiro" in self.classe_nome:
-            dano_final *= 0.70  # v16.0: corrigido para 30% menos dano (era 25%)
+            dano_final *= 0.75
 
         if "Ladino" in self.classe_nome and random.random() < 0.2:
-            return False
-
-        # v16.0: Duelista — ataques nunca erram (inverte miss do atacante se for duelista)
-        # (implementado como anti-miss no atacante em executar_ataques)
-
-        if "Ninja" in self.classe_nome and random.random() < 0.10:
             return False
 
         # CM-12: CEGO reduz chance de acerto do ATACANTE (aplicado no defensor via atacante)
@@ -2049,14 +1842,6 @@ class Lutador:
         # CM-11: CONGELADO aumenta dano recebido em 1.5x (magic_system define mod_dano_recebido: 1.5)
         if getattr(self, 'congelado', False):
             dano_final *= 1.5
-
-        # === v16.0: BÊNÇÃO DIVINA — modificador de defesa ===
-        try:
-            from core.divine import DivineBlessingManager
-            divine = DivineBlessingManager.get_instance()
-            dano_final = divine.aplicar_passiva_defesa(self, dano_final, atacante)
-        except Exception:
-            pass
 
         for buff in self.buffs_ativos:
             if buff.escudo_atual > 0:
@@ -2159,27 +1944,10 @@ class Lutador:
             self.brain.raiva += 0.2
         
         # Knockback proporcional ao dano e vida restante
-        # BUG-18 fix v2: melee attacks passam empurrao já escalado (magnitude
-        # 5-25) via calcular_knockback_com_forca — usar diretamente.
-        # Vetores de direção pura (DOTs, efeitos) têm magnitude ≤ 1.5 e
-        # precisam da fórmula interna de kb.
-        emp_mag = math.hypot(empurrao_x, empurrao_y)
-        if emp_mag > 0.01:
-            if emp_mag > 1.5:
-                # Melee: empurrao já escalado por calcular_knockback_com_forca
-                # Bônus leve por vida baixa (até +40%)
-                vida_ratio = 1.0 - (self.vida / max(self.vida_max, 1))
-                bonus = 1.0 + vida_ratio * 0.4
-                self.vel[0] += empurrao_x * bonus
-                self.vel[1] += empurrao_y * bonus
-            else:
-                # Direção pura (DOT, habilidade) — aplica fórmula interna
-                nx = empurrao_x / emp_mag
-                ny = empurrao_y / emp_mag
-                kb = 15.0 + (1.0 - (self.vida / max(self.vida_max, 1))) * 10.0
-                kb += dano_final * 0.2
-                self.vel[0] += nx * kb
-                self.vel[1] += ny * kb
+        kb = 15.0 + (1.0 - (self.vida/self.vida_max)) * 10.0
+        kb += dano_final * 0.2  # Dano alto = mais knockback
+        self.vel[0] += empurrao_x * kb
+        self.vel[1] += empurrao_y * kb
         
         self._aplicar_efeito_status(tipo_efeito)
         
@@ -2188,7 +1956,7 @@ class Lutador:
         
         if self.vida <= 0:
             self.morrer()
-            return self.morto  # False if revived by buff/skill
+            return True
         return False
 
     def _aplicar_efeito_status(self, efeito, duracao=None, intensidade=1.0):
@@ -2218,11 +1986,10 @@ class Lutador:
             self.dots_ativos.append(dot)
             
         elif efeito == "CORROENDO":
-            # Corrosão: Dano + reduz defesa temporariamente
+            # Corrosão: Dano + reduz defesa
             dot = DotEffect("CORROENDO", self, 1.5 * intensidade, duracao or 4.0, (150, 100, 50))
             self.dots_ativos.append(dot)
-            self.vulnerabilidade = getattr(self, 'vulnerabilidade', 1.0) * 1.25  # +25% dano recebido
-            self.vulnerabilidade_timer = max(getattr(self, 'vulnerabilidade_timer', 0), duracao or 4.0)
+            self.mod_defesa *= 0.8  # -20% defesa
             
         elif efeito == "NECROSE":
             # Necrose: DoT que impede cura
@@ -2268,23 +2035,23 @@ class Lutador:
             
         elif efeito == "SILENCIADO":
             # Silenciado: Não pode usar skills
-            self.silenciado_timer = max(self.silenciado_timer, duracao or 3.0)
+            self.silenciado_timer = duracao or 3.0
             
         elif efeito == "CEGO":
             # Cego: Ângulo de visão prejudicado (IA afetada)
-            self.cego_timer = max(getattr(self, 'cego_timer', 0), duracao or 2.0)
+            self.cego_timer = duracao or 2.0
             self.flash_cor = (255, 255, 200)
             self.flash_timer = 0.5
             
         elif efeito == "MEDO":
             # Medo: Força a fugir
-            self.medo_timer = max(getattr(self, 'medo_timer', 0), duracao or 2.5)
+            self.medo_timer = duracao or 2.5
             if self.brain is not None:
                 self.brain.medo = 1.0  # Maximiza medo na IA
             
         elif efeito == "CHARME":
             # Charme: Inimigo te segue
-            self.charme_timer = max(getattr(self, 'charme_timer', 0), duracao or 2.0)
+            self.charme_timer = duracao or 2.0
             
         elif efeito == "SONO":
             # Sono: Stun longo que quebra com dano
@@ -2317,19 +2084,19 @@ class Lutador:
             # Fraco: Dano reduzido
             self.dano_reduzido = 0.7
             # FP-2: adiciona timer para que o efeito expire
-            self.fraco_timer = max(getattr(self, 'fraco_timer', 0), duracao or 3.0)
+            self.fraco_timer = duracao or 3.0
             
         elif efeito == "VULNERAVEL":
             # Vulnerável: Dano recebido aumentado
             self.vulnerabilidade = 1.5
             # FP-3: adiciona timer para que o efeito expire
-            self.vulnerabilidade_timer = max(getattr(self, 'vulnerabilidade_timer', 0), duracao or 3.0)
+            self.vulnerabilidade_timer = duracao or 3.0
             
         elif efeito == "EXAUSTO":
             # Exausto: Regen de stamina/mana reduzida
             # BUG-C2: Não modificar regen_mana_base diretamente (era permanente).
             # O timer é decrementado no update() e a penalidade é aplicada condicionalmente no cálculo de mana.
-            self.exausto_timer = max(getattr(self, 'exausto_timer', 0), duracao or 5.0)
+            self.exausto_timer = duracao or 5.0
             
         elif efeito == "MARCADO":
             # Marcado: Próximo ataque causa dano extra
@@ -2337,7 +2104,9 @@ class Lutador:
             
         elif efeito == "EXPOSTO":
             # Exposto: Ignora parte da defesa
-            self.exposto_timer = max(getattr(self, 'exposto_timer', 0), duracao or 4.0)
+            if not hasattr(self, 'exposto_timer'):
+                self.exposto_timer = 0
+            self.exposto_timer = duracao or 4.0
         
         # =================================================================
         # EFEITOS DE EMPURRÃO/MOVIMENTO
@@ -2451,14 +2220,10 @@ class Lutador:
         arma = self.dados.arma_obj
         if not arma or "Orbital" not in arma.tipo:
             return None
-        from core.hitbox import HITBOX_PROFILES
-        _perfil = HITBOX_PROFILES.get(arma.tipo, HITBOX_PROFILES.get("Orbital", {}))
-        _range_mult = _perfil.get("range_mult", 1.5)
-        _arc = _perfil.get("base_arc", 360)
         cx, cy = int(self.pos[0] * PPM), int(self.pos[1] * PPM)
-        raio_char_px = int((self.dados.tamanho / 2) * PPM)
-        dist_base_px = int(raio_char_px * _range_mult * self.fator_escala)
-        return (cx, cy), dist_base_px + raio_char_px, self.angulo_arma_visual, _arc
+        dist_base_px = int(((arma.distancia/100)*PPM)*self.fator_escala)
+        raio_char_px = int((self.dados.tamanho/2)*PPM)
+        return (cx, cy), dist_base_px + raio_char_px, self.angulo_arma_visual, arma.largura
     
     def get_dano_modificado(self, dano_base):
         """Retorna dano com todos os modificadores (buffs, classe, passivas)"""

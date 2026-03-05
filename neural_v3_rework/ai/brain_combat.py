@@ -288,8 +288,8 @@ class CombatMixin(_AIBrainMixinBase):
         if bait["ativo"]:
             bait["timer"] -= dt
             # FP-04 fix: registra ação do inimigo no início do bait para comparar depois
-            if bait.get("acao_inimigo_antes") is None and hasattr(inimigo, 'brain') and inimigo.brain:
-                bait["acao_inimigo_antes"] = inimigo.brain.acao_atual
+            if bait.get("acao_inimigo_antes") is None and hasattr(inimigo, 'ai') and inimigo.ai:
+                bait["acao_inimigo_antes"] = inimigo.ai.acao_atual
             if bait["timer"] <= 0:
                 # MEL-AI-04: não avalia imediatamente — inicia janela de observação
                 bait["ativo"] = False
@@ -322,8 +322,8 @@ class CombatMixin(_AIBrainMixinBase):
                 bait["timer"] = random.uniform(0.3, 0.6)
                 # FP-04 fix: salva ação atual do inimigo para detectar mudança real
                 bait["acao_inimigo_antes"] = (
-                    inimigo.brain.acao_atual
-                    if hasattr(inimigo, 'brain') and inimigo.brain else None
+                    inimigo.ai.acao_atual
+                    if hasattr(inimigo, 'ai') and inimigo.ai else None
                 )
                 
                 # Executa início do bait
@@ -349,9 +349,9 @@ class CombatMixin(_AIBrainMixinBase):
         # Agora: só conta se o inimigo mudou de uma ação neutra/defensiva para agressiva
         # dentro da janela do bait.
         oponente_caiu = False
-        if hasattr(inimigo, 'brain') and inimigo.brain:
+        if hasattr(inimigo, 'ai') and inimigo.ai:
             acao_antes = bait.get("acao_inimigo_antes")
-            acao_agora = inimigo.brain.acao_atual
+            acao_agora = inimigo.ai.acao_atual
             acoes_agressivas = {"APROXIMAR", "MATAR", "ESMAGAR", "PRESSIONAR"}
             acoes_neutras_defensivas = {
                 "CIRCULAR", "BLOQUEAR", "RECUAR", "FUGIR", "COMBATE",
@@ -396,10 +396,8 @@ class CombatMixin(_AIBrainMixinBase):
         # - Você recua
         # - Seu HP cai
         
-        # Decay natural para o neutro (threshold para reset completo)
+        # Decay natural para o neutro
         self.momentum *= 0.995
-        if abs(self.momentum) < 0.01:
-            self.momentum = 0.0
         
         # Baseado em hits recentes
         diff_hits = self.hits_dados_recente - self.hits_recebidos_recente
@@ -422,8 +420,8 @@ class CombatMixin(_AIBrainMixinBase):
             self.pressao_aplicada = max(0.0, self.pressao_aplicada - dt * 0.5)
         
         # Pressão recebida
-        if hasattr(inimigo, 'brain') and inimigo.brain:
-            ai_ini = inimigo.brain
+        if hasattr(inimigo, 'ai') and inimigo.ai:
+            ai_ini = inimigo.ai
             if distancia < 3.0 and ai_ini.acao_atual in ["MATAR", "PRESSIONAR", "ESMAGAR"]:
                 self.pressao_recebida = min(1.0, self.pressao_recebida + dt * 0.5)
             else:
@@ -491,8 +489,8 @@ class CombatMixin(_AIBrainMixinBase):
             duracao = 1.5
         
         # 6. Oponente recuando (costas viradas parcialmente)
-        if hasattr(inimigo, 'brain') and inimigo.brain:
-            if inimigo.brain.acao_atual in ["RECUAR", "FUGIR"]:
+        if hasattr(inimigo, 'ai') and inimigo.ai:
+            if inimigo.ai.acao_atual in ["RECUAR", "FUGIR"]:
                 nova_janela = True
                 tipo_janela = "recuando"
                 qualidade = 0.75
@@ -762,36 +760,6 @@ class CombatMixin(_AIBrainMixinBase):
         def votar(acao: str, peso: float) -> None:
             pesos[acao] = pesos.get(acao, 0.0) + peso
 
-        # ── 0. PREFERRED RANGE — mantém personagem na distância ideal ──────────
-        # Usa alcance_ideal (onde a IA QUER estar) em vez de alcance_efetivo (arma).
-        # Isso garante que magos fiquem longe e brawlers fiquem perto.
-        _RANGED_STYLES = {"RANGED", "KITE", "SUMMON", "CONTROL", "GHOST", "DRAIN",
-                          "POKE", "TACTICIAN", "CHAOS_MAGIC", "FORTRESS", "SIEGE",
-                          "SNIPER", "GUERRILLA", "TURTLE"}
-        _MELEE_STYLES = {"BERSERK", "AGGRO", "COMBO", "EXECUTE", "RAIDER",
-                         "CONQUEROR", "BOXER", "GINGA", "PRESSURE", "BRAWLER",
-                         "BLITZ", "HIT_TRADE", "JUGGERNAUT"}
-        _delta_range = distancia - alcance_ideal
-
-        if self.estilo_luta in _RANGED_STYLES:
-            if _delta_range < 0:  # perto demais para ranged → recuar forte
-                _urg = min(3.0, abs(_delta_range) / max(alcance_ideal, 0.5) * 2.5)
-                votar("RECUAR", _urg)
-                if _urg > 1.5:
-                    votar("CIRCULAR", _urg * 0.3)
-            elif _delta_range > alcance_ideal * 0.8:  # longe demais → aproximar fraco
-                votar("APROXIMAR", min(0.8, _delta_range / max(alcance_ideal, 1) * 0.4))
-        elif self.estilo_luta in _MELEE_STYLES:
-            if _delta_range > 0:  # longe demais para melee → avançar forte
-                _urg = min(2.0, _delta_range / max(alcance_ideal, 0.5) * 1.5)
-                votar("APROXIMAR", _urg)
-                votar("PRESSIONAR", _urg * 0.4)
-        else:  # mid-range styles
-            if _delta_range < -alcance_ideal * 0.4:
-                votar("RECUAR", min(1.5, abs(_delta_range) / max(alcance_ideal, 0.5) * 1.2))
-            elif _delta_range > alcance_ideal * 0.6:
-                votar("APROXIMAR", min(1.2, _delta_range / max(alcance_ideal, 1) * 0.8))
-
         # ── 1. BASE: posição e HP ──────────────────────────────────────────────
         if inimigo_hp_pct < 0.25 and no_alcance:
             votar("MATAR",  1.5); votar("ESMAGAR", 1.0)
@@ -808,164 +776,60 @@ class CombatMixin(_AIBrainMixinBase):
         elif longe or muito_longe:
             votar("APROXIMAR", 1.0); votar("PRESSIONAR", 0.4)
 
-        # ── 2. TRAÇOS — sistema expandido v15.0 (120+ traços mecânicos) ──────
-        _mt = set(self.tracos)
-
-        # [A] Alta prioridade condicionais (hp-gated, alto peso)
-        if "COVARDE" in _mt and hp_pct < 0.35:
+        # ── 2. TRAÇOS DE PERSONALIDADE ─────────────────────────────────────────
+        if "COVARDE" in self.tracos and hp_pct < 0.35:
+            # CB-07: vezes_que_fugiu é incrementado apenas em _tentar_dash_emergencia (execução real)
             if self.vezes_que_fugiu > 4:
                 votar("MATAR", 2.0); self.raiva = 0.9
             else:
                 votar("FUGIR", 2.0)
-        if "BERSERKER" in _mt and hp_pct < 0.45:
+        if "BERSERKER" in self.tracos and hp_pct < 0.45:
             votar("MATAR", 2.0)
-        if "SANGUINARIO" in _mt and inimigo_hp_pct < 0.3:
+        if "SANGUINARIO" in self.tracos and inimigo_hp_pct < 0.3:
             votar("MATAR", 1.8)
-        if "PREDADOR" in _mt and inimigo_hp_pct < 0.4:
+        if "PREDADOR" in self.tracos and inimigo_hp_pct < 0.4:
             votar("APROXIMAR", 1.5)
-        if "PERSEGUIDOR" in _mt and distancia > 5.0:
+        if "PERSEGUIDOR" in self.tracos and distancia > 5.0:
             votar("APROXIMAR", 1.5)
-        if "KAMIKAZE" in _mt:
+        if "KAMIKAZE" in self.tracos:
             votar("MATAR", 3.0)
-        if "PHOENIX" in _mt and hp_pct < 0.2:
-            votar("MATAR", 2.5)
-        if "BERSERKER_RAGE" in _mt and hp_pct < 0.3:
-            votar("MATAR", 2.0); votar("ESMAGAR", 1.5)
-        if "ULTIMO_SUSPIRO" in _mt and hp_pct < 0.15:
-            votar("MATAR", 3.0)
-        if "CLUTCH_PLAYER" in _mt and hp_pct < 0.25:
-            votar("MATAR", 1.5); votar("CONTRA_ATAQUE", 1.0)
-        if "UNDERDOG" in _mt and hp_pct < inimigo_hp_pct - 0.2:
-            votar("MATAR", 1.0); votar("PRESSIONAR", 0.5)
-        if "MOMENTUM_RIDER" in _mt and self.momentum > 0.3:
-            votar("MATAR", 1.0); votar("PRESSIONAR", 0.8)
-
-        # [B] Grupo pressão/avanço
-        _push = _mt & {"DOMINADOR", "DESTRUIDOR", "INCANSAVEL", "ALPHA", "SEDENTO",
-                        "TRITURADOR", "DEVORADOR", "MAXIMALISTA", "GLUTTON",
-                        "PRESSAO_CONSTANTE", "AGRESSIVO"}
-        if _push:
-            n = min(len(_push), 4)
-            votar("PRESSIONAR", 0.30 * n); votar("APROXIMAR", 0.20 * n)
-
-        # [C] Brutalidade (esmagar quando perto)
-        if no_alcance:
-            _brutes = _mt & {"BRUTAL", "MARTELO", "TOURO", "TRITURADOR", "VIKING",
-                              "IMPRUDENTE", "SELVAGEM"}
-            if _brutes:
-                votar("ESMAGAR", 0.30 * min(len(_brutes), 3))
-
-        # [D] Flanqueadores / mobilidade
-        _flank = _mt & {"DANÇARINO", "BORBOLETA", "SERPENTE", "TELEPORTER", "ACROBATA",
-                         "ARTISTA_MARCIAL", "STYLIST", "NINJA_MENTAL", "FLANQUEADOR",
-                         "PIVOTADOR", "ZIGZAG"}
-        if _flank:
-            n = min(len(_flank), 4)
-            votar("FLANQUEAR", 0.25 * n); votar("CIRCULAR", 0.15 * n)
-
-        # [E] Orbitadores / controle de espaço
-        _orbit = _mt & {"ORBITA", "ANALITICO", "CEREBRAL", "ZEN", "SENTINEL",
-                         "ARMADILHEIRO", "ESPACAMENTO_MESTRE", "MICRO_AJUSTES"}
-        if _orbit:
-            votar("CIRCULAR", 0.25 * min(len(_orbit), 3))
-            votar("COMBATE", 0.15 * min(len(_orbit), 3))
-
-        # [F] Velocidade / ataques rápidos
-        _speed = _mt & {"RELAMPAGO", "VELOZ", "EXPLOSIVO", "SALTADOR"}
-        if _speed:
-            votar("ATAQUE_RAPIDO", 0.30 * min(len(_speed), 3))
-
-        # [G] Cola no oponente (penaliza recuo)
-        _close = _mt & {"COLADO", "TOURO", "MASOQUISTA", "RASTREADOR", "ENCURRALADOR"}
-        if _close:
-            n = min(len(_close), 3)
-            votar("APROXIMAR", 0.35 * n)
-            pesos["RECUAR"] = pesos.get("RECUAR", 0) * max(0.15, 1.0 - 0.25 * n)
-
-        # [H] Manter distância
-        _kite = _mt & {"KITER", "CAUTELOSO", "EVASIVO", "FANTASMA", "COVARDE_TATICO",
-                        "PARANOICO", "PRUDENTE", "SKILL_BAITER", "SNIPER", "SOBREVIVENTE"}
-        if _kite and distancia < alcance_ideal:
-            votar("RECUAR", 0.30 * min(len(_kite), 3))
-
-        # [I] Contra-ataque (quando inimigo perto)
-        _counter = _mt & {"REATIVO", "ABSORVEDOR", "PREVISOR", "TIMING_PRECISO",
-                           "LEITURA_PERFEITA", "REATIVO_MENTAL", "ESPELHO", "OPORTUNISTA"}
-        if _counter and no_alcance:
-            votar("CONTRA_ATAQUE", 0.25 * min(len(_counter), 3))
-
-        # [J] Execução (finalizar inimigo fraco)
-        if inimigo_hp_pct < 0.35:
-            _exec = _mt & {"FINALIZADOR_NATO", "ASSASSINO_NATO", "LENDARIO",
-                            "CAÇADOR_GLORIA", "PRÁTICO", "CARRASCO"}
-            if _exec:
-                votar("MATAR", 0.35 * min(len(_exec), 3))
-
-        # [K] Inabalável (penaliza recuo/fuga)
-        _stoic = _mt & {"MURALHA", "INABALAVEL", "BLINDADO", "IMPLACAVEL",
-                         "DETERMINADO", "TANQUE", "VIKING", "TEIMOSO"}
-        if _stoic:
-            fator = max(0.1, 1.0 - 0.18 * min(len(_stoic), 4))
-            pesos["RECUAR"] = pesos.get("RECUAR", 0) * fator
-            pesos["FUGIR"] = pesos.get("FUGIR", 0) * fator * 0.5
-
-        # [L] Imprevisível
-        if "ERRATICO" in _mt or "CAOTICO" in _mt or "CAOS_MENTAL" in _mt:
-            for a in ["FLANQUEAR", "APROXIMAR", "ATAQUE_RAPIDO", "MATAR", "ESMAGAR", "POKE"]:
-                votar(a, 0.15)
-        if "IMPULSIVO" in _mt:
-            votar(random.choice(["MATAR", "APROXIMAR", "ESMAGAR", "FLANQUEAR",
-                                 "ATAQUE_RAPIDO"]), 0.8)
-        if "APOSTADOR" in _mt and self._rand() < 0.2:
-            votar(random.choice(["MATAR", "ESMAGAR", "FLANQUEAR"]), 1.5)
-
-        # [M] Mental / emocional
-        if "CONFIANTE" in _mt:
-            votar("PRESSIONAR", 0.3)
-        if "INSEGURO" in _mt:
-            votar("CIRCULAR", 0.25)
-        if "TRAUMATIZADO" in _mt and hp_pct < inimigo_hp_pct:
-            votar("RECUAR", 0.3)
-        if "PSICOPATA" in _mt:
-            votar("MATAR", 0.3); self.medo = max(0, self.medo - 0.1)
-        if "OBSESSIVO" in _mt and self.acao_atual not in ("NEUTRO",):
-            votar(self.acao_atual, 0.4)
-        if "CALCULISTA" in _mt and distancia > 4.0:
-            votar("FLANQUEAR", 0.4)
-        if "PACIENTE" in _mt:
-            votar("COMBATE", 0.3)
-        if "SÁDICO" in _mt and inimigo_hp_pct < 0.5:
-            votar("POKE", 0.4); votar("CIRCULAR", 0.2)
-        if "PROVOCADOR" in _mt:
-            votar("CIRCULAR", 0.3); votar("POKE", 0.2)
-        if "VINGATIVO" in _mt and self.raiva > 0.4:
-            votar("MATAR", self.raiva * 0.5)
-
-        # [N] Emoção → ação (não-FRIO)
-        if "FRIO" not in _mt:
-            if self.raiva > 0.6:
-                votar("MATAR", self.raiva * 0.4); votar("ESMAGAR", self.raiva * 0.3)
-            if self.medo > 0.6 and "DETERMINADO" not in _mt:
-                votar("RECUAR", self.medo * 0.5)
 
         # ── 3. ESTILO DE LUTA ──────────────────────────────────────────────────
         estilo_data   = ESTILOS_LUTA.get(self.estilo_luta, ESTILOS_LUTA["BALANCED"])
         agressividade = estilo_data.get("agressividade_base", 0.6)
         agressividade = min(1.0, agressividade + min(0.2, self.tempo_combate / 60.0))
         if inimigo_hp_pct < 0.3: agressividade = min(1.0, agressividade + 0.25)
-        if hp_pct < 0.25 and "BERSERKER" not in _mt: agressividade = max(0.3, agressividade - 0.1)
+        if hp_pct < 0.25 and "BERSERKER" not in self.tracos: agressividade = max(0.3, agressividade - 0.1)
 
-        # v15.0 FIX: usa alcance_ideal em vez de alcance_efetivo para thresholds.
-        # Antes, um mago com alcance_efetivo=1m e alcance_ideal=5m era mandado
-        # APROXIMAR quando a >1.3m. Agora usa a distância onde QUER estar.
-        if distancia < alcance_ideal * 0.6:
-            votar(estilo_data["acao_perto"], agressividade * 1.1)
-        elif distancia > alcance_ideal * 1.4:
-            votar(estilo_data["acao_longe"], agressividade * 1.0)
+        if distancia < alcance_ideal * 0.7:
+            votar(estilo_data["acao_perto"], agressividade * 0.8)
+        elif distancia > alcance_efetivo * 1.3:
+            votar(estilo_data["acao_longe"], agressividade * 0.8)
         else:
-            votar(estilo_data["acao_medio"], agressividade * 0.9)
+            votar(estilo_data["acao_medio"], agressividade * 0.8)
 
-        # ── 4. (merged into step 2 — trait system unificado) ──────────────────
+        # ── 4. TRAÇOS MODIFICADORES ────────────────────────────────────────────
+        if "AGRESSIVO" in self.tracos:
+            votar("MATAR", 0.4); votar("APROXIMAR", 0.3); votar("PRESSIONAR", 0.3)
+        if "CALCULISTA" in self.tracos and distancia > 4.0:
+            votar("FLANQUEAR", 0.4)
+        if "PACIENTE" in self.tracos:
+            votar("COMBATE", 0.3)
+        if "IMPRUDENTE" in self.tracos:
+            votar("MATAR", 0.5); votar("ESMAGAR", 0.4)
+        if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
+            for a in ["FLANQUEAR", "APROXIMAR", "ATAQUE_RAPIDO", "MATAR", "ESMAGAR", "POKE"]:
+                votar(a, 0.15)
+        if "FLANQUEADOR" in self.tracos:
+            votar("FLANQUEAR", 0.5)
+        if "VELOZ" in self.tracos:
+            votar("FLANQUEAR", 0.3); votar("ATAQUE_RAPIDO", 0.3)
+        if "SELVAGEM" in self.tracos:
+            votar("MATAR", 0.3); votar("ESMAGAR", 0.2); votar("ATAQUE_RAPIDO", 0.2)
+        if "TEIMOSO" in self.tracos:
+            votar("MATAR", 0.3)
+        if "FRIO" not in self.tracos and self.raiva > 0.6:
+            votar("MATAR", self.raiva * 0.4); votar("ESMAGAR", self.raiva * 0.3)
 
         # ── 5. HUMOR ───────────────────────────────────────────────────────────
         humor_data = HUMORES.get(self.humor, HUMORES["CALMO"])
@@ -1022,22 +886,14 @@ class CombatMixin(_AIBrainMixinBase):
             elif tend < 0.35: self.dir_circular = -1
 
         # ── 9. MODIFICADORES ESPACIAIS ─────────────────────────────────────────
-        # FIX: Salva acao_atual antes dos modificadores para evitar dupla contagem.
-        # Os modificadores setam acao_atual diretamente; capturamos só o resultado
-        # como voto, depois restauramos para não contaminar outros subsistemas.
-        _acao_pre_mod = self.acao_atual
-        self.acao_atual = "NEUTRO"
-        self._aplicar_modificadores_espaciais(distancia, inimigo)
+        self._aplicar_modificadores_espaciais(distancia, inimigo)    # ainda seta acao_atual diretamente
         if self.acao_atual not in ("NEUTRO",):
-            votar(self.acao_atual, 0.6)
+            votar(self.acao_atual, 0.6)   # reincorpora decisão espacial como voto extra
 
         # ── 10. MODIFICADORES DE ARMAS ─────────────────────────────────────────
-        self.acao_atual = "NEUTRO"
-        self._aplicar_modificadores_armas(distancia, inimigo)
+        self._aplicar_modificadores_armas(distancia, inimigo)        # idem
         if self.acao_atual not in ("NEUTRO",):
             votar(self.acao_atual, 0.5)
-        # Restaura acao_atual para não vazar efeito colateral
-        self.acao_atual = _acao_pre_mod
 
         # ── 11. TEAM ROLE-BASED MOVEMENT v13.0 ──────────────────────────────────
         orders = getattr(self, 'team_orders', {})

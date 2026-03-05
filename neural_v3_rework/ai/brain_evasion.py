@@ -151,19 +151,20 @@ class EvasionMixin(_AIBrainMixinBase):
         opcao1 = ang_ataque + 90
         opcao2 = ang_ataque - 90
         
-        # Escolhe direção combinando múltiplos fatores
-        # Base: prefer a direção circular estabelecida
-        if self.dir_circular > 0:
-            escolha = opcao1
-        else:
-            escolha = opcao2
+        # Escolhe direção baseado em fatores
+        escolha = opcao1 if random.random() < 0.5 else opcao2
         
-        # Leitura do oponente pode inverter a escolha
-        # (contra-movimenta a tendência do oponente)
+        # Leitura do oponente influencia
         if leitura["tendencia_esquerda"] > 0.6:
             escolha = opcao2  # Oponente tende a ir pra esquerda, vou pra direita
         elif leitura["tendencia_esquerda"] < 0.4:
             escolha = opcao1
+        
+        # Usa direção circular estabelecida
+        if self.dir_circular > 0:
+            escolha = opcao1
+        else:
+            escolha = opcao2
         
         # Adiciona variação humana
         escolha += random.uniform(-20, 20)
@@ -206,18 +207,16 @@ class EvasionMixin(_AIBrainMixinBase):
                 p.vel_z = random.uniform(10.0, 14.0)
                 self.cd_pulo = 1.0
                 # Move lateralmente também
-                # BUG-17 fix: era 15.0 m/s (3x walk speed) → 6.0 (razoável para esquiva)
                 rad = math.radians(direcao)
-                p.vel[0] += math.cos(rad) * 6.0
-                p.vel[1] += math.sin(rad) * 6.0
+                p.vel[0] += math.cos(rad) * 15.0
+                p.vel[1] += math.sin(rad) * 15.0
                 self.acao_atual = "DESVIO"
                 return True
         
         # Desvio normal - movimento lateral
         if urgencia > 0.4:
             rad = math.radians(direcao)
-            # BUG-17 fix: era 20.0 * urgencia (até 20 m/s) → 8.0 * urgencia (até 8 m/s)
-            impulso = 8.0 * urgencia
+            impulso = 20.0 * urgencia
             p.vel[0] += math.cos(rad) * impulso
             p.vel[1] += math.sin(rad) * impulso
             
@@ -329,13 +328,13 @@ class EvasionMixin(_AIBrainMixinBase):
         
         chance = 0.03
         if "SALTADOR" in self.tracos:
-            chance = max(chance, 0.12)
+            chance = 0.12
         if "ACROBATA" in self.tracos:
-            chance = max(chance, 0.10)
+            chance = 0.10
         if "EVASIVO" in self.tracos:
-            chance = max(chance, 0.08)
+            chance = 0.08
         if "ESTATICO" in self.tracos:
-            chance = 0.01  # ESTATICO sempre anula (override)
+            chance = 0.01
         
         if distancia < 2.0:
             chance *= 2.5

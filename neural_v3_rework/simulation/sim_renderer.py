@@ -49,12 +49,6 @@ class SimuladorRenderer:
     @classmethod
     def _get_font(cls, name, size, bold=False):
         key = (name, size, bold)
-        if key in cls._font_cache:
-            # Validate cached font is still usable (survives pygame.quit/init cycles)
-            try:
-                cls._font_cache[key].render("", True, (0, 0, 0))
-            except pygame.error:
-                del cls._font_cache[key]
         if key not in cls._font_cache:
             cls._font_cache[key] = pygame.font.SysFont(name, size, bold=bold)
         return cls._font_cache[key]

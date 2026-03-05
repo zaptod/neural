@@ -1,9 +1,37 @@
 {
-    "p1_nome": "Kai a Lendária",
-    "p2_nome": "Lin a Lendária",
-    "cenario": "Arena",
+    "p1_nome": "teste1",
+    "p2_nome": "haiate",
+    "cenario": "Campo de Batalha",
     "best_of": 1,
     "portrait_mode": false,
-    "horde_mode": false,
-    "horde_wave": 1
+    "teams": [
+        {
+            "team_id": 0,
+            "members": [
+                "teste1",
+                "teste2"
+            ]
+        },
+        {
+            "team_id": 1,
+            "members": [
+                "haiate",
+                "cia"
+            ]
+        },
+        {
+            "team_id": 2,
+            "members": [
+                "pintasso",
+                "xerecopolis"
+            ]
+        },
+        {
+            "team_id": 3,
+            "members": [
+                "pintolossaurosasso",
+                "xerekasssassozasso"
+            ]
+        }
+    ]
 }

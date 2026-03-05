@@ -39,16 +39,18 @@ def carregar_armas():
 
 def carregar_personagens():
     raw_chars = carregar_json(ARQUIVO_CHARS)
-    # Instancia armas para obter peso com modificadores de raridade/tipo
-    armas_instanciadas = {a.nome: a for a in carregar_armas()}
+    raw_armas = carregar_json(ARQUIVO_ARMAS)
     
     lista = []
     for item in raw_chars:
+        peso_arma = 0
         nome_arma = item.get("nome_arma", "")
         
-        # Busca o peso computado da arma (com modificadores)
-        arma_obj = armas_instanciadas.get(nome_arma)
-        peso_arma = arma_obj.peso if arma_obj else 0
+        # Busca o peso atualizado da arma
+        for a in raw_armas:
+            if a["nome"] == nome_arma:
+                peso_arma = a["peso"]
+                break
         
         p = Personagem(
             item["nome"], item["tamanho"], item["forca"], item["mana"],

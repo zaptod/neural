@@ -427,7 +427,6 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         """
         p = self.parent
         self.tempo_combate += dt
-        self._dt = dt  # Armazena dt para uso em mixins que n\u00e3o recebem dt diretamente
         
         # QC-03: gera um pool de valores aleatórios uma vez por frame.
         # As funções do cascade (_aplicar_modificadores_*, _comportamento_estilo, etc.)
@@ -799,7 +798,6 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             "CONTROLLER": -0.05,  # Calculado, espera momento certo
         }
         self._agressividade_temp_mod += role_agg_mod.get(role, 0) * dt
-        self._agressividade_temp_mod = max(-0.5, min(0.5, self._agressividade_temp_mod))  # Cap to prevent unbounded accumulation
         
         # ── TACTIC-BASED EMOTIONAL ADJUSTMENTS ────────────────────
         if tactic == "FULL_AGGRO":
@@ -873,9 +871,6 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             # Suporte fica perto do centro do time
             if dist_to_center > 6.0:
                 self._agressividade_temp_mod -= 0.15
-        
-        # Final clamp to prevent unbounded accumulation from all sources
-        self._agressividade_temp_mod = max(-0.5, min(0.5, self._agressividade_temp_mod))
     
     def _broadcast_team_intent(self, inimigo):
         """Comunica a intenção atual ao TeamCoordinator."""

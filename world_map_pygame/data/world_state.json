@@ -91,18 +91,7 @@
       "type": "altar"
     }
   ],
-  "world_events": [
-    {
-      "type": "territory_conquered",
-      "god_id": "god_time",
-      "champion": "Wolfgang o Implacável",
-      "defeated": "Yuki a Sombria",
-      "zone_id": null,
-      "duration": 35.09,
-      "ko_type": "KO",
-      "timestamp": "2026-03-05T01:11:11.733588"
-    }
-  ],
+  "world_events": [],
   "_meta": {
     "version": "2.0"
   }

@@ -89,18 +89,6 @@
       "follower_count": 0,
       "owned_zones": [],
       "lore_description": "Consumes all that exists."
-    },
-    {
-      "god_id": "god_time",
-      "god_name": "Chronos, Deus do Tempo",
-      "nature": "Time",
-      "nature_element": "time",
-      "color_primary": "#c8b4ff",
-      "follower_count": 1,
-      "owned_zones": [],
-      "lore_description": "",
-      "source": "game_sync",
-      "registered_at": "2026-03-05T01:11:11.704604"
     }
   ]
 }
