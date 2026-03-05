@@ -4,6 +4,8 @@ import tkinter as tk
 from tkinter import messagebox
 import sys
 import os
+import logging
+_log = logging.getLogger("ui.main")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -196,8 +198,8 @@ class MenuPrincipal(tk.Frame):
                     controller.tournament_window.lift()
                     controller.tournament_window.focus_force()
                     return
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
 
             ctk.set_appearance_mode("dark")
             ctk.set_default_color_theme("blue")

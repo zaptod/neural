@@ -9,6 +9,8 @@ import os
 import random
 import json
 from typing import Dict, List, Optional
+import logging
+_log = logging.getLogger("audio")
 
 
 class AudioManager:
@@ -137,8 +139,8 @@ class AudioManager:
                         if "master" in config["_volumes"]:
                             self.master_volume = config["_volumes"]["master"]
                     return config
-            except Exception:
-                pass
+            except Exception as _e:
+                _log.debug("%s", _e)
         return {}
     
     def save_volume_config(self):

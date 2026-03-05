@@ -1,37 +1,7 @@
 {
-    "p1_nome": "teste1",
-    "p2_nome": "haiate",
-    "cenario": "Campo de Batalha",
+    "p1_nome": "xerekasssassozasso",
+    "p2_nome": "pintolossaurosasso",
+    "cenario": "Arena",
     "best_of": 1,
-    "portrait_mode": false,
-    "teams": [
-        {
-            "team_id": 0,
-            "members": [
-                "teste1",
-                "teste2"
-            ]
-        },
-        {
-            "team_id": 1,
-            "members": [
-                "haiate",
-                "cia"
-            ]
-        },
-        {
-            "team_id": 2,
-            "members": [
-                "pintasso",
-                "xerecopolis"
-            ]
-        },
-        {
-            "team_id": 3,
-            "members": [
-                "pintolossaurosasso",
-                "xerekasssassozasso"
-            ]
-        }
-    ]
+    "portrait_mode": false
 }

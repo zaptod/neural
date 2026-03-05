@@ -22,13 +22,11 @@ from ai.personalities import (
     ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES
 )
 
-# LEGADO-01 (Sprint 4): EmotionSystem, SpatialAwarenessSystem e CombatTacticsSystem
+# LEGADO-01 (Sprint 4): EmotionSystem e SpatialAwarenessSystem
 # foram removidos dos exports públicos do pacote.
-# Esses módulos (ai/emotions.py, ai/spatial.py, ai/combat_tactics.py) contêm lógica
+# Esses módulos (ai/emotions.py, ai/spatial.py) contêm lógica
 # que foi replicada inline em AIBrain e nunca é instanciada externamente.
-# Exportá-los dava a falsa impressão de que faziam parte do sistema ativo.
-# A decisão arquitetural final (adoptar via composição ou remover os arquivos)
-# será tomada na Sprint 5 — MEL-ARQ-01.
+# combat_tactics.py foi removido (MEL-ARQ-01 concluído).
 
 # Módulo v10.0 - Estratégia de Skills
 try:

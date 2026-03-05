@@ -23,18 +23,21 @@ class Camera:
     # ── viewport helpers ───────────────────────────────────────────────────
     @property
     def viewport_tiles_w(self):
-        return SCR.w // self.cell_size + 2
+        cs = max(self.cell_size, 1)
+        return SCR.w // cs + 2
 
     @property
     def viewport_tiles_h(self):
-        return SCR.viewport_h // self.cell_size + 2
+        cs = max(self.cell_size, 1)
+        return SCR.viewport_h // cs + 2
 
     def get_visible_rect(self):
         """(x0, y0, x1, y1) tile range currently on screen."""
+        cs = max(self.cell_size, 1)
         x0 = max(0, int(self.x))
         y0 = max(0, int(self.y))
-        x1 = min(MAP_W,  int(self.x + SCR.w / self.cell_size) + 2)
-        y1 = min(MAP_H, int(self.y + SCR.viewport_h / self.cell_size) + 2)
+        x1 = min(MAP_W,  int(self.x + SCR.w / cs) + 2)
+        y1 = min(MAP_H, int(self.y + SCR.viewport_h / cs) + 2)
         return x0, y0, x1, y1
 
     # ── zoom ───────────────────────────────────────────────────────────────
@@ -75,7 +78,7 @@ class Camera:
         self._drag_cam   = (self.x, self.y)
 
     def update_drag(self, pos):
-        if not self.dragging:
+        if not self.dragging or self.cell_size < 1:
             return
         dx = (self._drag_start[0] - pos[0]) / self.cell_size
         dy = (self._drag_start[1] - pos[1]) / self.cell_size
@@ -88,15 +91,17 @@ class Camera:
 
     # ── coordinate conversion ──────────────────────────────────────────────
     def screen_to_tile(self, sx, sy):
-        return int(self.x + sx / self.cell_size), int(self.y + sy / self.cell_size)
+        cs = max(self.cell_size, 1)
+        return int(self.x + sx / cs), int(self.y + sy / cs)
 
     def tile_to_screen(self, tx, ty):
         return int((tx - self.x) * self.cell_size), int((ty - self.y) * self.cell_size)
 
     # ── internal ───────────────────────────────────────────────────────────
     def _center(self):
-        return (self.x + SCR.w / self.cell_size / 2,
-                self.y + SCR.viewport_h / self.cell_size / 2)
+        cs = max(self.cell_size, 1)
+        return (self.x + SCR.w / cs / 2,
+                self.y + SCR.viewport_h / cs / 2)
 
     def _set_center(self, cx, cy):
         self.x = cx - SCR.w / self.cell_size / 2

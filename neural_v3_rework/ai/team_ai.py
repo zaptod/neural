@@ -5,7 +5,7 @@ Sistema de coordenação de IA para batalhas em equipe.
 Gerencia comunicação entre aliados, atribuição de papéis,
 foco de alvo, sinergias e táticas de grupo.
 
-Integra-se com: brain.py, skill_strategy.py, combat_tactics,
+Integra-se com: brain.py, skill_strategy.py,
 spatial, emotions, choreographer, personalities, classes.
 ═══════════════════════════════════════════════════════════════
 """

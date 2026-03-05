@@ -13,6 +13,8 @@ from tkinter import messagebox
 import subprocess
 import sys
 import os
+import logging
+_log = logging.getLogger("ui.view_worldmap")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -57,8 +59,8 @@ class TelaWorldMap(tk.Frame):
         """Callback do AppState — agenda refresh no thread da UI."""
         try:
             self.after(0, self._refresh_data)
-        except Exception:
-            pass
+        except Exception as _e:
+            _log.debug("%s", _e)
 
     def atualizar_dados(self):
         """Chamado pelo show_frame() do controller."""

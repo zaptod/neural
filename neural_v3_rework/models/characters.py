@@ -58,8 +58,8 @@ class Personagem:
         else:
             self.velocidade = 0
         
-        # Resistência base * modificador de vida
-        self.resistencia = self.tamanho * self.forca * cd.get("mod_vida", 1.0)
+        # Resistência base (mod_vida aplicado APENAS em get_vida_max/_calcular_vida_max)
+        self.resistencia = self.tamanho * self.forca
 
     def recalcular_com_arma(self, arma_obj):
         """INC-4: Recalcula status usando o peso da arma atual.

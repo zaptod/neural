@@ -6,6 +6,8 @@ Classe principal do lutador com sistema de combate.
 import math
 import random
 from utils.config import PPM, GRAVIDADE_Z, ATRITO, ALTURA_PADRAO
+import logging
+_log = logging.getLogger("entities")
 
 
 class Lutador:
@@ -469,8 +471,8 @@ class Lutador:
                     _vfx.spawn_aura(_cx, _cy, 40, _elem, _intens * 0.5)
                 elif _tipo_sk == "AREA" and _dano > 30:
                     _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.55)
-        except Exception:
-            pass
+        except Exception as _e:
+            _log.debug("%s", _e)
         
         cd = data["cooldown"]
         if self.arma_passiva and self.arma_passiva.get("efeito") == "cooldown":
@@ -695,8 +697,8 @@ class Lutador:
                     _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.75)
                 elif tipo == "SUMMON":
                     _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.60)
-        except Exception:
-            pass
+        except Exception as _e:
+            _log.debug("%s", _e)
 
         cd = data.get("cooldown", 5.0)
         

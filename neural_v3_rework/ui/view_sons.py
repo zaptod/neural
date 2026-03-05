@@ -9,6 +9,8 @@ from tkinter import ttk, filedialog, messagebox
 import os
 import json
 import shutil
+import logging
+_log = logging.getLogger("ui.view_sons")
 
 # Cores do tema
 COR_FUNDO = "#2C3E50"
@@ -174,8 +176,8 @@ class TelaSons(tk.Frame):
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
-            except Exception:
-                pass
+            except Exception as _e:
+                _log.debug("%s", _e)
         return {}
     
     def _save_config(self):
@@ -281,8 +283,8 @@ class TelaSons(tk.Frame):
                 from effects.audio import AudioManager
                 audio = AudioManager.get_instance()
                 audio.set_category_volume(category, vol / 100.0)
-            except Exception:
-                pass
+            except Exception as _e:
+                _log.debug("%s", _e)
 
     def _criar_interface(self):
         """Cria a interface principal."""
@@ -564,8 +566,8 @@ class TelaSons(tk.Frame):
             from effects.audio import AudioManager
             audio = AudioManager.get_instance()
             audio.save_volume_config()
-        except Exception:
-            pass
+        except Exception as _e:
+            _log.debug("%s", _e)
         
         messagebox.showinfo("Sucesso", "Configuração de sons e volumes salva!")
     

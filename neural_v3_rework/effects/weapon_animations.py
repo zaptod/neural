@@ -12,15 +12,18 @@ CHANGELOG v2.0:
 """
 
 import math
+import logging
 import pygame
 import random
 from dataclasses import dataclass, field
+
+_log = logging.getLogger("weapon_animations")
 from typing import List, Tuple, Optional, Dict, Any
 from enum import Enum
 
 
 # ============================================================================
-# CURVAS DE ANIMAÇÃO (EASING FUNCTIONS)
+# CURVAS DE ANIMAÃ‡ÃƒO (EASING FUNCTIONS)
 # ============================================================================
 
 class Easing:
@@ -217,7 +220,7 @@ WEAPON_PROFILES["Transformável"] = WEAPON_PROFILES["Transformavel"]
 
 
 STYLE_PROFILES = {
-    # ── RETA ──
+    # â”€â”€ RETA â”€â”€
     "Katana": WeaponAnimationProfile(
         anticipation_time=0.20, attack_time=0.065, impact_time=0.04,
         follow_through_time=0.05, recovery_time=0.22,
@@ -324,7 +327,7 @@ STYLE_PROFILES = {
         spark_on_impact=True, spark_count=11, spark_color=(255, 180, 80),
     ),
 
-    # ── ADAGAS GÊMEAS v3.0 - KARAMBIT CROSS-SLASH COMBO ──
+    # â”€â”€ ADAGAS GÃŠMEAS v3.0 - KARAMBIT CROSS-SLASH COMBO â”€â”€
     "Adagas Gêmeas": WeaponAnimationProfile(
         anticipation_time=0.018, attack_time=0.038, impact_time=0.008,
         follow_through_time=0.018, recovery_time=0.038,
@@ -361,7 +364,7 @@ STYLE_PROFILES = {
         spark_on_impact=True, spark_count=7,
     ),
 
-    # ── MANGUAL v4.0 - ESTRELA DA MANHÃ: DEVASTATING SLAMS ──
+    # â”€â”€ MANGUAL v4.0 - ESTRELA DA MANHÃƒ: DEVASTATING SLAMS â”€â”€
     # Golpes devastadores com estrela cristalina. Mais lento mas mais impactante.
     # Cada impacto gera onda de choque visível e screen shake assimétrico.
     "Mangual": WeaponAnimationProfile(
@@ -402,7 +405,7 @@ STYLE_PROFILES = {
         spark_on_impact=True, spark_count=24, spark_color=(255, 140, 50),
         trail_color_shift=True,
     ),
-    # ── KUSARIGAMA v5.0: Dual-mode (foice rápida / peso lento) ──
+    # â”€â”€ KUSARIGAMA v5.0: Dual-mode (foice rápida / peso lento) â”€â”€
     "Kusarigama": WeaponAnimationProfile(
         anticipation_time=0.08, attack_time=0.10, impact_time=0.03,
         follow_through_time=0.08, recovery_time=0.12,
@@ -415,7 +418,7 @@ STYLE_PROFILES = {
         trail_width_start=7, trail_width_end=2,
         spark_on_impact=True, spark_count=10, spark_color=(200, 150, 255),
     ),
-    # ── CORRENTE COM PESO v5.0: Golpes lentos com pull/slow ──
+    # â”€â”€ CORRENTE COM PESO v5.0: Golpes lentos com pull/slow â”€â”€
     "Corrente com Peso": WeaponAnimationProfile(
         anticipation_time=0.28, attack_time=0.22, impact_time=0.10,
         follow_through_time=0.18, recovery_time=0.35,
@@ -430,7 +433,7 @@ STYLE_PROFILES = {
         spark_on_impact=True, spark_count=18, spark_color=(100, 200, 140),
     ),
 
-    # ── ARREMESSO ──
+    # â”€â”€ ARREMESSO â”€â”€
     "Shuriken": WeaponAnimationProfile(
         anticipation_time=0.07, attack_time=0.038, impact_time=0.0,
         follow_through_time=0.065, recovery_time=0.09,
@@ -449,7 +452,7 @@ STYLE_PROFILES = {
         glow_pulse_speed=6.0,
     ),
 
-    # ── ARCO ──
+    # â”€â”€ ARCO â”€â”€
     "Arco Longo": WeaponAnimationProfile(
         anticipation_time=0.38, attack_time=0.035, impact_time=0.0,
         follow_through_time=0.10, recovery_time=0.26,
@@ -460,7 +463,7 @@ STYLE_PROFILES = {
         glow_enabled=True, glow_radius=18, glow_color=(255, 240, 140),
         glow_pulse_speed=3.5,
     ),
-    "Arco Élfico": WeaponAnimationProfile(
+    "Arco Ã‰lfico": WeaponAnimationProfile(
         anticipation_time=0.23, attack_time=0.036, impact_time=0.0,
         follow_through_time=0.08, recovery_time=0.19,
         anticipation_angle=-11, attack_angle=6, follow_through_angle=4,
@@ -480,7 +483,7 @@ STYLE_PROFILES = {
         glow_enabled=True, glow_radius=16, glow_color=(220, 200, 160),
     ),
 
-    # ── ORBITAL ──
+    # â”€â”€ ORBITAL â”€â”€
     "Lâminas Orbitais": WeaponAnimationProfile(
         anticipation_time=0.0, attack_time=0.12, impact_time=0.022,
         follow_through_time=0.10, recovery_time=0.0,
@@ -514,7 +517,7 @@ STYLE_PROFILES = {
         spark_on_impact=True, spark_count=10,
     ),
 
-    # ── MÁGICA ──
+    # â”€â”€ MÁGICA â”€â”€
     "Espadas Espectrais": WeaponAnimationProfile(
         anticipation_time=0.09, attack_time=0.11, impact_time=0.045,
         follow_through_time=0.09, recovery_time=0.13,
@@ -585,7 +588,7 @@ STYLE_PROFILES = {
         trail_color_shift=True,
     ),
 
-    # ── TRANSFORMÁVEL ──
+    # â”€â”€ TRANSFORMÁVEL â”€â”€
     "Chicote-Espada": WeaponAnimationProfile(
         anticipation_time=0.11, attack_time=0.17, impact_time=0.042,
         follow_through_time=0.16, recovery_time=0.19,
@@ -815,13 +818,13 @@ class WeaponAnimator:
     def _update_mangual(self, state, profile, current_phase, phase_progress):
         """v3.1 - Heavy Slam & Ground Pound
         
-        Mecânica de golpes pesados: overhead → smash down.
+        Mecânica de golpes pesados: overhead â†’ smash down.
         Cada attack_pattern define o tipo de golpe:
           0 = OVERHEAD SLAM (levanta alto, desce vertical)
           1 = SIDE SWEEP    (horizontal, arco largo de um lado ao outro)
           2 = GROUND POUND  (bola cai em diagonal, ricochete no chão)
 
-        Sensação: LENTO, PESADO, SATISFATÓRIO.
+        Sensação: LENTO, PESADO, SATISFATÃ“RIO.
         O jogador sente cada impacto porque o shake é grande e o
         follow-through empurra o inimigo para longe.
         """
@@ -943,7 +946,7 @@ class WeaponAnimator:
         direction = 1 if state.attack_pattern % 2 == 0 else -1
 
         if not is_weight_mode:
-            # ── MODO FOICE: Cortes rápidos alternantes ──
+            # â”€â”€ MODO FOICE: Cortes rápidos alternantes â”€â”€
             combo_speed = 1.0 + min(state.combo_count, 6) * 0.10
             if current_phase == AttackPhase.ANTICIPATION:
                 prog = Easing.ease_out_expo(phase_progress)
@@ -974,7 +977,7 @@ class WeaponAnimator:
                     state.is_attacking = False
                     state.angle_offset = 0
         else:
-            # ── MODO PESO: Arremesso longo lento ──
+            # â”€â”€ MODO PESO: Arremesso longo lento â”€â”€
             if current_phase == AttackPhase.ANTICIPATION:
                 prog = Easing.ease_in_back(phase_progress)
                 state.angle_offset = -30 * prog
@@ -1008,9 +1011,9 @@ class WeaponAnimator:
     def _update_chicote(self, state, profile, current_phase, phase_progress):
         """v5.0 - Whip Crack System
         
-        Mecânica de chicote: puxada para trás → estalo → crack na ponta.
+        Mecânica de chicote: puxada para trás â†’ estalo â†’ crack na ponta.
         Extremamente rápido, com 'snap' visual no impacto.
-        Animação: puxa → lança → snap elástico → recolhe.
+        Animação: puxa â†’ lança â†’ snap elástico â†’ recolhe.
         Sensação: RÁPIDO, PRECISO, ESTALO.
         """
         direction = 1 if state.attack_pattern % 2 == 0 else -1
@@ -1021,15 +1024,15 @@ class WeaponAnimator:
             state.angle_offset = -78 * direction * prog
             state.scale = 0.85 + (1.0 - 0.85) * (1 - prog)
         elif current_phase == AttackPhase.ATTACK:
-            # Lança para frente — MUITO rápido
+            # Lança para frente â€” MUITO rápido
             prog = Easing.ease_out_expo(phase_progress)
             state.angle_offset = -78 * direction + 270 * direction * prog
             # Stretch extremo (chicote estica)
             state.scale = 1.0 + 0.50 * math.sin(phase_progress * math.pi * 0.8)
         elif current_phase == AttackPhase.IMPACT:
-            # CRACK! — estalo na ponta
+            # CRACK! â€” estalo na ponta
             state.angle_offset = 192 * direction
-            state.scale = 0.80  # Snap — contração
+            state.scale = 0.80  # Snap â€” contração
             shake = profile.shake_intensity * (1 - phase_progress) * 1.2
             state.shake_offset = (random.uniform(-shake, shake), random.uniform(-shake*0.5, shake*0.5))
             if phase_progress < 0.08:
@@ -1055,19 +1058,19 @@ class WeaponAnimator:
         Rotação contínua com velocidade crescente.
         Em vez de golpes discretos, a bola gira em órbita.
         O 'ataque' é um frame de hit dentro do spin contínuo.
-        Sensação: HIPNÓTICO, CONTÍNUO, PRESSÃO.
+        Sensação: HIPNÃ“TICO, CONTÍNUO, PRESSÃƒO.
         """
-        # Spin contínuo — ângulo acumula
+        # Spin contínuo â€” ângulo acumula
         spin_t = state.attack_timer
         spin_rate = 380  # graus por ciclo de ataque
         
         if current_phase == AttackPhase.ANTICIPATION:
-            # Quase nenhum wind-up — já está girando
+            # Quase nenhum wind-up â€” já está girando
             prog = Easing.ease_out_quad(phase_progress)
             state.angle_offset = spin_rate * 0.05 * prog
             state.scale = 1.0
         elif current_phase == AttackPhase.ATTACK:
-            # Spin contínuo — ângulo acumula linearmente (sem ease)
+            # Spin contínuo â€” ângulo acumula linearmente (sem ease)
             state.angle_offset = spin_rate * phase_progress
             state.scale = 1.0 + 0.22 * math.sin(phase_progress * math.pi * 4)
         elif current_phase == AttackPhase.IMPACT:
@@ -1084,7 +1087,7 @@ class WeaponAnimator:
             state.scale = 0.85 + (1.0 - 0.85) * prog
             state.shake_offset = (0, 0)
         elif current_phase == AttackPhase.RECOVERY:
-            # Quase sem recovery — spin continua
+            # Quase sem recovery â€” spin continua
             prog = phase_progress
             state.angle_offset = (spin_rate + 10) * (1 - prog * 0.1)
             state.scale = 1.0
@@ -1096,7 +1099,7 @@ class WeaponAnimator:
         """v5.0 - Weighted Chain: Grapple & Crush
         
         Golpe pesado que 'gruda' no alvo e puxa.
-        Wind-up lento → arremesso → impacto pesado → puxão de volta.
+        Wind-up lento â†’ arremesso â†’ impacto pesado â†’ puxão de volta.
         Sensação: PESADO, IMPLACÁVEL, CONTROLE.
         """
         direction = 1 if state.attack_pattern % 2 == 0 else -1
@@ -1110,12 +1113,12 @@ class WeaponAnimator:
             state.angle_offset += rotation
             state.scale = 1.0 + (0.70 - 1.0) * prog
         elif current_phase == AttackPhase.ATTACK:
-            # Arremessa o peso — aceleração gravitacional
+            # Arremessa o peso â€” aceleração gravitacional
             prog = Easing.ease_in_expo(phase_progress)
             state.angle_offset = -70 * direction + 200 * direction * prog
             state.scale = 1.0 + (1.45 - 1.0) * math.sin(phase_progress * math.pi * 0.7)
         elif current_phase == AttackPhase.IMPACT:
-            # Peso ESMAGA — screen shake vertical pesado
+            # Peso ESMAGA â€” screen shake vertical pesado
             total = -70 * direction + 200 * direction
             state.angle_offset = total
             state.scale = 0.80
@@ -1133,7 +1136,7 @@ class WeaponAnimator:
             # PUXA o peso de volta (arrasta o inimigo junto)
             prog = Easing.ease_in_out_quad(phase_progress)
             total = -70 * direction + 200 * direction
-            # Recolhe o peso — ângulo retorna
+            # Recolhe o peso â€” ângulo retorna
             state.angle_offset = total * (1 - prog * 0.6)
             state.scale = 0.80 + (1.0 - 0.80) * Easing.ease_out_bounce(phase_progress)
             if phase_progress < 0.3:
@@ -1353,7 +1356,7 @@ class WeaponTrailRenderer:
             try:
                 pygame.draw.line(surface, (int(cr*blend), int(cg*blend), int(cb*blend)),
                                (int(x1), int(y1)), (int(x2), int(y2)), width)
-            except Exception: pass
+            except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
     def _draw_mangual_trail(self, surface, positions, color):
         """v3.0 - Heavy Flail trail: rastro de bola com corona de impacto"""
@@ -1366,7 +1369,7 @@ class WeaponTrailRenderer:
             # Linha de corrente (mais fina)
             chain_w = max(1, int(5 * ratio))
             blend = alpha / 255
-            # Cor que muda: verde escuro → verde brilhante → amarelo no impacto
+            # Cor que muda: verde escuro â†’ verde brilhante â†’ amarelo no impacto
             cr = int(min(255, color[0]*blend + 60*blend*(1-ratio) + 80*blend*ratio))
             cg = int(min(255, color[1]*blend + 30*blend))
             cb = int(color[2]*blend * 0.5)
@@ -1385,8 +1388,8 @@ class WeaponTrailRenderer:
                             pygame.draw.circle(gs, (*color, min(255, glow_a)),
                                                (ball_r * 2, ball_r * 2), ball_r * 2)
                             surface.blit(gs, (int(x1) - ball_r * 2, int(y1) - ball_r * 2))
-                        except Exception: pass
-            except Exception: pass
+                        except Exception as _e: _log.debug("WeaponAnim: %s", _e)
+            except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
     def _draw_dagger_trail(self, surface, positions, color):
         """v3.0 - Karambit trail: arco curvo + glow de energia + streak de velocidade"""
@@ -1399,7 +1402,7 @@ class WeaponTrailRenderer:
             blend = alpha / 255
             # Streak de velocidade: linha mais larga e mais brilhante
             streak_w = max(1, int(5 * ratio))
-            # Cor karambit: frio → quente dependendo do combo
+            # Cor karambit: frio â†’ quente dependendo do combo
             cr = int(min(255, color[0]*blend + 40*blend*(1-ratio)))
             cg = int(min(255, color[1]*blend + 60*blend))
             cb = int(min(255, color[2]*blend + 80*blend))
@@ -1422,7 +1425,7 @@ class WeaponTrailRenderer:
                     bright_c = (min(255, cr + 60), min(255, cg + 60), min(255, cb + 60))
                     pygame.draw.line(surface, bright_c,
                                      (int(x1), int(y1)), (int(x2), int(y2)), 1)
-            except Exception: pass
+            except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
     def _draw_magic_trail(self, surface, positions, color):
         for i, (x, y, a) in enumerate(positions):
@@ -1436,7 +1439,7 @@ class WeaponTrailRenderer:
                     s = pygame.Surface((gs*2, gs*2), pygame.SRCALPHA)
                     pygame.draw.circle(s, (*color, int(70*a)), (gs, gs), gs)
                     surface.blit(s, (int(x-gs), int(y-gs)))
-            except Exception: pass
+            except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
     def _draw_chain_trail(self, surface, positions, color):
         if len(positions) < 2: return
@@ -1454,10 +1457,10 @@ class WeaponTrailRenderer:
                                     int(min(255, color[1]*blend+20*blend)),
                                     int(color[2]*blend)),
                                    (int(x1), int(y1)), (int(x2), int(y2)), width)
-                except Exception: pass
+                except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
     def _draw_whip_trail(self, surface, positions, color):
-        """v5.0: Chicote trail — linha fina que engrossa no crack, com snap elétrico."""
+        """v5.0: Chicote trail â€” linha fina que engrossa no crack, com snap elétrico."""
         if len(positions) < 2: return
         n = len(positions)
         for i in range(n - 1):
@@ -1480,7 +1483,7 @@ class WeaponTrailRenderer:
                     gs = pygame.Surface((8, 8), pygame.SRCALPHA)
                     pygame.draw.circle(gs, (255, 240, 150, min(255, int(alpha * 0.7))), (4, 4), 4)
                     surface.blit(gs, (int(x2) - 4, int(y2) - 4))
-            except Exception: pass
+            except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
 
 @dataclass
@@ -1515,7 +1518,7 @@ class SlashEffect:
                 pygame.draw.polygon(s, (*self.color, alpha), pts)
             sp = camera.converter(self.x, self.y)
             surface.blit(s, (sp[0]-center, sp[1]-center))
-        except Exception: pass
+        except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
 
 @dataclass
@@ -1542,8 +1545,8 @@ class ThrustEffect:
         final = tuple(min(255, int(c*blend + 100*blend)) for c in self.color)
         try:
             pygame.draw.line(surface, final, start, end, width)
-        except Exception:
-            pass
+        except Exception as _e:
+            _log.debug("%s", _e)
 
 
 @dataclass
@@ -1563,7 +1566,7 @@ class BowDrawEffect:
                     a = int(70 * self.draw_amount * (1 - i * 0.25))
                     pygame.draw.circle(s, (*self.color, a), (c, c), int(r))
                 surface.blit(s, (sp[0]-c, sp[1]-c))
-            except Exception: pass
+            except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
 
 class WeaponAnimationManager:
@@ -1651,7 +1654,7 @@ class WeaponAnimationManager:
             try:
                 pygame.draw.circle(surface, (int(color[0]*blend), int(color[1]*blend), int(color[2]*blend)),
                                   (int(x), int(y)), size)
-            except Exception: pass
+            except Exception as _e: _log.debug("WeaponAnim: %s", _e)
 
 
 _weapon_animation_manager = None
@@ -1661,3 +1664,4 @@ def get_weapon_animation_manager():
     if _weapon_animation_manager is None:
         _weapon_animation_manager = WeaponAnimationManager()
     return _weapon_animation_manager
+

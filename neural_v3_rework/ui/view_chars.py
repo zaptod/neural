@@ -8,6 +8,8 @@ from tkinter import ttk, messagebox
 import math
 import sys
 import os
+import logging
+_log = logging.getLogger("ui.view_chars")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models import Personagem, LISTA_CLASSES, CLASSES_DATA, get_class_data
@@ -203,8 +205,8 @@ class TelaPersonagens(tk.Frame):
                     if armas_x1 <= mouse_x <= armas_x2 and armas_y1 <= mouse_y <= armas_y2:
                         self.canvas_armas.yview_scroll(int(-1*(event.delta/120)), "units")
                         return
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
             
             # Caso contrário, rola o canvas principal
             self.canvas_wizard.yview_scroll(int(-1*(event.delta/120)), "units")

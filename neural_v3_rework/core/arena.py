@@ -911,7 +911,7 @@ class Arena:
                 start_y = self.centro_y - (n_members - 1) * spacing / 2
                 
                 for i in range(n_members):
-                    spawn_points.append((base_x, start_y + i * spacing))
+                    spawn_points.append(self._clamp_to_arena(base_x, start_y + i * spacing))
             
             elif num_teams == 3:
                 # 3 times: triângulo
@@ -928,7 +928,7 @@ class Arena:
                     offset = start_offset + i * spacing
                     x = base_x + math.cos(perp_angle) * offset
                     y = base_y + math.sin(perp_angle) * offset
-                    spawn_points.append((x, y))
+                    spawn_points.append(self._clamp_to_arena(x, y))
             
             else:
                 # 4+ times: distribuir nos cantos/lados
@@ -945,10 +945,16 @@ class Arena:
                     offset = start_offset + i * spacing
                     x = base_x + math.cos(perp_angle) * offset
                     y = base_y + math.sin(perp_angle) * offset
-                    spawn_points.append((x, y))
+                    spawn_points.append(self._clamp_to_arena(x, y))
         
         return spawn_points
     
+    def _clamp_to_arena(self, x: float, y: float, margem: float = 2.0) -> Tuple[float, float]:
+        """Garante que o ponto está dentro da arena com margem de segurança."""
+        x = max(self.min_x + margem, min(x, self.max_x - margem))
+        y = max(self.min_y + margem, min(y, self.max_y - margem))
+        return (x, y)
+
     def limpar_colisoes(self):
         """Limpa histórico de colisões após processamento"""
         # Limpa completamente - colisões já foram processadas neste frame

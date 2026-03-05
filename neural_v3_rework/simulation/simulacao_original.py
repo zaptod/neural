@@ -76,11 +76,11 @@ class Simulador:
         self.rastros = {} 
         self.vida_visual_p1 = 100; self.vida_visual_p2 = 100
 
-        # DES-4: Timer de luta — previne lutas infinitas (vencedor por HP ao expirar)
+        # DES-4: Timer de luta â€” previne lutas infinitas (vencedor por HP ao expirar)
         self.tempo_luta = 0.0
         self.TEMPO_MAX_LUTA = 120.0
 
-        # FP-1: cache por classe para saber se atualizar() aceita alvos — evita inspect no hot path
+        # FP-1: cache por classe para saber se atualizar() aceita alvos â€” evita inspect no hot path
         self._atualizar_sig_cache = {}
         
         # Sistema de Coreografia
@@ -191,12 +191,12 @@ class Simulador:
             state = AppState.get()
             config = state.match_config
             if not config.get("p1_nome") or not config.get("p2_nome"):
-                raise ValueError("match_config vazio — nenhum personagem selecionado")
+                raise ValueError("match_config vazio â€” nenhum personagem selecionado")
         except Exception as e:
             _log.debug(f"[simulacao] Erro ao ler match_config via AppState: {e}")
             return None, None, "Arena", False
-        todos = state.characters   # already in-memory — no disk hit
-        armas = state.weapons      # already in-memory — no disk hit
+        todos = state.characters   # already in-memory â€” no disk hit
+        armas = state.weapons      # already in-memory â€” no disk hit
         def montar(nome):
             p = next((x for x in todos if x.nome == nome), None)
             if p and p.nome_arma:
@@ -388,17 +388,17 @@ class Simulador:
                 vel_proj = getattr(proj, 'vel', getattr(proj, 'vel_disparo', 10.0))
                 trail_vfx.update(dt, proj.x * PPM, proj.y * PPM, vel_proj * 0.1)
 
-        # === CLASH DE PROJÉTEIS (v7.0) ===
+        # === CLASH DE PROJÃ‰TEIS (v7.0) ===
         self._verificar_clash_projeteis()
 
-        # === ATUALIZA PROJÉTEIS v2.0 - Suporte a novas mecânicas ===
+        # === ATUALIZA PROJÃ‰TEIS v2.0 - Suporte a novas mecânicas ===
         novos_projeteis = []  # Para projéteis criados por split/duplicação
         for proj in self.projeteis:
             # Passa lista de alvos para suportar homing
             alvos = [self.p1, self.p2]
             resultado = None
             
-            # FP-1: verifica uma vez por classe se atualizar() aceita alvos — sem inspect no hot path
+            # FP-1: verifica uma vez por classe se atualizar() aceita alvos â€” sem inspect no hot path
             if hasattr(proj, 'atualizar'):
                 cls = type(proj)
                 if cls not in self._atualizar_sig_cache:
@@ -463,7 +463,7 @@ class Simulador:
             if colidiu and proj.ativo:
                 # Nota: proj.ativo será setado false dentro do bloco se não for perfurante
                 
-                # === ÁUDIO v10.0 - SOM DE IMPACTO DE PROJÉTIL ===
+                # === ÁUDIO v10.0 - SOM DE IMPACTO DE PROJÃ‰TIL ===
                 if self.audio:
                     # Determina tipo de projétil para som adequado
                     if hasattr(proj, 'tipo'):
@@ -488,7 +488,7 @@ class Simulador:
                 # Hit Sparks na direção do impacto
                 self.hit_sparks.append(HitSpark(proj.x * PPM, proj.y * PPM, cor_impacto, direcao_impacto, 1.0))
                 
-                # === EXPLOSÃO DRAMÁTICA v11.0 ===
+                # === EXPLOSÃƒO DRAMÁTICA v11.0 ===
                 if hasattr(self, 'magic_vfx') and self.magic_vfx:
                     # Determina elemento pelo nome/tipo do projétil
                     elemento = "DEFAULT"
@@ -534,7 +534,7 @@ class Simulador:
                         dano=dano_proj
                     )
                 
-                # === v11.0: VERIFICAÇÕES DE CONDIÇÃO ===
+                # === v11.0: VERIFICAÃ‡Ã•ES DE CONDIÃ‡ÃƒO ===
                 bonus_condicao = 1.0
                 if hasattr(proj, 'verificar_condicao'):
                     bonus_condicao = proj.verificar_condicao(alvo)
@@ -549,7 +549,7 @@ class Simulador:
                 self.cam.aplicar_shake(shake_intensity, 0.1)
                 self.hit_stop_timer = 0.03  # Micro hit-stop
                 
-                # === v11.0: PERFURAÇÃO - não desativa projétil ===
+                # === v11.0: PERFURAÃ‡ÃƒO - não desativa projétil ===
                 # BUG-01 fix: FlechaProjetil usa .perfurante; Projetil genérico usa .perfura
                 eh_perfurante = (
                     (hasattr(proj, 'perfura') and proj.perfura) or
@@ -575,7 +575,7 @@ class Simulador:
                 else:
                     # Texto especial para execução
                     if bonus_condicao >= 5.0:
-                        self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "EXECUÇÃO!", (200, 50, 50), 32))
+                        self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "EXECUÃ‡ÃƒO!", (200, 50, 50), 32))
                     
                     # Cor do texto baseado no efeito ou tipo de projétil
                     if hasattr(proj, 'tipo') and proj.tipo in ["faca", "shuriken", "chakram", "flecha"]:
@@ -598,7 +598,7 @@ class Simulador:
                     proj.dono.vida = min(proj.dono.vida_max, proj.dono.vida + dano_final * 0.15)
                     self.textos.append(FloatingText(proj.dono.pos[0]*PPM, proj.dono.pos[1]*PPM - 30, f"+{int(dano_final*0.15)}", (100, 255, 150), 16))
                 
-                # === v11.0: EXPLOSÃO NO IMPACTO ===
+                # === v11.0: EXPLOSÃƒO NO IMPACTO ===
                 if hasattr(proj, 'raio_explosao') and proj.raio_explosao > 0:
                     from core.combat import AreaEffect
                     explosao = AreaEffect(proj.nome + " Explosão", proj.x, proj.y, proj.dono)
@@ -702,7 +702,7 @@ class Simulador:
                 alvos_area = [self.p1, self.p2]
                 resultado = None
                 
-                # FP-1: verifica uma vez por classe se atualizar() aceita alvos — sem inspect no hot path
+                # FP-1: verifica uma vez por classe se atualizar() aceita alvos â€” sem inspect no hot path
                 if hasattr(area, 'atualizar'):
                     cls = type(area)
                     if cls not in self._atualizar_sig_cache:
@@ -815,7 +815,7 @@ class Simulador:
                         dy = alvo.pos[1] - beam.dono.pos[1]
                         dist = math.hypot(dx, dy) or 1
 
-                        # CM-07 fix: implementa penetra_escudo — zera escudos antes do dano
+                        # CM-07 fix: implementa penetra_escudo â€” zera escudos antes do dano
                         if getattr(beam, 'penetra_escudo', False):
                             for buff in getattr(alvo, 'buffs_ativos', []):
                                 if getattr(buff, 'escudo_atual', 0) > 0:
@@ -883,7 +883,7 @@ class Simulador:
             
             self.traps = [t for t in self.traps if t.ativo]
         
-        # === ATUALIZA TRANSFORMAÇÕES v2.0 ===
+        # === ATUALIZA TRANSFORMAÃ‡Ã•ES v2.0 ===
         for lutador in [self.p1, self.p2]:
             if hasattr(lutador, 'transformacao_ativa') and lutador.transformacao_ativa:
                 transform = lutador.transformacao_ativa
@@ -903,7 +903,7 @@ class Simulador:
                 if not transform.ativo:
                     lutador.transformacao_ativa = None
         
-        # === ATUALIZA CANALIZAÇÕES v2.0 ===
+        # === ATUALIZA CANALIZAÃ‡Ã•ES v2.0 ===
         for lutador in [self.p1, self.p2]:
             if hasattr(lutador, 'channel_ativo') and lutador.channel_ativo:
                 channel = lutador.channel_ativo
@@ -994,11 +994,11 @@ class Simulador:
             # === DETECTA EVENTOS DE MOVIMENTO v8.0 ===
             self._detectar_eventos_movimento()
         
-        # === ATUALIZA ANIMAÇÕES DE MOVIMENTO v8.0 ===
+        # === ATUALIZA ANIMAÃ‡Ã•ES DE MOVIMENTO v8.0 ===
         if self.movement_anims:
             self.movement_anims.update(dt)
         
-        # === ATUALIZA ANIMAÇÕES DE ATAQUE v8.0 IMPACT EDITION ===
+        # === ATUALIZA ANIMAÃ‡Ã•ES DE ATAQUE v8.0 IMPACT EDITION ===
         if self.attack_anims:
             self.attack_anims.update(dt)
         
@@ -1020,10 +1020,10 @@ class Simulador:
                                  Valores típicos: 2-5 leve, 5-10 médio, 10-20+ forte
         
         BUGFIX v2.0:
-        - Threshold de som reduzido de 8 → 3 (impactos leves também tocam)
+        - Threshold de som reduzido de 8 â†’ 3 (impactos leves também tocam)
         - Fallback para 'wall_hit' caso wall_impact_light/heavy não existam
-        - Cooldown reduzido de 0.3s → 0.2s para ser mais responsivo
-        - Limiar de efeitos visuais reduzido de 5 → 2 (mais responsivo)
+        - Cooldown reduzido de 0.3s â†’ 0.2s para ser mais responsivo
+        - Limiar de efeitos visuais reduzido de 5 â†’ 2 (mais responsivo)
         """
         # Limiar mínimo para processar a colisão (muito leve = deslizamento)
         if intensidade_colisao < 2:
@@ -1038,7 +1038,7 @@ class Simulador:
         
         # === ÁUDIO - BUGFIX: threshold reduzido + fallback de som ===
         # BUG ANTERIOR: threshold de 8 era alto demais, maioria dos impactos eram silenciosos
-        # CORREÇÃO: qualquer impacto >= 3 toca som; usa fallback se sons específicos não carregados
+        # CORREÃ‡ÃƒO: qualquer impacto >= 3 toca som; usa fallback se sons específicos não carregados
         if self.audio and self.audio.enabled and intensidade_colisao >= 2 and not sound_on_cooldown:
             # Volume: intensidade 3 = 0.3, intensidade 15+ = 1.0
             volume = 0.3 + (intensidade_colisao - 3) * 0.058
@@ -1180,7 +1180,7 @@ class Simulador:
             "INVISIVEL": (200, 200, 200),
             "INTANGIVEL": (180, 180, 255),
             "DETERMINADO": (255, 200, 100),
-            "ABENÇOADO": (255, 255, 200),
+            "ABENÃ‡OADO": (255, 255, 200),
             "IMORTAL": (255, 215, 0),
             # Especiais
             "EMPURRAO": (200, 200, 255),
@@ -1202,7 +1202,7 @@ class Simulador:
             try:
                 self.magic_vfx.remove_trail(id(proj))
             except Exception:
-                pass  # Trail pode não existir — sem problema
+                pass  # Trail pode não existir â€” sem problema
 
     def _spawn_particulas_efeito(self, x, y, efeito):
         """Spawna partículas específicas do efeito - v2.0 COLOSSAL"""
@@ -1287,7 +1287,7 @@ class Simulador:
         return colisao_linha_circulo(pt1, pt2, centro, raio)
 
     # =========================================================================
-    # SISTEMA DE DETECÇÃO DE EVENTOS DE MOVIMENTO v8.0
+    # SISTEMA DE DETECÃ‡ÃƒO DE EVENTOS DE MOVIMENTO v8.0
     # =========================================================================
     
     def _detectar_eventos_movimento(self):
@@ -1362,7 +1362,7 @@ class Simulador:
                         tipo = MovementType.DASH_FORWARD
                     self.movement_anims.criar_dash_effect(lutador, direcao, tipo)
             
-            # === RECUPERAÇÃO DE STAGGER ===
+            # === RECUPERAÃ‡ÃƒO DE STAGGER ===
             stagger_atual = getattr(lutador, 'stun_timer', 0) > 0
             stagger_anterior = self._prev_stagger.get(lutador, False)
             
@@ -1393,7 +1393,7 @@ class Simulador:
             self.movement_anims.criar_knockback_effect(lutador, direcao, intensidade)
 
     # =========================================================================
-    # SISTEMA DE CLASH DE PROJÉTEIS v7.0
+    # SISTEMA DE CLASH DE PROJÃ‰TEIS v7.0
     # =========================================================================
     
     def _verificar_clash_projeteis(self):
@@ -1509,11 +1509,11 @@ class Simulador:
         self.shockwaves.append(Shockwave(mx * PPM, my * PPM, BRANCO, tamanho=2.5))
         
         # Texto épico
-        textos_clash = ["CLASH!", "CLANG!", "⚔ CLASH ⚔", "STEEL!", "IMPACTO!"]
+        textos_clash = ["CLASH!", "CLANG!", "âš” CLASH âš”", "STEEL!", "IMPACTO!"]
         texto = random.choice(textos_clash)
         self.textos.append(FloatingText(mx * PPM, my * PPM - 50, texto, AMARELO_FAISCA, 40))
         
-        # === SOM DE CLASH DE ESPADAS - FORÇA TOCAR ===
+        # === SOM DE CLASH DE ESPADAS - FORÃ‡A TOCAR ===
         _log.debug(f"[SWORD CLASH] Tentando tocar som clash_swords...")
         try:
             # Tenta via AudioManager
@@ -1556,7 +1556,7 @@ class Simulador:
         direcao_faiscas = random.uniform(0, math.pi * 2)
         self.hit_sparks.append(HitSpark(mx * PPM, my * PPM, AMARELO_FAISCA, direcao_faiscas, 1.5))
         
-        _log.debug(f"[SWORD CLASH] Épico clash de espadas em ({mx:.1f}, {my:.1f})!")
+        _log.debug(f"[SWORD CLASH] Ã‰pico clash de espadas em ({mx:.1f}, {my:.1f})!")
     
     # =========================================================================
     # SISTEMA DE BLOQUEIO E DESVIO v7.0
@@ -1671,7 +1671,7 @@ class Simulador:
     
     def _efeito_parry(self, proj, parryer):
         """Efeito visual de parry (defesa com ataque)"""
-        # CB-01: notifica IA do parry (também conta como bloqueio — abre janela pos_bloqueio)
+        # CB-01: notifica IA do parry (também conta como bloqueio â€” abre janela pos_bloqueio)
         if hasattr(parryer, 'ai') and parryer.ai:
             if hasattr(parryer.ai, 'on_bloqueio_sucesso'):
                 parryer.ai.on_bloqueio_sucesso()
@@ -1736,7 +1736,7 @@ class Simulador:
                 ang = random.uniform(0, math.pi * 2)
                 nx, ny = math.cos(ang), math.sin(ang)
             
-            # === SEPARAÇÃO FÍSICA INSTANTÂNEA ===
+            # === SEPARAÃ‡ÃƒO FÍSICA INSTANTÃ‚NEA ===
             # Move cada corpo para fora da sobreposição (metade para cada lado)
             separacao = (penetracao / 2.0) + 0.02  # Margem de segurança
             
@@ -1745,7 +1745,7 @@ class Simulador:
             p2.pos[0] += nx * separacao
             p2.pos[1] += ny * separacao
         
-        # === VELOCIDADE DE REPULSÃO (aplica uma vez) ===
+        # === VELOCIDADE DE REPULSÃƒO (aplica uma vez) ===
         # Recalcula distância após separação
         dx = p2.pos[0] - p1.pos[0]
         dy = p2.pos[1] - p1.pos[1]
@@ -1774,7 +1774,7 @@ class Simulador:
         mx = (p1.pos[0] + p2.pos[0]) / 2 * PPM
         my = (p1.pos[1] + p2.pos[1]) / 2 * PPM
         
-        # === PARTÍCULAS DE FAÍSCA EM TODAS DIREÇÕES ===
+        # === PARTÍCULAS DE FAÍSCA EM TODAS DIREÃ‡Ã•ES ===
         for _ in range(35):
             ang = random.uniform(0, math.pi * 2)
             vel = random.uniform(80, 180)
@@ -1782,7 +1782,7 @@ class Simulador:
             vy = math.sin(ang) * vel / 60
             self.particulas.append(Particula(mx, my, AMARELO_FAISCA, vx, vy, random.randint(3, 7), 0.5))
         
-        # Cores das armas para o efeito — BUG-F2: guarda contra arma_obj = None
+        # Cores das armas para o efeito â€” BUG-F2: guarda contra arma_obj = None
         cor1 = (p1.dados.arma_obj.r, p1.dados.arma_obj.g, p1.dados.arma_obj.b) if p1.dados.arma_obj and hasattr(p1.dados.arma_obj, 'r') else (255, 255, 255)
         cor2 = (p2.dados.arma_obj.r, p2.dados.arma_obj.g, p2.dados.arma_obj.b) if p2.dados.arma_obj and hasattr(p2.dados.arma_obj, 'r') else (255, 255, 255)
         
@@ -1802,7 +1802,7 @@ class Simulador:
         p1.tomar_clash(vec_x/mag, vec_y/mag)
         p2.tomar_clash(-vec_x/mag, -vec_y/mag)
         
-        # === EFEITOS DE CÂMERA DRAMÁTICOS ===
+        # === EFEITOS DE CÃ‚MERA DRAMÁTICOS ===
         self.cam.aplicar_shake(25.0, 0.25)
         self.cam.zoom_punch(0.15, 0.15)
         self.hit_stop_timer = 0.15  # Pausa dramática
@@ -1843,17 +1843,17 @@ class Simulador:
         """
         Verifica ataque usando o novo sistema de hitbox com debug.
         
-        === INTEGRAÇÃO GAME FEEL v8.0 ===
+        === INTEGRAÃ‡ÃƒO GAME FEEL v8.0 ===
         - Hit Stop proporcional à classe (Força > Ágil)
         - Super Armor para tanks/berserkers
         - Camera shake baseado em INTENSIDADE, não velocidade
         
-        === v10.1: PREVENÇÃO DE MULTI-HIT ===
+        === v10.1: PREVENÃ‡ÃƒO DE MULTI-HIT ===
         - Cada ataque só pode acertar cada alvo UMA vez
         - Evita o bug de múltiplos hits durante um único swing
         """
         
-        # Armas ranged e mágicas NÃO usam hitbox direta
+        # Armas ranged e mágicas NÃƒO usam hitbox direta
         # Elas causam dano apenas via projéteis/orbes
         arma = atacante.dados.arma_obj
         if arma and arma.tipo in ["Arremesso", "Arco", "Mágica"]:
@@ -1910,7 +1910,7 @@ class Simulador:
             # === GAME FEEL v8.0 - DETERMINA TIPO DE GOLPE ===
             classe_atacante = getattr(atacante, 'classe_nome', "Guerreiro")
             
-            # Classes de FORÇA têm golpes PESADOS
+            # Classes de FORÃ‡A têm golpes PESADOS
             if any(c in classe_atacante for c in ["Berserker", "Guerreiro", "Cavaleiro", "Gladiador"]):
                 tipo_golpe = "PESADO" if dano > 20 else "MEDIO"
                 if dano > 35 or is_critico:
@@ -1979,7 +1979,7 @@ class Simulador:
             cor_arma = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else BRANCO
             self.impact_flashes.append(ImpactFlash(dx, dy, cor_arma, 1.0, "normal"))
             
-            # === SISTEMA DE KNOCKBACK BASEADO EM FORÇA ===
+            # === SISTEMA DE KNOCKBACK BASEADO EM FORÃ‡A ===
             # Calcula knockback com a nova fórmula
             pos_impacto = (dx / PPM, dy / PPM)
             kb_base = calcular_knockback_com_forca(atacante, defensor, direcao_impacto, dano)
@@ -1990,7 +1990,7 @@ class Simulador:
                 kb_x *= 0.2
                 kb_y *= 0.2
             
-            # === EFEITOS DE ATAQUE BASEADOS EM FORÇA ===
+            # === EFEITOS DE ATAQUE BASEADOS EM FORÃ‡A ===
             if self.attack_anims:
                 impact_result = self.attack_anims.criar_attack_impact(
                     atacante=atacante,
@@ -2009,7 +2009,7 @@ class Simulador:
                         self.cam.zoom_punch(impact_result['zoom_punch'], 0.15)
             
             if defensor.tomar_dano(dano, kb_x, kb_y, "NORMAL", atacante=atacante):
-                # === PASSIVA em hit — processa lifesteal, execute, double_hit, etc (BUG-03) ===
+                # === PASSIVA em hit â€” processa lifesteal, execute, double_hit, etc (BUG-03) ===
                 if hasattr(atacante, 'aplicar_passiva_em_hit'):
                     atacante.aplicar_passiva_em_hit(dano, defensor)
                 # === ÁUDIO v10.0 - SOM DE MORTE ===
@@ -2044,7 +2044,7 @@ class Simulador:
                     is_counter = resultado_hit and resultado_hit.get("counter_hit", False)
                     self.audio.play_impact(dano, defensor.pos[0], listener_x, is_critico, is_counter)
                 
-                # === HIT NORMAL - EFEITOS PROPORCIONAIS AO DANO E FORÇA ===
+                # === HIT NORMAL - EFEITOS PROPORCIONAIS AO DANO E FORÃ‡A ===
                 # Knockback visual proporcional ao dano
                 if dano > 8 or forca_atacante > 12:
                     self._criar_knockback_visual(defensor, direcao_impacto, dano)
@@ -2318,7 +2318,7 @@ class Simulador:
                         pygame.draw.circle(self.tela, trap.cor, (int(tx), int(ty)), int(traio), 2)
                         pygame.draw.circle(self.tela, trap.cor, (int(tx), int(ty)), int(traio * 0.5), 1)
         
-        # === DESENHA MARCAS NO CHÃO (CRATERAS, RACHADURAS) - v8.0 IMPACT ===
+        # === DESENHA MARCAS NO CHÃƒO (CRATERAS, RACHADURAS) - v8.0 IMPACT ===
         if hasattr(self, 'attack_anims') and self.attack_anims:
             self.attack_anims.draw_ground(self.tela, self.cam)
         
@@ -2326,7 +2326,7 @@ class Simulador:
         lutadores.sort(key=lambda p: 0 if p.morto else 1)
         for l in lutadores: self.desenhar_lutador(l)
         
-        # === DESENHA PROJÉTEIS COM TRAIL ELEMENTAL v4.0 ===
+        # === DESENHA PROJÃ‰TEIS COM TRAIL ELEMENTAL v4.0 ===
         pulse_time = pygame.time.get_ticks() / 1000.0
         
         # (trail update movido para update())
@@ -2430,7 +2430,7 @@ class Simulador:
                     pygame.draw.line(self.tela, (200, 200, 200), (int(x1), int(y1)), (int(fx), int(fy)), 1)
                 
             else:
-                # Projétil de skill — visual por elemento (v4.0)
+                # Projétil de skill â€” visual por elemento (v4.0)
                 # Detecta elemento pelo nome/tipo do projétil
                 _nome_el = str(getattr(proj, 'nome', '')).lower() + str(getattr(proj, 'tipo', '')).lower()
                 if any(w in _nome_el for w in ["fogo","fire","chama","meteoro"]):
@@ -2469,7 +2469,7 @@ class Simulador:
                         ]
                         pygame.draw.polygon(_fs, (255, 80, 0, 160), _flame_pts)
                         self.tela.blit(_fs, (int(px)-int(pr)-2, int(py)-flame_h-2))
-                    except Exception: pass
+                    except Exception as _e: _log.debug("Render: %s", _e)
 
                 elif _el_proj == "GELO":
                     # Cristal hexagonal
@@ -2480,7 +2480,7 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, (150, 220, 255), [(int(h[0]),int(h[1])) for h in hex_pts])
                         pygame.draw.polygon(self.tela, (220, 250, 255), [(int(h[0]),int(h[1])) for h in hex_pts], 2)
-                    except Exception: pass
+                    except Exception as _e: _log.debug("Render: %s", _e)
                     pygame.draw.circle(self.tela, (255, 255, 255), (int(px), int(py)), max(1, int(pr*0.35)))
 
                 elif _el_proj == "RAIO":
@@ -2491,7 +2491,7 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, (200, 200, 255), [(int(p[0]),int(p[1])) for p in _lpts])
                         pygame.draw.polygon(self.tela, (255,255,255), [(int(p[0]),int(p[1])) for p in _lpts], 1)
-                    except Exception: pass
+                    except Exception as _e: _log.debug("Render: %s", _e)
                     # Arcos secundários pulsantes
                     if pr > 5:
                         for _li in range(4):
@@ -2505,7 +2505,7 @@ class Simulador:
                                                  (int(px-_lox),int(py-_loy)),
                                                  (int(_lx-_lox),int(_ly-_loy)), 1)
                                 self.tela.blit(_ls, (int(_lox),int(_loy)))
-                            except Exception: pass
+                            except Exception as _e: _log.debug("Render: %s", _e)
 
                 elif _el_proj == "TREVAS":
                     # Esfera escura com halo roxo
@@ -2529,7 +2529,7 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, (255, 255, 200), [(int(p[0]),int(p[1])) for p in _star_pts])
                         pygame.draw.polygon(self.tela, (255,255,255), [(int(p[0]),int(p[1])) for p in _star_pts], 1)
-                    except Exception: pass
+                    except Exception as _e: _log.debug("Render: %s", _e)
 
                 elif _el_proj == "ARCANO":
                     # Orbe arcano: círculo com 3 anéis giratórios
@@ -2551,13 +2551,13 @@ class Simulador:
                                    (int(px+pr*0.3), int(py)),
                                    (int(px), int(py+pr*1.8))]
                         pygame.draw.polygon(self.tela, (180, 0, 30), _dtail)
-                    except Exception: pass
+                    except Exception as _e: _log.debug("Render: %s", _e)
 
                 elif _el_proj == "VOID":
                     # Buraco negro: preto com anel branco-roxo
                     pygame.draw.circle(self.tela, (5, 0, 15), (int(px), int(py)), int(pr))
                     pygame.draw.circle(self.tela, (80, 0, 120), (int(px), int(py)), int(pr), 3)
-                    # Distorção — pequenos arcos girando no exterior
+                    # Distorção â€” pequenos arcos girando no exterior
                     for _vi in range(4):
                         _va = _pkt * (-2) + _vi * (math.pi/2)
                         _vr = pr * 1.5
@@ -2567,7 +2567,7 @@ class Simulador:
                             _vx2 = int(px + math.cos(_va + 0.5)*_vr)
                             _vy2 = int(py + math.sin(_va + 0.5)*_vr)
                             pygame.draw.line(self.tela, (120, 50, 180), (_vx1, _vy1), (_vx2, _vy2), 2)
-                        except Exception: pass
+                        except Exception as _e: _log.debug("Render: %s", _e)
 
                 else:
                     # Padrão genérico mas com glow
@@ -2637,11 +2637,11 @@ class Simulador:
         if hasattr(self, 'magic_vfx') and self.magic_vfx:
             self.magic_vfx.draw(self.tela, self.cam)
 
-        # === ANIMAÇÕES DE MOVIMENTO v8.0 CINEMATIC EDITION ===
+        # === ANIMAÃ‡Ã•ES DE MOVIMENTO v8.0 CINEMATIC EDITION ===
         if self.movement_anims:
             self.movement_anims.draw(self.tela, self.cam)
 
-        # === ANIMAÇÕES DE ATAQUE v8.0 IMPACT EDITION ===
+        # === ANIMAÃ‡Ã•ES DE ATAQUE v8.0 IMPACT EDITION ===
         if hasattr(self, 'attack_anims') and self.attack_anims:
             self.attack_anims.draw_effects(self.tela, self.cam)
 
@@ -2752,7 +2752,7 @@ class Simulador:
             pygame.draw.circle(s, (255, 50, 50, glow_alpha), (glow_size, glow_size), glow_size)
             self.tela.blit(s, (centro[0] - glow_size, centro[1] - glow_size))
         
-        # === RENDERIZA ARMA COM ANIMAÇÕES APRIMORADAS ===
+        # === RENDERIZA ARMA COM ANIMAÃ‡Ã•ES APRIMORADAS ===
         if l.dados.arma_obj:
             # Aplica shake da animação
             shake = getattr(l, 'weapon_anim_shake', (0, 0))
@@ -2772,7 +2772,7 @@ class Simulador:
             self.desenhar_arma(l.dados.arma_obj, centro_ajustado, l.angulo_arma_visual, 
                              l.dados.tamanho, raio, anim_scale)
 
-        # === TAG DE NOME (estilo Minecraft) — sempre acima da cabeça ===
+        # === TAG DE NOME (estilo Minecraft) â€” sempre acima da cabeça ===
         self._desenhar_nome_tag(l, centro, raio)
 
     def _desenhar_nome_tag(self, l, centro, raio):
@@ -2808,7 +2808,7 @@ class Simulador:
         # === TEXTO DO NOME ===
         self.tela.blit(texto, (tag_x - tw // 2, tag_y))
 
-        # === BARRA DE VIDA MINÚSCULA ABAIXO DO NOME ===
+        # === BARRA DE VIDA MINÃšSCULA ABAIXO DO NOME ===
         bar_w = bg_w
         bar_h = 4
         bar_x = bg_x
@@ -2817,7 +2817,7 @@ class Simulador:
         # Fundo da barra
         pygame.draw.rect(self.tela, (40, 40, 40), (bar_x, bar_y, bar_w, bar_h))
 
-        # Cor da barra: verde → amarelo → vermelho
+        # Cor da barra: verde â†’ amarelo â†’ vermelho
         if hp_pct > 0.5:
             t = (hp_pct - 0.5) / 0.5
             cor_hp = (int(255 * (1 - t)), 200, 0)
@@ -2869,7 +2869,7 @@ class Simulador:
         arc_start = angulo_base + profile.anticipation_angle
         arc_end = angulo_base + profile.attack_angle
         
-        # Ângulo atual do arco (expande ao longo do ataque)
+        # Ã‚ngulo atual do arco (expande ao longo do ataque)
         current_arc = arc_start + (arc_end - arc_start) * attack_prog
         
         # Raio do arco
@@ -2970,7 +2970,7 @@ class Simulador:
 
     def desenhar_arma(self, arma, centro, angulo, tam_char, raio_char, anim_scale=1.0):
         """
-        Renderiza a arma do lutador - VERSÃO APRIMORADA v3.0
+        Renderiza a arma do lutador - VERSÃƒO APRIMORADA v3.0
         Visual muito mais bonito com gradientes, brilhos e detalhes.
         """
         cx, cy = centro
@@ -2993,7 +2993,7 @@ class Simulador:
             'Comum': (180, 180, 180),
             'Incomum': (30, 255, 30),
             'Raro': (30, 144, 255),
-            'Épico': (148, 0, 211),
+            'Ã‰pico': (148, 0, 211),
             'Lendário': (255, 165, 0),
             'Mítico': (255, 20, 147)
         }
@@ -3011,7 +3011,7 @@ class Simulador:
         atacando = anim_scale > 1.05
         tempo = pygame.time.get_ticks()
         
-        # Helper para estilos Dupla: polígono cônico (base larga → ponta)
+        # Helper para estilos Dupla: polígono cônico (base larga â†’ ponta)
         def _dupla_blade_poly(bx, by, tx, ty, ang, w_base, w_tip):
             px = math.cos(ang + math.pi/2)
             py = math.sin(ang + math.pi/2)
@@ -3046,7 +3046,7 @@ class Simulador:
             perp_x = math.cos(rad + math.pi/2)
             perp_y = math.sin(rad + math.pi/2)
 
-            # ── ESTOCADA (Lança) — haste longa, ponta de metal estreita ──
+            # â”€â”€ ESTOCADA (Lança) â€” haste longa, ponta de metal estreita â”€â”€
             if "Lança" in estilo_arma or "Estocada" in estilo_arma:
                 # Haste de madeira (mais fina)
                 for i in range(2):
@@ -3054,7 +3054,7 @@ class Simulador:
                     pygame.draw.line(self.tela, shade,
                                      (int(cx), int(cy)), (int(cabo_end_x), int(cabo_end_y)),
                                      max(2, larg - i*2))
-                # Ponteira metálica — triângulo estreito e longo
+                # Ponteira metálica â€” triângulo estreito e longo
                 tip_w = max(2, larg - 2)
                 lance_pts = [
                     (int(cabo_end_x - perp_x * tip_w), int(cabo_end_y - perp_y * tip_w)),
@@ -3066,7 +3066,7 @@ class Simulador:
                 try:
                     pygame.draw.polygon(self.tela, cor_escura, lance_pts)
                     pygame.draw.polygon(self.tela, cor, lance_pts, 1)
-                except Exception: pass  # QC-01
+                except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 # Anel metálico na virola
                 pygame.draw.circle(self.tela, (160,165,175), (int(cabo_end_x), int(cabo_end_y)), larg//2 + 1, 2)
                 # Fio central da ponta
@@ -3074,14 +3074,14 @@ class Simulador:
                                  (int(cabo_end_x), int(cabo_end_y)),
                                  (int(lamina_end_x), int(lamina_end_y)), 1)
 
-            # ── CONTUSÃO (Maça) — cabo + cabeça larga com espigões ───────
+            # â”€â”€ CONTUSÃƒO (Maça) â€” cabo + cabeça larga com espigões â”€â”€â”€â”€â”€â”€â”€
             elif "Maça" in estilo_arma or "Contusão" in estilo_arma:
                 # Cabo
                 pygame.draw.line(self.tela, (30, 18, 8),
                                  (int(cx)+1, int(cy)+1), (int(cabo_end_x)+1, int(cabo_end_y)+1), larg+2)
                 pygame.draw.line(self.tela, (90, 55, 25),
                                  (int(cx), int(cy)), (int(cabo_end_x), int(cabo_end_y)), larg)
-                # Cabeça — cilindro largo
+                # Cabeça â€” cilindro largo
                 head_half = larg * 1.8
                 head_pts = [
                     (int(cabo_end_x - perp_x*head_half), int(cabo_end_y - perp_y*head_half)),
@@ -3092,7 +3092,7 @@ class Simulador:
                 try:
                     pygame.draw.polygon(self.tela, cor_escura, head_pts)
                     pygame.draw.polygon(self.tela, cor, head_pts, 2)
-                except Exception: pass  # QC-01
+                except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 # Espigões nas 4 faces
                 mid_x = (cabo_end_x + lamina_end_x) / 2
                 mid_y = (cabo_end_y + lamina_end_y) / 2
@@ -3109,7 +3109,7 @@ class Simulador:
                     pygame.draw.circle(self.tela, cor_raridade,
                                        (int(lamina_end_x), int(lamina_end_y)), max(3, int(larg*0.8*(1+pulso*0.3))))
 
-            # ── CORTE (Espada) — lâmina larga, guarda, fio ───────────────
+            # â”€â”€ CORTE (Espada) â€” lâmina larga, guarda, fio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             else:  # "Espada" in estilo ou "Misto" ou fallback
                 # Guarda (oval perpendicular)
                 guarda_x = cabo_end_x + math.cos(rad) * 2
@@ -3133,7 +3133,7 @@ class Simulador:
                 try:
                     pygame.draw.polygon(self.tela, cor, lamina_pts)
                     pygame.draw.polygon(self.tela, cor_escura, lamina_pts, 1)
-                except Exception: pass  # QC-01
+                except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 # Fio (highlight)
                 mid_x = (cabo_end_x + lamina_end_x) / 2
                 mid_y = (cabo_end_y + lamina_end_y) / 2
@@ -3156,16 +3156,16 @@ class Simulador:
                                              (int(lamina_len + math.cos(rad)*lamina_len*0.8),
                                               int(lamina_len + math.sin(rad)*lamina_len*0.8)), larg+r2*2)
                         self.tela.blit(gl, (int(cabo_end_x-lamina_len), int(cabo_end_y-lamina_len)))
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
         
-        # === DUPLA - ADAGAS GÊMEAS v3.0 (Karambit Reverse-Grip) ===
+        # === DUPLA - ADAGAS GÃŠMEAS v3.0 (Karambit Reverse-Grip) ===
         elif tipo == "Dupla":
             estilo_arma = getattr(arma, 'estilo', '')
             sep = raio_char * 0.55  # separação fixa
             larg = max(4, int(larg_base * 1.1))
 
             if estilo_arma == "Adagas Gêmeas":
-                # ── ADAGAS GÊMEAS v3.1: Laterais do corpo, empunhadura normal apontando à frente ──
+                # â”€â”€ ADAGAS GÃŠMEAS v3.1: Laterais do corpo, empunhadura normal apontando à frente â”€â”€
                 # Cada daga fica na mão do personagem (lateral), lâmina apontando na direção do ataque
                 cabo_len   = raio_char * 0.35
                 lamina_len = raio_char * 1.05 * anim_scale
@@ -3173,16 +3173,16 @@ class Simulador:
                 glow_alpha_base = int(100 + 70 * pulso) if atacando else int(35 + 20 * pulso)
 
                 for i, lado_sinal in enumerate([-1, 1]):
-                    # ── Posição da mão: lateral ao corpo, fora do centro ──
+                    # â”€â”€ Posição da mão: lateral ao corpo, fora do centro â”€â”€
                     # sep já dá a separação lateral adequada
                     hand_x = cx + math.cos(rad + math.pi/2) * sep * lado_sinal * 0.85
                     hand_y = cy + math.sin(rad + math.pi/2) * sep * lado_sinal * 0.85
 
-                    # Ângulo da daga: aponta para frente com leve abertura lateral
-                    spread_deg = 18 * lado_sinal  # abertura: esquerda vai -18°, direita vai +18°
+                    # Ã‚ngulo da daga: aponta para frente com leve abertura lateral
+                    spread_deg = 18 * lado_sinal  # abertura: esquerda vai -18Â°, direita vai +18Â°
                     daga_ang = rad + math.radians(spread_deg)
 
-                    # ── Cabo (handle) ──
+                    # â”€â”€ Cabo (handle) â”€â”€
                     cabo_ex = hand_x + math.cos(daga_ang) * cabo_len
                     cabo_ey = hand_y + math.sin(daga_ang) * cabo_len
                     # Sombra
@@ -3207,14 +3207,14 @@ class Simulador:
                                          (int(gx-gp_x), int(gy-gp_y)),
                                          (int(gx+gp_x), int(gy+gp_y)), 1)
 
-                    # ── Guarda cruzada (finger guard) ──
+                    # â”€â”€ Guarda cruzada (finger guard) â”€â”€
                     grd_x = math.cos(daga_ang + math.pi/2) * (larg + 3)
                     grd_y = math.sin(daga_ang + math.pi/2) * (larg + 3)
                     pygame.draw.line(self.tela, (150, 155, 165),
                                      (int(cabo_ex - grd_x), int(cabo_ey - grd_y)),
                                      (int(cabo_ex + grd_x), int(cabo_ey + grd_y)), max(2, larg))
 
-                    # ── Lâmina: reta com ponta levemente curvada para dentro ──
+                    # â”€â”€ Lâmina: reta com ponta levemente curvada para dentro â”€â”€
                     # Divide em dois segmentos: corpo reto + curva terminal
                     corpo_pct = 0.72  # 72% da lâmina é reta
                     curva_pct = 0.28  # 28% final curva levemente
@@ -3250,13 +3250,13 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, cor_escura, lam_poly)
                         pygame.draw.polygon(self.tela, cor, lam_poly, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     # Fio da lâmina (highlight central)
                     pygame.draw.line(self.tela, cor_clara,
                                      (int(cabo_ex), int(cabo_ey)),
                                      (int(corpo_end_x), int(corpo_end_y)), 1)
 
-                    # ── Glow de energia durante ataque ──
+                    # â”€â”€ Glow de energia durante ataque â”€â”€
                     if atacando or glow_alpha_base > 50:
                         try:
                             sz = max(8, int(lamina_len * 2))
@@ -3271,9 +3271,9 @@ class Simulador:
                                              (max(0,min(sz*2-1,local_e[0])), max(0,min(sz*2-1,local_e[1]))),
                                              max(4, lam_w_base + 3))
                             self.tela.blit(gs, (mid_x, mid_y))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
-                    # ── Runa na lâmina (raridade) ──
+                    # â”€â”€ Runa na lâmina (raridade) â”€â”€
                     if raridade not in ['Comum', 'Incomum']:
                         rune_x = int((cabo_ex + corpo_end_x) / 2)
                         rune_y = int((cabo_ey + corpo_end_y) / 2)
@@ -3282,22 +3282,22 @@ class Simulador:
                             rs = pygame.Surface((8, 8), pygame.SRCALPHA)
                             pygame.draw.circle(rs, (*cor_raridade, rune_a), (4, 4), 3)
                             self.tela.blit(rs, (rune_x - 4, rune_y - 4))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
-                    # ── Ponta brilhante ──
+                    # â”€â”€ Ponta brilhante â”€â”€
                     tip_r = max(2, larg - 1)
                     tip_a = int(160 + 80 * math.sin(tempo / 90 + i))
                     try:
                         ts = pygame.Surface((tip_r * 5, tip_r * 5), pygame.SRCALPHA)
                         pygame.draw.circle(ts, (*cor_clara, tip_a), (tip_r*2, tip_r*2), tip_r * 2)
                         self.tela.blit(ts, (int(tip_x) - tip_r*2, int(tip_y) - tip_r*2))
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     tip_cor = cor_raridade if raridade not in ['Comum'] else cor_clara
                     pygame.draw.circle(self.tela, tip_cor, (int(tip_x), int(tip_y)), tip_r)
 
             else:
-                # ── PER-STYLE RENDERERS para os demais estilos Dupla ──
-                # Kamas, Sai, Garras, Tonfas, Facas Táticas — cada um com visual único
+                # â”€â”€ PER-STYLE RENDERERS para os demais estilos Dupla â”€â”€
+                # Kamas, Sai, Garras, Tonfas, Facas Táticas â€” cada um com visual único
                 cabo_len   = raio_char * 0.40
                 lamina_len = raio_char * 0.90 * anim_scale
                 lw         = max(3, larg)
@@ -3307,7 +3307,7 @@ class Simulador:
                     # Posição da mão
                     hand_x = cx + math.cos(rad + math.pi/2) * sep * lado_sinal * 0.8
                     hand_y = cy + math.sin(rad + math.pi/2) * sep * lado_sinal * 0.8
-                    # Ângulo com leve abertura lateral
+                    # Ã‚ngulo com leve abertura lateral
                     spread = math.radians(20 * lado_sinal)
                     ang    = rad + spread
 
@@ -3319,7 +3319,7 @@ class Simulador:
                     tip_x = cabo_ex + math.cos(ang) * lamina_len
                     tip_y = cabo_ey + math.sin(ang) * lamina_len
 
-                    # ── KAMAS: foice — cabo + lâmina curva perpendicular ──
+                    # â”€â”€ KAMAS: foice â€” cabo + lâmina curva perpendicular â”€â”€
                     if estilo_arma == "Kamas":
                         # Cabo
                         pygame.draw.line(self.tela, (30, 18, 8),
@@ -3332,7 +3332,7 @@ class Simulador:
                         pygame.draw.line(self.tela, (160, 165, 175),
                                          (int(cabo_ex - g_perp_x), int(cabo_ey - g_perp_y)),
                                          (int(cabo_ex + g_perp_x), int(cabo_ey + g_perp_y)), max(2, lw-1))
-                        # Lâmina curva (arco): gira 90° para o interior
+                        # Lâmina curva (arco): gira 90Â° para o interior
                         curve_ang  = ang + math.pi/2 * lado_sinal
                         ctrl_x = cabo_ex + math.cos(curve_ang) * lamina_len * 0.5
                         ctrl_y = cabo_ey + math.sin(curve_ang) * lamina_len * 0.5
@@ -3352,10 +3352,10 @@ class Simulador:
                             gs = pygame.Surface((glow_r*4, glow_r*4), pygame.SRCALPHA)
                             pygame.draw.circle(gs, (*cor_clara, int(150+80*pulso)), (glow_r*2, glow_r*2), glow_r*2)
                             self.tela.blit(gs, (int(hook_x)-glow_r*2, int(hook_y)-glow_r*2))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                         pygame.draw.circle(self.tela, cor_raridade, (int(hook_x), int(hook_y)), glow_r)
 
-                    # ── SAI: tridente — lâmina central + duas guardas diagonais ──
+                    # â”€â”€ SAI: tridente â€” lâmina central + duas guardas diagonais â”€â”€
                     elif estilo_arma == "Sai":
                         # Cabo
                         pygame.draw.line(self.tela, (30, 18, 8),
@@ -3367,9 +3367,9 @@ class Simulador:
                         try:
                             pygame.draw.polygon(self.tela, cor_escura, lam_poly_c)
                             pygame.draw.polygon(self.tela, cor, lam_poly_c, 1)
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                         pygame.draw.line(self.tela, cor_clara, (int(cabo_ex), int(cabo_ey)), (int(tip_x), int(tip_y)), 1)
-                        # Guardas (asas do Sai) — partem do final do cabo em diagonal
+                        # Guardas (asas do Sai) â€” partem do final do cabo em diagonal
                         asa_len = lamina_len * 0.4
                         for asa_sinal in [-1, 1]:
                             asa_ang = ang + math.pi/2 * asa_sinal * 0.7
@@ -3381,7 +3381,7 @@ class Simulador:
                         # Ponta central
                         pygame.draw.circle(self.tela, cor_raridade, (int(tip_x), int(tip_y)), max(2, lw-1))
 
-                    # ── GARRAS: 3 lâminas curtas em leque de uma base knuckle ──
+                    # â”€â”€ GARRAS: 3 lâminas curtas em leque de uma base knuckle â”€â”€
                     elif estilo_arma == "Garras":
                         # Base (knuckle duster)
                         perp_x = math.cos(ang + math.pi/2) * (lw + 3)
@@ -3395,8 +3395,8 @@ class Simulador:
                         try:
                             pygame.draw.polygon(self.tela, (55, 30, 12), base_pts)
                             pygame.draw.polygon(self.tela, (100, 65, 30), base_pts, 1)
-                        except Exception: pass  # QC-01
-                        # 3 garras em leque: -25°, 0°, +25°
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
+                        # 3 garras em leque: -25Â°, 0Â°, +25Â°
                         garra_len = lamina_len * 0.7
                         for ga_deg in [-25 * lado_sinal, 0, 25 * lado_sinal]:
                             ga = ang + math.radians(ga_deg)
@@ -3413,16 +3413,16 @@ class Simulador:
                                 gs = pygame.Surface((sz, sz), pygame.SRCALPHA)
                                 pygame.draw.circle(gs, (*cor, int(80*pulso)), (sz//2, sz//2), sz//2)
                                 self.tela.blit(gs, (int(cabo_ex)-sz//2, int(cabo_ey)-sz//2))
-                            except Exception: pass  # QC-01
+                            except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
-                    # ── TONFAS: bastão-L — braço longo + cabo perpendicular curto ──
+                    # â”€â”€ TONFAS: bastão-L â€” braço longo + cabo perpendicular curto â”€â”€
                     elif estilo_arma == "Tonfas":
                         # Braço principal (lâmina = comprimento do bastão)
                         pygame.draw.line(self.tela, (20, 18, 20),
                                          (int(hand_x)+1, int(hand_y)+1), (int(tip_x)+1, int(tip_y)+1), lw+3)
                         pygame.draw.line(self.tela, cor, (int(hand_x), int(hand_y)), (int(tip_x), int(tip_y)), lw+1)
                         pygame.draw.line(self.tela, cor_clara, (int(hand_x), int(hand_y)), (int(tip_x), int(tip_y)), 1)
-                        # Cabo perpendicular (pega) — 1/4 do braço a partir da mão
+                        # Cabo perpendicular (pega) â€” 1/4 do braço a partir da mão
                         pivot_x = hand_x + math.cos(ang) * lamina_len * 0.28
                         pivot_y = hand_y + math.sin(ang) * lamina_len * 0.28
                         handle_ang = ang + math.pi/2 * lado_sinal
@@ -3441,7 +3441,7 @@ class Simulador:
                             fy = int(pivot_y + (grip_y - pivot_y) * fi)
                             pygame.draw.circle(self.tela, (50, 28, 10), (fx, fy), max(2, lw-1))
 
-                    # ── FACAS TÁTICAS (e fallback genérico): lâmina militar reta com fio ──
+                    # â”€â”€ FACAS TÁTICAS (e fallback genérico): lâmina militar reta com fio â”€â”€
                     else:
                         # Cabo com serrilha
                         pygame.draw.line(self.tela, (30, 18, 8),
@@ -3468,7 +3468,7 @@ class Simulador:
                         try:
                             pygame.draw.polygon(self.tela, cor_escura, lam_poly)
                             pygame.draw.polygon(self.tela, cor,        lam_poly, 1)
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                         # Fio central
                         pygame.draw.line(self.tela, cor_clara, (int(cabo_ex), int(cabo_ey)), (int(tip_x), int(tip_y)), 1)
                         # Serrilha no dorso (4 dentes)
@@ -3499,7 +3499,7 @@ class Simulador:
                                              (max(0,min(sz*2-1,le[0])), max(0,min(sz*2-1,le[1]))),
                                              max(4, lw+2))
                             self.tela.blit(gs, (mid_x, mid_y))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                         # Ponta brilhante
                         pygame.draw.circle(self.tela, cor_raridade, (int(tip_x), int(tip_y)), max(2, lw-1))
 
@@ -3509,14 +3509,14 @@ class Simulador:
             estilo_arma = getattr(arma, 'estilo', '')
 
             if estilo_arma == "Mangual":
-                # ── MANGUAL v3.0: Cabo pesado + Elos de ferro fundido + Bola espigada ──
+                # â”€â”€ MANGUAL v3.0: Cabo pesado + Elos de ferro fundido + Bola espigada â”€â”€
                 cabo_tam      = raio_char * 0.70
                 corrente_comp = raio_char * 1.55 * anim_scale
                 ponta_tam = max(6, int(raio_char * 0.20 * anim_scale))
                 num_elos = 6
                 pulso = 0.5 + 0.5 * math.sin(tempo / 200)
 
-                # ── Cabo de madeira grossa ──
+                # â”€â”€ Cabo de madeira grossa â”€â”€
                 cabo_ex = cx + math.cos(rad) * cabo_tam
                 cabo_ey = cy + math.sin(rad) * cabo_tam
                 # Sombra do cabo
@@ -3538,13 +3538,13 @@ class Simulador:
                                      (int(fx - fperp_x), int(fy - fperp_y)),
                                      (int(fx + fperp_x), int(fy + fperp_y)), 2)
 
-                # ── Argola de conexão ──
+                # â”€â”€ Argola de conexão â”€â”€
                 anel_r = max(4, larg_base + 1)
                 pygame.draw.circle(self.tela, (80, 80, 90), (int(cabo_ex), int(cabo_ey)), anel_r + 2)
                 pygame.draw.circle(self.tela, (160, 165, 175), (int(cabo_ex), int(cabo_ey)), anel_r, 3)
                 pygame.draw.circle(self.tela, (200, 205, 215), (int(cabo_ex), int(cabo_ey)), max(2, anel_r - 2), 1)
 
-                # ── Corrente com elos fundidos (pendular arc) ──
+                # â”€â”€ Corrente com elos fundidos (pendular arc) â”€â”€
                 chain_pts = []
                 sag = corrente_comp * 0.08 * (1 + 0.08 * math.sin(tempo / 200))  # Sag gravitacional (reduzido v3.1)
                 for ei in range(num_elos + 1):
@@ -3563,7 +3563,7 @@ class Simulador:
                 shadow_chain = [(int(p[0]+3), int(p[1]+3)) for p in chain_pts]
                 if len(shadow_chain) > 1:
                     try: pygame.draw.lines(self.tela, (20, 20, 22), False, shadow_chain, max(4, larg_base + 2))
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
                 # Elos individuais (alternando horizontal/vertical)
                 elo_w = max(5, larg_base + 2)
@@ -3585,9 +3585,9 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, (90, 92, 100), elo_pts)
                         pygame.draw.polygon(self.tela, (145, 148, 160), elo_pts, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
-                # ── Bola espigada (iron flail head) ──
+                # â”€â”€ Bola espigada (iron flail head) â”€â”€
                 if chain_pts:
                     end_x, end_y = chain_pts[-1]
                     ball_r = ponta_tam
@@ -3600,7 +3600,7 @@ class Simulador:
                             glow_a = int(120 * anim_scale)
                             pygame.draw.circle(gs, (*cor, min(255, glow_a)), (glow_r, glow_r), glow_r)
                             self.tela.blit(gs, (int(end_x) - glow_r, int(end_y) - glow_r))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
                     # Sombra da bola
                     pygame.draw.circle(self.tela, (15, 15, 18), (int(end_x) + 3, int(end_y) + 3), ball_r + 1)
@@ -3637,7 +3637,7 @@ class Simulador:
                         try:
                             pygame.draw.polygon(self.tela, cor, spike_pts)
                             pygame.draw.polygon(self.tela, cor_clara, spike_pts, 1)
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
                     # Anel de reforço na bola
                     pygame.draw.circle(self.tela, (70, 72, 80), (int(end_x), int(end_y)), ball_r, 2)
@@ -3650,16 +3650,16 @@ class Simulador:
                             pygame.draw.circle(rs, (*cor_raridade, rar_alpha),
                                                (ball_r * 2, ball_r * 2), ball_r + 4)
                             self.tela.blit(rs, (int(end_x) - ball_r * 2, int(end_y) - ball_r * 2))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
             else:
-                # ── PER-STYLE RENDERERS: Kusarigama, Chicote, Corrente com Peso ──
+                # â”€â”€ PER-STYLE RENDERERS: Kusarigama, Chicote, Corrente com Peso â”€â”€
                 comp_total = raio_char * 2.10 * anim_scale
                 cabo_len   = raio_char * 0.60
                 ponta_tam  = max(6, int(raio_char * 0.25))
                 pulso      = 0.5 + 0.5 * math.sin(tempo / 180)
 
-                # ── KUSARIGAMA — foice small + corrente + peso ──────────────
+                # â”€â”€ KUSARIGAMA â€” foice small + corrente + peso â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 if estilo_arma == "Kusarigama":
                     # Cabo pequeno da foice
                     kama_cabo_x = cx + math.cos(rad) * cabo_len
@@ -3691,7 +3691,7 @@ class Simulador:
                         chain_pts.append((int(px2),int(py2)))
                     if len(chain_pts) > 1:
                         try: pygame.draw.lines(self.tela, (80,82,90), False, chain_pts, max(2,larg_base-1))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                         for j in range(0,len(chain_pts)-1,2):
                             pygame.draw.circle(self.tela,(60,62,72),chain_pts[j],max(2,larg_base//2))
                     # Peso (bola pequena no final)
@@ -3701,7 +3701,7 @@ class Simulador:
                         pygame.draw.circle(self.tela, cor, (ex,ey), ponta_tam-1)
                         pygame.draw.circle(self.tela, cor_clara, (ex-ponta_tam//3,ey-ponta_tam//3), max(1,ponta_tam//3))
 
-                # ── CHICOTE — longo, sinuoso, afunilando ───────────────────
+                # â”€â”€ CHICOTE â€” longo, sinuoso, afunilando â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 elif estilo_arma == "Chicote":
                     # Cabo de couro
                     cabo_ex = cx + math.cos(rad) * cabo_len
@@ -3732,12 +3732,12 @@ class Simulador:
                         thick = max(1, int(larg_base * (1 - j/num_seg) + 0.5))
                         alpha_t = 80 + int(80 * (1 - j/num_seg))
                         try: pygame.draw.line(self.tela, cor, pts[j], pts[j+1], thick)
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     # Nó da ponta
                     if pts:
                         pygame.draw.circle(self.tela, cor_raridade, pts[-1], max(2,larg_base-1))
 
-                # ── CORRENTE COM PESO — elos quadrados + bloco metálico ────
+                # â”€â”€ CORRENTE COM PESO â€” elos quadrados + bloco metálico â”€â”€â”€â”€
                 else:
                     # Argola de pulso
                     pygame.draw.circle(self.tela, (80,82,90), (int(cx),int(cy)), larg_base+2, 2)
@@ -3758,7 +3758,7 @@ class Simulador:
                             perp_y2 = math.sin(rad+math.pi/2)*(larg_base+3)
                             mx=(pts[j][0]+pts[j+1][0])//2; my=(pts[j][1]+pts[j+1][1])//2
                             pygame.draw.line(self.tela,(55,56,65),(int(mx-perp_x2),int(my-perp_y2)),(int(mx+perp_x2),int(my+perp_y2)),2)
-                    # Peso — bloco metálico pesado
+                    # Peso â€” bloco metálico pesado
                     if pts:
                         ex,ey = pts[-1]
                         hw = ponta_tam+2; hh = int(ponta_tam*1.4)
@@ -3784,7 +3784,7 @@ class Simulador:
                 py = cy + math.sin(r_proj) * dist
                 rot = tempo / 90 + i * (math.pi * 2 / max(1, qtd))
 
-                # ── MACHADO (Não Retorna) ─────────────────────────────────
+                # â”€â”€ MACHADO (Não Retorna) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 if "Machado" in estilo_arma:
                     # Cabo giratório
                     cabo_ax = px + math.cos(rot) * tam_proj * 0.5
@@ -3805,10 +3805,10 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, cor_escura, ax_pts)
                         pygame.draw.polygon(self.tela, cor, ax_pts, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     pygame.draw.circle(self.tela, cor_raridade, (int(cabo_ax+math.cos(rot)*tam_proj*0.9),int(cabo_ay+math.sin(rot)*tam_proj*0.9)), max(2,larg_base-2))
 
-                # ── CHAKRAM (Retorna) — anel com fio ─────────────────────
+                # â”€â”€ CHAKRAM (Retorna) â€” anel com fio â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 elif "Chakram" in estilo_arma:
                     r2 = max(7, tam_proj - 1)
                     # Anel com espessura
@@ -3828,9 +3828,9 @@ class Simulador:
                             gs = pygame.Surface((r2*4, r2*4), pygame.SRCALPHA)
                             pygame.draw.circle(gs, (*cor, int(80*pulso)), (r2*2,r2*2), r2*2)
                             self.tela.blit(gs, (int(px)-r2*2, int(py)-r2*2))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
-                # ── BUMERANGUE ─────────────────────────────────────────────
+                # â”€â”€ BUMERANGUE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 elif "Bumerangue" in estilo_arma:
                     t2 = tam_proj
                     bum_pts = [
@@ -3844,12 +3844,12 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, cor_escura, bum_pts)
                         pygame.draw.polygon(self.tela, cor, bum_pts, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     pygame.draw.circle(self.tela, cor_raridade, (int(px), int(py)), max(2,larg_base-2))
 
-                # ── FACA (Rápida) e fallback ─────────────────────────────
+                # â”€â”€ FACA (Rápida) e fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 else:
-                    # Throwing knife — estreita e rápida
+                    # Throwing knife â€” estreita e rápida
                     blade = tam_proj * 1.2
                     perp_f = math.cos(rot + math.pi/2) * max(2, larg_base//2)
                     perp_fy = math.sin(rot + math.pi/2) * max(2, larg_base//2)
@@ -3865,7 +3865,7 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, cor_escura, faca_pts)
                         pygame.draw.polygon(self.tela, cor, faca_pts, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     pygame.draw.line(self.tela, cor_clara, (int(px),int(py)), (int(tip_fx),int(tip_fy)), 1)
                     pygame.draw.circle(self.tela, cor_raridade, (int(tip_fx),int(tip_fy)), max(2,larg_base-2))
 
@@ -3876,9 +3876,9 @@ class Simulador:
             tam_flecha = raio_char * 1.20 * anim_scale
             pulso = 0.5 + 0.5 * math.sin(tempo / 200)
 
-            # ── BESTA / BESTA DE REPETIÇÃO ────────────────────────────────
+            # â”€â”€ BESTA / BESTA DE REPETIÃ‡ÃƒO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if "Besta" in estilo_arma:
-                # Coronha (stock) — paralela ao rad
+                # Coronha (stock) â€” paralela ao rad
                 stock_len = tam_arco * 0.6
                 stock_ex = cx + math.cos(rad) * stock_len
                 stock_ey = cy + math.sin(rad) * stock_len
@@ -3910,7 +3910,7 @@ class Simulador:
                            (int(tip_bx-math.cos(rad)*8+perp_x*4),int(tip_by-math.sin(rad)*8+perp_y*4)),
                            (int(tip_bx-math.cos(rad)*8-perp_x*4),int(tip_by-math.sin(rad)*8-perp_y*4))]
                 try: pygame.draw.polygon(self.tela, cor_raridade, pts_tip)
-                except Exception: pass  # QC-01
+                except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 # Pente de repetição (caixinha em cima do trilho)
                 if "Repetição" in estilo_arma:
                     px2 = int(mid_x + math.cos(rad)*stock_len*0.05)
@@ -3921,7 +3921,7 @@ class Simulador:
                 if raridade not in ['Comum','Incomum']:
                     pygame.draw.circle(self.tela, cor_raridade, (tip_bx,tip_by), max(3,larg_base))
 
-            # ── ARCO LONGO ────────────────────────────────────────────────
+            # â”€â”€ ARCO LONGO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             elif "Longo" in estilo_arma:
                 arco_pts = []
                 span = tam_arco * 0.9
@@ -3944,14 +3944,14 @@ class Simulador:
                            (int(flecha_end_x-math.cos(rad)*plen+math.cos(rad+perp_f)*plen*0.4),int(flecha_end_y-math.sin(rad)*plen+math.sin(rad+perp_f)*plen*0.4)),
                            (int(flecha_end_x-math.cos(rad)*plen-math.cos(rad+perp_f)*plen*0.4),int(flecha_end_y-math.sin(rad)*plen-math.sin(rad+perp_f)*plen*0.4))]
                 try: pygame.draw.polygon(self.tela, cor_raridade, tip_pts)
-                except Exception: pass  # QC-01
+                except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 # Penas
                 for poff in [-1,1]:
                     pex = cx+math.cos(rad)*tam_flecha*0.12
                     pey = cy+math.sin(rad)*tam_flecha*0.12
                     pygame.draw.line(self.tela,(200,50,50),(int(pex),int(pey)),(int(pex+math.cos(rad+poff*0.6)*tam_flecha*0.12),int(pey+math.sin(rad+poff*0.6)*tam_flecha*0.12)),2)
 
-            # ── ARCO CURTO (default) ──────────────────────────────────────
+            # â”€â”€ ARCO CURTO (default) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             else:
                 arco_pts = []
                 for i in range(13):
@@ -3971,7 +3971,7 @@ class Simulador:
                            (int(flecha_end_x-math.cos(rad)*plen+math.cos(rad+perp_f)*plen*0.4),int(flecha_end_y-math.sin(rad)*plen+math.sin(rad+perp_f)*plen*0.4)),
                            (int(flecha_end_x-math.cos(rad)*plen-math.cos(rad+perp_f)*plen*0.4),int(flecha_end_y-math.sin(rad)*plen-math.sin(rad+perp_f)*plen*0.4))]
                 try: pygame.draw.polygon(self.tela, cor_raridade, tip_pts)
-                except Exception: pass  # QC-01
+                except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 for poff in [-1,1]:
                     pex = cx+math.cos(rad)*tam_flecha*0.15
                     pey = cy+math.sin(rad)*tam_flecha*0.15
@@ -3994,7 +3994,7 @@ class Simulador:
                 # Linha conectora sutil
                 pygame.draw.line(self.tela, (50,50,70), (int(cx),int(cy)), (int(ox),int(oy)), 1)
 
-                # ── ESCUDO ────────────────────────────────────────────────
+                # â”€â”€ ESCUDO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 if "Escudo" in estilo_arma or "Defensivo" in estilo_arma:
                     arc_r = tam_orbe * 1.6
                     # Arco sólido como escudo curvo
@@ -4009,15 +4009,15 @@ class Simulador:
                         pygame.draw.arc(self.tela, cor_clara,
                                         (int(ox-arc_r+2), int(oy-arc_r+2), int(arc_r*2-4), int(arc_r*2-4)),
                                         math.radians(start_ang+10), math.radians(start_ang+50), 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     if raridade not in ['Comum']:
                         try:
                             gs = pygame.Surface((tam_orbe*4, tam_orbe*4), pygame.SRCALPHA)
                             pygame.draw.circle(gs, (*cor_raridade, int(60*pulso)), (tam_orbe*2,tam_orbe*2), tam_orbe*2)
                             self.tela.blit(gs, (int(ox)-tam_orbe*2, int(oy)-tam_orbe*2))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
-                # ── DRONE ─────────────────────────────────────────────────
+                # â”€â”€ DRONE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 elif "Drone" in estilo_arma or "Ofensivo" in estilo_arma:
                     # Hexágono metálico
                     hex_pts = []
@@ -4027,7 +4027,7 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, cor_escura, hex_pts)
                         pygame.draw.polygon(self.tela, cor, hex_pts, 2)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     pygame.draw.circle(self.tela, cor_raridade, (int(ox),int(oy)), max(3,tam_orbe//3))
                     # Propulsor
                     thrust_x = int(ox + math.cos(ang+math.pi)*tam_orbe*1.4)
@@ -4037,9 +4037,9 @@ class Simulador:
                         gs = pygame.Surface((8,8), pygame.SRCALPHA)
                         pygame.draw.circle(gs, (100,180,255,int(120*pulso)), (4,4), 4)
                         self.tela.blit(gs, (thrust_x-4, thrust_y-4))
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
-                # ── LÂMINAS ORBITAIS ──────────────────────────────────────
+                # â”€â”€ LÃ‚MINAS ORBITAIS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 elif "Lâmina" in estilo_arma:
                     blade_len = tam_orbe * 1.5
                     ba = ang + tempo/600
@@ -4057,13 +4057,13 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, cor_escura, blade_pts)
                         pygame.draw.polygon(self.tela, cor, blade_pts, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     pygame.draw.line(self.tela, cor_clara, (int(tip1x),int(tip1y)), (int(tip2x),int(tip2y)), 1)
                     if raridade not in ['Comum']:
                         pygame.draw.circle(self.tela, cor_raridade, (int(tip1x),int(tip1y)), max(2,larg_base-2))
                         pygame.draw.circle(self.tela, cor_raridade, (int(tip2x),int(tip2y)), max(2,larg_base-2))
 
-                # ── ORBE MÁGICO (default) ─────────────────────────────────
+                # â”€â”€ ORBE MÁGICO (default) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 else:
                     for glow_r in range(3,0,-1):
                         alpha_cor = tuple(min(255, c+glow_r*18) for c in cor)
@@ -4091,7 +4091,7 @@ class Simulador:
                 px = cx + math.cos(r_m)*dist
                 py = cy + math.sin(r_m)*dist
 
-                # ── ESPADAS ESPECTRAIS ────────────────────────────────────
+                # â”€â”€ ESPADAS ESPECTRAIS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 if "Espada" in estilo_arma or "Espectral" in estilo_arma:
                     sword_ex = px + math.cos(r_m)*tam_base
                     sword_ey = py + math.sin(r_m)*tam_base
@@ -4110,7 +4110,7 @@ class Simulador:
                         pygame.draw.polygon(gs, (*cor, 160), local_pts)
                         self.tela.blit(gs, (int(px)-int(tam_base*2), int(py)-int(tam_base*2)))
                         pygame.draw.polygon(self.tela, cor, blade_pts, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     pygame.draw.line(self.tela, cor_clara, (int(px),int(py)), (int(sword_ex),int(sword_ey)), 1)
                     # Guarda
                     pygame.draw.line(self.tela, cor_raridade,
@@ -4118,7 +4118,7 @@ class Simulador:
                                      (int(px+perp_mx*2.5),int(py+perp_my*2.5)), max(2,larg_base-1))
                     pygame.draw.circle(self.tela, cor_raridade, (int(sword_ex),int(sword_ey)), 3)
 
-                # ── RUNAS FLUTUANTES ──────────────────────────────────────
+                # â”€â”€ RUNAS FLUTUANTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 elif "Runa" in estilo_arma:
                     r2 = max(8, int(tam_base*0.65))
                     pygame.draw.circle(self.tela, cor_escura, (int(px),int(py)), r2+2)
@@ -4136,9 +4136,9 @@ class Simulador:
                             gs = pygame.Surface((r2*4,r2*4), pygame.SRCALPHA)
                             pygame.draw.circle(gs, (*cor_raridade, int(80*pulso)), (r2*2,r2*2), r2*2)
                             self.tela.blit(gs, (int(px)-r2*2, int(py)-r2*2))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
 
-                # ── TENTÁCULOS SOMBRIOS ───────────────────────────────────
+                # â”€â”€ TENTÁCULOS SOMBRIOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 elif "Tentáculo" in estilo_arma:
                     tent_len = tam_base * 2.0
                     t_pts = []
@@ -4150,15 +4150,15 @@ class Simulador:
                         t_pts.append((int(tx2),int(ty2)))
                     if len(t_pts) > 1:
                         try: pygame.draw.lines(self.tela, cor, False, t_pts, max(2,larg_base-1))
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                         try: pygame.draw.lines(self.tela, cor_clara, False, t_pts, 1)
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     # Ventosas
                     for si in range(1,4):
                         sv = t_pts[si*2] if si*2 < len(t_pts) else t_pts[-1]
                         pygame.draw.circle(self.tela, cor_raridade, sv, max(2,larg_base-2))
 
-                # ── CRISTAIS ARCANOS ──────────────────────────────────────
+                # â”€â”€ CRISTAIS ARCANOS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 else:
                     r2 = max(7, int(tam_base*0.6))
                     crystal_pts = [
@@ -4171,12 +4171,12 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, cor_escura, crystal_pts)
                         pygame.draw.polygon(self.tela, cor, crystal_pts, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     pygame.draw.circle(self.tela, cor_clara, (int(px),int(py)), max(2,r2//3))
                     if raridade not in ['Comum']:
                         pygame.draw.circle(self.tela, cor_raridade, crystal_pts[0], 3)
 
-        # === TRANSFORMÁVEL (Espada↔Lança, Compacta↔Estendida, Chicote↔Espada, Arco↔Lâminas) ===
+        # === TRANSFORMÁVEL (Espadaâ†”Lança, Compactaâ†”Estendida, Chicoteâ†”Espada, Arcoâ†”Lâminas) ===
         elif tipo == "Transformável":
             estilo_arma = getattr(arma, 'estilo', '')
             forma = getattr(arma, 'forma_atual', 1)
@@ -4197,7 +4197,7 @@ class Simulador:
             perp_x = math.cos(rad+math.pi/2)
             perp_y = math.sin(rad+math.pi/2)
 
-            # Mecanismo de transformação (engrenagem/pivot) — igual para todos
+            # Mecanismo de transformação (engrenagem/pivot) â€” igual para todos
             mec_col = (int(120+80*pulso), int(100+60*pulso), int(90+50*pulso))
             pygame.draw.circle(self.tela, (40,40,50), (int(cabo_end_x),int(cabo_end_y)), larg+2)
             pygame.draw.circle(self.tela, mec_col, (int(cabo_end_x),int(cabo_end_y)), larg, 2)
@@ -4205,7 +4205,7 @@ class Simulador:
             pygame.draw.line(self.tela, (30,18,8), (int(cx)+1,int(cy)+1),(int(cabo_end_x)+1,int(cabo_end_y)+1), larg+2)
             pygame.draw.line(self.tela, (90,55,25), (int(cx),int(cy)),(int(cabo_end_x),int(cabo_end_y)), larg)
 
-            # ── ESPADA ↔ LANÇA ────────────────────────────────────────────
+            # â”€â”€ ESPADA â†” LANÃ‡A â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if "Lança" in estilo_arma and "Espada" in estilo_arma:
                 if forma == 1:  # Espada
                     blade_pts = [
@@ -4230,10 +4230,10 @@ class Simulador:
                 try:
                     pygame.draw.polygon(self.tela, cor, blade_pts)
                     pygame.draw.polygon(self.tela, cor_escura, blade_pts, 1)
-                except Exception: pass  # QC-01
+                except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 pygame.draw.line(self.tela, cor_clara, (int(cabo_end_x),int(cabo_end_y)),(int(lamina_end_x),int(lamina_end_y)), 1)
 
-            # ── CHICOTE ↔ ESPADA ──────────────────────────────────────────
+            # â”€â”€ CHICOTE â†” ESPADA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             elif "Chicote" in estilo_arma:
                 if forma == 1:  # Espada
                     blade_pts = [
@@ -4246,7 +4246,7 @@ class Simulador:
                     try:
                         pygame.draw.polygon(self.tela, cor, blade_pts)
                         pygame.draw.polygon(self.tela, cor_escura, blade_pts, 1)
-                    except Exception: pass  # QC-01
+                    except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 else:  # Chicote
                     num_seg = 14
                     wpts = []
@@ -4260,10 +4260,10 @@ class Simulador:
                     for j in range(len(wpts)-1):
                         thick = max(1, int(larg*(1-j/num_seg)+0.5))
                         try: pygame.draw.line(self.tela, cor, wpts[j], wpts[j+1], thick)
-                        except Exception: pass  # QC-01
+                        except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     if wpts: pygame.draw.circle(self.tela, cor_raridade, wpts[-1], max(2,larg-2))
 
-            # ── ARCo ↔ LÂMINAS / COMPACTA ↔ ESTENDIDA (default) ─────────
+            # â”€â”€ ARCo â†” LÃ‚MINAS / COMPACTA â†” ESTENDIDA (default) â”€â”€â”€â”€â”€â”€â”€â”€â”€
             else:
                 blade_pts = [
                     (int(cabo_end_x-perp_x*larg*0.6),int(cabo_end_y-perp_y*larg*0.6)),
@@ -4275,7 +4275,7 @@ class Simulador:
                 try:
                     pygame.draw.polygon(self.tela, cor, blade_pts)
                     pygame.draw.polygon(self.tela, cor_escura, blade_pts, 1)
-                except Exception: pass  # QC-01
+                except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                 pygame.draw.line(self.tela, cor_clara,(int(cabo_end_x),int(cabo_end_y)),(int(lamina_end_x),int(lamina_end_y)),1)
 
             # Glow de raridade comum
@@ -4353,7 +4353,7 @@ class Simulador:
                     # Linha do centro até a bola
                     pygame.draw.line(s, (255, 128, 0, 100), (cx_screen, cy_screen), bola_screen, 1)
                     
-                    # Desenha raio mínimo da corrente (onde ela NÃO acerta)
+                    # Desenha raio mínimo da corrente (onde ela NÃƒO acerta)
                     alcance_min = hitbox.alcance * 0.4
                     alcance_min_screen = self.cam.converter_tam(alcance_min)
                     pygame.draw.circle(s, (100, 100, 100, 50), (cx_screen, cy_screen), alcance_min_screen, 1)
@@ -4566,8 +4566,8 @@ class Simulador:
                     root.withdraw()
                     messagebox.showerror("Erro", f"Simulação falhou:\n{e}")
                     root.destroy()
-                except Exception:  # QC-01
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
                 self.rodando = False
         pygame.quit()
 

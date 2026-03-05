@@ -27,7 +27,12 @@ def carregar_json(arquivo):
     try:
         with open(arquivo, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception: return []
+    except json.JSONDecodeError as e:
+        print(f"[Database] JSON inválido em {arquivo}: {e}")
+        return []
+    except Exception as e:
+        print(f"[Database] Erro ao ler {arquivo}: {e}")
+        return []
 
 def salvar_json(arquivo, dados):
     with open(arquivo, "w", encoding="utf-8") as f:

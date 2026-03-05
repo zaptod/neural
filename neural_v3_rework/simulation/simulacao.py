@@ -69,8 +69,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     root.withdraw()
                     messagebox.showerror("Erro", f"Simulação falhou:\n{e}")
                     root.destroy()
-                except Exception:  # QC-01
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
                 self.rodando = False
         pygame.quit()
 

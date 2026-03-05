@@ -37,8 +37,17 @@ class LiveSync:
                     mt = os.path.getmtime(self._path)
                     if mt > self._last_mt:
                         self._last_mt = mt
-                        st = data_loader.load_world_state()
-                        if self.on_state_changed:
+                        # Retry once on JSON decode error (file may be mid-write)
+                        for attempt in range(2):
+                            try:
+                                st = data_loader.load_world_state()
+                                break
+                            except (ValueError, KeyError):
+                                if attempt == 0:
+                                    time.sleep(0.1)
+                                    continue
+                                raise
+                        if self.on_state_changed and st:
                             self.on_state_changed(st)
                         print("[LiveSync] state reloaded.")
             except Exception as e:

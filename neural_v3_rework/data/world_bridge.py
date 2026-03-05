@@ -23,6 +23,8 @@ import threading
 from datetime import datetime
 from copy import deepcopy
 from typing import Optional
+import logging
+_log = logging.getLogger("world_bridge")
 
 # ── path bootstrap ─────────────────────────────────────────────────────────────
 _HERE    = os.path.dirname(os.path.abspath(__file__))         # data/
@@ -257,8 +259,8 @@ class WorldBridge:
                             break
                     if target_zone:
                         break
-            except Exception:
-                pass
+            except Exception as _e:
+                _log.debug("%s", _e)
 
         # Fallback: zona neutra aleatória
         if not target_zone:
@@ -358,5 +360,5 @@ class WorldBridge:
             from data.app_state import AppState
             if zone_id:
                 AppState.get().claim_territory(zone_id, zone_id.replace("_", " ").title(), god_id)
-        except Exception:
-            pass
+        except Exception as _e:
+            _log.debug("%s", _e)

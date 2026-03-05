@@ -21,6 +21,8 @@ import random
 import math
 from typing import List, Tuple, Optional, Dict
 from utils.config import PPM
+import logging
+_log = logging.getLogger("magic_vfx")
 
 
 ELEMENT_PALETTES = {
@@ -192,8 +194,8 @@ def _draw_lightning_bolt(tela, x1, y1, x2, y2, color, width=2, detail=5):
         pygame.draw.lines(s, (*color[:3], 80),  False, local, width + 4)
         pygame.draw.lines(s, (*color[:3], 200), False, local, width)
         pygame.draw.lines(s, (255, 255, 255, 240), False, local, max(1, width - 1))
-    except Exception:
-        pass
+    except Exception as _e:
+        _log.debug("%s", _e)
     tela.blit(s, (int(min_x), int(min_y)))
 
 
@@ -209,8 +211,8 @@ def _draw_crystal_shard(tela, cx, cy, size, angle, color, alpha):
         try:
             pygame.draw.polygon(s, (*color[:3], alpha), local)
             pygame.draw.polygon(s, (255, 255, 255, min(255, alpha + 100)), local, 1)
-        except Exception:
-            pass
+        except Exception as _e:
+            _log.debug("%s", _e)
         tela.blit(s, (cx - int(size * 1.5), cy - int(size * 1.5)))
 
 
@@ -271,8 +273,8 @@ class MagicParticle:
                     pygame.draw.ellipse(s, (255, 255, 220, min(255, alpha + 80)),
                                         (cx_ - max(1, itam//2), cy_ - itam,
                                          max(1, itam), max(2, itam * 2)))
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
                 tela.blit(s, (isx - itam * 2 - 2, isy - itam * 3 - 2))
         elif self.shape == "drop":
             s = _safe_surface(itam * 3 + 4, itam * 4 + 4)
@@ -284,8 +286,8 @@ class MagicParticle:
                            (cx_ + max(1, itam//3), cy_),
                            (cx_, cy_ + max(2, itam * 2))]
                     pygame.draw.polygon(s, (*self.cor[:3], alpha), pts)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
                 tela.blit(s, (isx - itam - 2, isy - itam - 2))
         elif self.shape == "wisp":
             _draw_glow_circle(tela, isx, isy, max(2, itam), self.cor, alpha, 2)
@@ -301,8 +303,8 @@ class MagicParticle:
                 if len(star_pts) >= 3:
                     try:
                         pygame.draw.polygon(s, (*self.cor[:3], alpha), star_pts)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        _log.debug("%s", _e)
                 tela.blit(s, (isx - itam * 2 - 2, isy - itam * 2 - 2))
         elif self.shape == "rune":
             # Runa quadrada girando
@@ -317,8 +319,8 @@ class MagicParticle:
                     if len(rect_pts) >= 3:
                         pygame.draw.polygon(s, (*self.cor[:3], 0), rect_pts)
                         pygame.draw.polygon(s, (*self.cor[:3], alpha), rect_pts, 2)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
                 tela.blit(s, (isx - itam - 2, isy - itam - 2))
         elif self.shape == "thorn":
             # Espinho triangular
@@ -330,8 +332,8 @@ class MagicParticle:
                        (cx_ - max(1, itam // 2), cy_)]
                 try:
                     pygame.draw.polygon(s, (*self.cor[:3], alpha), pts)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
                 tela.blit(s, (isx - itam - 2, isy - itam * 2 - 2))
         else:  # circle
             if self.glow:
@@ -1053,8 +1055,8 @@ class DramaticExplosion:
                     pygame.draw.line(s, (255, 255, 255, alpha),
                                      (int(px_s - ox), int(py_s - oy)), (int(ex - ox), int(ey - oy)),
                                      max(1, larg - 2))
-                except Exception:
-                    pass
+                except Exception as _e:
+                    _log.debug("%s", _e)
                 tela.blit(s, (int(ox), int(oy)))
 
         # Partículas
@@ -1145,8 +1147,8 @@ class DramaticBeam:
                                   False, local, max(2, int(self.largura * pulse)))
                 pygame.draw.lines(s, (255, 255, 255, int(245 * ratio)), False, local,
                                   max(1, int(self.largura * 0.28)))
-            except Exception:
-                pass
+            except Exception as _e:
+                _log.debug("%s", _e)
             tela.blit(s, (int(min_x), int(min_y)))
         for p in self.particulas:
             p.draw(tela, cam)
@@ -1241,8 +1243,8 @@ class DramaticAura:
                                 for i in range(4)]
                         pygame.draw.polygon(s, (*o["cor"], 0), rpts)
                         pygame.draw.polygon(s, (*o["cor"], int(180 * ratio)), rpts, 2)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        _log.debug("%s", _e)
                     tela.blit(s, (int(spx) - tam - 2, int(spy) - tam - 2))
             else:
                 _draw_glow_circle(tela, int(spx), int(spy), tam, o["cor"], int(180 * ratio), 1)
@@ -1477,8 +1479,8 @@ class DramaticSummon:
                     try:
                         pygame.draw.line(s, (*self.palette["spark"], alpha),
                                          (int(x1), int(y1)), (int(x2), int(y2)), 2)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        _log.debug("%s", _e)
                 tela.blit(s, (int(sx) - r - 5, int(sy) - r - 5))
         for p in self.pilares:
             if p["delay"] <= 0 and p["altura"] > 0:
