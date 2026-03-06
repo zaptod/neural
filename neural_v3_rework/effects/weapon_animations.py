@@ -363,6 +363,42 @@ STYLE_PROFILES = {
         trail_width_start=5, trail_width_end=1,
         spark_on_impact=True, spark_count=7,
     ),
+    # â"€â"€ KAMAS v15.0: Wide farming sweeps â"€â"€
+    "Kamas": WeaponAnimationProfile(
+        anticipation_time=0.035, attack_time=0.055, impact_time=0.012,
+        follow_through_time=0.03, recovery_time=0.050,
+        anticipation_angle=-35, attack_angle=95, follow_through_angle=14,
+        anticipation_scale=0.94, attack_scale=1.18, trail_length=9,
+        shake_intensity=2.5, attack_easing="ease_out_expo",
+        glow_enabled=True, glow_radius=7, glow_color=(180, 255, 180),
+        motion_blur_enabled=True, motion_blur_frames=4,
+        trail_width_start=5, trail_width_end=1,
+        spark_on_impact=True, spark_count=6, spark_color=(160, 240, 160),
+    ),
+    # â"€â"€ SAI v15.0: Trapping parry jabs â"€â"€
+    "Sai": WeaponAnimationProfile(
+        anticipation_time=0.04, attack_time=0.048, impact_time=0.010,
+        follow_through_time=0.025, recovery_time=0.055,
+        anticipation_angle=-22, attack_angle=50, follow_through_angle=8,
+        anticipation_scale=0.96, attack_scale=1.14, trail_length=6,
+        shake_intensity=2.0, attack_easing="ease_out_expo",
+        glow_enabled=True, glow_radius=6, glow_color=(255, 220, 160),
+        motion_blur_enabled=True, motion_blur_frames=3,
+        trail_width_start=4, trail_width_end=1,
+        spark_on_impact=True, spark_count=5, spark_color=(255, 240, 180),
+    ),
+    # â"€â"€ FACAS TÁTICAS v15.0: Quick stabs with minimal telegraph â"€â"€
+    "Facas Táticas": WeaponAnimationProfile(
+        anticipation_time=0.02, attack_time=0.035, impact_time=0.008,
+        follow_through_time=0.02, recovery_time=0.040,
+        anticipation_angle=-18, attack_angle=42, follow_through_angle=6,
+        anticipation_scale=0.97, attack_scale=1.10, trail_length=5,
+        shake_intensity=1.5, attack_easing="ease_out_expo",
+        glow_enabled=True, glow_radius=5, glow_color=(255, 180, 180),
+        motion_blur_enabled=True, motion_blur_frames=3,
+        trail_width_start=3, trail_width_end=1,
+        spark_on_impact=True, spark_count=4, spark_color=(255, 200, 200),
+    ),
 
     # â”€â”€ MANGUAL v4.0 - ESTRELA DA MANHÃƒ: DEVASTATING SLAMS â”€â”€
     # Golpes devastadores com estrela cristalina. Mais lento mas mais impactante.
@@ -451,6 +487,34 @@ STYLE_PROFILES = {
         glow_enabled=True, glow_radius=14, glow_color=(255, 180, 80),
         glow_pulse_speed=6.0,
     ),
+    # v15.0 — Faca rápida
+    "Faca (Rápida)": WeaponAnimationProfile(
+        anticipation_time=0.06, attack_time=0.03, impact_time=0.0,
+        follow_through_time=0.05, recovery_time=0.08,
+        anticipation_angle=-35, attack_angle=50, follow_through_angle=25,
+        anticipation_scale=0.90, attack_scale=1.18,
+        trail_enabled=False, shake_intensity=0.0, attack_easing="ease_out_expo",
+        glow_enabled=True, glow_radius=6, glow_color=(220, 220, 220),
+    ),
+    # v15.0 — Bumerangue retorna
+    "Bumerangue": WeaponAnimationProfile(
+        anticipation_time=0.16, attack_time=0.065, impact_time=0.0,
+        follow_through_time=0.14, recovery_time=0.20,
+        anticipation_angle=-80, attack_angle=110, follow_through_angle=60,
+        anticipation_scale=0.76, attack_scale=1.34,
+        trail_enabled=False, shake_intensity=0.0, attack_easing="ease_out_back",
+        glow_enabled=True, glow_radius=12, glow_color=(255, 200, 100),
+        glow_pulse_speed=5.0,
+    ),
+    # v15.0 — Machado arremesso (pesado, não retorna)
+    "Machado (Não Retorna)": WeaponAnimationProfile(
+        anticipation_time=0.20, attack_time=0.06, impact_time=0.0,
+        follow_through_time=0.10, recovery_time=0.22,
+        anticipation_angle=-75, attack_angle=90, follow_through_angle=40,
+        anticipation_scale=0.74, attack_scale=1.36,
+        trail_enabled=False, shake_intensity=0.0, attack_easing="ease_out_expo",
+        glow_enabled=True, glow_radius=10, glow_color=(200, 160, 100),
+    ),
 
     # â”€â”€ ARCO â”€â”€
     "Arco Longo": WeaponAnimationProfile(
@@ -481,6 +545,37 @@ STYLE_PROFILES = {
         trail_enabled=False, shake_intensity=3.5,
         anticipation_easing="linear", attack_easing="ease_out_elastic",
         glow_enabled=True, glow_radius=16, glow_color=(220, 200, 160),
+    ),
+    # v15.0 — Arco Curto (rápido, menos dano)
+    "Arco Curto": WeaponAnimationProfile(
+        anticipation_time=0.18, attack_time=0.035, impact_time=0.0,
+        follow_through_time=0.07, recovery_time=0.15,
+        anticipation_angle=-10, attack_angle=5, follow_through_angle=3,
+        anticipation_scale=1.18, attack_scale=0.88,
+        trail_enabled=False, shake_intensity=1.2,
+        anticipation_easing="ease_in_out_quad", attack_easing="ease_out_elastic",
+        glow_enabled=True, glow_radius=10, glow_color=(255, 230, 150),
+        glow_pulse_speed=3.0,
+    ),
+    # v15.0 — Besta alias
+    "Besta": WeaponAnimationProfile(
+        anticipation_time=0.35, attack_time=0.025, impact_time=0.0,
+        follow_through_time=0.06, recovery_time=0.28,
+        anticipation_angle=-6, attack_angle=3, follow_through_angle=2,
+        anticipation_scale=1.12, attack_scale=0.82,
+        trail_enabled=False, shake_intensity=2.8,
+        anticipation_easing="linear", attack_easing="ease_out_elastic",
+        glow_enabled=True, glow_radius=14, glow_color=(200, 190, 150),
+    ),
+    # v15.0 — Besta de Repetição (muito rápida, dano baixo por tiro)
+    "Besta de Repetição": WeaponAnimationProfile(
+        anticipation_time=0.10, attack_time=0.022, impact_time=0.0,
+        follow_through_time=0.04, recovery_time=0.10,
+        anticipation_angle=-4, attack_angle=2, follow_through_angle=1,
+        anticipation_scale=1.06, attack_scale=0.92,
+        trail_enabled=False, shake_intensity=1.0,
+        anticipation_easing="linear", attack_easing="ease_out_expo",
+        glow_enabled=True, glow_radius=8, glow_color=(180, 180, 160),
     ),
 
     # â”€â”€ ORBITAL â”€â”€
@@ -515,6 +610,39 @@ STYLE_PROFILES = {
         glow_enabled=True, glow_radius=16, glow_color=(100, 255, 200),
         trail_width_start=6, trail_width_end=1,
         spark_on_impact=True, spark_count=10,
+    ),
+    # v15.0 — Orbital aliases para estilos de constants.py
+    "Defensivo (Escudo)": WeaponAnimationProfile(
+        anticipation_time=0.0, attack_time=0.20, impact_time=0.04,
+        follow_through_time=0.14, recovery_time=0.0,
+        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
+        anticipation_scale=1.0, attack_scale=1.08, trail_length=14,
+        shake_intensity=1.5, attack_easing="linear",
+        glow_enabled=True, glow_radius=24, glow_color=(80, 160, 255),
+        glow_pulse_speed=3.0,
+        trail_width_start=6, trail_width_end=2,
+        spark_on_impact=True, spark_count=8,
+    ),
+    "Ofensivo (Drone)": WeaponAnimationProfile(
+        anticipation_time=0.0, attack_time=0.10, impact_time=0.022,
+        follow_through_time=0.08, recovery_time=0.0,
+        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
+        anticipation_scale=1.0, attack_scale=1.14, trail_length=18,
+        shake_intensity=2.2, attack_easing="linear",
+        glow_enabled=True, glow_radius=16, glow_color=(100, 255, 200),
+        trail_width_start=6, trail_width_end=1,
+        spark_on_impact=True, spark_count=10,
+    ),
+    "Mágico (Orbe)": WeaponAnimationProfile(
+        anticipation_time=0.0, attack_time=0.19, impact_time=0.045,
+        follow_through_time=0.14, recovery_time=0.0,
+        anticipation_angle=0, attack_angle=360, follow_through_angle=0,
+        anticipation_scale=1.0, attack_scale=1.12, trail_length=20,
+        shake_intensity=2.5, attack_easing="ease_out_elastic",
+        glow_enabled=True, glow_radius=26, glow_color=(180, 100, 255),
+        glow_pulse_speed=6.0,
+        trail_width_start=7, trail_width_end=1,
+        spark_on_impact=True, spark_count=14, spark_color=(200, 120, 255),
     ),
 
     # â”€â”€ MÁGICA â”€â”€
@@ -628,6 +756,28 @@ STYLE_PROFILES = {
         glow_enabled=True, glow_radius=11, glow_color=(200, 200, 180),
         trail_width_start=7, trail_width_end=1,
         spark_on_impact=True, spark_count=10,
+    ),
+    # v15.0 — Espada↔Lança: versatile form-switch
+    "Espada↔Lança": WeaponAnimationProfile(
+        anticipation_time=0.10, attack_time=0.14, impact_time=0.035,
+        follow_through_time=0.11, recovery_time=0.15,
+        anticipation_angle=-48, attack_angle=120, follow_through_angle=28,
+        anticipation_scale=0.84, attack_scale=1.28, trail_length=12,
+        shake_intensity=4.5, attack_easing="anticipate_overshoot",
+        glow_enabled=True, glow_radius=10, glow_color=(220, 200, 160),
+        trail_width_start=6, trail_width_end=1,
+        spark_on_impact=True, spark_count=8,
+    ),
+    # v15.0 — Compacta↔Estendida: telescoping staff/blade
+    "Compacta↔Estendida": WeaponAnimationProfile(
+        anticipation_time=0.08, attack_time=0.15, impact_time=0.038,
+        follow_through_time=0.12, recovery_time=0.16,
+        anticipation_angle=-42, attack_angle=130, follow_through_angle=35,
+        anticipation_scale=0.82, attack_scale=1.32, trail_length=13,
+        shake_intensity=5.0, attack_easing="anticipate_overshoot",
+        glow_enabled=True, glow_radius=11, glow_color=(180, 220, 200),
+        trail_width_start=6, trail_width_end=1,
+        spark_on_impact=True, spark_count=9,
     ),
 }
 

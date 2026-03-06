@@ -188,6 +188,43 @@ class Lutador:
         self.chain_whip_crack = False    # Chicote: próximo hit é crack (sweet spot)
         self.chain_whip_stacks = 0       # Chicote: stacks de velocidade
         self.chain_recovery_mult = 1.0   # Multiplica cooldown pós-ataque
+
+        # === SISTEMA DUPLA v15.0 — Combo counter, frenzy, cross-slash ===
+        self.dual_combo = 0              # Hits consecutivos (0→8+)
+        self.dual_combo_timer = 0.0      # Tempo até combo resetar
+        self.dual_hand = 0              # 0=esquerda, 1=direita (alterna)
+        self.dual_frenzy = False         # Ativado em combo >= 4
+        self.dual_cross_slash = False    # Ativado em combo >= 6 (ambas adagas)
+
+        # === SISTEMA RETA v15.0 — Stance por estilo ===
+        self.reta_combo = 0             # Sequência de golpes (padrões por estilo)
+        self.reta_combo_timer = 0.0     # Tempo até reset
+        self.reta_heavy_charging = False  # Carregando golpe pesado
+        self.reta_charge_timer = 0.0    # Tempo carregando
+        self.reta_parry_window = 0.0    # Janela de parry ativa
+
+        # === SISTEMA ORBITAL v15.0 — Defesa + dano automático ===
+        self.orbital_angle = 0.0        # Ângulo de rotação atual
+        self.orbital_speed = 180.0      # Graus/segundo base
+        self.orbital_dmg_timer = 0.0    # Timer de dano por toque
+        self.orbital_shield_active = False  # Defesa ativa bloqueando projéteis
+        self.orbital_burst_cd = 0.0     # Cooldown do burst ofensivo
+
+        # === SISTEMA TRANSFORMÁVEL v15.0 — Troca de forma ===
+        self.transform_forma = 0        # Forma atual (0 ou 1)
+        self.transform_cd = 0.0         # Cooldown de troca
+        self.transform_combo = 0        # Combo acumulado na forma atual
+        self.transform_bonus_timer = 0.0  # Bônus pós-troca
+
+        # === SISTEMA ARCO v15.0 — Carga e tiro especial ===
+        self.bow_charge = 0.0           # Tempo carregando (0→1.5)
+        self.bow_charging = False       # Carregando ativamente
+        self.bow_perfect_timer = 0.0    # Janela do tiro perfeito
+
+        # === SISTEMA ARREMESSO v15.0 — Retorno e ricochete ===
+        self.throw_volley_cd = 0.0      # Cooldown de volley especial
+        self.throw_consecutive = 0      # Arremessos consecutivos
+
         self.arma_droppada_ang = 0
         self.fator_escala = self.dados.tamanho / ALTURA_PADRAO
         self.alcance_ideal = 1.5
@@ -291,6 +328,26 @@ class Lutador:
                 enc = ENCANTAMENTOS[enc_nome]
                 dano += enc.get("dano_bonus", 0)
 
+        # === v15.0 — Bônus por mecânica de arma ===
+        tipo_arma = getattr(self.dados, 'tipo_arma', '')
+        
+        # Dupla: frenzy +15%, cross-slash +30%
+        if tipo_arma == 'Dupla':
+            if getattr(self, 'dual_cross_slash', False):
+                dano *= 1.30
+            elif getattr(self, 'dual_frenzy', False):
+                dano *= 1.15
+        
+        # Reta: 3° golpe do combo = finisher +20%
+        if tipo_arma == 'Reta':
+            if getattr(self, 'reta_combo', 0) >= 2:
+                dano *= 1.20
+        
+        # Transformável: bonus após troca de forma
+        if tipo_arma == 'Transformável':
+            if getattr(self, 'transform_bonus_timer', 0) > 0:
+                dano *= 1.25
+
         return dano, is_critico
 
     def aplicar_passiva_em_hit(self, dano_aplicado, alvo, pos_impacto_px=None):
@@ -346,6 +403,35 @@ class Lutador:
             if not alvo.morto:
                 alvo.dots_ativos.append(dot)
             resultado["random_element"] = elemento
+
+        # === v15.0 — Efeitos on-hit por tipo de arma ===
+        tipo_arma = getattr(self.dados, 'tipo_arma', '')
+        
+        # Dupla combo 4+: sangramento (bleed)
+        if tipo_arma == 'Dupla' and getattr(self, 'dual_combo', 0) >= 4:
+            from core.combat import DotEffect
+            if not alvo.morto:
+                bleed = DotEffect("Sangrando", alvo, dano_aplicado * 0.06, 2.5, (200, 30, 30))
+                alvo.dots_ativos.append(bleed)
+                resultado["dual_bleed"] = True
+        
+        # Reta 3° golpe: stun curto
+        if tipo_arma == 'Reta' and getattr(self, 'reta_combo', 0) >= 2:
+            if not alvo.morto:
+                alvo.stun_timer = max(getattr(alvo, 'stun_timer', 0), 0.3)
+                resultado["reta_stun"] = True
+        
+        # Corrente: arrasto (pull enemy slightly towards self)
+        if tipo_arma == 'Corrente':
+            if not alvo.morto:
+                dx = self.pos[0] - alvo.pos[0]
+                dy = self.pos[1] - alvo.pos[1]
+                d = math.hypot(dx, dy)
+                if d > 0.1:
+                    pull = 0.3
+                    alvo.vel[0] += (dx / d) * pull
+                    alvo.vel[1] += (dy / d) * pull
+                    resultado["chain_pull"] = True
 
         return resultado
     
@@ -1260,7 +1346,7 @@ class Lutador:
         self.vel[1] += my * acc * dt
 
     def executar_ataques(self, dt, distancia, inimigo):
-        """Executa ataques físicos com sistema de animação aprimorado v2.0"""
+        """Executa ataques físicos com sistema de animação aprimorado v15.0"""
         from core.combat import ArmaProjetil, FlechaProjetil, OrbeMagico
         from effects.weapon_animations import get_weapon_animation_manager, WEAPON_PROFILES
         
@@ -1273,6 +1359,26 @@ class Lutador:
         # === v5.0: CORRENTE usa sistema dedicado ===
         if arma_tipo == "Corrente":
             self._executar_ataques_corrente(dt, distancia, inimigo, arma_estilo)
+            return
+        
+        # === v15.0: DUPLA usa sistema dedicado ===
+        if arma_tipo == "Dupla":
+            self._executar_ataques_dupla(dt, distancia, inimigo, arma_estilo)
+            return
+        
+        # === v15.0: RETA usa sistema dedicado ===
+        if arma_tipo == "Reta":
+            self._executar_ataques_reta(dt, distancia, inimigo, arma_estilo)
+            return
+        
+        # === v15.0: ORBITAL usa sistema dedicado ===
+        if is_orbital:
+            self._executar_ataques_orbital(dt, distancia, inimigo, arma_estilo)
+            return
+        
+        # === v15.0: TRANSFORMÁVEL usa sistema dedicado ===
+        if arma_tipo in ("Transformável", "Transformavel"):
+            self._executar_ataques_transformavel(dt, distancia, inimigo, arma_estilo)
             return
         
         # Obtém gerenciador de animações
@@ -1296,30 +1402,21 @@ class Lutador:
         self.weapon_anim_shake = transform["shake"]
         self.weapon_trail_positions = transform["trail_positions"]
         
-        # Orbital: sempre gira
-        if is_orbital:
-            spd = 200
-            if self.brain.acao_atual in ["MATAR", "BLOQUEAR", "COMBATE"] or distancia < 2.5:
-                spd = 1000
-            self.angulo_arma_visual += spd * dt
-        elif self.atacando:
-            # Usa novo sistema de animação
+        # Animação de ataque (Arco, Arremesso, Mágica)
+        if self.atacando:
             self.timer_animacao -= dt
             
-            # Obtém perfil da arma
             profile = WEAPON_PROFILES.get(arma_tipo, WEAPON_PROFILES["Reta"])
             
             if self.timer_animacao <= 0:
                 self.atacando = False
                 self.angulo_arma_visual = self.angulo_olhar
             else:
-                # Aplica offset do animador
                 self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
         else:
-            # Animação idle
             self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
 
-        if not self.atacando and not is_orbital and self.cooldown_ataque <= 0:
+        if not self.atacando and self.cooldown_ataque <= 0:
             acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"]
             deve_atacar = False
             
@@ -1387,8 +1484,18 @@ class Lutador:
                     self._disparar_orbes(inimigo)
                 
                 base_cd = 0.5 + random.random() * 0.5
-                if arma_tipo in ["Arremesso", "Arco"]:
-                    base_cd = 0.8 + random.random() * 0.4
+                if arma_tipo == "Arremesso":
+                    # v15.0: volleys consecutivas ficam mais rápidas
+                    self.throw_consecutive += 1
+                    base_cd = max(0.4, 0.8 - self.throw_consecutive * 0.05) + random.random() * 0.3
+                    if self.throw_consecutive >= 5:
+                        self.throw_consecutive = 0  # Reset após volley longa
+                elif arma_tipo == "Arco":
+                    # v15.0: tiros consecutivos mantêm ritmo, charge bonus
+                    charge_bonus = min(0.3, self.bow_charge * 0.2) if self.bow_charge > 0 else 0
+                    base_cd = max(0.5, 0.8 - charge_bonus) + random.random() * 0.3
+                    self.bow_charge = 0.0
+                    self.bow_charging = False
                 elif arma_tipo == "Mágica":
                     base_cd = 1.0 + random.random() * 0.5
                 if "Assassino" in self.classe_nome or "Ninja" in self.classe_nome:
@@ -1404,45 +1511,94 @@ class Lutador:
     # =====================================================================
 
     def _atualizar_chain_state(self, dt, distancia):
-        """Atualiza estados persistentes das mecânicas de corrente."""
+        """Atualiza estados persistentes de TODAS as mecânicas de arma v15.0."""
         arma = self.dados.arma_obj
-        if not arma or arma.tipo != "Corrente":
+        if not arma:
             return
 
+        tipo = arma.tipo
         estilo = getattr(arma, 'estilo', '')
 
-        # Mangual: momentum decai lentamente (precisa de hits para manter)
-        if "Mangual" in estilo or "Flail" in estilo:
-            self.chain_momentum = max(0, self.chain_momentum - dt * 0.15)
+        # ═══ CORRENTE ═══
+        if tipo == "Corrente":
+            if "Mangual" in estilo or "Flail" in estilo:
+                self.chain_momentum = max(0, self.chain_momentum - dt * 0.15)
+            elif estilo == "Kusarigama":
+                if self.chain_combo_timer > 0:
+                    self.chain_combo_timer -= dt
+                    if self.chain_combo_timer <= 0:
+                        self.chain_combo = 0
+                        self.chain_mode = 0
+            elif estilo == "Chicote":
+                if self.chain_whip_stacks > 0 and not self.atacando:
+                    self.chain_whip_stacks = max(0, self.chain_whip_stacks - dt * 2.0)
+            elif estilo == "Meteor Hammer":
+                if self.chain_spinning:
+                    self.chain_spin_speed = min(3.0, self.chain_spin_speed + dt * 0.8)
+                    self.chain_spin_dmg_timer -= dt
+                else:
+                    self.chain_spin_speed = max(0, self.chain_spin_speed - dt * 1.5)
+            elif "Corrente com Peso" in estilo:
+                if self.chain_pull_timer > 0:
+                    self.chain_pull_timer -= dt
+                    if self.chain_pull_timer <= 0:
+                        self.chain_pull_target = None
 
-        # Kusarigama: combo timer decai, resets combo
-        elif estilo == "Kusarigama":
-            if self.chain_combo_timer > 0:
-                self.chain_combo_timer -= dt
-                if self.chain_combo_timer <= 0:
-                    self.chain_combo = 0
-                    self.chain_mode = 0  # Reset para foice
+        # ═══ DUPLA: combo decai sem hits ═══
+        elif tipo == "Dupla":
+            if self.dual_combo_timer > 0:
+                self.dual_combo_timer -= dt
+                if self.dual_combo_timer <= 0:
+                    self.dual_combo = max(0, self.dual_combo - 1)
+                    if self.dual_combo > 0:
+                        self.dual_combo_timer = 2.0
+                    else:
+                        self.dual_frenzy = False
+                        self.dual_cross_slash = False
+            self.dual_frenzy = self.dual_combo >= 4
+            self.dual_cross_slash = self.dual_combo >= 6
 
-        # Chicote: stacks de velocidade decaem
-        elif estilo == "Chicote":
-            if self.chain_whip_stacks > 0 and not self.atacando:
-                self.chain_whip_stacks = max(0, self.chain_whip_stacks - dt * 2.0)
+        # ═══ RETA: combo decai, charge timer, parry window ═══
+        elif tipo == "Reta":
+            if self.reta_combo_timer > 0:
+                self.reta_combo_timer -= dt
+                if self.reta_combo_timer <= 0:
+                    self.reta_combo = 0
+            if self.reta_parry_window > 0:
+                self.reta_parry_window -= dt
+            if self.reta_heavy_charging:
+                self.reta_charge_timer += dt
+                if self.reta_charge_timer > 1.5:
+                    self.reta_charge_timer = 1.5  # Max charge
 
-        # Meteor Hammer: spin contínuo consome "energia de spin"
-        elif estilo == "Meteor Hammer":
-            if self.chain_spinning:
-                self.chain_spin_speed = min(3.0, self.chain_spin_speed + dt * 0.8)
-                # Dano contínuo em área enquanto gira
-                self.chain_spin_dmg_timer -= dt
-            else:
-                self.chain_spin_speed = max(0, self.chain_spin_speed - dt * 1.5)
+        # ═══ ORBITAL: rota atualiza sempre, cooldowns decaem ═══
+        elif "Orbital" in tipo:
+            combat_speed = 1.0
+            if self.brain.acao_atual in ["MATAR", "BLOQUEAR", "COMBATE"] or distancia < 2.5:
+                combat_speed = 3.0
+            self.orbital_angle += self.orbital_speed * combat_speed * dt
+            self.orbital_dmg_timer -= dt
+            if self.orbital_burst_cd > 0:
+                self.orbital_burst_cd -= dt
+            # Ativa escudo quando em modo defensivo
+            self.orbital_shield_active = self.brain.acao_atual in ["BLOQUEAR", "RECUAR", "FUGIR"]
 
-        # Corrente com Peso: pull timer e slow
-        elif "Corrente com Peso" in estilo:
-            if self.chain_pull_timer > 0:
-                self.chain_pull_timer -= dt
-                if self.chain_pull_timer <= 0:
-                    self.chain_pull_target = None
+        # ═══ TRANSFORMÁVEL: cooldowns, bônus pós-troca ═══
+        elif "Transformável" in tipo or "Transformavel" in tipo:
+            if self.transform_cd > 0:
+                self.transform_cd -= dt
+            if self.transform_bonus_timer > 0:
+                self.transform_bonus_timer -= dt
+
+        # ═══ ARCO: carga ═══
+        elif tipo == "Arco":
+            if self.bow_perfect_timer > 0:
+                self.bow_perfect_timer -= dt
+
+        # ═══ ARREMESSO: cooldowns ═══
+        elif tipo == "Arremesso":
+            if self.throw_volley_cd > 0:
+                self.throw_volley_cd -= dt
 
     def _executar_ataques_corrente(self, dt, distancia, inimigo, estilo):
         """
@@ -1652,8 +1808,440 @@ class Lutador:
             return base * 3.5    # Peso: médio (compensa com pull)
         return base * 4.0        # Fallback
 
+    # =====================================================================
+    # === SISTEMA DUPLA v15.0 — Combo, Frenzy, Cross-Slash ===============
+    # =====================================================================
+
+    def _executar_ataques_dupla(self, dt, distancia, inimigo, estilo):
+        """
+        Sistema de ataque dedicado para armas DUPLA v15.0.
+        Alterna mão esquerda/direita, combo counter com frenzy e cross-slash.
+        
+        Kamas:          Cortes alternados rápidos, frenzy reduz recovery
+        Adagas Gêmeas:  Ultra-rápidas, cross-slash simultâneo em combo 6+
+        Sai:            Parry integrado, contra-atacar após bloquear
+        Garras:         Aumenta dano por stack, sangramento em combo 4+
+        Tonfas:         Hits combinam contusão + velocidade, stun em combo alto
+        Facas Táticas:  Ataques precisos, crit bonus em combo 3+
+        """
+        from effects.weapon_animations import get_weapon_animation_manager, WEAPON_PROFILES, STYLE_PROFILES
+
+        anim_manager = get_weapon_animation_manager()
+
+        # Resolução de profile
+        if estilo in STYLE_PROFILES:
+            profile = STYLE_PROFILES[estilo]
+        elif estilo in WEAPON_PROFILES:
+            profile = WEAPON_PROFILES[estilo]
+        else:
+            profile = WEAPON_PROFILES.get("Dupla", WEAPON_PROFILES["Reta"])
+
+        # Calcula posição ponta
+        rad = math.radians(self.angulo_olhar)
+        tip_dist = self.raio_fisico * 2.0
+        weapon_tip = (
+            self.pos[0] + math.cos(rad) * tip_dist,
+            self.pos[1] + math.sin(rad) * tip_dist
+        )
+
+        transform = anim_manager.get_weapon_transform(
+            id(self), "Dupla", self.angulo_olhar, weapon_tip, dt, weapon_style=estilo
+        )
+        self.weapon_anim_scale = transform["scale"]
+        self.weapon_anim_shake = transform["shake"]
+        self.weapon_trail_positions = transform["trail_positions"]
+
+        if self.atacando:
+            self.timer_animacao -= dt
+            if self.timer_animacao <= 0:
+                self.atacando = False
+                self.angulo_arma_visual = self.angulo_olhar
+            else:
+                self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+            return
+
+        self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+
+        if self.cooldown_ataque > 0:
+            return
+
+        acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO",
+                           "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"]
+        if self.brain.acao_atual not in acoes_ofensivas:
+            return
+
+        # Alcance
+        alcance = self.raio_fisico * 2.8
+        if estilo == "Garras":
+            alcance = self.raio_fisico * 2.2  # Garras: mais curto
+        elif estilo in ("Kamas", "Sai"):
+            alcance = self.raio_fisico * 3.0
+
+        if distancia > alcance or abs(self.z - inimigo.z) > 1.5:
+            return
+
+        # ── Inicia ataque ──
+        # Frenzy mode: recovery ultra-rápida
+        frenzy_mult = 0.5 if self.dual_frenzy else 1.0
+        # Cross-slash: ambas adagas = animação dupla
+        if self.dual_cross_slash:
+            anim_time = profile.total_time * 0.7  # Mais rápido
+        else:
+            anim_time = profile.total_time * frenzy_mult
+
+        self.timer_animacao = max(0.06, anim_time)
+        self.atacando = True
+        self.ataque_id += 1
+        self.alvos_atingidos_neste_ataque.clear()
+
+        # Alterna mão (visual)
+        self.dual_hand = 1 - self.dual_hand
+
+        anim_manager.start_attack(id(self), "Dupla", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+
+        # ── Combo tracking ──
+        self.dual_combo = min(8, self.dual_combo + 1)
+        self.dual_combo_timer = 2.0  # 2s sem atacar = combo cai
+
+        # ── Cooldown por estilo ──
+        if estilo == "Adagas Gêmeas":
+            base_cd = max(0.08, 0.15 * frenzy_mult)
+        elif estilo == "Garras":
+            base_cd = max(0.10, 0.22 * frenzy_mult)
+        elif estilo == "Kamas":
+            base_cd = max(0.10, 0.20 * frenzy_mult)
+        elif estilo == "Sai":
+            base_cd = max(0.12, 0.28 * frenzy_mult)
+        elif estilo == "Tonfas":
+            base_cd = max(0.12, 0.25 * frenzy_mult)
+        elif estilo == "Facas Táticas":
+            base_cd = max(0.09, 0.18 * frenzy_mult)
+        else:
+            base_cd = max(0.10, 0.20 * frenzy_mult)
+
+        vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
+        self.cooldown_ataque = base_cd / vel_ataque
+
+    # =====================================================================
+    # === SISTEMA RETA v15.0 — Stance, Combo, Heavy Charge ===============
+    # =====================================================================
+
+    def _executar_ataques_reta(self, dt, distancia, inimigo, estilo):
+        """
+        Sistema de ataque dedicado para armas RETA v15.0.
+        Combos variados por estilo, golpe pesado carregável, parry.
+        
+        Corte (Espada):  Combo 3-hit (horizontal, diagonal, vertical)
+        Estocada (Lança): Thrusts rápidos, alcance longo, combo poke
+        Contusão (Maça):  Golpes lentos com stun chance, carga devastadora
+        Katana:           Iaido (saque rápido), combo alternado
+        Montante:         Golpes largos com cleave, lentos e poderosos
+        Martelo:          Smash com AoE no ground pound
+        """
+        from effects.weapon_animations import get_weapon_animation_manager, WEAPON_PROFILES, STYLE_PROFILES
+
+        anim_manager = get_weapon_animation_manager()
+
+        # Resolução de profile
+        if estilo in STYLE_PROFILES:
+            profile = STYLE_PROFILES[estilo]
+        elif estilo in WEAPON_PROFILES:
+            profile = WEAPON_PROFILES[estilo]
+        else:
+            profile = WEAPON_PROFILES.get("Reta", WEAPON_PROFILES["Reta"])
+
+        rad = math.radians(self.angulo_olhar)
+        tip_dist = self.raio_fisico * 2.5
+        weapon_tip = (
+            self.pos[0] + math.cos(rad) * tip_dist,
+            self.pos[1] + math.sin(rad) * tip_dist
+        )
+
+        transform = anim_manager.get_weapon_transform(
+            id(self), "Reta", self.angulo_olhar, weapon_tip, dt, weapon_style=estilo
+        )
+        self.weapon_anim_scale = transform["scale"]
+        self.weapon_anim_shake = transform["shake"]
+        self.weapon_trail_positions = transform["trail_positions"]
+
+        if self.atacando:
+            self.timer_animacao -= dt
+            if self.timer_animacao <= 0:
+                self.atacando = False
+                self.angulo_arma_visual = self.angulo_olhar
+                self.reta_heavy_charging = False
+            else:
+                self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+            return
+
+        self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+
+        if self.cooldown_ataque > 0:
+            return
+
+        acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO",
+                           "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"]
+        if self.brain.acao_atual not in acoes_ofensivas:
+            return
+
+        # ── Alcance por estilo ──
+        is_thrust = estilo in ("Estocada (Lança)", "Lança", "Alabarda")
+        is_heavy = estilo in ("Contusão (Maça)", "Maça", "Martelo", "Montante", "Claymore")
+
+        if is_thrust:
+            alcance = self.raio_fisico * 3.5  # Lanças: alcance longo
+        elif is_heavy:
+            alcance = self.raio_fisico * 2.8  # Pesadas: médio
+        else:
+            alcance = self.raio_fisico * 2.5  # Espadas: padrão
+
+        if distancia > alcance or abs(self.z - inimigo.z) > 1.5:
+            return
+
+        # ── Combo counter ──
+        self.reta_combo = (self.reta_combo + 1) % 3  # Ciclo de 3 golpes
+        self.reta_combo_timer = 2.5
+
+        # ── Timing por estilo e combo ──
+        combo_speed_bonus = 1.0
+        if self.reta_combo == 1:
+            combo_speed_bonus = 0.85  # 2º golpe mais rápido
+        elif self.reta_combo == 2:
+            combo_speed_bonus = 1.2  # 3º golpe mais lento (finisher)
+
+        if is_heavy:
+            # Pesadas: mais lentas mas shake/dano maiores
+            anim_time = profile.total_time * combo_speed_bonus * 1.1
+            base_cd = 0.6 + random.random() * 0.3
+        elif is_thrust:
+            # Estocadas: rápidas, quase sem recovery
+            anim_time = profile.total_time * combo_speed_bonus * 0.8
+            base_cd = 0.25 + random.random() * 0.2
+        else:
+            anim_time = profile.total_time * combo_speed_bonus
+            base_cd = 0.35 + random.random() * 0.25
+
+        self.timer_animacao = max(0.12, anim_time)
+        self.atacando = True
+        self.ataque_id += 1
+        self.alvos_atingidos_neste_ataque.clear()
+
+        anim_manager.start_attack(id(self), "Reta", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+
+        vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
+        self.cooldown_ataque = base_cd / vel_ataque
+
+    # =====================================================================
+    # === SISTEMA ORBITAL v15.0 — Dano automático + burst + escudo ======
+    # =====================================================================
+
+    def _executar_ataques_orbital(self, dt, distancia, inimigo, estilo):
+        """
+        Sistema de ataque dedicado para armas ORBITAL v15.0.
+        Orbitais giram ao redor do dono e causam dano por contato automático.
+        
+        Defensivo (Escudo):    Bloqueia projéteis, reflete 30% dano
+        Ofensivo (Drone):      Dispara projéteis automáticos
+        Mágico (Orbe):         Gera campo de dano em área
+        Lâminas Orbitais:      Dano contínuo corpo-a-corpo em quem se aproxima
+        """
+        from effects.weapon_animations import get_weapon_animation_manager, WEAPON_PROFILES
+
+        anim_manager = get_weapon_animation_manager()
+
+        # Orbital sempre gira (visual)
+        self.angulo_arma_visual = self.orbital_angle
+
+        rad = math.radians(self.angulo_olhar)
+        tip_dist = self.raio_fisico * 1.5
+        weapon_tip = (
+            self.pos[0] + math.cos(rad) * tip_dist,
+            self.pos[1] + math.sin(rad) * tip_dist
+        )
+
+        transform = anim_manager.get_weapon_transform(
+            id(self), "Orbital", self.angulo_olhar, weapon_tip, dt, weapon_style=estilo
+        )
+        self.weapon_anim_scale = transform["scale"]
+        self.weapon_anim_shake = transform["shake"]
+        self.weapon_trail_positions = transform["trail_positions"]
+
+        arma = self.dados.arma_obj
+        if not arma:
+            return
+
+        # Alcance orbital = raio de órbita
+        qtd_orbitais = max(1, int(getattr(arma, 'quantidade_orbitais', 1)))
+        raio_orbita = self.raio_fisico * 1.5
+
+        # ── DANO AUTOMÁTICO POR PROXIMIDADE ──
+        # Orbitais danificam inimigos que entram no raio de órbita
+        if self.orbital_dmg_timer <= 0 and not inimigo.morto:
+            # Verifica se inimigo está dentro do alcance orbital
+            alcance_orbital = raio_orbita + self.raio_fisico * 0.5
+            if distancia < alcance_orbital and abs(self.z - inimigo.z) < 1.5:
+                # Dano automático!
+                self.atacando = True
+                self.ataque_id += 1
+                self.alvos_atingidos_neste_ataque.clear()
+                self.timer_animacao = 0.15
+
+                anim_manager.start_attack(id(self), "Orbital", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+
+                # Timer entre hits automáticos (varia por estilo)
+                if "Lâminas" in estilo or "Laminas" in estilo:
+                    self.orbital_dmg_timer = 0.3  # Rápido, dano por tick
+                elif "Drone" in estilo or "Ofensivo" in estilo:
+                    self.orbital_dmg_timer = 0.8  # Dispara projéteis
+                elif "Escudo" in estilo or "Defensivo" in estilo:
+                    self.orbital_dmg_timer = 1.2  # Lento mas reflete
+                else:
+                    self.orbital_dmg_timer = 0.5  # Padrão
+
+        # ── BURST OFENSIVO: ataque especial em cooldown ──
+        if self.orbital_burst_cd <= 0 and not inimigo.morto:
+            acoes = ["MATAR", "ESMAGAR", "COMBATE", "PRESSIONAR"]
+            if self.brain.acao_atual in acoes and distancia < raio_orbita * 3:
+                # Burst: todos os orbitais disparam no inimigo
+                self.orbital_burst_cd = 5.0  # 5s cooldown
+                self.atacando = True
+                self.ataque_id += 1
+                self.alvos_atingidos_neste_ataque.clear()
+                self.timer_animacao = 0.3
+
+                # Cria projéteis de burst (um por orbital)
+                from core.combat import ArmaProjetil
+                dano_total = arma.dano * (self.dados.forca / 2.0 + 0.5)
+                cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (120, 180, 255)
+
+                for i in range(qtd_orbitais):
+                    ang_orbital = self.orbital_angle + (360 / qtd_orbitais) * i
+                    rad_o = math.radians(ang_orbital)
+                    spawn_x = self.pos[0] + math.cos(rad_o) * raio_orbita
+                    spawn_y = self.pos[1] + math.sin(rad_o) * raio_orbita
+
+                    ang_para_alvo = math.degrees(math.atan2(
+                        inimigo.pos[1] - spawn_y, inimigo.pos[0] - spawn_x
+                    ))
+
+                    proj = ArmaProjetil(
+                        tipo="orbe",
+                        x=spawn_x, y=spawn_y,
+                        angulo=ang_para_alvo,
+                        dono=self,
+                        dano=dano_total / qtd_orbitais,
+                        velocidade=14.0,
+                        tamanho=0.25,
+                        cor=cor
+                    )
+                    self.buffer_projeteis.append(proj)
+
+                anim_manager.start_attack(id(self), "Orbital", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+
+        # Atualiza animação de ataque em progresso
+        if self.atacando:
+            self.timer_animacao -= dt
+            if self.timer_animacao <= 0:
+                self.atacando = False
+
+    # =====================================================================
+    # === SISTEMA TRANSFORMÁVEL v15.0 — Troca de forma dinâmica =========
+    # =====================================================================
+
+    def _executar_ataques_transformavel(self, dt, distancia, inimigo, estilo):
+        """
+        Sistema de ataque dedicado para armas TRANSFORMÁVEL v15.0.
+        Troca entre duas formas com mecânicas distintas.
+        
+        Espada↔Lança:       Forma 0 = espada rápida (curto), Forma 1 = lança (longo)
+        Compacta↔Estendida:  Forma 0 = rápido (curto), Forma 1 = lento (longo)
+        Chicote↔Espada:      Forma 0 = chicote (longo, area), Forma 1 = espada (curto)
+        Arco↔Lâminas:       Forma 0 = ranged (arco), Forma 1 = melee (lâminas)
+        """
+        from effects.weapon_animations import get_weapon_animation_manager, WEAPON_PROFILES, STYLE_PROFILES
+
+        anim_manager = get_weapon_animation_manager()
+        profile = WEAPON_PROFILES.get("Transformavel", WEAPON_PROFILES["Reta"])
+
+        rad = math.radians(self.angulo_olhar)
+        tip_dist = self.raio_fisico * 2.5
+        weapon_tip = (
+            self.pos[0] + math.cos(rad) * tip_dist,
+            self.pos[1] + math.sin(rad) * tip_dist
+        )
+
+        transform = anim_manager.get_weapon_transform(
+            id(self), "Transformável", self.angulo_olhar, weapon_tip, dt, weapon_style=estilo
+        )
+        self.weapon_anim_scale = transform["scale"]
+        self.weapon_anim_shake = transform["shake"]
+        self.weapon_trail_positions = transform["trail_positions"]
+
+        if self.atacando:
+            self.timer_animacao -= dt
+            if self.timer_animacao <= 0:
+                self.atacando = False
+                self.angulo_arma_visual = self.angulo_olhar
+            else:
+                self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+            return
+
+        self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+
+        # ── Auto-troca de forma baseada em distância ──
+        if self.transform_cd <= 0:
+            # Forma 0 = curto alcance/rápido, Forma 1 = longo alcance/lento
+            should_switch = False
+            if self.transform_forma == 0 and distancia > self.raio_fisico * 4.0:
+                should_switch = True   # Longe demais, troca pra forma longa
+            elif self.transform_forma == 1 and distancia < self.raio_fisico * 2.0:
+                should_switch = True   # Perto demais, troca pra forma curta
+
+            if should_switch:
+                self.transform_forma = 1 - self.transform_forma
+                self.transform_cd = 3.0  # 3s entre trocas
+                self.transform_combo = 0
+                self.transform_bonus_timer = 1.5  # 1.5s de bônus pós-troca
+
+        if self.cooldown_ataque > 0:
+            return
+
+        acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO",
+                           "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"]
+        if self.brain.acao_atual not in acoes_ofensivas:
+            return
+
+        # Alcance baseado na forma atual
+        if self.transform_forma == 0:
+            alcance = self.raio_fisico * 2.5
+            anim_time = profile.total_time * 0.8
+            base_cd = 0.3 + random.random() * 0.2
+        else:
+            alcance = self.raio_fisico * 4.0
+            anim_time = profile.total_time * 1.2
+            base_cd = 0.5 + random.random() * 0.3
+
+        # Bônus pós-troca: primeiro ataque após trocar é mais forte/rápido
+        if self.transform_bonus_timer > 0:
+            anim_time *= 0.7
+            base_cd *= 0.5
+
+        if distancia > alcance or abs(self.z - inimigo.z) > 1.5:
+            return
+
+        self.timer_animacao = max(0.12, anim_time)
+        self.atacando = True
+        self.ataque_id += 1
+        self.alvos_atingidos_neste_ataque.clear()
+        self.transform_combo += 1
+
+        anim_manager.start_attack(id(self), "Transformável", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+
+        vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
+        self.cooldown_ataque = base_cd / vel_ataque
+
     def _disparar_arremesso(self, alvo):
-        """Dispara projéteis de arma de arremesso"""
+        """Dispara projéteis de arma de arremesso — v15.0 volley system"""
         from core.combat import ArmaProjetil
         
         arma = self.dados.arma_obj
@@ -1661,33 +2249,60 @@ class Lutador:
             return
         
         qtd = int(getattr(arma, 'quantidade', 3))
-        tam = self.raio_fisico * 0.35  # tamanho projétil = 35% do raio
+        tam = self.raio_fisico * 0.35
         dano_por_proj = arma.dano / max(qtd, 1)
         
         cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (200, 200, 200)
         
-        nome_lower = arma.nome.lower()
-        if "shuriken" in nome_lower:
+        # --- Tipo & velocidade base por estilo ---
+        estilo = getattr(arma, 'estilo', '').lower()
+        if "shuriken" in estilo:
             tipo_proj = "shuriken"
             vel = 18.0
-        elif "chakram" in nome_lower:
+        elif "chakram" in estilo:
             tipo_proj = "chakram"
             vel = 14.0
+        elif "bumerangue" in estilo or "boomerang" in estilo:
+            tipo_proj = "chakram"        # mesma visual, retorna
+            vel = 13.0
+        elif "bola" in estilo or "boleadeira" in estilo:
+            tipo_proj = "faca"
+            vel = 12.0
+        elif "rede" in estilo:
+            tipo_proj = "faca"
+            vel = 10.0
         else:
             tipo_proj = "faca"
             vel = 16.0
         
-        rad_base = math.radians(self.angulo_olhar)
-        spread = 25 if qtd > 1 else 0
+        # --- Volley bonus: arremessos consecutivos ficam mais rápidos e com spread menor ---
+        consec = getattr(self, 'throw_consecutive', 0)
+        volley_bonus = min(consec * 0.08, 0.30)   # até +30% vel
+        vel *= (1.0 + volley_bonus)
+        spread_base = 25 if qtd > 1 else 0
+        spread = spread_base * max(0.5, 1.0 - consec * 0.1)  # spread encolhe a cada volley
+        
+        # --- Dano bonus por consecutivos ---
+        dano_mult = 1.0 + min(consec * 0.05, 0.20)  # até +20% dano
+        
+        # --- Mira preditiva no alvo ---
+        dx = alvo.pos[0] - self.pos[0]
+        dy = alvo.pos[1] - self.pos[1]
+        dist_alvo = math.hypot(dx, dy)
+        angulo_base = self.angulo_olhar
+        if dist_alvo > 0.1:
+            tempo_voo = dist_alvo / vel
+            fut_x = alvo.pos[0] + alvo.vel[0] * tempo_voo * 0.5
+            fut_y = alvo.pos[1] + alvo.vel[1] * tempo_voo * 0.5
+            angulo_base = math.degrees(math.atan2(fut_y - self.pos[1], fut_x - self.pos[0]))
         
         for i in range(qtd):
             if qtd > 1:
-                offset = -spread/2 + (spread / (qtd-1)) * i
+                offset = -spread / 2 + (spread / (qtd - 1)) * i
             else:
                 offset = 0
             
-            ang = self.angulo_olhar + offset
-            # Spawn BEM FORA do corpo do lutador
+            ang = angulo_base + offset + random.uniform(-1.5, 1.5)
             spawn_dist = self.raio_fisico + 0.5
             spawn_x = self.pos[0] + math.cos(math.radians(ang)) * spawn_dist
             spawn_y = self.pos[1] + math.sin(math.radians(ang)) * spawn_dist
@@ -1697,7 +2312,7 @@ class Lutador:
                 x=spawn_x, y=spawn_y,
                 angulo=ang,
                 dono=self,
-                dano=dano_por_proj * (self.dados.forca / 2.0),
+                dano=dano_por_proj * (self.dados.forca / 2.0) * dano_mult,
                 velocidade=vel,
                 tamanho=tam,
                 cor=cor
@@ -1705,48 +2320,72 @@ class Lutador:
             self.buffer_projeteis.append(proj)
     
     def _disparar_flecha(self, alvo):
-        """Dispara flecha do arco - DIRETA E PRECISA"""
+        """Dispara flecha do arco — v15.0 charged shot system"""
         from core.combat import FlechaProjetil
         
         arma = self.dados.arma_obj
         if not arma:
             return
         
-        dano = arma.dano * (self.dados.forca / 2.0 + 0.5)  # Dano base melhor
+        dano = arma.dano * (self.dados.forca / 2.0 + 0.5)
         forca = getattr(arma, 'forca_arco', 1.0)
-        # Normaliza força do arco (valores no JSON são 5-50, queremos 0.5-2.0)
         forca_normalizada = max(0.5, min(2.0, forca / 25.0))
         
         cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (139, 90, 43)
         
-        # === MIRA DIRETA NO ALVO (sem gravidade, sem complicação) ===
+        # --- Charged shot bonus ---
+        charge = getattr(self, 'bow_charge', 0.0)
+        charge_pct = min(charge, 1.5)          # cap 1.5s de carga
+        if charge_pct >= 1.0:
+            # Full charge: +40% dano, +25% vel, flecha maior
+            dano *= 1.4
+            vel_bonus = 0.25
+            tam_mult = 1.4
+        elif charge_pct >= 0.5:
+            # Half charge: +15% dano, +10% vel
+            dano *= 1.15
+            vel_bonus = 0.10
+            tam_mult = 1.15
+        else:
+            vel_bonus = 0.0
+            tam_mult = 1.0
+        
+        # --- Perfect shot window (marcado pela IA) ---
+        perfect = getattr(self, 'bow_perfect_timer', 0.0)
+        if perfect > 0:
+            dano *= 1.25  # +25% extra em tiro perfeito
+        
+        # Reset charge after firing
+        self.bow_charge = 0.0
+        self.bow_charging = False
+        
+        # === MIRA DIRETA NO ALVO (sem gravidade) ===
         dx = alvo.pos[0] - self.pos[0]
         dy = alvo.pos[1] - self.pos[1]
         dist = math.hypot(dx, dy)
         
+        vel_flecha = (35.0 + forca_normalizada * 20.0) * (1.0 + vel_bonus)
+        
         if dist > 0.1:
-            # Velocidade da flecha
-            vel_flecha = 35.0 + forca_normalizada * 20.0
             tempo_voo = dist / vel_flecha
             
-            # Predição simples: 70% da velocidade do alvo
-            alvo_futuro_x = alvo.pos[0] + alvo.vel[0] * tempo_voo * 0.7
-            alvo_futuro_y = alvo.pos[1] + alvo.vel[1] * tempo_voo * 0.7
+            # Predição melhor: 80% da velocidade do alvo (melhoria v15)
+            alvo_futuro_x = alvo.pos[0] + alvo.vel[0] * tempo_voo * 0.8
+            alvo_futuro_y = alvo.pos[1] + alvo.vel[1] * tempo_voo * 0.8
             
-            # Mira direto no alvo (sem compensação de gravidade - flecha voa reta!)
             dx_mira = alvo_futuro_x - self.pos[0]
             dy_mira = alvo_futuro_y - self.pos[1]
             angulo_mira = math.degrees(math.atan2(dy_mira, dx_mira))
         else:
             angulo_mira = self.angulo_olhar
         
-        # Imprecisão pequena (arqueiro é preciso!)
-        angulo_mira += random.uniform(-2, 2)
+        # Imprecisão menor com charge (mais focado)
+        imprecisao = max(0.5, 2.0 - charge_pct * 1.0)
+        angulo_mira += random.uniform(-imprecisao, imprecisao)
         
-        # === SPAWN DA FLECHA: Sai do CORPO do arqueiro (não do range!) ===
-        # A flecha nasce na beirada do corpo do arqueiro, na direção da mira
+        # === SPAWN DA FLECHA ===
         rad = math.radians(angulo_mira)
-        spawn_dist = self.raio_fisico + 0.3  # Logo na borda do corpo + pequena folga
+        spawn_dist = self.raio_fisico + 0.3
         spawn_x = self.pos[0] + math.cos(rad) * spawn_dist
         spawn_y = self.pos[1] + math.sin(rad) * spawn_dist
         
@@ -1755,13 +2394,13 @@ class Lutador:
             angulo=angulo_mira,
             dono=self,
             dano=dano,
-            forca=forca_normalizada,
+            forca=forca_normalizada * tam_mult,
             cor=cor
         )
         self.buffer_projeteis.append(flecha)
 
     def _disparar_orbes(self, alvo):
-        """Dispara orbes mágicos"""
+        """Dispara orbes mágicos — v15.0 salva/mana scaling"""
         from core.combat import OrbeMagico
         
         arma = self.dados.arma_obj
@@ -1773,17 +2412,35 @@ class Lutador:
         
         cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (100, 100, 255)
         
+        # --- Mana scaling: mana alta = orbes mais fortes ---
+        mana_ratio = self.dados.mana / max(self.dados.mana_max, 1) if hasattr(self.dados, 'mana_max') else 0.5
+        mana_mult = 0.8 + mana_ratio * 0.6   # 0.8x (sem mana) → 1.4x (mana cheia)
+        
+        # --- Estilo bonus ---
+        estilo = getattr(arma, 'estilo', '').lower()
+        if "runas" in estilo or "flutuante" in estilo:
+            dano_bonus = 1.15      # Runas: mais dano por orbe
+        elif "cristal" in estilo or "prisma" in estilo:
+            dano_bonus = 1.0
+            qtd = min(qtd + 1, 5)  # Cristal: +1 orbe extra (max 5)
+        elif "foguete" in estilo or "missil" in estilo:
+            dano_bonus = 1.25      # Míssil: mais dano puro
+        else:
+            dano_bonus = 1.0
+        
         orbes_orbitando = [o for o in self.buffer_orbes if o.ativo and o.estado == "orbitando"]
         
         if orbes_orbitando:
+            # --- Salva: dispara todos de uma vez ao invés de um por um ---
             for orbe in orbes_orbitando[:qtd]:
+                orbe.dano *= mana_mult * dano_bonus  # aplica bonus ao disparar
                 orbe.iniciar_carga(alvo)
         else:
             for i in range(qtd):
                 orbe = OrbeMagico(
                     x=self.pos[0], y=self.pos[1],
                     dono=self,
-                    dano=dano_por_orbe * (self.dados.forca / 2.0 + self.dados.mana / 2.0),
+                    dano=dano_por_orbe * (self.dados.forca / 2.0 + self.dados.mana / 2.0) * mana_mult * dano_bonus,
                     indice=i,
                     total=qtd,
                     cor=cor
