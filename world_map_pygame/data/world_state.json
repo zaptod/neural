@@ -1,0 +1,98 @@
+{
+  "strongholds": [
+    {
+      "id": "sh_1",
+      "god_id": "god_balance",
+      "x": 497,
+      "y": 175,
+      "strength": 0.8,
+      "radius": 37,
+      "name": "Astral Citadel",
+      "type": "citadel"
+    },
+    {
+      "id": "sh_2",
+      "god_id": "god_fear",
+      "x": 57,
+      "y": 186,
+      "strength": 1.0,
+      "radius": 48,
+      "name": "Dread Fortress",
+      "type": "castle"
+    },
+    {
+      "id": "sh_3",
+      "god_id": "god_greed",
+      "x": 284,
+      "y": 333,
+      "strength": 0.91,
+      "radius": 41,
+      "name": "Golden Vault",
+      "type": "temple"
+    },
+    {
+      "id": "sh_4",
+      "god_id": "god_nature",
+      "x": 274,
+      "y": 43,
+      "strength": 0.96,
+      "radius": 47,
+      "name": "Verdant Spire",
+      "type": "temple"
+    },
+    {
+      "id": "sh_5",
+      "god_id": "god_fire",
+      "x": 220,
+      "y": 189,
+      "strength": 0.97,
+      "radius": 40,
+      "name": "Ember Keep",
+      "type": "castle"
+    },
+    {
+      "id": "sh_6",
+      "god_id": "god_ice",
+      "x": 140,
+      "y": 304,
+      "strength": 0.82,
+      "radius": 48,
+      "name": "Frost Bastion",
+      "type": "citadel"
+    },
+    {
+      "id": "sh_7",
+      "god_id": "god_darkness",
+      "x": 359,
+      "y": 213,
+      "strength": 0.93,
+      "radius": 41,
+      "name": "Shadow Sanctum",
+      "type": "temple"
+    },
+    {
+      "id": "sh_8",
+      "god_id": "god_chaos",
+      "x": 399,
+      "y": 84,
+      "strength": 0.88,
+      "radius": 45,
+      "name": "Maelstrom Tower",
+      "type": "tower"
+    },
+    {
+      "id": "sh_9",
+      "god_id": "god_void",
+      "x": 396,
+      "y": 311,
+      "strength": 1.0,
+      "radius": 45,
+      "name": "Abyssal Throne",
+      "type": "altar"
+    }
+  ],
+  "world_events": [],
+  "_meta": {
+    "version": "2.0"
+  }
+}

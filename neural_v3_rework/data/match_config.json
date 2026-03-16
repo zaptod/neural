@@ -1,0 +1,160 @@
+{
+    "p1_nome": "Hector das Cinzas",
+    "p2_nome": "Briar a Serpente",
+    "cenario": "Floresta",
+    "best_of": 1,
+    "fighter1": {
+        "nome": "Dante a Tempestade",
+        "tamanho": 1.79,
+        "forca": 5.1,
+        "mana": 7.2,
+        "nome_arma": "Montante Demoníaca",
+        "cor_r": 238,
+        "cor_g": 63,
+        "cor_b": 43,
+        "classe": "Piromante (Fogo)",
+        "personalidade": "Protetor"
+    },
+    "weapon1": {
+        "nome": "Montante Demoníaca",
+        "tipo": "Reta",
+        "dano": 6.7,
+        "peso": 6.3,
+        "raridade": "Mítico",
+        "r": 90,
+        "g": 255,
+        "b": 255,
+        "estilo": "Corte (Espada)",
+        "habilidades": [
+            {
+                "nome": "Explosão Sanguínea",
+                "custo": 15.0
+            },
+            {
+                "nome": "Esmagamento",
+                "custo": 35.0
+            },
+            {
+                "nome": "Sobrecarga Entrópica",
+                "custo": 30.0
+            },
+            {
+                "nome": "Lança de Fogo",
+                "custo": 12.0
+            }
+        ],
+        "encantamentos": [
+            "Vampirismo",
+            "Espelhamento"
+        ],
+        "passiva": {
+            "nome": "Divina",
+            "efeito": "all_stats",
+            "valor": 20,
+            "descricao": "+20% em todos os atributos"
+        },
+        "critico": 12.2,
+        "velocidade_ataque": 0.74,
+        "afinidade_elemento": "TREVAS",
+        "habilidade": "Explosão Sanguínea",
+        "custo_mana": 15.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "comp_cabo": 28.90481796836331,
+        "comp_lamina": 43.86764964232506,
+        "largura": 5.735754617439671,
+        "distancia": 20.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "quantidade": 1,
+        "tamanho_arco": 0.0,
+        "forca_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "quantidade_orbitais": 1,
+        "tamanho": 12.658172058705365,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 14.02780949096258,
+        "forma1_lamina": 52.73441346584613,
+        "forma2_cabo": 17.99250908686426,
+        "forma2_lamina": 35.06665976050409,
+        "cabo_dano": false
+    },
+    "fighter2": {
+        "nome": "Isolde a Noturna",
+        "tamanho": 1.43,
+        "forca": 7.0,
+        "mana": 3.4,
+        "nome_arma": "Kamas de Sangue",
+        "cor_r": 137,
+        "cor_g": 59,
+        "cor_b": 214,
+        "classe": "Ladino (Evasão)",
+        "personalidade": "Destruidor"
+    },
+    "weapon2": {
+        "nome": "Kamas de Sangue",
+        "tipo": "Dupla",
+        "dano": 7.8,
+        "peso": 5.9,
+        "raridade": "Raro",
+        "r": 169,
+        "g": 216,
+        "b": 77,
+        "estilo": "Garras",
+        "habilidades": [
+            {
+                "nome": "Wrath of Nature",
+                "custo": 65.0
+            },
+            {
+                "nome": "Prisão de Gelo",
+                "custo": 22.0
+            }
+        ],
+        "encantamentos": [
+            "Trevas",
+            "Crítico"
+        ],
+        "passiva": {
+            "nome": "Equilibrada",
+            "efeito": "velocidade",
+            "valor": 10,
+            "descricao": "+10% velocidade de ataque"
+        },
+        "critico": 10.5,
+        "velocidade_ataque": 0.73,
+        "afinidade_elemento": "VENTO",
+        "habilidade": "Wrath of Nature",
+        "custo_mana": 65.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "comp_cabo": 15.595751548672942,
+        "comp_lamina": 54.666624304750016,
+        "largura": 6.471536297623673,
+        "distancia": 20.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "quantidade": 1,
+        "tamanho_arco": 0.0,
+        "forca_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "quantidade_orbitais": 1,
+        "tamanho": 13.006323207478312,
+        "distancia_max": 0.0,
+        "separacao": 19.155934522929414,
+        "forma1_cabo": 20.77121256428761,
+        "forma1_lamina": 45.37678223086736,
+        "forma2_cabo": 15.783741727964873,
+        "forma2_lamina": 47.70976573550474,
+        "cabo_dano": false
+    },
+    "arena": "Coliseu",
+    "portrait_mode": true,
+    "sounds_enabled": false,
+    "teams": null
+}

@@ -1,0 +1,30 @@
+[
+    {
+        "nome": "Hector das Cinzas",
+        "tamanho": 1.72,
+        "forca": 8.3,
+        "mana": 8.9,
+        "nome_arma": "Bumerangue de Cristal",
+        "cor_r": 30,
+        "cor_g": 201,
+        "cor_b": 243,
+        "classe": "Assassino (Crítico)",
+        "personalidade": "Masoquista",
+        "god_id": null,
+        "lore": ""
+    },
+    {
+        "nome": "Briar a Serpente",
+        "tamanho": 1.72,
+        "forca": 5.0,
+        "mana": 7.5,
+        "nome_arma": "Claymore do Abismo",
+        "cor_r": 117,
+        "cor_g": 192,
+        "cor_b": 31,
+        "classe": "Druida (Natureza)",
+        "personalidade": "Acrobático",
+        "god_id": null,
+        "lore": ""
+    }
+]

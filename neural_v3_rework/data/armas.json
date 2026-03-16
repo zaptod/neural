@@ -1,0 +1,94 @@
+[
+    {
+        "nome": "Bumerangue de Cristal",
+        "tipo": "Arremesso",
+        "dano": 5.6,
+        "peso": 6.1,
+        "raridade": "Lendário",
+        "quantidade": 5,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "r": 255,
+        "g": 134,
+        "b": 85,
+        "estilo": "Faca (Rápida)",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Armadilha Elétrica",
+                "custo": 18.0
+            },
+            {
+                "nome": "Corrente em Cadeia",
+                "custo": 25.0
+            },
+            {
+                "nome": "Transmutação",
+                "custo": 35.0
+            }
+        ],
+        "encantamentos": [
+            "Relâmpago",
+            "Sagrado",
+            "Veneno",
+            "Crítico"
+        ],
+        "passiva": {
+            "nome": "Imortal",
+            "efeito": "sobreviver",
+            "valor": 1,
+            "descricao": "Uma vez por luta, sobrevive com 1 HP"
+        },
+        "critico": 6.6,
+        "velocidade_ataque": 0.8700000000000001,
+        "afinidade_elemento": "RAIO",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Armadilha Elétrica",
+        "custo_mana": 18.0
+    },
+    {
+        "nome": "Claymore do Abismo",
+        "tipo": "Reta",
+        "dano": 4.6,
+        "peso": 4.4,
+        "raridade": "Raro",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "r": 162,
+        "g": 97,
+        "b": 255,
+        "estilo": "Estocada (Lança)",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Colapso",
+                "custo": 40.0
+            },
+            {
+                "nome": "Fotossíntese",
+                "custo": 0
+            }
+        ],
+        "encantamentos": [
+            "Veneno",
+            "Crítico"
+        ],
+        "passiva": {
+            "nome": "Equilibrada",
+            "efeito": "velocidade",
+            "valor": 10,
+            "descricao": "+10% velocidade de ataque"
+        },
+        "critico": 9.3,
+        "velocidade_ataque": 0.8,
+        "afinidade_elemento": "TERRA",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Colapso",
+        "custo_mana": 40.0
+    }
+]

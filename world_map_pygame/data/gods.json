@@ -1,0 +1,94 @@
+{
+  "gods": [
+    {
+      "god_id": "god_balance",
+      "god_name": "Goddess of Balance",
+      "nature": "Balance",
+      "nature_element": "balanced",
+      "color_primary": "#b4a0ff",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "The eternal arbiter of cosmic equilibrium."
+    },
+    {
+      "god_id": "god_fear",
+      "god_name": "God of Fear",
+      "nature": "Fear",
+      "nature_element": "fear",
+      "color_primary": "#c81e1e",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Feeds on the terror of mortals."
+    },
+    {
+      "god_id": "god_greed",
+      "god_name": "God of Greed",
+      "nature": "Greed",
+      "nature_element": "greed",
+      "color_primary": "#ffc800",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Hoards wealth and souls alike."
+    },
+    {
+      "god_id": "god_nature",
+      "god_name": "God of Nature",
+      "nature": "Nature",
+      "nature_element": "nature",
+      "color_primary": "#22aa44",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Guardian of the untamed wilds."
+    },
+    {
+      "god_id": "god_fire",
+      "god_name": "God of Fire",
+      "nature": "Fire",
+      "nature_element": "fire",
+      "color_primary": "#ff6622",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Sovereign of flame and fury."
+    },
+    {
+      "god_id": "god_ice",
+      "god_name": "God of Ice",
+      "nature": "Ice",
+      "nature_element": "ice",
+      "color_primary": "#44bbdd",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Ruler of the frozen wastes."
+    },
+    {
+      "god_id": "god_darkness",
+      "god_name": "God of Darkness",
+      "nature": "Darkness",
+      "nature_element": "darkness",
+      "color_primary": "#5522aa",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Dwells in the deepest shadow."
+    },
+    {
+      "god_id": "god_chaos",
+      "god_name": "God of Chaos",
+      "nature": "Chaos",
+      "nature_element": "chaos",
+      "color_primary": "#dd22aa",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Revels in entropy and disorder."
+    },
+    {
+      "god_id": "god_void",
+      "god_name": "God of the Void",
+      "nature": "Void",
+      "nature_element": "void",
+      "color_primary": "#225566",
+      "follower_count": 0,
+      "owned_zones": [],
+      "lore_description": "Consumes all that exists."
+    }
+  ]
+}
