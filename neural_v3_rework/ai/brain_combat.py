@@ -574,6 +574,22 @@ class CombatMixin(_AIBrainMixinBase):
 
         debug = getattr(self, 'DEBUG_AI_DECISIONS', False)
 
+        # Tipo da arma atual (usado por overrides táticos e estratégia por arma).
+        arma = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
+
+        # Anti-kite hard override: melee contra arco deve fechar distância.
+        # Reduz o risco de passividade causada por blocos defensivos/eventos reativos.
+        meu_tipo = arma.tipo if arma else ""
+        sou_ranged = meu_tipo in ("Arco", "Arremesso", "Mágica")
+        inimigo_tipo = ""
+        if hasattr(inimigo, 'dados') and hasattr(inimigo.dados, 'arma_obj') and inimigo.dados.arma_obj:
+            inimigo_tipo = getattr(inimigo.dados.arma_obj, 'tipo', '')
+        if inimigo_tipo == "Arco" and not sou_ranged and hp_pct > 0.22 and distancia > alcance_efetivo * 0.85:
+            self.acao_atual = "APROXIMAR" if roll < 0.65 else ("FLANQUEAR" if roll < 0.9 else "PRESSIONAR")
+            if debug:
+                _log.debug("[DECISAO] %s → override ANTI_KITE_BOW → %s", p.dados.nome, self.acao_atual)
+            return
+
         # ── OVERRIDES GLOBAIS DE ALTA PRIORIDADE ──────────────────────────────
         if hasattr(p, 'modo_adrenalina') and p.modo_adrenalina:
             self.acao_atual = "MATAR"
@@ -634,15 +650,20 @@ class CombatMixin(_AIBrainMixinBase):
         longe_demais        = distancia > alcance_efetivo
 
         if perigosamente_perto:
-            self.acao_atual = "FUGIR"
+            self.acao_atual = random.choice(["FUGIR", "RECUAR", "CIRCULAR"])
         elif perto_demais:
-            self.acao_atual = "ATAQUE_RAPIDO" if roll < 0.3 else "RECUAR"
+            if roll < 0.18:
+                self.acao_atual = "ATAQUE_RAPIDO"
+            elif roll < 0.68:
+                self.acao_atual = "RECUAR"
+            else:
+                self.acao_atual = random.choice(["CIRCULAR", "BLOQUEAR"])
         elif distancia_boa:
-            self.acao_atual = random.choice(["MATAR", "MATAR", "PRESSIONAR", "ATAQUE_RAPIDO"])
+            self.acao_atual = random.choice(["MATAR", "PRESSIONAR", "ATAQUE_RAPIDO", "COMBATE", "FLANQUEAR"])
         elif longe_demais:
             self.acao_atual = "APROXIMAR"
         else:
-            self.acao_atual = "MATAR"
+            self.acao_atual = random.choice(["MATAR", "PRESSIONAR", "COMBATE"])
 
 
     def _estrategia_corrente(self, distancia, roll, alcance_efetivo, alcance_ideal,
@@ -783,6 +804,13 @@ class CombatMixin(_AIBrainMixinBase):
         proporciona decisões mais coerentes com a intenção principal da IA.
         """
         p = self.parent
+        minha_arma_tipo = ""
+        if hasattr(p, 'dados') and hasattr(p.dados, 'arma_obj') and p.dados.arma_obj:
+            minha_arma_tipo = getattr(p.dados.arma_obj, 'tipo', '')
+        sou_ranged = minha_arma_tipo in ("Arco", "Arremesso", "Mágica")
+        tipo_arma_inimigo = ""
+        if hasattr(inimigo, 'dados') and hasattr(inimigo.dados, 'arma_obj') and inimigo.dados.arma_obj:
+            tipo_arma_inimigo = getattr(inimigo.dados.arma_obj, 'tipo', '')
         no_alcance       = distancia <= alcance_efetivo
         quase_no_alcance = distancia <= alcance_efetivo * 1.3
         longe            = distancia > alcance_efetivo * 1.5
@@ -815,6 +843,20 @@ class CombatMixin(_AIBrainMixinBase):
             votar("COMBATE", 0.3); votar("POKE", 0.2); votar("CIRCULAR", 0.2)
         elif longe or muito_longe:
             votar("APROXIMAR", 1.0); votar("PRESSIONAR", 0.4)
+
+        # Anti-kite dedicado: corpo a corpo contra arco deve colar no alvo.
+        # Evita que pesos defensivos secundários mantenham a IA estacionada no mid-range.
+        if tipo_arma_inimigo == "Arco" and not sou_ranged:
+            if distancia > alcance_efetivo * 0.9:
+                votar("APROXIMAR", 1.3)
+                votar("FLANQUEAR", 0.9)
+                votar("PRESSIONAR", 0.8)
+            else:
+                votar("MATAR", 0.7)
+                votar("PRESSIONAR", 0.5)
+            if hp_pct > 0.25:
+                pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.55
+                pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.45
 
         # ── 2. BEHAVIOR PROFILE + TRAÇOS (data-driven) ──────────────────────
         bp = getattr(self, '_behavior_profile', FALLBACK_PROFILE)
@@ -1094,6 +1136,50 @@ class CombatMixin(_AIBrainMixinBase):
                 else:
                     votar("COMBATE", 0.3)
 
+        # ── 12. COMPENSAÇÃO ARMA x COMPORTAMENTO ─────────────────────────────
+        # Evita que perfis extremos de personalidade distorçam demais o win-rate
+        # de um tipo de arma específico.
+        perfil_agressivo = (
+            bp.get("approach_weight", 1.0)
+            + bp.get("pressao_mult", 1.0)
+            + bp.get("combo_tendencia", 1.0)
+        )
+        perfil_defensivo = (
+            bp.get("retreat_weight", 1.0)
+            + bp.get("bloqueio_mult", 1.0)
+            + bp.get("paciencia_mult", 1.0)
+        )
+
+        # Perfis muito defensivos em armas de curta distância tendem a colapsar o tipo.
+        if minha_arma_tipo in ("Reta", "Dupla", "Transformável", "Orbital") and perfil_defensivo > perfil_agressivo * 1.12:
+            pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.62
+            pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.52
+            votar("APROXIMAR", 0.35)
+            votar("PRESSIONAR", 0.28)
+            if minha_arma_tipo == "Orbital":
+                votar("COMBATE", 0.42)
+                votos_anti_passivo = 0.24 if distancia > alcance_efetivo * 1.1 else 0.0
+                if votos_anti_passivo > 0:
+                    votar("APROXIMAR", votos_anti_passivo)
+
+        # Perfis extremamente agressivos em ranged podem inflar demais o tipo.
+        if minha_arma_tipo in ("Arco", "Arremesso", "Mágica") and perfil_agressivo > perfil_defensivo * 1.20:
+            pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.84
+            pesos["ESMAGAR"] = pesos.get("ESMAGAR", 0.0) * 0.78
+            votar("COMBATE", 0.25)
+            votar("CIRCULAR", 0.20)
+            if distancia < alcance_ideal * 0.75:
+                votar("RECUAR", 0.28)
+            elif distancia > alcance_efetivo * 1.05:
+                votar("APROXIMAR", 0.18)
+
+        # Reduz acoplamento excessivo de anti-kite quando a vantagem de arma já é clara.
+        if tipo_arma_inimigo == "Arco" and not sou_ranged and minha_arma_tipo in ("Reta", "Dupla", "Transformável"):
+            if perfil_agressivo < perfil_defensivo:
+                votar("FLANQUEAR", 0.24)
+                votar("CIRCULAR", 0.12)
+                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.92
+
         # ── ANTI-REPETIÇÃO ─────────────────────────────────────────────────────
         if len(self.historico_acoes) >= 3:
             ultimas_3 = self.historico_acoes[-3:]
@@ -1114,6 +1200,30 @@ class CombatMixin(_AIBrainMixinBase):
         # ── DECISÃO FINAL ──────────────────────────────────────────────────────
         if pesos:
             acao_escolhida = max(pesos, key=pesos.__getitem__)
+
+            # Introduz variabilidade controlada para evitar lutas previsíveis.
+            top_items = sorted(pesos.items(), key=lambda x: x[1], reverse=True)
+            if len(top_items) > 1:
+                max_w = max(0.01, top_items[0][1])
+                contenders = [(a, w) for a, w in top_items[:4] if w >= max_w * 0.72]
+
+                variancia_base = 0.14
+                if "Caótico" in self.tracos or "IMPRUDENTE" in self.tracos:
+                    variancia_base += 0.08
+                if "Contemplativo" in self.tracos or "PRUDENTE" in self.tracos:
+                    variancia_base -= 0.06
+                variancia_base = max(0.05, min(0.30, variancia_base))
+
+                if len(contenders) >= 2 and random.random() < variancia_base:
+                    total = sum(max(0.01, w) for _, w in contenders)
+                    r = random.random() * total
+                    acc = 0.0
+                    for action_name, weight in contenders:
+                        acc += max(0.01, weight)
+                        if r <= acc:
+                            acao_escolhida = action_name
+                            break
+
             if debug:
                 top3 = sorted(pesos.items(), key=lambda x: x[1], reverse=True)[:3]
                 _log.debug("[DECISAO] %s → genérico | top3=%s", p.dados.nome, top3)

@@ -23,7 +23,7 @@ HITBOX_PROFILES = {
         "idle_shape": "line",     # Fora de ataque usa linha
         "base_arc": 90,           # Arco base de ataque em graus
         "attack_arc_mult": 1.2,   # Multiplicador de arco durante ataque
-        "range_mult": 2.0,        # Multiplicador de alcance (x raio_char)
+        "range_mult": 2.35,       # Multiplicador de alcance (x raio_char)
         "min_range_ratio": 0.3,   # Ratio mínimo do alcance (para zona morta)
         "hit_window_start": 0.2,  # Quando começa a janela de hit (% da animação)
         "hit_window_end": 0.85,   # Quando termina
@@ -35,7 +35,7 @@ HITBOX_PROFILES = {
         "idle_shape": "dual_line",
         "base_arc": 100,           # Arco amplo para adagas
         "attack_arc_mult": 2.0,    # Swing bem amplo
-        "range_mult": 2.8,         # Alcance maior (adagas velozes)
+        "range_mult": 3.2,         # Alcance maior (adagas velozes)
         "min_range_ratio": 0.05,   # Quase sem zona morta
         "hit_window_start": 0.10,  # Janela mais cedo (ataques rápidos)
         "hit_window_end": 0.85,
@@ -155,8 +155,8 @@ HITBOX_PROFILES = {
         "idle_shape": "point",
         "base_arc": 15,
         "attack_arc_mult": 1.0,
-        "range_mult": 20.0,        # Arco tem MUITO alcance!
-        "min_range_ratio": 0.1,     # Pode atirar de perto também
+        "range_mult": 13.0,
+        "min_range_ratio": 0.35,    # Mais vulnerável no corpo-a-corpo
         "hit_window_start": 0.2,
         "hit_window_end": 0.8,
         "is_projectile": True,
@@ -166,7 +166,7 @@ HITBOX_PROFILES = {
         "idle_shape": "aura",
         "base_arc": 120,
         "attack_arc_mult": 1.0,
-        "range_mult": 2.5,
+        "range_mult": 2.2,
         "min_range_ratio": 0.0,     # Sem zona morta
         "hit_window_start": 0.2,
         "hit_window_end": 0.8,
@@ -177,7 +177,7 @@ HITBOX_PROFILES = {
         "idle_shape": "circle",
         "base_arc": 360,
         "attack_arc_mult": 1.0,
-        "range_mult": 1.5,
+        "range_mult": 1.9,
         "min_range_ratio": 0.0,
         "hit_window_start": 0.0,
         "hit_window_end": 1.0,
@@ -188,7 +188,7 @@ HITBOX_PROFILES = {
         "idle_shape": "line",
         "base_arc": 100,
         "attack_arc_mult": 1.15,
-        "range_mult": 2.5,
+        "range_mult": 3.0,
         "min_range_ratio": 0.15,
         "hit_window_start": 0.2,
         "hit_window_end": 0.8,

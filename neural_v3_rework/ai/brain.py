@@ -137,6 +137,7 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self.parent = parent
         self.timer_decisao = 0.0
         self.acao_atual = "NEUTRO"
+        self._tempo_sem_decisao = 0.0
         self.dir_circular = random.choice([-1, 1])
         self._dir_circular_cd = 0.0  # Cooldown antes de permitir nova mudança de dir_circular
         self.circular_consecutivo = 0  # Conta decisões CIRCULAR seguidas
@@ -417,6 +418,18 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             "ally_intents": {},
         }
         
+        # A02: throttle timers por grupo de custo
+        # Grupo TÁTICO  (10hz): leitura de oponente, janelas, momentum, estados, combo
+        # Grupo EMOCIONAL (4hz): emoções, humor, modos especiais, baiting
+        # Grupo ESTRATÉGICO (2hz): ritmo, multi-awareness, team orders
+        self._t_tatico      = 0.0
+        self._t_emocional   = 0.0
+        self._t_estrategico = 0.0
+        # Intervalos (segundos)
+        self._I_TATICO      = 0.10   # 10hz
+        self._I_EMOCIONAL   = 0.25   # 4hz
+        self._I_ESTRATEGICO = 0.50   # 2hz
+
         # Gera personalidade única
         self._gerar_personalidade()
 
@@ -436,9 +449,22 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         """
         p = self.parent
         self.tempo_combate += dt
+        self._tempo_sem_decisao += dt
         # BUG-C2 fix: registra o inimigo principal como alvo atual logo no início
         # do frame para que _score_alvo (priorização de times) possa lê-lo.
         self._alvo_atual = inimigo
+
+        # Anti-indecisão: se a IA ficar muito tempo sem recalcular estratégia
+        # e estiver em ação passiva, força uma nova decisão para quebrar stalls.
+        if (
+            self._tempo_sem_decisao > 0.9
+            and not p.atacando
+            and self.acao_atual in {"NEUTRO", "BLOQUEAR", "CIRCULAR", "COMBATE", "RECUAR", "FUGIR"}
+        ):
+            self._decidir_movimento(distancia, inimigo)
+            self._calcular_timer_decisao()
+            self._registrar_acao()
+            self._tempo_sem_decisao = 0.0
         
         # QC-03: gera um pool de valores aleatórios uma vez por frame.
         # As funções do cascade (_aplicar_modificadores_*, _comportamento_estilo, etc.)
@@ -455,27 +481,43 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         # v13.0: Aplica ordens do TeamCoordinator ao comportamento
         self._aplicar_team_orders(dt, distancia, inimigo, todos_lutadores)
         
+        # A02: métodos de atualização divididos em 3 grupos de throttle.
+        # _atualizar_cooldowns e _detectar_dano são baratos e frame-critical — sempre rodam.
         self._atualizar_cooldowns(dt)
         self._detectar_dano()
-        self._atualizar_emocoes(dt, distancia, inimigo)
-        self._atualizar_humor(dt)
-        self._processar_modos_especiais(dt, distancia, inimigo)
-        
-        # === NOVOS SISTEMAS v8.0 ===
-        self._atualizar_leitura_oponente(dt, distancia, inimigo)
-        self._atualizar_janelas_oportunidade(dt, distancia, inimigo)
-        self._atualizar_momentum(dt, distancia, inimigo)
-        self._atualizar_estados_humanos(dt, distancia, inimigo)
-        self._atualizar_combo_state(dt)
-        
-        # === SISTEMA ESPACIAL v9.0 ===
+
+        # GRUPO EMOCIONAL — 4hz (a cada 0.25s): emoções, humor, modos especiais
+        self._t_emocional += dt
+        if self._t_emocional >= self._I_EMOCIONAL:
+            self._t_emocional = 0.0
+            self._atualizar_emocoes(dt, distancia, inimigo)
+            self._atualizar_humor(dt)
+            self._processar_modos_especiais(dt, distancia, inimigo)
+
+        # GRUPO TÁTICO — 10hz (a cada 0.10s): leitura, janelas, momentum, estados, combo
+        self._t_tatico += dt
+        if self._t_tatico >= self._I_TATICO:
+            self._t_tatico = 0.0
+            # === NOVOS SISTEMAS v8.0 ===
+            self._atualizar_leitura_oponente(dt, distancia, inimigo)
+            self._atualizar_janelas_oportunidade(dt, distancia, inimigo)
+            self._atualizar_momentum(dt, distancia, inimigo)
+            self._atualizar_estados_humanos(dt, distancia, inimigo)
+            self._atualizar_combo_state(dt)
+
+        # GRUPO ESTRATÉGICO — 2hz (a cada 0.50s): ritmo
+        # (consciência espacial e percepção de armas têm throttle próprio interno)
+        self._t_estrategico += dt
+        if self._t_estrategico >= self._I_ESTRATEGICO:
+            self._t_estrategico = 0.0
+            # === NOVOS SISTEMAS v11.0 ===
+            self._atualizar_ritmo(dt)
+
+        # === SISTEMA ESPACIAL v9.0 === (throttle interno: AI_INTERVALO_ESPACIAL=0.20s)
         self._atualizar_consciencia_espacial(dt, distancia, inimigo)
-        
-        # === SISTEMA DE PERCEPÇÃO DE ARMAS v10.0 ===
+
+        # === SISTEMA DE PERCEPÇÃO DE ARMAS v10.0 === (throttle interno: 0.50s)
         self._atualizar_percepcao_armas(dt, distancia, inimigo)
-        
-        # === NOVOS SISTEMAS v11.0 ===
-        self._atualizar_ritmo(dt)
         if self._processar_instintos(dt, distancia, inimigo):
             return  # Instinto tomou controle
         
@@ -489,7 +531,12 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         choreographer = CombatChoreographer.get_instance()
         acao_sync = choreographer.get_acao_sincronizada(p) if choreographer else None
         
-        if acao_sync:
+        # Sprint1: O choreographer fazia early-return ANTES de _processar_desvio_inteligente
+        # e _processar_reacao_oponente. Durante momentos como STANDOFF ou BREATHER,
+        # a IA ficava "congelada" na ação coreografada mesmo com o inimigo atacando.
+        # Fix: se há ataque iminente, o choreographer perde prioridade.
+        ataque_iminente = self.leitura_oponente.get("ataque_iminente", False)
+        if acao_sync and not ataque_iminente:
             if self._executar_acao_sincronizada(acao_sync, distancia, inimigo):
                 return
         
@@ -565,6 +612,7 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             self._decidir_movimento(distancia, inimigo)
             self._calcular_timer_decisao()
             self._registrar_acao()
+            self._tempo_sem_decisao = 0.0
 
     # =========================================================================
     # SISTEMA MULTI-COMBATENTE v13.0

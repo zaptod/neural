@@ -1,0 +1,1152 @@
+[
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Pugilista",
+    "winner": "p2",
+    "duration_frames": 1325,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 56.93133999999998
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Fantasma",
+    "p2_name": "Medea",
+    "p2_personality": "Psicopata",
+    "winner": "p2",
+    "duration_frames": 1383,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 146.97617252499998
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Zerg Rush",
+    "p2_name": "Medea",
+    "p2_personality": "Contemplativo",
+    "winner": "p2",
+    "duration_frames": 1274,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 121.83134
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Zerg Rush",
+    "p2_name": "Medea",
+    "p2_personality": "Defensivo",
+    "winner": "p2",
+    "duration_frames": 1501,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 199.91586666666672
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Defensivo",
+    "p2_name": "Medea",
+    "p2_personality": "Predador Alfa",
+    "winner": "p2",
+    "duration_frames": 1393,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 158.30493333333337
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Berserker",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Showman",
+    "winner": "p1",
+    "duration_frames": 1441,
+    "p1_damage_dealt": 93.93133999999998,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Viking",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Agressivo",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 0.0,
+    "p2_damage_dealt": 116.94591999997934
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Fantasma",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Pugilista",
+    "winner": "p1",
+    "duration_frames": 1630,
+    "p1_damage_dealt": 37.80000000000001,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Defensivo",
+    "winner": "p2",
+    "duration_frames": 1198,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 35.46566999999999
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Predador Alfa",
+    "p2_name": "Medea",
+    "p2_personality": "Zerg Rush",
+    "winner": "p2",
+    "duration_frames": 1316,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 32.0
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Psicopata",
+    "p2_name": "Medea",
+    "p2_personality": "Assassino",
+    "winner": "p2",
+    "duration_frames": 1399,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 181.6104
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Perseguidor",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Showman",
+    "winner": "p1",
+    "duration_frames": 1445,
+    "p1_damage_dealt": 65.46566999999999,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Psicopata",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Masoquista",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 68.99261999998367,
+    "p2_damage_dealt": 26.0690899999841
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Contemplativo",
+    "p2_name": "Medea",
+    "p2_personality": "Sombrio",
+    "winner": "p1",
+    "duration_frames": 1816,
+    "p1_damage_dealt": 219.44373333333337,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Assassino",
+    "p2_name": "Medea",
+    "p2_personality": "Predador Alfa",
+    "winner": "p2",
+    "duration_frames": 1235,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 132.23134
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Psicopata",
+    "p2_name": "Medea",
+    "p2_personality": "Sombrio",
+    "winner": "p2",
+    "duration_frames": 1271,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 227.36013333333335
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Zerg Rush",
+    "p2_name": "Medea",
+    "p2_personality": "Samurai",
+    "winner": "p2",
+    "duration_frames": 1573,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 166.83280000000005
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Samurai",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Contemplativo",
+    "winner": "p1",
+    "duration_frames": 1295,
+    "p1_damage_dealt": 28.46566999999999,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Fantasma",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Contemplativo",
+    "winner": "p1",
+    "duration_frames": 1245,
+    "p1_damage_dealt": 88.201023555,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Acrobático",
+    "p2_name": "Medea",
+    "p2_personality": "Pugilista",
+    "winner": "p2",
+    "duration_frames": 1653,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 206.38800000000003
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Protetor",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Berserker",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 57.11251999998319,
+    "p2_damage_dealt": 40.582369999983655
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Predador Alfa",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Pugilista",
+    "winner": "p1",
+    "duration_frames": 1539,
+    "p1_damage_dealt": 61.365669999999994,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Sombrio",
+    "p2_name": "Medea",
+    "p2_personality": "Sombrio",
+    "winner": "p1",
+    "duration_frames": 1285,
+    "p1_damage_dealt": 220.22133333333335,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Tático",
+    "p2_name": "Medea",
+    "p2_personality": "Protetor",
+    "winner": "p2",
+    "duration_frames": 1506,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 144.80493333333337
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Fantasma",
+    "p2_name": "Medea",
+    "p2_personality": "Masoquista",
+    "winner": "p2",
+    "duration_frames": 1127,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 216.08253333333334
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Samurai",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Acrobático",
+    "winner": "p1",
+    "duration_frames": 1528,
+    "p1_damage_dealt": 100.79700999999997,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Predador Alfa",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Agressivo",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 59.53681999998025,
+    "p2_damage_dealt": 74.93681999998029
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Fantasma",
+    "p2_name": "Medea",
+    "p2_personality": "Acrobático",
+    "winner": "p2",
+    "duration_frames": 1344,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 227.02679999999998
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Viking",
+    "p2_name": "Medea",
+    "p2_personality": "Predador Alfa",
+    "winner": "p2",
+    "duration_frames": 1449,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 91.36567
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Acrobático",
+    "p2_name": "Medea",
+    "p2_personality": "Tático",
+    "winner": "p2",
+    "duration_frames": 1217,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 125.29700999999999
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Zerg Rush",
+    "p2_name": "Medea",
+    "p2_personality": "Zerg Rush",
+    "winner": "p2",
+    "duration_frames": 1395,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 144.80493333333337
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Psicopata",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Perseguidor",
+    "winner": "p1",
+    "duration_frames": 1612,
+    "p1_damage_dealt": 24.5,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Pugilista",
+    "p2_name": "Medea",
+    "p2_personality": "Showman",
+    "winner": "p2",
+    "duration_frames": 954,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 192.11040000000003
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Contemplativo",
+    "p2_name": "Medea",
+    "p2_personality": "Masoquista",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 186.08253333333337,
+    "p2_damage_dealt": 165.7770666666667
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Fantasma",
+    "p2_name": "Medea",
+    "p2_personality": "Masoquista",
+    "winner": "p2",
+    "duration_frames": 1051,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 109.88923674499998
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Psicopata",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Protetor",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 39.08268999997887,
+    "p2_damage_dealt": 24.320019999979195
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Destruidor",
+    "p2_name": "Medea",
+    "p2_personality": "Tático",
+    "winner": "p2",
+    "duration_frames": 956,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 64.9
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Capoeirista",
+    "p2_name": "Medea",
+    "p2_personality": "Contemplativo",
+    "winner": "p2",
+    "duration_frames": 1086,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 78.86567
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Masoquista",
+    "p2_name": "Medea",
+    "p2_personality": "Masoquista",
+    "winner": "p2",
+    "duration_frames": 1314,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 134.33134
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Defensivo",
+    "p2_name": "Medea",
+    "p2_personality": "Showman",
+    "winner": "p1",
+    "duration_frames": 1740,
+    "p1_damage_dealt": 230.58253333333337,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Zerg Rush",
+    "p2_name": "Medea",
+    "p2_personality": "Psicopata",
+    "winner": "p2",
+    "duration_frames": 1280,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 112.23133999999999
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Masoquista",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Tático",
+    "winner": "p1",
+    "duration_frames": 1360,
+    "p1_damage_dealt": 100.79700999999997,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Agressivo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Agressivo",
+    "winner": "p1",
+    "duration_frames": 1546,
+    "p1_damage_dealt": 43.865669999999994,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Protetor",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Zerg Rush",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 79.01687999998106,
+    "p2_damage_dealt": 65.71687999998107
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Berserker",
+    "p2_name": "Medea",
+    "p2_personality": "Berserker",
+    "winner": "p1",
+    "duration_frames": 1363,
+    "p1_damage_dealt": 228.05466666666672,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Defensivo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Protetor",
+    "winner": "p1",
+    "duration_frames": 1876,
+    "p1_damage_dealt": 181.99701,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Sombrio",
+    "winner": "p2",
+    "duration_frames": 1738,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 147.02733333333336
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Acrobático",
+    "p2_name": "Medea",
+    "p2_personality": "Pugilista",
+    "winner": "p2",
+    "duration_frames": 1430,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 28.46566999999999
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Sombrio",
+    "p2_name": "Medea",
+    "p2_personality": "Tático",
+    "winner": "p2",
+    "duration_frames": 1404,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 53.20000000000002
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Capoeirista",
+    "p2_name": "Medea",
+    "p2_personality": "Masoquista",
+    "winner": "p2",
+    "duration_frames": 1003,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 68.36567
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Viking",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Perseguidor",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 30.129009999979814,
+    "p2_damage_dealt": 18.615829999978416
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Perseguidor",
+    "p2_name": "Medea",
+    "p2_personality": "Protetor",
+    "winner": "p2",
+    "duration_frames": 1232,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 110.13134
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Agressivo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Agressivo",
+    "winner": "p1",
+    "duration_frames": 1743,
+    "p1_damage_dealt": 76.76567,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Fantasma",
+    "p2_name": "Medea",
+    "p2_personality": "Capoeirista",
+    "winner": "p1",
+    "duration_frames": 1514,
+    "p1_damage_dealt": 220.88800000000003,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Defensivo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Viking",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 75.51872999998051,
+    "p2_damage_dealt": 49.180769999980555
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Fantasma",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Agressivo",
+    "winner": "p1",
+    "duration_frames": 1135,
+    "p1_damage_dealt": 68.36567,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Acrobático",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Masoquista",
+    "winner": "p1",
+    "duration_frames": 1038,
+    "p1_damage_dealt": 92.39700999999997,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Contemplativo",
+    "p2_name": "Medea",
+    "p2_personality": "Defensivo",
+    "winner": "p2",
+    "duration_frames": 866,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 75.41639999999998
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Zerg Rush",
+    "p2_name": "Medea",
+    "p2_personality": "Pugilista",
+    "winner": "p2",
+    "duration_frames": 1820,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 65.80000000000001
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Predador Alfa",
+    "p2_name": "Medea",
+    "p2_personality": "Protetor",
+    "winner": "p1",
+    "duration_frames": 1678,
+    "p1_damage_dealt": 242.7492,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Sombrio",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Assassino",
+    "winner": "p1",
+    "duration_frames": 1763,
+    "p1_damage_dealt": 146.76268,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Destruidor",
+    "p2_name": "Medea",
+    "p2_personality": "Agressivo",
+    "winner": "p2",
+    "duration_frames": 944,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 140.33280000000002
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Samurai",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Berserker",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 130.89534551498497,
+    "p2_damage_dealt": 19.31460999998825
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Samurai",
+    "p2_name": "Medea",
+    "p2_personality": "Acrobático",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 237.320439999989,
+    "p2_damage_dealt": 0.0
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Perseguidor",
+    "p2_name": "Medea",
+    "p2_personality": "Pugilista",
+    "winner": "p2",
+    "duration_frames": 1167,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 52.96566999999999
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Contemplativo",
+    "p2_name": "Medea",
+    "p2_personality": "Zerg Rush",
+    "winner": "p2",
+    "duration_frames": 1068,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 63.46566999999999
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Masoquista",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Psicopata",
+    "winner": "p1",
+    "duration_frames": 1212,
+    "p1_damage_dealt": 86.03748757499997,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Berserker",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Psicopata",
+    "winner": "p1",
+    "duration_frames": 1456,
+    "p1_damage_dealt": 163.36267999999998,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Capoeirista",
+    "p2_name": "Medea",
+    "p2_personality": "Agressivo",
+    "winner": "p1",
+    "duration_frames": 1166,
+    "p1_damage_dealt": 182.2770666666667,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Assassino",
+    "p2_name": "Medea",
+    "p2_personality": "Masoquista",
+    "winner": "p2",
+    "duration_frames": 1050,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 227.02679999999995
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Contemplativo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Pugilista",
+    "winner": "p1",
+    "duration_frames": 1370,
+    "p1_damage_dealt": 178.690688605,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Agressivo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Capoeirista",
+    "winner": "p1",
+    "duration_frames": 1580,
+    "p1_damage_dealt": 52.96566999999999,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Acrobático",
+    "p2_name": "Medea",
+    "p2_personality": "Perseguidor",
+    "winner": "p2",
+    "duration_frames": 1185,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 178.94373333333337
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Masoquista",
+    "p2_name": "Medea",
+    "p2_personality": "Samurai",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 227.6934666666667,
+    "p2_damage_dealt": 166.11040000000006
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Perseguidor",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Berserker",
+    "winner": "p1",
+    "duration_frames": 972,
+    "p1_damage_dealt": 116.83133999999998,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Contemplativo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Fantasma",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 118.4005530899808,
+    "p2_damage_dealt": 56.745599999984165
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Acrobático",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Tático",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 11.064519999989557,
+    "p2_damage_dealt": 104.8265291699802
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Fantasma",
+    "p2_name": "Medea",
+    "p2_personality": "Sombrio",
+    "winner": "p2",
+    "duration_frames": 775,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 199.2492
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Predador Alfa",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Predador Alfa",
+    "winner": "p1",
+    "duration_frames": 1374,
+    "p1_damage_dealt": 32.0,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Tático",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Tático",
+    "winner": "p1",
+    "duration_frames": 1323,
+    "p1_damage_dealt": 74.43133999999998,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Assassino",
+    "winner": "p1",
+    "duration_frames": 1145,
+    "p1_damage_dealt": 227.02679999999995,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Zerg Rush",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Viking",
+    "winner": "p1",
+    "duration_frames": 1807,
+    "p1_damage_dealt": 175.81835581499996,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Capoeirista",
+    "winner": "p2",
+    "duration_frames": 1453,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 83.76567
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Tático",
+    "winner": "p2",
+    "duration_frames": 1065,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 63.93133999999998
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Defensivo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Contemplativo",
+    "winner": "p1",
+    "duration_frames": 1422,
+    "p1_damage_dealt": 92.39700999999997,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Predador Alfa",
+    "winner": "p2",
+    "duration_frames": 1398,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 50.865669999999994
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Defensivo",
+    "p2_name": "Medea",
+    "p2_personality": "Protetor",
+    "winner": "p1",
+    "duration_frames": 1986,
+    "p1_damage_dealt": 227.6934666666667,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Tático",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Pugilista",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 182.5798130249806,
+    "p2_damage_dealt": 107.64386421998063
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Assassino",
+    "p2_name": "Medea",
+    "p2_personality": "Agressivo",
+    "winner": "p2",
+    "duration_frames": 1447,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 225.31767365499996
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Tático",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Fantasma",
+    "winner": "p1",
+    "duration_frames": 1266,
+    "p1_damage_dealt": 105.23133999999999,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Capoeirista",
+    "winner": "p2",
+    "duration_frames": 1105,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 59.26567
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Samurai",
+    "p2_name": "Medea",
+    "p2_personality": "Samurai",
+    "winner": "p2",
+    "duration_frames": 1745,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 59.26567
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Acrobático",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Tático",
+    "winner": "p1",
+    "duration_frames": 1241,
+    "p1_damage_dealt": 43.865669999999994,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Samurai",
+    "p2_name": "Medea",
+    "p2_personality": "Acrobático",
+    "winner": "p2",
+    "duration_frames": 1263,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 75.86567
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Tático",
+    "winner": "p1",
+    "duration_frames": 1317,
+    "p1_damage_dealt": 214.9716,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Viking",
+    "p2_name": "Medea",
+    "p2_personality": "Capoeirista",
+    "winner": "p2",
+    "duration_frames": 1942,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 214.97160000000002
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Psicopata",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Acrobático",
+    "winner": "p1",
+    "duration_frames": 1401,
+    "p1_damage_dealt": 60.46566999999999,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Showman",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Zerg Rush",
+    "winner": "p1",
+    "duration_frames": 1798,
+    "p1_damage_dealt": 129.26268,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Sombrio",
+    "p2_name": "Medea",
+    "p2_personality": "Predador Alfa",
+    "winner": "p2",
+    "duration_frames": 1494,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 105.23133999999999
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Showman",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Capoeirista",
+    "winner": "p1",
+    "duration_frames": 1341,
+    "p1_damage_dealt": 140.69700999999998,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Capoeirista",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Showman",
+    "winner": "p1",
+    "duration_frames": 977,
+    "p1_damage_dealt": 103.40939205999996,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Capoeirista",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Psicopata",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 64.38606999998257,
+    "p2_damage_dealt": 50.766929999980164
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Berserker",
+    "p2_name": "Medea",
+    "p2_personality": "Masoquista",
+    "winner": "p2",
+    "duration_frames": 1083,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 103.19399999999999
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Fantasma",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Viking",
+    "winner": "p1",
+    "duration_frames": 1064,
+    "p1_damage_dealt": 100.79700999999997,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Acrobático",
+    "p2_name": "Medea",
+    "p2_personality": "Contemplativo",
+    "winner": "p2",
+    "duration_frames": 1418,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 52.400000000000006
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Sombrio",
+    "p2_name": "Medea",
+    "p2_personality": "Contemplativo",
+    "winner": "p1",
+    "duration_frames": 1255,
+    "p1_damage_dealt": 233.7213333333333,
+    "p2_damage_dealt": 246.816
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Assassino",
+    "p2_name": "Medea",
+    "p2_personality": "Defensivo",
+    "winner": "p2",
+    "duration_frames": 1682,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 223.22133333333335
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Sombrio",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Agressivo",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 134.4662099999826,
+    "p2_damage_dealt": 77.53486999998262
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Contemplativo",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Fantasma",
+    "winner": "p1",
+    "duration_frames": 1316,
+    "p1_damage_dealt": 52.96566999999999,
+    "p2_damage_dealt": 332.52
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Acrobático",
+    "p2_name": "Yasuo da Aurora",
+    "p2_personality": "Perseguidor",
+    "winner": "timeout",
+    "duration_frames": 2000,
+    "p1_damage_dealt": 35.17222999998222,
+    "p2_damage_dealt": 35.34302401998224
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Masoquista",
+    "winner": "p2",
+    "duration_frames": 1471,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 148.76268
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Samurai",
+    "p2_name": "Medea",
+    "p2_personality": "Contemplativo",
+    "winner": "p2",
+    "duration_frames": 1280,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 157.52733333333333
+  },
+  {
+    "p1_name": "Yasuo da Aurora",
+    "p1_personality": "Predador Alfa",
+    "p2_name": "Medea",
+    "p2_personality": "Psicopata",
+    "winner": "p2",
+    "duration_frames": 1603,
+    "p1_damage_dealt": 332.52,
+    "p2_damage_dealt": 47.96566999999999
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Agressivo",
+    "p2_name": "Medea",
+    "p2_personality": "Pugilista",
+    "winner": "p2",
+    "duration_frames": 1095,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 234.05466666666666
+  },
+  {
+    "p1_name": "Medea",
+    "p1_personality": "Sombrio",
+    "p2_name": "Medea",
+    "p2_personality": "Defensivo",
+    "winner": "p2",
+    "duration_frames": 1440,
+    "p1_damage_dealt": 246.816,
+    "p2_damage_dealt": 227.36013333333332
+  }
+]

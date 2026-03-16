@@ -493,19 +493,25 @@ class TelaLuta(tk.Frame):
             if sim.vencedor:
                 try:
                     from data.world_bridge import WorldBridge
-                    conquered = WorldBridge.get().on_fight_result(
+                    import logging as _lb_log
+                    _wb_log = _lb_log.getLogger("view_luta")
+                    res = WorldBridge.get().on_fight_result(
                         sim.vencedor, loser, duration, "KO"
                     )
-                    if conquered:
-                        zone_label = conquered.replace("_", " ").title()
+                    # B04: BridgeResult permite distinguir sucesso de falha
+                    if res.ok and res.zone_id:
+                        zone_label = res.zone_id.replace("_", " ").title()
                         messagebox.showinfo(
                             "Conquista de Território!",
                             f"⚔  {sim.vencedor} venceu!\n\n"
                             f"🏴  Seu deus conquistou:\n{zone_label}\n\n"
                             f"Verifique o World Map para ver a mudança."
                         )
+                    elif not res.ok:
+                        _wb_log.warning("WorldBridge inativo: %s", res.reason)
                 except Exception as e:
-                    print(f"[view_luta] WorldBridge erro: {e}")
+                    import logging as _lb_log
+                    _lb_log.getLogger("view_luta").exception("WorldBridge erro: %s", e)
             # ────────────────────────────────────────────────────────────────
 
         except Exception as e:

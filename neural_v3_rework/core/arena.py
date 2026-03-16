@@ -604,6 +604,21 @@ class Arena:
         # Efeitos especiais ativos
         self.efeitos_ativos = list(config.efeitos_especiais) if config.efeitos_especiais else []
     
+    def danificar_obstaculo(self, obs: "Obstaculo", dano: float) -> bool:
+        """
+        C04: Aplica dano a um obstáculo destruível.
+        Retorna True se o obstáculo foi destruído neste hit.
+        Obstáculos destruídos ficam com solido=False (atravessáveis).
+        """
+        if not obs.destrutivel or not obs.solido:
+            return False
+        obs.hp -= int(dano)
+        if obs.hp <= 0:
+            obs.hp = 0
+            obs.solido = False  # Torna atravessável — remove da colisão
+            return True         # Destruído
+        return False
+
     def colide_obstaculo(self, x: float, y: float, raio: float) -> Optional[Obstaculo]:
         """
         Verifica se uma posição colide com algum obstáculo sólido.

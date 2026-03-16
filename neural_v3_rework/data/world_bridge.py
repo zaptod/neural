@@ -20,11 +20,35 @@ import json
 import os
 import sys
 import threading
+from dataclasses import dataclass
 from datetime import datetime
 from copy import deepcopy
 from typing import Optional
 import logging
 _log = logging.getLogger("world_bridge")
+
+
+# ── B04: Resultado explícito de on_fight_result ─────────────────────────────
+@dataclass
+class BridgeResult:
+    """
+    Retorno estruturado de WorldBridge.on_fight_result().
+
+    Atributos:
+        ok      — True se a operação foi executada (mesmo sem conquistar zona).
+        zone_id — ID da zona conquistada, ou None se nenhuma disponível.
+        reason  — Descrição legível do resultado (para logs/debug).
+
+    Exemplos:
+        res = WorldBridge.get().on_fight_result(winner, loser, dur, ko)
+        if res.ok and res.zone_id:
+            print(f"Conquistou {res.zone_id}")
+        elif not res.ok:
+            print(f"Bridge inativa: {res.reason}")
+    """
+    ok: bool
+    zone_id: Optional[str]
+    reason: str
 
 # ── path bootstrap ─────────────────────────────────────────────────────────────
 _HERE    = os.path.dirname(os.path.abspath(__file__))         # data/
@@ -47,7 +71,7 @@ def _load_json_safe(path: str, default) -> dict:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"[WorldBridge] Erro ao ler {path}: {e}")
+        _log.error("Erro ao ler %s: %s", path, e)
         return deepcopy(default)
 
 
@@ -59,7 +83,7 @@ def _save_json_safe(path: str, data) -> bool:
         os.replace(tmp, path)
         return True
     except Exception as e:
-        print(f"[WorldBridge] Erro ao salvar {path}: {e}")
+        _log.error("Erro ao salvar %s: %s", path, e)
         return False
 
 
@@ -85,9 +109,9 @@ class WorldBridge:
     def _init(self):
         self._lock_io = threading.Lock()
         if WORLDMAP_AVAILABLE:
-            print("[WorldBridge] World Map detectado — ponte ativa.")
+            _log.info("World Map detectado — ponte ativa.")
         else:
-            print(f"[WorldBridge] World Map não encontrado em {_WORLDMAP_DATA} — bridge desativada.")
+            _log.warning("World Map não encontrado em %s — bridge desativada.", _WORLDMAP_DATA)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # EVENTO PRINCIPAL — chamado após cada luta
@@ -99,24 +123,27 @@ class WorldBridge:
         loser_name: str,
         duration: float = 0.0,
         ko_type: str = "KO"
-    ) -> Optional[str]:
+    ) -> "BridgeResult":
         """
         Registra o resultado de uma luta e propaga efeitos no world map.
-        Retorna o zone_id conquistado (ou None se nenhum).
+        Retorna BridgeResult com ok=True/False e zone_id conquistado (ou None).
 
         Chamado por:
           - view_luta.py   após sim.run() retornar
           - tournament_mode.py em record_match_result()
         """
-        if not WORLDMAP_AVAILABLE or not winner_name:
-            return None
+        # B04: retornos explícitos em vez de None para tudo
+        if not WORLDMAP_AVAILABLE:
+            return BridgeResult(ok=False, zone_id=None, reason="worldmap indisponível")
+        if not winner_name:
+            return BridgeResult(ok=False, zone_id=None, reason="winner_name vazio")
 
         with self._lock_io:
             try:
                 winner_god_id = self._get_god_id(winner_name)
                 if not winner_god_id:
-                    print(f"[WorldBridge] {winner_name} não tem god_id — sem conquista de território.")
-                    return None
+                    _log.warning("%s não tem god_id — sem conquista de território.", winner_name)
+                    return BridgeResult(ok=True, zone_id=None, reason=f"{winner_name} sem god_id")
 
                 # Garante que o deus existe no gods.json do worldmap
                 self._ensure_god_in_worldmap(winner_god_id)
@@ -143,14 +170,14 @@ class WorldBridge:
                 self._notify_app_state(winner_god_id, conquered)
 
                 if conquered:
-                    print(f"[WorldBridge] 🏴 {winner_name} ({winner_god_id}) conquistou '{conquered}'!")
-                return conquered
+                    _log.info("🏴 %s (%s) conquistou '%s'!", winner_name, winner_god_id, conquered)
+                    return BridgeResult(ok=True, zone_id=conquered, reason="território conquistado")
+                else:
+                    return BridgeResult(ok=True, zone_id=None, reason="sem zonas neutras disponíveis")
 
             except Exception as e:
-                import traceback
-                print(f"[WorldBridge] Erro em on_fight_result: {e}")
-                traceback.print_exc()
-                return None
+                _log.exception("Erro em on_fight_result: %s", e)
+                return BridgeResult(ok=False, zone_id=None, reason=f"exceção: {e}")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # LEITURA — para a UI Tkinter
@@ -239,7 +266,7 @@ class WorldBridge:
         neutral_zones = [z for z, g in ownership.items() if g is None]
 
         if not neutral_zones:
-            print("[WorldBridge] Sem zonas neutras disponíveis.")
+            _log.warning("Sem zonas neutras disponíveis.")
             return None
 
         # Tenta encontrar zona vizinha (adjacente ao domínio atual)
@@ -260,9 +287,7 @@ class WorldBridge:
                     if target_zone:
                         break
             except Exception as _e:
-                _log.debug("%s", _e)
-
-        # Fallback: zona neutra aleatória
+                _log.warning("Erro ao calcular zona adjacente: %s", _e)
         if not target_zone:
             import random
             target_zone = random.choice(neutral_zones)
@@ -333,7 +358,7 @@ class WorldBridge:
 
         gds.setdefault("gods", []).append(new_entry)
         _save_json_safe(_wm_path("gods.json"), gds)
-        print(f"[WorldBridge] Deus '{god_id}' adicionado ao world map.")
+        _log.info("Deus '%s' adicionado ao world map.", god_id)
 
     def _add_follower(self, god_id: str):
         """Incrementa follower_count do deus no worldmap gods.json."""
@@ -361,4 +386,4 @@ class WorldBridge:
             if zone_id:
                 AppState.get().claim_territory(zone_id, zone_id.replace("_", " ").title(), god_id)
         except Exception as _e:
-            _log.debug("%s", _e)
+            _log.warning("Erro ao notificar AppState sobre território: %s", _e)

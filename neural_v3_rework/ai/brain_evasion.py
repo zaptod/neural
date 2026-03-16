@@ -120,11 +120,26 @@ class EvasionMixin(_AIBrainMixinBase):
         # personagem SEMPRE tentar desviar, ao invés de nunca.
         tempo_reacao = min(tempo_reacao, 0.95)
         
+        # Chance de reagir baseado na urgência vs tempo de reação
+        chance_reagir = max(0.0, urgencia * (1.0 - tempo_reacao))
+
         # MEL-07 fix: aplica esquiva_mult do behavior profile.
         # Os perfis definem valores entre 0.2 e 1.5 mas nunca eram lidos aqui.
+        # Aplicado APÓS calcular chance_reagir (fix: era aplicado antes, causando
+        # UnboundLocalError porque chance_reagir ainda não existia).
         bp = getattr(self, '_behavior_profile', FALLBACK_PROFILE)
         esquiva_mult = bp.get("esquiva_mult", 1.0)
         chance_reagir *= esquiva_mult
+
+        # Sprint3: combo_state do inimigo aumenta urgência de desviar.
+        # Antes: o 8º hit consecutivo era tão fácil de desviar quanto o 1º.
+        # Agora: cada hit em combo adiciona pressão ao oponente — mais acertos
+        # = mais adrenalina = reflexos mais afiados.
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            combo_hits = inimigo.brain.combo_state.get("hits_combo", 0)
+            if combo_hits >= 3:
+                bonus_combo = min(0.35, (combo_hits - 2) * 0.07)
+                chance_reagir = min(1.0, chance_reagir + bonus_combo)
 
         # Personalidade afeta chance
         if "ACROBATA" in self.tracos:

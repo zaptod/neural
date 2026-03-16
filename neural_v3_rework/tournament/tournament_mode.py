@@ -303,11 +303,17 @@ class Tournament:
         # ── WorldBridge: conquista de território pelo deus do vencedor ───────
         try:
             from data.world_bridge import WorldBridge
-            WorldBridge.get().on_fight_result(
+            import logging as _tb_log
+            _wb_log = _tb_log.getLogger("tournament_mode")
+            res = WorldBridge.get().on_fight_result(
                 match.winner_name, match.loser_name, duration, ko_type
             )
+            # B04: BridgeResult permite distinguir sucesso de falha
+            if not res.ok:
+                _wb_log.warning("WorldBridge inativo após luta: %s", res.reason)
         except Exception as _wb_err:
-            print(f"[tournament] WorldBridge erro: {_wb_err}")
+            import logging as _tb_log
+            _tb_log.getLogger("tournament_mode").exception("WorldBridge erro: %s", _wb_err)
         # ─────────────────────────────────────────────────────────────────────
         
         # Atualiza próxima rodada

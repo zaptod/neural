@@ -1,94 +1,78 @@
 [
     {
-        "nome": "Bumerangue de Cristal",
-        "tipo": "Arremesso",
-        "dano": 5.6,
-        "peso": 6.1,
-        "raridade": "Lendário",
-        "quantidade": 5,
-        "quantidade_orbitais": 1,
-        "forca_arco": 0.0,
-        "forma_atual": 1,
-        "r": 255,
-        "g": 134,
-        "b": 85,
-        "estilo": "Faca (Rápida)",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Armadilha Elétrica",
-                "custo": 18.0
-            },
-            {
-                "nome": "Corrente em Cadeia",
-                "custo": 25.0
-            },
-            {
-                "nome": "Transmutação",
-                "custo": 35.0
-            }
-        ],
-        "encantamentos": [
-            "Relâmpago",
-            "Sagrado",
-            "Veneno",
-            "Crítico"
-        ],
-        "passiva": {
-            "nome": "Imortal",
-            "efeito": "sobreviver",
-            "valor": 1,
-            "descricao": "Uma vez por luta, sobrevive com 1 HP"
-        },
-        "critico": 6.6,
-        "velocidade_ataque": 0.8700000000000001,
-        "afinidade_elemento": "RAIO",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Armadilha Elétrica",
-        "custo_mana": 18.0
-    },
-    {
-        "nome": "Claymore do Abismo",
-        "tipo": "Reta",
-        "dano": 4.6,
-        "peso": 4.4,
-        "raridade": "Raro",
+        "nome": "Meteora das Cinzas",
+        "tipo": "Corrente",
+        "dano": 6.7,
+        "peso": 2.2,
+        "raridade": "Épico",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
         "forma_atual": 1,
-        "r": 162,
-        "g": 97,
-        "b": 255,
-        "estilo": "Estocada (Lança)",
+        "r": 253,
+        "g": 70,
+        "b": 68,
+        "estilo": "Mangual",
         "cabo_dano": false,
         "habilidades": [
             {
-                "nome": "Colapso",
-                "custo": 40.0
+                "nome": "Buraco Negro",
+                "custo": 50.0
             },
             {
-                "nome": "Fotossíntese",
-                "custo": 0
+                "nome": "Avalanche",
+                "custo": 45.0
             }
         ],
         "encantamentos": [
-            "Veneno",
+            "Trevas",
             "Crítico"
         ],
         "passiva": {
-            "nome": "Equilibrada",
+            "nome": "Veloz",
             "efeito": "velocidade",
-            "valor": 10,
-            "descricao": "+10% velocidade de ataque"
+            "valor": 25,
+            "descricao": "+25% velocidade de ataque"
         },
-        "critico": 9.3,
-        "velocidade_ataque": 0.8,
-        "afinidade_elemento": "TERRA",
+        "critico": 10.4,
+        "velocidade_ataque": 1.17,
+        "afinidade_elemento": "FOGO",
         "durabilidade": 100.0,
         "durabilidade_max": 100.0,
-        "habilidade": "Colapso",
-        "custo_mana": 40.0
+        "habilidade": "Buraco Negro",
+        "custo_mana": 50.0
+    },
+    {
+        "nome": "Besta de Jade",
+        "tipo": "Arco",
+        "dano": 6.3,
+        "peso": 4.1,
+        "raridade": "Incomum",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 7.474753020287886,
+        "forma_atual": 1,
+        "r": 205,
+        "g": 189,
+        "b": 73,
+        "estilo": "Arco Longo",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Forma Relâmpago",
+                "custo": 45.0
+            }
+        ],
+        "encantamentos": [
+            "Execução"
+        ],
+        "passiva": null,
+        "critico": 3.7,
+        "velocidade_ataque": 0.99,
+        "afinidade_elemento": "LUZ",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Forma Relâmpago",
+        "custo_mana": 45.0
     }
 ]

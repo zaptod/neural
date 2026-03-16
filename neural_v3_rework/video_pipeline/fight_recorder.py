@@ -34,7 +34,7 @@ def _setup_headless():
 
 def _inject_match_config(char1: dict, arma1: dict, char2: dict, arma2: dict,
                          cenario: str = "Arena"):
-    """Injeta os dois lutadores no AppState para que Simulador.carregar_luta_dados() os encontre."""
+    """Injeta dados da luta no AppState apenas em memória (sem persistir em disco)."""
     from models import Personagem, Arma
     from data.app_state import AppState
 
@@ -96,16 +96,49 @@ def _inject_match_config(char1: dict, arma1: dict, char2: dict, arma2: dict,
     p1 = _build_char(char1, a1)
     p2 = _build_char(char2, a2)
 
-    # Substitui listas de personagens/armas e configura match_config
-    state.set_characters([p1, p2])
-    state.set_weapons([a1, a2])
-    state.update_match_config(
-        p1_nome=p1.nome,
-        p2_nome=p2.nome,
-        cenario=cenario,
-        portrait_mode=True,
-        teams=None,
-    )
+    # Substitui listas/config APENAS em memória para não poluir JSON global.
+    state._characters = [p1, p2]
+    state._weapons = [a1, a2]
+    state._match = {
+        **state._match,
+        "p1_nome": p1.nome,
+        "p2_nome": p2.nome,
+        "cenario": cenario,
+        "portrait_mode": True,
+        "teams": None,
+    }
+
+
+def _snapshot_app_state() -> dict:
+    """
+    B02: Captura o AppState atual usando APENAS a API pública.
+    Não acessa atributos privados (_characters, _match, _weapons).
+    """
+    from data.app_state import AppState
+    state = AppState.get()
+    return {
+        "characters": list(state.characters),
+        "weapons":    list(state.weapons),
+        "match":      dict(state.match_config),
+    }
+
+
+def _restore_app_state(snapshot: dict) -> None:
+    """
+    B02: Restaura o AppState em memória usando APENAS a API pública.
+    Não acessa atributos privados (_characters, _match, _weapons).
+    Chamado no bloco finally de record() — após a gravação terminar.
+    """
+    from data.app_state import AppState
+    if snapshot is None:
+        return
+    state = AppState.get()
+    if "characters" in snapshot and snapshot["characters"] is not None:
+        state.set_characters(snapshot["characters"])
+    if "weapons" in snapshot and snapshot["weapons"] is not None:
+        state.set_weapons(snapshot["weapons"])
+    if "match" in snapshot:
+        state.set_match_config(snapshot["match"])
 
 
 def _surface_to_numpy(surface) -> np.ndarray:
@@ -163,6 +196,7 @@ class FightRecorder:
         if pygame.get_init():
             pygame.quit()
 
+        app_state_snapshot = _snapshot_app_state()
         _inject_match_config(self.char1, self.arma1, self.char2, self.arma2, self.cenario)
 
         # Não fazemos monkey-patch de LARGURA/ALTURA.
@@ -236,31 +270,8 @@ class FightRecorder:
                 # Atualiza timestamp do áudio
                 audio_capture.update_time(elapsed)
 
-                # --- UPDATE ---
-                sim.cam.atualizar(dt, sim.p1, sim.p2, fighters=sim.fighters)
-
-                # Game feel (hit stop)
-                dt_efetivo = dt
-                if sim.game_feel:
-                    dt_efetivo = sim.game_feel.update(dt)
-                    if dt_efetivo == 0:
-                        # Durante hit stop, atualiza efeitos visuais lentamente
-                        for ef in sim.impact_flashes:
-                            ef.update(dt * 0.3)
-                        for ef in sim.hit_sparks:
-                            ef.update(dt * 0.3)
-                        # Ainda captura frame (slow-mo visual é bom para vídeo)
-                        self._write_frame(sim, render_surface, writer, None)
-                        elapsed += dt
-                        continue
-                else:
-                    if sim.hit_stop_timer > 0:
-                        sim.hit_stop_timer -= dt
-                        self._write_frame(sim, render_surface, writer, None)
-                        elapsed += dt
-                        continue
-
-                # Update da simulação (sem processar_inputs — headless)
+                # Avança frame no mesmo modelo temporal do loop normal
+                dt_efetivo = self._compute_sim_dt(sim, dt)
                 sim.update(dt_efetivo)
 
                 # --- CAPTURA ---
@@ -363,6 +374,7 @@ class FightRecorder:
             audio_capture.stop()
             if writer is not None:
                 writer.release()
+            _restore_app_state(app_state_snapshot)
             try:
                 pygame.display.quit()
                 pygame.mixer.quit()
@@ -414,6 +426,34 @@ class FightRecorder:
                 except OSError: pass
 
         return self
+
+    def _compute_sim_dt(self, sim, raw_dt: float) -> float:
+        """Replica o avanço temporal do Simulador.run sem processar input/display."""
+        # Mantém comportamento de slow-mo do loop normal.
+        if getattr(sim, "slow_mo_timer", 0.0) > 0:
+            sim.slow_mo_timer -= raw_dt
+            if sim.slow_mo_timer <= 0:
+                sim.time_scale = 1.0
+                if getattr(sim, "vencedor", None):
+                    slowmo_end_played = getattr(sim, "_slow_mo_ended", False)
+                    if not slowmo_end_played:
+                        try:
+                            if getattr(sim, "audio", None):
+                                sim.audio.play_special("slowmo_end", 0.5)
+                                sim.audio.play_special("arena_victory", 1.0)
+                        except Exception:
+                            pass
+                        try:
+                            sim._salvar_memorias_rivais()
+                        except Exception:
+                            pass
+                        try:
+                            sim._flush_match_stats()
+                        except Exception:
+                            pass
+                        sim._slow_mo_ended = True
+
+        return raw_dt * getattr(sim, "time_scale", 1.0)
 
     def _render_frame(self, sim, render_surface, post_victory_progress) -> np.ndarray:
         """Renderiza 1 frame → numpy RGB (VIDEO_HEIGHT, VIDEO_WIDTH, 3)."""

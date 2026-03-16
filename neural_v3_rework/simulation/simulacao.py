@@ -60,9 +60,9 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 dt = raw_dt * self.time_scale
                 self.processar_inputs(); self.update(dt); self.desenhar(); pygame.display.flip()
             except Exception as e:
-                import traceback
-                _log.debug(f"ERRO NO LOOP: {e}")
-                traceback.print_exc()
+                # B05: era _log.debug — invisível em produção. Agora _log.exception
+                # inclui automaticamente o traceback completo no log.
+                _log.exception("ERRO CRÍTICO NO LOOP DE SIMULAÇÃO: %s", e)
                 # Mostra diálogo de erro
                 try:
                     import tkinter as tk
@@ -72,7 +72,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     messagebox.showerror("Erro", f"Simulação falhou:\n{e}")
                     root.destroy()
                 except Exception as _e:
-                    _log.debug("%s", _e)
+                    _log.warning("Falha ao exibir diálogo de erro: %s", _e)
                 self.rodando = False
         # Cleanup pygame display sem destruir o subsistema inteiro,
         # para que a próxima luta possa reinicializar sem invalidar caches globais.
@@ -312,6 +312,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             
             # Rastreamento de estados anteriores para detectar mudanças
             self._prev_z = {f: 0 for f in self.fighters}
+            self._prev_acao_ai = {f: '' for f in self.fighters}  # Sprint1: rastreia transições de ação para VFX
             
             # === INICIALIZA SISTEMA DE ÁUDIO v10.0 ===
             AudioManager.reset()
@@ -333,10 +334,9 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             # Som de início de arena/luta
             self.audio.play_special("arena_start", 0.8)
                 
-        except Exception as e: 
-            import traceback
-            _log.debug(f"Erro: {e}")
-            traceback.print_exc()
+        except Exception as e:
+            # B05: era _log.debug — agora visível em produção
+            _log.exception("Erro ao inicializar arena/audio: %s", e)
 
 
     def carregar_luta_dados(self):
@@ -347,7 +347,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             if not config.get("p1_nome") or not config.get("p2_nome"):
                 raise ValueError("match_config vazio — nenhum personagem selecionado")
         except Exception as e:
-            _log.debug(f"[simulacao] Erro ao ler match_config via AppState: {e}")
+            # B05: era _log.debug — agora visível em produção
+            _log.warning("[simulacao] Erro ao ler match_config via AppState: %s", e)
             return None, None, "Arena", False
         todos = state.characters   # already in-memory — no disk hit
         armas = state.weapons      # already in-memory — no disk hit
@@ -399,12 +400,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             if hasattr(l1, 'brain') and l1.brain and hasattr(l1.brain, 'carregar_memoria_rival'):
                 l1.brain.carregar_memoria_rival(l2)
         except Exception as _e:
-            _log.debug("[IA] carregar_memoria_rival l1 falhou: %s", _e)
+            _log.warning("[IA] carregar_memoria_rival l1 falhou: %s", _e)
         try:
             if hasattr(l2, 'brain') and l2.brain and hasattr(l2.brain, 'carregar_memoria_rival'):
                 l2.brain.carregar_memoria_rival(l1)
         except Exception as _e:
-            _log.debug("[IA] carregar_memoria_rival l2 falhou: %s", _e)
+            _log.warning("[IA] carregar_memoria_rival l2 falhou: %s", _e)
         return l1, l2, cenario, portrait_mode
 
 
@@ -587,6 +588,19 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 self._remover_trail_projetil(proj)  # BUG-SIM-01 fix: remove trail no mesmo frame
                 continue
             
+            # C04: verifica colisão com obstáculos destruíveis antes de checar lutadores
+            if self.arena:
+                obs_hit = self.arena.colide_obstaculo(proj.x, proj.y, getattr(proj, 'raio', 0.3))
+                if obs_hit and obs_hit.solido:
+                    destruido = self.arena.danificar_obstaculo(obs_hit, getattr(proj, 'dano', 10))
+                    proj.ativo = False
+                    self._remover_trail_projetil(proj)
+                    if destruido:
+                        self._spawn_particulas_efeito(obs_hit.x * PPM, obs_hit.y * PPM, "EXPLOSAO")
+                        self.textos.append(FloatingText(obs_hit.x * PPM, obs_hit.y * PPM - 30,
+                                                        "DESTRUÍDO!", (255, 180, 50), 22))
+                    continue
+
             # Verifica colisão - ArmaProjetil tem método próprio
             colidiu = False
             if hasattr(proj, 'colidir'):
@@ -677,10 +691,54 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 if hasattr(proj, 'verificar_condicao'):
                     bonus_condicao = proj.verificar_condicao(alvo)
                 
+                # F04: reação elemental — verifica se elemento do projétil reage com
+                # elemento ativo no alvo (último dot/efeito). Multiplica dano se houver reação.
+                reacao_nome = None
+                reacao_efeito = None
+                elem_proj = getattr(proj, 'elemento', None)
+                if elem_proj:
+                    # Pega o elemento do primeiro status effect ativo no alvo (se houver)
+                    elem_alvo = None
+                    for se in getattr(alvo, 'status_effects', []):
+                        _n = getattr(se, 'nome', '').upper()
+                        if _n in ("QUEIMANDO", "QUEIMADURA_SEVERA"):
+                            elem_alvo = "FOGO"
+                        elif _n in ("LENTO", "CONGELADO"):
+                            elem_alvo = "GELO"
+                        elif _n == "PARALISIA":
+                            elem_alvo = "RAIO"
+                        elif _n in ("ENVENENADO",):
+                            elem_alvo = "NATUREZA"
+                        elif _n in ("SANGRANDO",):
+                            elem_alvo = "SANGUE"
+                        if elem_alvo:
+                            break
+                    if elem_alvo and elem_alvo != elem_proj:
+                        try:
+                            from core.magic_system import verificar_reacao_elemental, Elemento
+                            e1 = Elemento[elem_proj] if elem_proj in Elemento.__members__ else None
+                            e2 = Elemento[elem_alvo] if elem_alvo in Elemento.__members__ else None
+                            if e1 and e2:
+                                reacao = verificar_reacao_elemental(e1, e2)
+                                if reacao:
+                                    reacao_nome, reacao_efeito, mult_reacao = reacao
+                        except Exception:
+                            pass
+
                 # Aplica dano com efeito
                 dano_base = proj.dono.get_dano_modificado(proj.dano) if hasattr(proj.dono, 'get_dano_modificado') else proj.dano
                 dano_final = dano_base * bonus_condicao
+                # F04: aplica multiplicador de reação elemental se detectada
+                if reacao_nome:
+                    dano_final *= mult_reacao
+                    self.textos.append(FloatingText(
+                        alvo.pos[0] * PPM, alvo.pos[1] * PPM - 70,
+                        reacao_nome, (255, 220, 80), 24
+                    ))
                 tipo_efeito = proj.tipo_efeito if hasattr(proj, 'tipo_efeito') else "NORMAL"
+                # F04: se a reação gerou um efeito especial, sobrepõe o efeito padrão
+                if reacao_efeito and reacao_efeito not in ("DANO_BONUS", "PURGE"):
+                    tipo_efeito = reacao_efeito
                 
                 # v15.0: Camera shake proporcional ao dano com threshold
                 if dano_final > 8:
@@ -1206,6 +1264,29 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 # === SWORD CLASH v6.1 - Detecta início do momento CLASH ===
                 if self.choreographer.momento_atual == "CLASH" and momento_anterior != "CLASH":
                     self._executar_sword_clash()
+
+                # === Sprint3: slow-mo para momentos cinematográficos além da morte ===
+                # Antes: ativar_slow_motion() só em morte e timeout.
+                # FINAL_SHOWDOWN, NEAR_MISS e CLIMAX_CHARGE são momentos
+                # dramaticamente tão intensos quanto morte mas nunca tinham slow-mo.
+                novo_momento = self.choreographer.momento_atual
+                if novo_momento != momento_anterior:
+                    if novo_momento == "FINAL_SHOWDOWN":
+                        # Último confronto: slow-mo suave e longo
+                        self.time_scale = 0.6
+                        self.slow_mo_timer = 1.2
+                    elif novo_momento == "NEAR_MISS":
+                        # Quase-acerto: micro-freeze dramático
+                        self.time_scale = 0.35
+                        self.slow_mo_timer = 0.18
+                    elif novo_momento == "CLIMAX_CHARGE":
+                        # Ambos preparando golpe final: tensão crescente
+                        self.time_scale = 0.7
+                        self.slow_mo_timer = 0.8
+                    elif novo_momento == "PURSUIT":
+                        # Perseguição: levemente mais lento para ampliar distância visual
+                        self.time_scale = 0.8
+                        self.slow_mo_timer = 0.6
             
             # v13.0: Atualiza TeamCoordinator ANTES dos lutadores individuais
             if self.modo_multi:
@@ -1238,7 +1319,11 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 
                 # Limpa colisões antigas da arena
                 self.arena.limpar_colisoes()
-            
+
+                # C02: processa efeitos especiais da arena sobre os lutadores
+                if self.arena.efeitos_ativos:
+                    self._processar_efeitos_arena(dt)
+
             self.resolver_fisica_corpos(dt)
             self.verificar_colisoes_combate()
             self.atualizar_rastros()
@@ -1284,18 +1369,106 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
     # =========================================================================
 
     def _flush_match_stats(self):
-        """v14.0: Save stats_collector to AppState for later persistence.
-        
-        Does NOT call record_fight_result — that is done by the caller
-        (view_luta for standalone, tournament_mode for tournaments).
+        """
+        B01: Persiste o stats_collector no BattleDB imediatamente.
+
+        Chama flush_to_db() com o match_id da última luta registrada.
+        Funciona tanto no modo standalone (view_luta) quanto no pipeline
+        de vídeo headless (fight_recorder), pois não depende de quem
+        chama record_fight_result() depois — o flush acontece antes.
+
+        Nota: se o match_id ainda não existir (flush chamado antes de
+        record_fight_result), armazena em AppState.pending_stats para
+        que record_fight_result() faça o flush logo após inserir no DB.
         """
         try:
-            if hasattr(self, 'stats_collector'):
-                from data.app_state import AppState
-                AppState.get()._pending_stats_collector = self.stats_collector
-        except Exception:
-            pass
+            if not hasattr(self, 'stats_collector'):
+                return
+            from data.app_state import AppState
+            state = AppState.get()
+            # Tenta obter o match_id da luta mais recente
+            match_id = getattr(state, '_last_match_id', None)
+            if match_id is not None:
+                self.stats_collector.flush_to_db(match_id=match_id)
+                _log.debug("Match stats persistidos para match_id=%s", match_id)
+            else:
+                # match_id ainda não existe (record_fight_result não foi chamado)
+                # Armazena para flush posterior via AppState.flush_pending_stats()
+                state.pending_stats_collector = self.stats_collector
+                _log.debug("Match stats enfileirados (match_id pendente)")
+        except Exception as e:
+            _log.warning("_flush_match_stats falhou (não-fatal): %s", e)
     
+    def _processar_efeitos_arena(self, dt: float) -> None:
+        """
+        C02: Processa efeitos_especiais da arena sobre os lutadores.
+
+        Handlers por efeito:
+            "neve"          → partículas visuais (via sim_effects) + "escorregadio"
+            "escorregadio"  → reduz aceleração lateral de todos os fighters
+            "calor"         → degeneração leve de estamina
+            "neblina"       → reduz percepção de range da IA
+            "chuva"         → partículas visuais periódicas
+            "luzes_piscando"→ oscila brilho do fundo (visual apenas)
+            "poeira"        → partículas periódicas de poeira
+        """
+        efeitos = self.arena.efeitos_ativos
+
+        for efeito in efeitos:
+
+            if efeito == "calor":
+                # Degeneração de estamina leve (0.5/s)
+                for f in self.fighters:
+                    if not f.morto:
+                        f.estamina = max(0, f.estamina - 0.5 * dt)
+
+            elif efeito in ("neve", "escorregadio"):
+                # Reduz aceleração lateral — simula chão escorregadio
+                for f in self.fighters:
+                    if not f.morto and not getattr(f, 'no_ar', False):
+                        # Atenua vel_x em vez de zerar — comportamento de gelo
+                        f.vel[0] *= max(0.0, 1.0 - dt * 4.0)
+
+            elif efeito == "neblina":
+                # Reduz alcance de percepção da IA (setado no brain uma vez)
+                # Usa flag para não re-setar todo frame
+                if not getattr(self, '_neblina_aplicada', False):
+                    for f in self.fighters:
+                        if hasattr(f, 'brain') and f.brain:
+                            # Reduz distância percebida em 30%
+                            f.brain._neblina_fator = 0.70
+                    self._neblina_aplicada = True
+
+            elif efeito == "chuva":
+                # Partículas de chuva periódicas (a cada 0.1s)
+                if not hasattr(self, '_chuva_timer'):
+                    self._chuva_timer = 0.0
+                self._chuva_timer += dt
+                if self._chuva_timer >= 0.08:
+                    self._chuva_timer = 0.0
+                    import random as _r
+                    for _ in range(3):
+                        rx = _r.uniform(0, self.arena.largura) * PPM
+                        vy = _r.uniform(8, 14) * PPM
+                        self.particulas.append(
+                            Particula(rx, 0, (150, 180, 220), 0, vy, 1, 0.4)
+                        )
+
+            elif efeito == "poeira":
+                if not hasattr(self, '_poeira_timer'):
+                    self._poeira_timer = 0.0
+                self._poeira_timer += dt
+                if self._poeira_timer >= 0.15:
+                    self._poeira_timer = 0.0
+                    import random as _r
+                    for _ in range(2):
+                        rx = _r.uniform(0, self.arena.largura) * PPM
+                        ry = (self.arena.altura - 0.5) * PPM
+                        vx = _r.uniform(-2, 2) * PPM
+                        self.particulas.append(
+                            Particula(rx, ry, (180, 160, 120), vx, -1, 2, 0.6)
+                        )
+
     def _registrar_kill(self, morto, killer_nome_fallback):
         """Registra uma morte e determina se a luta acabou.
         

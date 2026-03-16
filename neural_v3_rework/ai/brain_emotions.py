@@ -142,6 +142,17 @@ class EmotionsMixin(_AIBrainMixinBase):
     
     def _verificar_hesitacao(self, dt, distancia, inimigo):
         """Verifica se a IA hesita neste frame"""
+        # Anti-kite: melee contra arco não deve desperdiçar tempo em hesitação defensiva
+        # quando está fora do alcance ideal.
+        p = self.parent
+        minha_arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
+        inimigo_arma = getattr(getattr(inimigo, 'dados', None), 'arma_obj', None)
+        meu_tipo = getattr(minha_arma, 'tipo', '') if minha_arma else ''
+        ini_tipo = getattr(inimigo_arma, 'tipo', '') if inimigo_arma else ''
+        sou_ranged = meu_tipo in ("Arco", "Arremesso", "Mágica")
+        if ini_tipo == "Arco" and not sou_ranged and distancia > p.alcance_ideal * 0.9:
+            return False
+
         # Descanso forçado
         if self.descanso_timer > 0:
             self.descanso_timer -= dt
@@ -807,6 +818,28 @@ class EmotionsMixin(_AIBrainMixinBase):
                 triggered = True
             elif trigger == "ataque_previsivel" and self.leitura_oponente.get("padrao_detectado", False):
                 triggered = True
+            # Sprint2: triggers definidos em INSTINTOS mas nunca avaliados aqui.
+            # ataque_traseiro = inimigo nos flancos traseiros (> 120° atrás)
+            elif trigger == "ataque_traseiro":
+                if hasattr(inimigo, 'pos') and hasattr(p, 'angulo_olhar'):
+                    import math as _m
+                    ang_para_ini = _m.degrees(_m.atan2(
+                        inimigo.pos[1] - p.pos[1], inimigo.pos[0] - p.pos[0]
+                    ))
+                    diff = abs(((ang_para_ini - p.angulo_olhar) + 180) % 360 - 180)
+                    if diff > 120 and self.leitura_oponente.get("ataque_iminente", False):
+                        triggered = True
+            # ataque_baixo = inimigo agachado ou na zona baixa (z muito pequeno vs self.z)
+            elif trigger == "ataque_baixo":
+                ini_z = getattr(inimigo, 'z', 0)
+                self_z = getattr(p, 'z', 0)
+                if ini_z < 0.3 and self_z > 0.5 and self.leitura_oponente.get("ataque_iminente", False):
+                    triggered = True
+            # ataque_alto = inimigo em pulo (z alto) atacando de cima
+            elif trigger == "ataque_alto":
+                ini_z = getattr(inimigo, 'z', 0)
+                if ini_z > 1.0 and self.leitura_oponente.get("ataque_iminente", False):
+                    triggered = True
             
             # Executa o instinto se triggado e passar no check de chance
             if triggered and random.random() < chance:
@@ -890,12 +923,56 @@ class EmotionsMixin(_AIBrainMixinBase):
             return False
         
         elif acao == "combo_break":
-            # Tenta quebrar combo
-            if self.cd_dash <= 0 and random.random() < 0.5:
-                if hasattr(p, 'iniciar_dash'):
-                    p.iniciar_dash()
-                self.cd_dash = 0.5
+            # Tenta quebrar combo — usa dash skill se disponível, senão pulo
+            # Sprint2: antes chamava p.iniciar_dash() que não existe em Lutador.
+            dash_skills = self.skills_por_tipo.get("DASH", [])
+            if self.cd_dash <= 0 and dash_skills:
+                if self._usar_skill(dash_skills[0]):
+                    self.cd_dash = 0.8
+                    self.acao_atual = "RECUAR"
+                    return True
+            elif self.cd_pulo <= 0 and p.z == 0:
+                ang_fuga = math.atan2(p.pos[1] - inimigo.pos[1], p.pos[0] - inimigo.pos[0])
+                p.vel[0] += math.cos(ang_fuga) * 12.0
+                p.vel[1] += math.sin(ang_fuga) * 12.0
+                p.vel_z = 10.0
+                self.cd_pulo = 1.0
                 return True
+
+        # Sprint2: auto_duck, dodge_back, auto_block eram ações de instinto
+        # definidas em personalities.py mas sem elif em _executar_instinto.
+        elif acao == "auto_duck":
+            # Agacha / baixa z para evitar ataque alto — usa vel_z negativa temporária
+            if p.z > 0.3:
+                p.vel_z = -p.vel_z * 0.5   # Cancela pulo em andamento
+                self.acao_atual = "BLOQUEAR"
+                return True
+            # No chão: movimento lateral rápido como duck
+            rad_lat = math.radians(p.angulo_olhar + 90 * self.dir_circular)
+            p.vel[0] += math.cos(rad_lat) * 10.0
+            p.vel[1] += math.sin(rad_lat) * 10.0
+            self.acao_atual = "CIRCULAR"
+            return True
+
+        elif acao == "dodge_back":
+            # Dash para trás ao detectar ataque traseiro
+            ang_fuga = math.atan2(p.pos[1] - inimigo.pos[1], p.pos[0] - inimigo.pos[0])
+            impulso = 18.0
+            p.vel[0] += math.cos(ang_fuga) * impulso
+            p.vel[1] += math.sin(ang_fuga) * impulso
+            self.cd_dash = 0.6
+            self.acao_atual = "RECUAR"
+            return True
+
+        elif acao == "auto_block":
+            # Levanta guarda — se tiver skill de escudo usa, senão postura de bloquear
+            buff_skills = self.skills_por_tipo.get("BUFF", [])
+            for skill in buff_skills:
+                if skill.get("data", {}).get("escudo"):
+                    if self._usar_skill(skill):
+                        return True
+            self.acao_atual = "BLOQUEAR"
+            return True
         
         elif acao == "instant_counter":
             # Contra-ataque instantâneo

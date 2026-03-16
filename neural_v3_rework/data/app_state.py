@@ -40,9 +40,12 @@ Usage:
 import json
 import os
 import sys
+import logging
 import threading
 from copy import deepcopy
 from typing import Callable, Any
+
+_log = logging.getLogger("app_state")
 
 # ── path bootstrap ────────────────────────────────────────────────────────────
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -131,6 +134,10 @@ class AppState:
             "total_kos": 0,
             "fight_log": [],
         }
+
+        # B01: match_id da última luta + stats enfileirados para flush
+        self._last_match_id:       int | None = None
+        self.pending_stats_collector           = None  # público: lido por simulacao.py
 
         # event_name → list[callback]
         self._subscribers: dict[str, list[Callable]] = {}
@@ -359,10 +366,28 @@ class AppState:
                                       tier=get_tier(w_elo + delta_w))
             db.update_character_stats(loser, won=False, elo_delta=delta_l,
                                       tier=get_tier(max(0, l_elo + delta_l)))
+            # B01: guardar o match_id para que _flush_match_stats() possa usá-lo
+            self._last_match_id = match_id
+            # B01: se havia stats enfileirados (flush antes de record), persistir agora
+            self._flush_pending_stats(match_id)
             return match_id
         except Exception as e:
-            print(f"[AppState] BattleDB/ELO write failed (non-fatal): {e}")
+            _log.error("[AppState] BattleDB/ELO write failed (non-fatal): %s", e)
         return None
+
+    def _flush_pending_stats(self, match_id: int) -> None:
+        """
+        B01: Se havia um stats_collector enfileirado (flush antes de record_fight_result),
+        persiste agora que temos o match_id definitivo.
+        """
+        if self.pending_stats_collector is not None:
+            try:
+                self.pending_stats_collector.flush_to_db(match_id=match_id)
+                _log.debug("Pending match stats persistidos para match_id=%s", match_id)
+            except Exception as e:
+                _log.warning("_flush_pending_stats falhou: %s", e)
+            finally:
+                self.pending_stats_collector = None
 
     # ── Gods / World State (Neural Fights Lore) ───────────────────────────────
 
@@ -471,7 +496,7 @@ class AppState:
             merged.update(data)
             return merged
         except Exception as e:
-            print(f"[AppState] Warning loading {path}: {e}")
+            _log.warning("Erro ao carregar %s: %s", path, e)
             return deepcopy(default)
 
     def _load_weapons(self) -> list[Arma]:
@@ -482,7 +507,7 @@ class AppState:
                 raw = json.load(f)
             return [Arma(**item) for item in raw]
         except Exception as e:
-            print(f"[AppState] Warning loading weapons: {e}")
+            _log.warning("Erro ao carregar weapons: %s", e)
             return []
 
     def _load_characters(self) -> list[Personagem]:
@@ -509,7 +534,7 @@ class AppState:
                 result.append(p)
             return result
         except Exception as e:
-            print(f"[AppState] Warning loading characters: {e}")
+            _log.warning("Erro ao carregar characters: %s", e)
             return []
 
     # ── Savers ────────────────────────────────────────────────────────────────
@@ -537,7 +562,7 @@ class AppState:
                 json.dump(data, f, indent=4, ensure_ascii=False)
             os.replace(tmp, path)          # atomic rename — no corrupt files
         except Exception as e:
-            print(f"[AppState] Error saving {path}: {e}")
+            _log.error("Erro ao salvar %s: %s", path, e)
 
     # ── Internal notify ───────────────────────────────────────────────────────
 
@@ -547,13 +572,13 @@ class AppState:
             try:
                 cb(data)
             except Exception as e:
-                print(f"[AppState] Subscriber error on '{event}': {e}")
+                _log.warning("Subscriber error no evento '%s': %s", event, e)
         # Wildcard subscribers
         for cb in list(self._subscribers.get("any", [])):
             try:
                 cb(event, data)
             except Exception as e:
-                print(f"[AppState] Wildcard subscriber error: {e}")
+                _log.warning("Wildcard subscriber error: %s", e)
 
     # ── Debug ─────────────────────────────────────────────────────────────────
 

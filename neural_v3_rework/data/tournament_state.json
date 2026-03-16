@@ -7,10 +7,10 @@
     "current_match": 0,
     "bracket": [],
     "stats": {
-        "total_fights": 71,
-        "total_kos": 55,
+        "total_fights": 85,
+        "total_kos": 65,
         "fastest_ko": 0,
-        "longest_fight": 164.37170028686523,
+        "longest_fight": 337.0849027633667,
         "most_aggressive": null
     }
 }

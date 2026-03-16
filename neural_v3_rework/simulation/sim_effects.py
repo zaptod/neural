@@ -410,6 +410,37 @@ class SimuladorEffects:
                     direcao = math.atan2(lutador.vel[1], lutador.vel[0])
                     self.movement_anims.criar_sprint_effect(lutador, direcao)
             
+            # === DESVIO AI — trail lateral + som + câmera suave ===
+            # Sprint1: acao_atual == "DESVIO" nunca gerava nenhum VFX/som.
+            # DashTrail só disparava via dash_timer (skill). Agora rastreamos
+            # a transição de ação para DESVIO como evento de movimento dedicado.
+            acao_atual_ai = getattr(getattr(lutador, 'brain', None), 'acao_atual', '')
+            acao_anterior_ai = self._prev_acao_ai.get(lutador, '')
+            if acao_atual_ai == "DESVIO" and acao_anterior_ai != "DESVIO":
+                # Novo desvio detectado — efeitos cinematográficos
+                if self.movement_anims:
+                    direcao_vel = math.atan2(lutador.vel[1], lutador.vel[0])
+                    self.movement_anims.criar_dash_effect(
+                        lutador, direcao_vel, MovementType.DASH_LATERAL
+                    )
+                if self.audio:
+                    self.audio.play_movement("dodge", pos_x, listener_x)
+                # Câmera: shake leve — o desvio deve ser sentido, não apenas visto
+                if hasattr(self, 'cam'):
+                    self.cam.aplicar_shake(2.0, 0.06)
+
+            # === CONTRA_ATAQUE AI — flash de contorno dourado ===
+            # Sprint1: CONTRA_ATAQUE era visualmente idêntico a MATAR.
+            # Ao iniciar um contra-ataque, emite um flash dourado rápido para
+            # sinalizar que a ação foi uma resposta reactiva, não ofensiva pura.
+            if acao_atual_ai == "CONTRA_ATAQUE" and acao_anterior_ai not in ("CONTRA_ATAQUE", "MATAR"):
+                lutador.flash_timer = 0.12
+                lutador.flash_cor = (255, 220, 60)   # dourado
+                if self.audio:
+                    self.audio.play_movement("counter", pos_x, listener_x)
+
+            self._prev_acao_ai[lutador] = acao_atual_ai
+
             # Atualiza estados anteriores
             self._prev_z[lutador] = z_atual
             self._prev_stagger[lutador] = stagger_atual

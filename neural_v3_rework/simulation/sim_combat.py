@@ -1,4 +1,4 @@
-"""Auto-generated mixin — see scripts/split_simulacao.py"""
+"""Auto-generated mixin — gerado por scripts/split_simulacao.py (arquivado em _archive/scripts/)"""
 import pygame
 import logging
 _log = logging.getLogger("simulacao")  # QC-02
@@ -430,59 +430,67 @@ class SimuladorCombat:
 
 
     def resolver_fisica_corpos(self, dt):
-        """v13.0: Resolve colisão física entre TODOS os pares de lutadores."""
+        """
+        A03: Resolve colisão física entre TODOS os pares de lutadores.
+
+        Otimizações em relação à versão original:
+        - Separação + repulsão fundidos em um único loop O(n²) por iteração
+          (era O(n²)×3 separação + O(n²) repulsão = 4 passes; agora 3 passes)
+        - Early-exit: se nenhum par colidiu na iteração i, para antes de chegar em 3
+        - dist² usado para check inicial (sem sqrt para pares claramente separados)
+        """
         fighters = getattr(self, 'fighters', [self.p1, self.p2])
         vivos = [f for f in fighters if not f.morto]
-        
+
         if len(vivos) < 2:
             return
-        
-        # Múltiplas iterações para garantir separação completa
+
+        FATOR_REPULSAO = 6.0
+
         for _ in range(3):
+            houve_colisao = False
+
             for i in range(len(vivos)):
                 for j in range(i + 1, len(vivos)):
                     p1, p2 = vivos[i], vivos[j]
-                    
+
                     dx = p2.pos[0] - p1.pos[0]
                     dy = p2.pos[1] - p1.pos[1]
-                    dist = math.hypot(dx, dy)
-                    
                     soma_raios = p1.raio_fisico + p2.raio_fisico
-                    
-                    if dist >= soma_raios or abs(p1.z - p2.z) >= 1.0:
+
+                    # A03: early reject com dist² — evita sqrt para pares separados
+                    dist2 = dx * dx + dy * dy
+                    soma2  = soma_raios * soma_raios
+                    if dist2 >= soma2 or abs(p1.z - p2.z) >= 1.0:
                         continue
-                    
-                    penetracao = soma_raios - dist
-                    
+
+                    dist = math.sqrt(dist2)
+                    houve_colisao = True
+
                     if dist > 0.001:
                         nx, ny = dx / dist, dy / dist
                     else:
                         ang = random.uniform(0, math.pi * 2)
                         nx, ny = math.cos(ang), math.sin(ang)
-                    
+
+                    # Separação
+                    penetracao = soma_raios - dist
                     separacao = (penetracao / 2.0) + 0.02
-                    
                     p1.pos[0] -= nx * separacao
                     p1.pos[1] -= ny * separacao
                     p2.pos[0] += nx * separacao
                     p2.pos[1] += ny * separacao
-        
-        # Velocidade de repulsão para pares próximos
-        for i in range(len(vivos)):
-            for j in range(i + 1, len(vivos)):
-                p1, p2 = vivos[i], vivos[j]
-                dx = p2.pos[0] - p1.pos[0]
-                dy = p2.pos[1] - p1.pos[1]
-                dist = math.hypot(dx, dy)
-                soma_raios = p1.raio_fisico + p2.raio_fisico
-                
-                if dist < soma_raios * 1.2 and dist > 0.001:
-                    nx, ny = dx / dist, dy / dist
-                    fator_repulsao = 6.0
-                    p1.vel[0] -= nx * fator_repulsao
-                    p1.vel[1] -= ny * fator_repulsao
-                    p2.vel[0] += nx * fator_repulsao
-                    p2.vel[1] += ny * fator_repulsao
+
+                    # A03: repulsão fundida no mesmo loop (era um pass separado)
+                    if dist < soma_raios * 1.2:
+                        p1.vel[0] -= nx * FATOR_REPULSAO
+                        p1.vel[1] -= ny * FATOR_REPULSAO
+                        p2.vel[0] += nx * FATOR_REPULSAO
+                        p2.vel[1] += ny * FATOR_REPULSAO
+
+            # A03: early-exit — sem colisões = corpos já separados
+            if not houve_colisao:
+                break
 
 
     def checar_clash_geral(self, p1, p2):
@@ -756,6 +764,10 @@ class SimuladorCombat:
             if dist < alvo.raio_fisico + 0.5:
                 # Dash evasivo bem-sucedido!
                 self._efeito_desvio_dash(proj, alvo)
+                # Sprint1: registrar_esquiva nunca era chamado — cadeia pós-esquiva
+                # (janela de contra-ataque, on_esquiva_sucesso) estava completamente morta.
+                if self.choreographer:
+                    self.choreographer.registrar_esquiva(alvo, proj.dono if hasattr(proj, 'dono') else None)
                 return True
         
         # === BLOQUEIO DURANTE ATAQUE (timing perfeito) ===
@@ -861,3 +873,7 @@ class SimuladorCombat:
         # Camera e timing
         self.cam.aplicar_shake(8.0, 0.1)
         self.hit_stop_timer = 0.06
+        # Sprint1: parry é o momento defensivo mais dramático mas nunca tinha slow-mo.
+        # Um micro slow-mo (0.4× por 0.25s) realça o clímax sem parecer morte.
+        self.time_scale = 0.4
+        self.slow_mo_timer = 0.25

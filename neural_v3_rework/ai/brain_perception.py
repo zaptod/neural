@@ -328,6 +328,10 @@ class PerceptionMixin(_AIBrainMixinBase):
         
         perc = self.percepcao_arma
         p = self.parent
+        minha_arma_tipo = ""
+        if hasattr(p, 'dados') and hasattr(p.dados, 'arma_obj') and p.dados.arma_obj:
+            minha_arma_tipo = getattr(p.dados.arma_obj, 'tipo', '')
+        sou_ranged = minha_arma_tipo in ("Arco", "Arremesso", "Mágica")
         
         # Variáveis locais necessárias para cálculos baseados em arma
         alcance_efetivo = self._calcular_alcance_efetivo()
@@ -338,6 +342,14 @@ class PerceptionMixin(_AIBrainMixinBase):
         
         estrategia = perc.get("estrategia_recomendada", "neutro")
         matchup = perc.get("matchup_favoravel", 0.0)
+        tipo_ini = perc.get("arma_inimigo_tipo", "")
+
+        # Melee vs Arco: recuar normalmente é uma má escolha tática, porque o arqueiro
+        # ganha tempo de kite e amplia vantagem de distância. Mantém recuo só em HP crítico.
+        if tipo_ini == "Arco" and not sou_ranged:
+            hp_pct = p.vida / max(p.vida_max, 1)
+            if estrategia == "recuar" and hp_pct > 0.22:
+                estrategia = "aproximar"
         
         # Ajustes de confiança baseados no matchup
         if matchup > 0.3:
@@ -381,7 +393,6 @@ class PerceptionMixin(_AIBrainMixinBase):
         
         # === COMPORTAMENTOS ESPECÍFICOS POR TIPO DE ARMA INIMIGA ===
         # v2.0: inclui lógica contra Mangual e Adagas Gêmeas reformulados
-        tipo_ini = perc.get("arma_inimigo_tipo", "")
         arma_inimigo_estilo = ""
         if arma_inimigo and hasattr(arma_inimigo, 'estilo'):
             arma_inimigo_estilo = arma_inimigo.estilo
@@ -479,9 +490,18 @@ class PerceptionMixin(_AIBrainMixinBase):
                         self.acao_atual = random.choice(["APROXIMAR", "RECUAR"])
         
         elif tipo_ini == "Arco":
-            # Contra arcos: flanqueia e aproxima
-            if distancia > 5.0:
-                if random.random() < 0.6:
+            # Contra arcos: melee precisa colar e cortar linha de tiro.
+            # Antes só reagia bem quando distancia > 5.0, gerando passividade entre 2.5-5.0m.
+            if not sou_ranged:
+                if distancia > alcance_efetivo * 1.0:
+                    if random.random() < 0.85:
+                        self.acao_atual = random.choice(["APROXIMAR", "APROXIMAR", "FLANQUEAR", "PRESSIONAR"])
+                elif distancia > alcance_efetivo * 0.65:
+                    if random.random() < 0.70:
+                        self.acao_atual = random.choice(["PRESSIONAR", "FLANQUEAR", "MATAR"])
+            else:
+                # Espelho ranged vs ranged: ainda pode manter distância e flanquear
+                if distancia > 5.0 and random.random() < 0.6:
                     self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR"])
         
         elif tipo_ini == "Mágica":
@@ -516,6 +536,10 @@ class PerceptionMixin(_AIBrainMixinBase):
                 mem["vezes_atacou"] += 1
             elif acao_oponente in ["FUGIR", "RECUAR"]:
                 mem["vezes_fugiu"] += 1
+                # Sprint2: on_inimigo_fugiu nunca era chamado — momentum e janela de
+                # perseguição nunca abriam. Dispara apenas em transições reais para fuga.
+                if hasattr(self, 'on_inimigo_fugiu'):
+                    self.on_inimigo_fugiu()
         
         if mem["vezes_atacou"] > mem["vezes_fugiu"] * 2:
             mem["estilo_percebido"] = "AGRESSIVO"

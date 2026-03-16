@@ -6,8 +6,40 @@ Classe principal do lutador com sistema de combate.
 import math
 import random
 from utils.config import PPM, GRAVIDADE_Z, ATRITO, ALTURA_PADRAO
+from utils.balance_config import (  # E06
+    CRITICO_CHANCE_BONUS_RAGE, CRITICO_MULT_BASE,
+    DANO_MULT_FLANQUEAR, DANO_MULT_COSTAS, DANO_MULT_AERIAL, DANO_MULT_EXECUCAO,
+    DANO_ECO_RATIO, ESTAMINA_MAX, ESTAMINA_CUSTO_SKILL_MULT, ESTAMINA_CUSTO_SKILL_MULT2,
+    ESTAMINA_CUSTO_DASH_MULT, ESTAMINA_CUSTO_DASH_MULT2,
+    MANA_BASE, MANA_POR_ATRIBUTO, SLOW_FATOR_DEFAULT, SLOW_DURACAO_DEFAULT,
+    CD_ARMA_MAX_RATIO, CD_ARMA_MAX_ABSOLUTO, ALCANCE_IDEAL_DEFAULT,
+)
 import logging
 _log = logging.getLogger("entities")
+
+
+# A05: classe leve que substitui os objetos anônimos criados via type('SE', (), {...})()
+# em _atualizar_dots. Usar uma classe nomeada é mais rápido (sem criação de metaclasse
+# anônima a cada frame) e permite isinstance() checks no brain/magic_system.
+class StatusSnapshot:
+    """Snapshot imutável de um status effect para leitura pela IA e magic_system."""
+    __slots__ = (
+        'nome', 'mod_velocidade', 'mod_dano_causado',
+        'mod_dano_recebido', 'pode_mover', 'pode_atacar',
+        'pode_usar_skill', 'dano_por_tick',
+    )
+
+    def __init__(self, nome, mod_velocidade=1.0, mod_dano_causado=1.0,
+                 mod_dano_recebido=1.0, pode_mover=True, pode_atacar=True,
+                 pode_usar_skill=True, dano_por_tick=0):
+        self.nome              = nome
+        self.mod_velocidade    = mod_velocidade
+        self.mod_dano_causado  = mod_dano_causado
+        self.mod_dano_recebido = mod_dano_recebido
+        self.pode_mover        = pode_mover
+        self.pode_atacar       = pode_atacar
+        self.pode_usar_skill   = pode_usar_skill
+        self.dano_por_tick     = dano_por_tick
 
 
 class Lutador:
@@ -43,8 +75,8 @@ class Lutador:
         # Status calculados com modificadores de classe
         self.vida_max = self._calcular_vida_max()
         self.vida = self.vida_max
-        self.estamina = 100.0
-        self.estamina_max = 100.0
+        self.estamina = ESTAMINA_MAX
+        self.estamina_max = ESTAMINA_MAX
         self.mana_max = self._calcular_mana_max()
         self.mana = self.mana_max
         
@@ -227,7 +259,7 @@ class Lutador:
 
         self.arma_droppada_ang = 0
         self.fator_escala = self.dados.tamanho / ALTURA_PADRAO
-        self.alcance_ideal = 1.5
+        self.alcance_ideal = ALCANCE_IDEAL_DEFAULT
         
         # Efeitos visuais temporários
         self.dash_trail = []
@@ -255,6 +287,11 @@ class Lutador:
         self.tempo_parado = False
         self.marcado = False
 
+        # D02: registro observável de CCs ativos — lido por brain.py e magic_system
+        # Os float timers acima continuam sendo a fonte de verdade;
+        # cc_effects é atualizado em _aplicar_efeito_status() e em _atualizar_dots().
+        self.cc_effects: list = []  # list[StatusSnapshot] — CCs ativos neste frame
+
         # IA
         self.brain = AIBrain(self)
 
@@ -265,7 +302,7 @@ class Lutador:
     
     def _calcular_mana_max(self):
         """Calcula mana máxima com modificadores"""
-        base = 50.0 + (getattr(self.dados, 'mana', 0) * 10.0)
+        base = MANA_BASE + (getattr(self.dados, 'mana', 0) * MANA_POR_ATRIBUTO)
         return base * self.class_data.get("mod_mana", 1.0)
 
     def trocar_skill(self):
@@ -311,13 +348,13 @@ class Lutador:
         # Chance crítica base da arma + classe + PASSIVA: crit_chance
         critico_chance = self.arma_critico
         if "Assassino" in self.classe_nome:
-            critico_chance += 0.20
+            critico_chance += CRITICO_CHANCE_BONUS_RAGE
         if passiva.get("efeito") == "crit_chance":
             critico_chance += passiva.get("valor", 0) / 100.0
 
         is_critico = random.random() < critico_chance
         if is_critico:
-            mult_critico = 1.5
+            mult_critico = CRITICO_MULT_BASE
             # === PASSIVA: crit_damage (aumenta multiplicador crítico) ===
             if passiva.get("efeito") == "crit_damage":
                 mult_critico += passiva.get("valor", 0) / 100.0
@@ -334,19 +371,19 @@ class Lutador:
         # Dupla: frenzy +15%, cross-slash +30%
         if tipo_arma == 'Dupla':
             if getattr(self, 'dual_cross_slash', False):
-                dano *= 1.30
+                dano *= DANO_MULT_FLANQUEAR
             elif getattr(self, 'dual_frenzy', False):
-                dano *= 1.15
+                dano *= DANO_MULT_COSTAS
         
         # Reta: 3° golpe do combo = finisher +20%
         if tipo_arma == 'Reta':
             if getattr(self, 'reta_combo', 0) >= 2:
-                dano *= 1.20
+                dano *= DANO_MULT_AERIAL
         
         # Transformável: bonus após troca de forma
         if tipo_arma == 'Transformável':
             if getattr(self, 'transform_bonus_timer', 0) > 0:
-                dano *= 1.25
+                dano *= DANO_MULT_EXECUCAO
 
         return dano, is_critico
 
@@ -377,7 +414,7 @@ class Lutador:
         # === PASSIVA: double_hit (chance de aplicar dano novamente) ===
         if efeito == "double_hit" and random.random() < (valor / 100.0):
             if not alvo.morto:
-                dano_eco = dano_aplicado * 0.5
+                dano_eco = dano_aplicado * DANO_ECO_RATIO
                 alvo.vida = max(0, alvo.vida - dano_eco)
                 resultado["double_hit"] = dano_eco
 
@@ -454,8 +491,8 @@ class Lutador:
                 dot = DotEffect("Queimando", alvo, 5, 3.0, (255, 100, 0))
                 alvo.dots_ativos.append(dot)
             elif efeito == "slow":
-                alvo.slow_timer = 2.0
-                alvo.slow_fator = 0.5
+                alvo.slow_timer = SLOW_DURACAO_DEFAULT
+                alvo.slow_fator = SLOW_FATOR_DEFAULT
             elif efeito == "poison":
                 dot = DotEffect("Envenenado", alvo, enc.get("dot_dano", 3),
                                enc.get("dot_duracao", 5.0), (100, 255, 100))
@@ -494,7 +531,7 @@ class Lutador:
         
         custo_real = skill_info["custo"]
         if "Mago" in self.classe_nome:
-            custo_real *= 0.8
+            custo_real *= ESTAMINA_CUSTO_SKILL_MULT
         
         # CM-15: FP4 — Conjuração Perfeita: custo pela metade durante buff
         for buff in self.buffs_ativos:
@@ -580,7 +617,7 @@ class Lutador:
         if tempo_cast is not None:
             self.cd_skill_arma = max(0.05, tempo_cast)
         else:
-            self.cd_skill_arma = min(cd * 0.20, 0.35)
+            self.cd_skill_arma = min(cd * CD_ARMA_MAX_RATIO, CD_ARMA_MAX_ABSOLUTO)
         
         rad = math.radians(self.angulo_olhar)
         spawn_x = self.pos[0] + math.cos(rad) * 0.6
@@ -1126,31 +1163,42 @@ class Lutador:
                 self.dots_ativos.remove(dot)
         # Sincroniza status_effects com dots_ativos para brain.py / magic_system
         # Cria objetos leves com atributos esperados pelo brain
+        # A05: usa StatusSnapshot em vez de type() anônimo — mais rápido e tipado
         self.status_effects = [
-            type('SE', (), {
-                'nome': dot.tipo,
-                'mod_velocidade': 1.0,
-                'mod_dano_causado': 1.0,
-                'mod_dano_recebido': 1.0,
-                'pode_mover': True,
-                'pode_atacar': True,
-                'dano_por_tick': dot.dano_por_tick,
-            })()
+            StatusSnapshot(nome=dot.tipo, dano_por_tick=dot.dano_por_tick)
             for dot in self.dots_ativos
         ]
         # Adiciona CCs ativos (stun, slow, congelado)
         if self.stun_timer > 0:
-            self.status_effects.append(type('SE', (), {
-                'nome': 'congelado' if getattr(self, 'congelado', False) else 'atordoado',
-                'mod_velocidade': 0.0, 'mod_dano_causado': 1.0, 'mod_dano_recebido': 1.0,
-                'pode_mover': False, 'pode_atacar': False, 'dano_por_tick': 0,
-            })())
+            self.status_effects.append(StatusSnapshot(
+                nome='congelado' if getattr(self, 'congelado', False) else 'atordoado',
+                mod_velocidade=0.0, pode_mover=False, pode_atacar=False,
+            ))
         elif self.slow_timer > 0:
-            self.status_effects.append(type('SE', (), {
-                'nome': 'lento',
-                'mod_velocidade': self.slow_fator, 'mod_dano_causado': 1.0, 'mod_dano_recebido': 1.0,
-                'pode_mover': True, 'pode_atacar': True, 'dano_por_tick': 0,
-            })())
+            self.status_effects.append(StatusSnapshot(
+                nome='lento',
+                mod_velocidade=self.slow_fator,
+            ))
+
+        # D02: sincroniza cc_effects com os CCs de controle de grupo ativos
+        # (float timers continuam sendo a fonte de verdade; cc_effects é observável)
+        cc = []
+        if self.stun_timer > 0:
+            cc.append(StatusSnapshot(
+                nome='congelado' if getattr(self, 'congelado', False) else 'atordoado',
+                mod_velocidade=0.0, pode_mover=False, pode_atacar=False,
+            ))
+        elif self.slow_timer > 0:
+            cc.append(StatusSnapshot(nome='lento', mod_velocidade=self.slow_fator))
+        if getattr(self, 'enraizado_timer', 0) > 0:
+            cc.append(StatusSnapshot(nome='enraizado', mod_velocidade=0.0, pode_mover=False))
+        if getattr(self, 'silenciado_timer', 0) > 0:
+            cc.append(StatusSnapshot(nome='silenciado', pode_usar_skill=False))
+        if getattr(self, 'cego_timer', 0) > 0:
+            cc.append(StatusSnapshot(nome='cego'))
+        if getattr(self, 'medo_timer', 0) > 0:
+            cc.append(StatusSnapshot(nome='medo'))
+        self.cc_effects = cc
     
     def _atualizar_dash_trail(self, dt):
         """Fade do trail de dash"""
@@ -1356,7 +1404,7 @@ class Lutador:
         # do combate. Agora, se nenhum elif matchou (ação desconhecida ou NEUTRO),
         # aplica uma aproximação leve para que o personagem nunca fique completamente
         # imóvel durante o primeiro timer_decisao.
-        if mx == 0 and my == 0 and acao not in ("NEUTRO", "BLOQUEAR"):
+        if mx == 0 and my == 0 and acao != "BLOQUEAR":
             # Ação não reconhecida — aproxima levemente para evitar paralisia
             mx = math.cos(rad) * 0.3
             my = math.sin(rad) * 0.3
@@ -1462,11 +1510,11 @@ class Lutador:
             
             # Ajustes APENAS para armas ranged (não sobrescreve corpo-a-corpo!)
             if arma_tipo == "Arco":
-                alcance_ataque = 20.0  # Arco: MUITO alcance (20 metros!)
+                alcance_ataque = 14.0
             elif arma_tipo == "Arremesso":
-                alcance_ataque = 12.0  # Arremesso: alcance médio
+                alcance_ataque = 10.0
             elif arma_tipo == "Mágica":
-                alcance_ataque = 8.0
+                alcance_ataque = 7.0
             # Para armas corpo-a-corpo (incluindo Dupla), usa o cálculo baseado no profile
             
             # Verifica se deve atacar
@@ -1481,7 +1529,7 @@ class Lutador:
             if arma_tipo in ["Arremesso", "Arco"] and distancia < alcance_ataque:
                 # Arqueiros atiram mesmo fugindo (desde que não esteja em cooldown)
                 if self.brain.acao_atual in ["RECUAR", "FUGIR", "APROXIMAR"]:
-                    if random.random() < 0.7:  # 70% chance de atirar mesmo recuando
+                    if random.random() < 0.25:
                         deve_atacar = True
 
             if deve_atacar and abs(self.z - inimigo.z) < 1.5:
@@ -1509,17 +1557,17 @@ class Lutador:
                 if arma_tipo == "Arremesso":
                     # v15.0: volleys consecutivas ficam mais rápidas
                     self.throw_consecutive += 1
-                    base_cd = max(0.4, 0.8 - self.throw_consecutive * 0.05) + random.random() * 0.3
+                    base_cd = max(0.55, 1.05 - self.throw_consecutive * 0.04) + random.random() * 0.35
                     if self.throw_consecutive >= 5:
                         self.throw_consecutive = 0  # Reset após volley longa
                 elif arma_tipo == "Arco":
                     # v15.0: tiros consecutivos mantêm ritmo, charge bonus
                     charge_bonus = min(0.3, self.bow_charge * 0.2) if self.bow_charge > 0 else 0
-                    base_cd = max(0.5, 0.8 - charge_bonus) + random.random() * 0.3
+                    base_cd = max(0.85, 1.25 - charge_bonus * 0.7) + random.random() * 0.35
                     self.bow_charge = 0.0
                     self.bow_charging = False
                 elif arma_tipo == "Mágica":
-                    base_cd = 1.0 + random.random() * 0.5
+                    base_cd = 1.35 + random.random() * 0.65
                 if "Assassino" in self.classe_nome or "Ninja" in self.classe_nome:
                     base_cd *= 0.7
                 elif "Colosso" in self.brain.arquetipo:
@@ -2318,6 +2366,12 @@ class Lutador:
             fut_y = alvo.pos[1] + alvo.vel[1] * tempo_voo * 0.5
             angulo_base = math.degrees(math.atan2(fut_y - self.pos[1], fut_x - self.pos[0]))
         
+        dist_atual = math.hypot(alvo.pos[0] - self.pos[0], alvo.pos[1] - self.pos[1])
+        if dist_atual < 2.5:
+            dano_mult *= 0.82
+        elif dist_atual > 8.5:
+            dano_mult *= 1.02
+
         for i in range(qtd):
             if qtd > 1:
                 offset = -spread / 2 + (spread / (qtd - 1)) * i
@@ -2403,6 +2457,12 @@ class Lutador:
         
         # Imprecisão menor com charge (mais focado)
         imprecisao = max(0.5, 2.0 - charge_pct * 1.0)
+        # Em curta distância, arqueiro sob pressão perde precisão e dano.
+        if dist < 3.0:
+            imprecisao += 2.8
+            dano *= 0.55
+        elif dist > 9.5:
+            dano *= 1.03
         angulo_mira += random.uniform(-imprecisao, imprecisao)
         
         # === SPAWN DA FLECHA ===
@@ -2452,6 +2512,12 @@ class Lutador:
         
         orbes_orbitando = [o for o in self.buffer_orbes if o.ativo and o.estado == "orbitando"]
         
+        dist_atual = math.hypot(alvo.pos[0] - self.pos[0], alvo.pos[1] - self.pos[1])
+        if dist_atual < 2.2:
+            mana_mult *= 0.66
+        elif dist_atual > 6.5:
+            mana_mult *= 1.02
+
         if orbes_orbitando:
             # --- Salva: dispara todos de uma vez ao invés de um por um ---
             for orbe in orbes_orbitando[:qtd]:
@@ -2639,6 +2705,18 @@ class Lutador:
             self.morrer()
             return True
         return False
+
+    def aplicar_cc(self, efeito: str, duracao: float = None, intensidade: float = 1.0) -> None:
+        """
+        D02: Ponto de entrada PÚBLICO para aplicar qualquer CC ou status.
+        Alias de _aplicar_efeito_status() — garante que todo código novo
+        use este método, facilitando a migração futura para StatusEffect.
+
+        Exemplos:
+            lutador.aplicar_cc("LENTO", duracao=2.0)
+            lutador.aplicar_cc("CONGELADO", duracao=1.5, intensidade=1.2)
+        """
+        self._aplicar_efeito_status(efeito, duracao=duracao, intensidade=intensidade)
 
     def _aplicar_efeito_status(self, efeito, duracao=None, intensidade=1.0):
         """

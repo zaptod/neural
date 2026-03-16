@@ -8,35 +8,38 @@
 # Interface gráfica do simulador de combate
 pygame>=2.5.0
 
-# Interface gráfica do menu principal (Tkinter já vem com Python)
-# tkinter (built-in)
-
 # Interface moderna para o modo torneio
 customtkinter>=5.2.0
 
-# === OPTIONAL DEPENDENCIES ===
+# === VIDEO PIPELINE DEPENDENCIES ===
+# Necessárias para gravar lutas em vídeo (video_pipeline/)
+# Instalar com: pip install -r requirements.txt -r requirements-video.txt
+#               ou: pip install -e ".[video]"  (via pyproject.toml)
+opencv-python>=4.8.0
+numpy>=1.24.0
 
-# Para desenvolvimento e testes
+# === DEVELOPMENT DEPENDENCIES ===
+# Instalar com: pip install -e ".[dev]"  (via pyproject.toml)
 # pytest>=7.0.0
 # pytest-cov>=4.0.0
 
-# Para análise de performance (opcional)
+# === OPTIONAL (análise de performance) ===
 # line_profiler>=4.0.0
 # memory_profiler>=0.60.0
 
 # === NOTES ===
-# 
-# Instalação:
+#
+# Instalação rápida (jogo apenas):
+#   pip install pygame customtkinter
+#
+# Instalação completa:
 #   pip install -r requirements.txt
 #
-# Ou instalação mínima:
-#   pip install pygame customtkinter
+# Instalação como pacote (recomendado para dev):
+#   pip install -e ".[dev,video]"
 #
 # Executar o jogo:
 #   python run.py
 #
 # Executar modo torneio:
 #   python run_tournament.py
-#
-# Gerar nova database de armas/personagens:
-#   python -c "from tools.gerador_database import gerar_database_completa; gerar_database_completa()"

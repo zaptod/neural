@@ -1,0 +1,1931 @@
+[
+  {
+    "nome": "Adaga Raro",
+    "tipo": "Leve",
+    "dano": 4.14,
+    "peso": 0.95,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 150,
+    "g": 221,
+    "b": 223,
+    "estilo": "Adaga Estilo 3",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 89",
+        "custo": 35.91555675932389
+      },
+      {
+        "nome": "Habilidade 79",
+        "custo": 34.975957459897245
+      }
+    ],
+    "encantamentos": [
+      "Gelo",
+      "Fogo",
+      "Dano"
+    ],
+    "passiva": null,
+    "critico": 12.94,
+    "velocidade_ataque": 1.41,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 39",
+    "custo_mana": 50.8380571373474
+  },
+  {
+    "nome": "Machado Incomum",
+    "tipo": "Pesada",
+    "dano": 6.64,
+    "peso": 2.32,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 189,
+    "g": 56,
+    "b": 147,
+    "estilo": "Machado Estilo 1",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 65",
+        "custo": 52.60751443958341
+      }
+    ],
+    "encantamentos": [
+      "Fogo",
+      "Bênção",
+      "Trevas"
+    ],
+    "passiva": {
+      "nome": "Passiva 100",
+      "efeito": "dano",
+      "valor": 12,
+      "descricao": "+17% algum efeito"
+    },
+    "critico": 8.72,
+    "velocidade_ataque": 0.85,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 94",
+    "custo_mana": 50.1941121047314
+  },
+  {
+    "nome": "Adaga Incomum",
+    "tipo": "Leve",
+    "dano": 4.13,
+    "peso": 0.86,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 85,
+    "g": 130,
+    "b": 114,
+    "estilo": "Adaga Estilo 3",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 17",
+        "custo": 58.847853366749234
+      },
+      {
+        "nome": "Habilidade 32",
+        "custo": 34.75554317519001
+      }
+    ],
+    "encantamentos": [
+      "Bênção",
+      "Recarga"
+    ],
+    "passiva": {
+      "nome": "Passiva 92",
+      "efeito": "dano",
+      "valor": 26,
+      "descricao": "+28% algum efeito"
+    },
+    "critico": 12.97,
+    "velocidade_ataque": 1.45,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 11",
+    "custo_mana": 46.70839496611551
+  },
+  {
+    "nome": "Arco Comum",
+    "tipo": "Arco",
+    "dano": 6.37,
+    "peso": 4.34,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 7.781335745587907,
+    "forma_atual": 1,
+    "r": 86,
+    "g": 252,
+    "b": 251,
+    "estilo": "Arco Estilo 2",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 6",
+        "custo": 43.76121559288085
+      }
+    ],
+    "encantamentos": [
+      "Execução",
+      "Velocidade"
+    ],
+    "passiva": null,
+    "critico": 4.02,
+    "velocidade_ataque": 0.98,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 89",
+    "custo_mana": 48.66572234967534
+  },
+  {
+    "nome": "Arco Incomum",
+    "tipo": "Arco",
+    "dano": 6.71,
+    "peso": 4.03,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 7.650459146905594,
+    "forma_atual": 1,
+    "r": 55,
+    "g": 162,
+    "b": 63,
+    "estilo": "Arco Estilo 3",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 14",
+        "custo": 31.957067256905287
+      },
+      {
+        "nome": "Habilidade 3",
+        "custo": 38.08078800462609
+      }
+    ],
+    "encantamentos": [
+      "Trevas"
+    ],
+    "passiva": {
+      "nome": "Passiva 58",
+      "efeito": "dano",
+      "valor": 14,
+      "descricao": "+10% algum efeito"
+    },
+    "critico": 3.99,
+    "velocidade_ataque": 0.95,
+    "afinidade_elemento": "RAIO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 31",
+    "custo_mana": 35.301768425245
+  },
+  {
+    "nome": "Adaga Lendário",
+    "tipo": "Leve",
+    "dano": 3.7,
+    "peso": 0.9,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 188,
+    "g": 67,
+    "b": 243,
+    "estilo": "Adaga Estilo 5",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 37",
+        "custo": 38.77054885565727
+      }
+    ],
+    "encantamentos": [
+      "Trevas",
+      "Gelo",
+      "Velocidade"
+    ],
+    "passiva": {
+      "nome": "Passiva 63",
+      "efeito": "velocidade",
+      "valor": 30,
+      "descricao": "+22% algum efeito"
+    },
+    "critico": 11.24,
+    "velocidade_ataque": 1.35,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 58",
+    "custo_mana": 50.52323797334592
+  },
+  {
+    "nome": "Machado Incomum",
+    "tipo": "Pesada",
+    "dano": 8.28,
+    "peso": 2.7,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 242,
+    "g": 226,
+    "b": 171,
+    "estilo": "Machado Estilo 5",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 42",
+        "custo": 43.81002695617537
+      },
+      {
+        "nome": "Habilidade 87",
+        "custo": 52.895398549210654
+      }
+    ],
+    "encantamentos": [
+      "Maldição",
+      "Bênção",
+      "Gelo"
+    ],
+    "passiva": null,
+    "critico": 8.05,
+    "velocidade_ataque": 0.86,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 76",
+    "custo_mana": 36.548333888335684
+  },
+  {
+    "nome": "Machado Lendário",
+    "tipo": "Pesada",
+    "dano": 8.31,
+    "peso": 2.74,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 241,
+    "g": 96,
+    "b": 104,
+    "estilo": "Machado Estilo 2",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 28",
+        "custo": 55.3185038423403
+      }
+    ],
+    "encantamentos": [
+      "Trevas",
+      "Recarga"
+    ],
+    "passiva": {
+      "nome": "Passiva 26",
+      "efeito": "velocidade",
+      "valor": 28,
+      "descricao": "+17% algum efeito"
+    },
+    "critico": 7.5,
+    "velocidade_ataque": 0.88,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 74",
+    "custo_mana": 33.04504208440709
+  },
+  {
+    "nome": "Lança Comum",
+    "tipo": "Alcance",
+    "dano": 6.31,
+    "peso": 1.62,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 252,
+    "g": 115,
+    "b": 203,
+    "estilo": "Lança Estilo 5",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 92",
+        "custo": 56.81827877222704
+      },
+      {
+        "nome": "Habilidade 58",
+        "custo": 48.13478726911026
+      }
+    ],
+    "encantamentos": [
+      "Maldição",
+      "Execução"
+    ],
+    "passiva": {
+      "nome": "Passiva 35",
+      "efeito": "defesa",
+      "valor": 26,
+      "descricao": "+19% algum efeito"
+    },
+    "critico": 4.03,
+    "velocidade_ataque": 1.0,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 52",
+    "custo_mana": 42.57332239601021
+  },
+  {
+    "nome": "Machado Lendário",
+    "tipo": "Pesada",
+    "dano": 7.47,
+    "peso": 2.3,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 134,
+    "g": 221,
+    "b": 100,
+    "estilo": "Machado Estilo 5",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 79",
+        "custo": 31.243622200391492
+      }
+    ],
+    "encantamentos": [
+      "Dano"
+    ],
+    "passiva": {
+      "nome": "Passiva 16",
+      "efeito": "dano",
+      "valor": 17,
+      "descricao": "+10% algum efeito"
+    },
+    "critico": 7.22,
+    "velocidade_ataque": 0.86,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 31",
+    "custo_mana": 51.68303236023782
+  },
+  {
+    "nome": "Corrente Incomum",
+    "tipo": "Corrente",
+    "dano": 6.61,
+    "peso": 1.99,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 113,
+    "g": 209,
+    "b": 199,
+    "estilo": "Corrente Estilo 2",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 26",
+        "custo": 59.82897674695285
+      },
+      {
+        "nome": "Habilidade 48",
+        "custo": 35.98569363229805
+      }
+    ],
+    "encantamentos": [
+      "Dano",
+      "Recarga",
+      "Crítico"
+    ],
+    "passiva": {
+      "nome": "Passiva 83",
+      "efeito": "resistência",
+      "valor": 22,
+      "descricao": "+18% algum efeito"
+    },
+    "critico": 9.85,
+    "velocidade_ataque": 1.16,
+    "afinidade_elemento": "VENENO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 35",
+    "custo_mana": 47.8893106585032
+  },
+  {
+    "nome": "Arco Incomum",
+    "tipo": "Arco",
+    "dano": 5.12,
+    "peso": 3.66,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 6.288681301685543,
+    "forma_atual": 1,
+    "r": 159,
+    "g": 101,
+    "b": 53,
+    "estilo": "Arco Estilo 3",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 36",
+        "custo": 32.631336748661916
+      }
+    ],
+    "encantamentos": [
+      "Dano"
+    ],
+    "passiva": null,
+    "critico": 4.26,
+    "velocidade_ataque": 0.98,
+    "afinidade_elemento": "RAIO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 99",
+    "custo_mana": 35.08590050150242
+  },
+  {
+    "nome": "Adaga Raro",
+    "tipo": "Leve",
+    "dano": 3.82,
+    "peso": 0.97,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 79,
+    "g": 210,
+    "b": 162,
+    "estilo": "Adaga Estilo 3",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 82",
+        "custo": 36.261704544187666
+      }
+    ],
+    "encantamentos": [
+      "Dano",
+      "Bênção"
+    ],
+    "passiva": null,
+    "critico": 12.6,
+    "velocidade_ataque": 1.36,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 27",
+    "custo_mana": 43.360916344482504
+  },
+  {
+    "nome": "Lança Incomum",
+    "tipo": "Alcance",
+    "dano": 5.42,
+    "peso": 1.46,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 229,
+    "g": 184,
+    "b": 163,
+    "estilo": "Lança Estilo 3",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 45",
+        "custo": 54.652991424615195
+      },
+      {
+        "nome": "Habilidade 80",
+        "custo": 47.907862495667864
+      }
+    ],
+    "encantamentos": [
+      "Crítico"
+    ],
+    "passiva": null,
+    "critico": 4.03,
+    "velocidade_ataque": 0.97,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 56",
+    "custo_mana": 32.12010280685171
+  },
+  {
+    "nome": "Adaga Lendário",
+    "tipo": "Leve",
+    "dano": 3.84,
+    "peso": 0.82,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 160,
+    "g": 199,
+    "b": 135,
+    "estilo": "Adaga Estilo 2",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 24",
+        "custo": 59.50175280577098
+      },
+      {
+        "nome": "Habilidade 11",
+        "custo": 40.92411324197912
+      }
+    ],
+    "encantamentos": [
+      "Trevas"
+    ],
+    "passiva": {
+      "nome": "Passiva 75",
+      "efeito": "velocidade",
+      "valor": 14,
+      "descricao": "+14% algum efeito"
+    },
+    "critico": 11.4,
+    "velocidade_ataque": 1.44,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 96",
+    "custo_mana": 49.15892080907566
+  },
+  {
+    "nome": "Lança Incomum",
+    "tipo": "Alcance",
+    "dano": 5.99,
+    "peso": 1.39,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 253,
+    "g": 59,
+    "b": 221,
+    "estilo": "Lança Estilo 3",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 95",
+        "custo": 42.90471992844976
+      },
+      {
+        "nome": "Habilidade 81",
+        "custo": 36.905178345149324
+      }
+    ],
+    "encantamentos": [
+      "Crítico",
+      "Fogo"
+    ],
+    "passiva": null,
+    "critico": 3.86,
+    "velocidade_ataque": 1.05,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 62",
+    "custo_mana": 42.643245287291734
+  },
+  {
+    "nome": "Lança Incomum",
+    "tipo": "Alcance",
+    "dano": 4.84,
+    "peso": 1.49,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 144,
+    "g": 234,
+    "b": 141,
+    "estilo": "Lança Estilo 3",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 98",
+        "custo": 35.06527710742588
+      },
+      {
+        "nome": "Habilidade 83",
+        "custo": 38.589798605706065
+      }
+    ],
+    "encantamentos": [
+      "Execução"
+    ],
+    "passiva": {
+      "nome": "Passiva 33",
+      "efeito": "velocidade",
+      "valor": 24,
+      "descricao": "+26% algum efeito"
+    },
+    "critico": 3.94,
+    "velocidade_ataque": 1.04,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 29",
+    "custo_mana": 32.607221902574445
+  },
+  {
+    "nome": "Adaga Comum",
+    "tipo": "Leve",
+    "dano": 4.16,
+    "peso": 0.82,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 145,
+    "g": 88,
+    "b": 157,
+    "estilo": "Adaga Estilo 1",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 86",
+        "custo": 58.77230638512753
+      }
+    ],
+    "encantamentos": [
+      "Crítico"
+    ],
+    "passiva": {
+      "nome": "Passiva 26",
+      "efeito": "velocidade",
+      "valor": 20,
+      "descricao": "+20% algum efeito"
+    },
+    "critico": 13.0,
+    "velocidade_ataque": 1.39,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 39",
+    "custo_mana": 45.761058419937214
+  },
+  {
+    "nome": "Machado Épico",
+    "tipo": "Pesada",
+    "dano": 8.2,
+    "peso": 2.71,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 162,
+    "g": 207,
+    "b": 157,
+    "estilo": "Machado Estilo 4",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 27",
+        "custo": 44.06122623477701
+      }
+    ],
+    "encantamentos": [
+      "Trevas",
+      "Bênção",
+      "Maldição"
+    ],
+    "passiva": null,
+    "critico": 8.23,
+    "velocidade_ataque": 0.89,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 13",
+    "custo_mana": 30.201777296816562
+  },
+  {
+    "nome": "Lança Comum",
+    "tipo": "Alcance",
+    "dano": 5.06,
+    "peso": 1.37,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 239,
+    "g": 181,
+    "b": 218,
+    "estilo": "Lança Estilo 2",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 94",
+        "custo": 50.636105734949496
+      }
+    ],
+    "encantamentos": [
+      "Bênção",
+      "Dano",
+      "Execução"
+    ],
+    "passiva": null,
+    "critico": 3.67,
+    "velocidade_ataque": 1.01,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 98",
+    "custo_mana": 43.59202638393936
+  },
+  {
+    "nome": "Lança Épico",
+    "tipo": "Alcance",
+    "dano": 5.81,
+    "peso": 1.49,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 239,
+    "g": 185,
+    "b": 93,
+    "estilo": "Lança Estilo 5",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 4",
+        "custo": 31.817754451235455
+      }
+    ],
+    "encantamentos": [
+      "Maldição",
+      "Execução",
+      "Dano"
+    ],
+    "passiva": null,
+    "critico": 3.65,
+    "velocidade_ataque": 0.98,
+    "afinidade_elemento": "VENENO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 26",
+    "custo_mana": 57.467436894326994
+  },
+  {
+    "nome": "Lança Épico",
+    "tipo": "Alcance",
+    "dano": 6.27,
+    "peso": 1.53,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 114,
+    "g": 236,
+    "b": 94,
+    "estilo": "Lança Estilo 5",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 98",
+        "custo": 56.728295359052396
+      },
+      {
+        "nome": "Habilidade 53",
+        "custo": 50.46158967088871
+      }
+    ],
+    "encantamentos": [
+      "Velocidade",
+      "Trevas"
+    ],
+    "passiva": null,
+    "critico": 3.6,
+    "velocidade_ataque": 1.03,
+    "afinidade_elemento": "GELO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 74",
+    "custo_mana": 53.39858169974127
+  },
+  {
+    "nome": "Lança Raro",
+    "tipo": "Alcance",
+    "dano": 4.7,
+    "peso": 1.43,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 125,
+    "g": 162,
+    "b": 55,
+    "estilo": "Lança Estilo 1",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 48",
+        "custo": 39.96128480337915
+      },
+      {
+        "nome": "Habilidade 100",
+        "custo": 33.13756880015122
+      }
+    ],
+    "encantamentos": [
+      "Gelo",
+      "Maldição",
+      "Trevas"
+    ],
+    "passiva": {
+      "nome": "Passiva 27",
+      "efeito": "resistência",
+      "valor": 26,
+      "descricao": "+18% algum efeito"
+    },
+    "critico": 3.87,
+    "velocidade_ataque": 1.0,
+    "afinidade_elemento": "GELO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 35",
+    "custo_mana": 32.49175607019331
+  },
+  {
+    "nome": "Espada Épico",
+    "tipo": "Reta",
+    "dano": 5.4,
+    "peso": 1.79,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 210,
+    "g": 79,
+    "b": 169,
+    "estilo": "Espada Estilo 2",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 16",
+        "custo": 46.40420162583979
+      }
+    ],
+    "encantamentos": [
+      "Dano",
+      "Velocidade",
+      "Gelo"
+    ],
+    "passiva": {
+      "nome": "Passiva 91",
+      "efeito": "velocidade",
+      "valor": 15,
+      "descricao": "+22% algum efeito"
+    },
+    "critico": 5.0,
+    "velocidade_ataque": 1.05,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 24",
+    "custo_mana": 44.675841491648036
+  },
+  {
+    "nome": "Arco Incomum",
+    "tipo": "Arco",
+    "dano": 5.11,
+    "peso": 4.1,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 7.602456290689885,
+    "forma_atual": 1,
+    "r": 252,
+    "g": 219,
+    "b": 236,
+    "estilo": "Arco Estilo 4",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 67",
+        "custo": 59.415888213695936
+      },
+      {
+        "nome": "Habilidade 1",
+        "custo": 51.17485399176923
+      }
+    ],
+    "encantamentos": [
+      "Recarga"
+    ],
+    "passiva": null,
+    "critico": 4.33,
+    "velocidade_ataque": 0.93,
+    "afinidade_elemento": "VENENO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 6",
+    "custo_mana": 46.80780876686668
+  },
+  {
+    "nome": "Lança Lendário",
+    "tipo": "Alcance",
+    "dano": 5.29,
+    "peso": 1.54,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 117,
+    "g": 50,
+    "b": 135,
+    "estilo": "Lança Estilo 2",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 43",
+        "custo": 59.02147637255731
+      }
+    ],
+    "encantamentos": [
+      "Veneno"
+    ],
+    "passiva": null,
+    "critico": 3.83,
+    "velocidade_ataque": 1.03,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 15",
+    "custo_mana": 44.357803884429345
+  },
+  {
+    "nome": "Machado Lendário",
+    "tipo": "Pesada",
+    "dano": 6.46,
+    "peso": 2.73,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 162,
+    "g": 78,
+    "b": 105,
+    "estilo": "Machado Estilo 1",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 25",
+        "custo": 56.327654429359846
+      },
+      {
+        "nome": "Habilidade 33",
+        "custo": 39.07841372729956
+      }
+    ],
+    "encantamentos": [
+      "Maldição"
+    ],
+    "passiva": null,
+    "critico": 7.89,
+    "velocidade_ataque": 0.82,
+    "afinidade_elemento": "RAIO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 55",
+    "custo_mana": 49.99346671252442
+  },
+  {
+    "nome": "Machado Comum",
+    "tipo": "Pesada",
+    "dano": 6.4,
+    "peso": 2.55,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 186,
+    "g": 96,
+    "b": 217,
+    "estilo": "Machado Estilo 1",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 8",
+        "custo": 36.29739114500669
+      }
+    ],
+    "encantamentos": [
+      "Bênção"
+    ],
+    "passiva": null,
+    "critico": 7.56,
+    "velocidade_ataque": 0.85,
+    "afinidade_elemento": "RAIO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 31",
+    "custo_mana": 53.95631993461974
+  },
+  {
+    "nome": "Espada Incomum",
+    "tipo": "Reta",
+    "dano": 5.51,
+    "peso": 1.78,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 161,
+    "g": 110,
+    "b": 186,
+    "estilo": "Espada Estilo 3",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 77",
+        "custo": 56.87893405080008
+      }
+    ],
+    "encantamentos": [
+      "Veneno",
+      "Recarga"
+    ],
+    "passiva": {
+      "nome": "Passiva 50",
+      "efeito": "velocidade",
+      "valor": 29,
+      "descricao": "+15% algum efeito"
+    },
+    "critico": 5.02,
+    "velocidade_ataque": 1.12,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 67",
+    "custo_mana": 31.413174871120326
+  },
+  {
+    "nome": "Espada Incomum",
+    "tipo": "Reta",
+    "dano": 5.86,
+    "peso": 1.75,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 253,
+    "g": 106,
+    "b": 231,
+    "estilo": "Espada Estilo 1",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 72",
+        "custo": 58.92458243372498
+      }
+    ],
+    "encantamentos": [
+      "Trevas",
+      "Dano",
+      "Fogo"
+    ],
+    "passiva": null,
+    "critico": 5.44,
+    "velocidade_ataque": 1.14,
+    "afinidade_elemento": "LUZ",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 59",
+    "custo_mana": 37.81790367545654
+  },
+  {
+    "nome": "Machado Comum",
+    "tipo": "Pesada",
+    "dano": 8.47,
+    "peso": 2.62,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 251,
+    "g": 156,
+    "b": 121,
+    "estilo": "Machado Estilo 2",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 83",
+        "custo": 51.51501702241518
+      }
+    ],
+    "encantamentos": [
+      "Fogo",
+      "Velocidade",
+      "Dano"
+    ],
+    "passiva": {
+      "nome": "Passiva 48",
+      "efeito": "resistência",
+      "valor": 16,
+      "descricao": "+30% algum efeito"
+    },
+    "critico": 7.88,
+    "velocidade_ataque": 0.83,
+    "afinidade_elemento": "GELO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 8",
+    "custo_mana": 43.76822024796482
+  },
+  {
+    "nome": "Adaga Comum",
+    "tipo": "Leve",
+    "dano": 3.44,
+    "peso": 0.93,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 153,
+    "g": 191,
+    "b": 159,
+    "estilo": "Adaga Estilo 4",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 74",
+        "custo": 48.756745337209566
+      },
+      {
+        "nome": "Habilidade 99",
+        "custo": 33.24044587080138
+      }
+    ],
+    "encantamentos": [
+      "Bênção"
+    ],
+    "passiva": {
+      "nome": "Passiva 7",
+      "efeito": "defesa",
+      "valor": 13,
+      "descricao": "+18% algum efeito"
+    },
+    "critico": 11.3,
+    "velocidade_ataque": 1.38,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 90",
+    "custo_mana": 48.51796596123974
+  },
+  {
+    "nome": "Machado Raro",
+    "tipo": "Pesada",
+    "dano": 6.61,
+    "peso": 2.49,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 66,
+    "g": 104,
+    "b": 98,
+    "estilo": "Machado Estilo 4",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 79",
+        "custo": 55.995908930577734
+      }
+    ],
+    "encantamentos": [
+      "Veneno",
+      "Velocidade",
+      "Fogo"
+    ],
+    "passiva": {
+      "nome": "Passiva 17",
+      "efeito": "defesa",
+      "valor": 29,
+      "descricao": "+22% algum efeito"
+    },
+    "critico": 8.26,
+    "velocidade_ataque": 0.83,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 20",
+    "custo_mana": 44.58758374242821
+  },
+  {
+    "nome": "Espada Épico",
+    "tipo": "Reta",
+    "dano": 5.52,
+    "peso": 1.9,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 137,
+    "g": 132,
+    "b": 91,
+    "estilo": "Espada Estilo 3",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 59",
+        "custo": 52.33148015261522
+      },
+      {
+        "nome": "Habilidade 43",
+        "custo": 56.66287873244464
+      }
+    ],
+    "encantamentos": [
+      "Trevas",
+      "Velocidade"
+    ],
+    "passiva": {
+      "nome": "Passiva 29",
+      "efeito": "defesa",
+      "valor": 15,
+      "descricao": "+16% algum efeito"
+    },
+    "critico": 4.61,
+    "velocidade_ataque": 1.11,
+    "afinidade_elemento": "VENENO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 27",
+    "custo_mana": 32.40503135584809
+  },
+  {
+    "nome": "Arco Raro",
+    "tipo": "Arco",
+    "dano": 6.61,
+    "peso": 4.24,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 6.093917058080447,
+    "forma_atual": 1,
+    "r": 236,
+    "g": 214,
+    "b": 75,
+    "estilo": "Arco Estilo 1",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 5",
+        "custo": 55.23388832380619
+      }
+    ],
+    "encantamentos": [
+      "Bênção"
+    ],
+    "passiva": null,
+    "critico": 3.86,
+    "velocidade_ataque": 0.96,
+    "afinidade_elemento": "GELO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 97",
+    "custo_mana": 33.460921029971765
+  },
+  {
+    "nome": "Corrente Raro",
+    "tipo": "Corrente",
+    "dano": 5.57,
+    "peso": 2.4,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 191,
+    "g": 222,
+    "b": 179,
+    "estilo": "Corrente Estilo 2",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 22",
+        "custo": 50.52157806846736
+      }
+    ],
+    "encantamentos": [
+      "Maldição",
+      "Gelo",
+      "Velocidade"
+    ],
+    "passiva": null,
+    "critico": 10.44,
+    "velocidade_ataque": 1.14,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 44",
+    "custo_mana": 32.67305568954483
+  },
+  {
+    "nome": "Corrente Lendário",
+    "tipo": "Corrente",
+    "dano": 5.79,
+    "peso": 2.16,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 199,
+    "g": 251,
+    "b": 180,
+    "estilo": "Corrente Estilo 1",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 84",
+        "custo": 40.96070407291928
+      },
+      {
+        "nome": "Habilidade 20",
+        "custo": 54.39222968620392
+      }
+    ],
+    "encantamentos": [
+      "Veneno",
+      "Fogo",
+      "Velocidade"
+    ],
+    "passiva": {
+      "nome": "Passiva 71",
+      "efeito": "dano",
+      "valor": 23,
+      "descricao": "+28% algum efeito"
+    },
+    "critico": 9.61,
+    "velocidade_ataque": 1.11,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 10",
+    "custo_mana": 46.024719785286464
+  },
+  {
+    "nome": "Lança Incomum",
+    "tipo": "Alcance",
+    "dano": 5.8,
+    "peso": 1.45,
+    "raridade": "Épico",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 176,
+    "g": 211,
+    "b": 225,
+    "estilo": "Lança Estilo 3",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 50",
+        "custo": 58.598816927888336
+      },
+      {
+        "nome": "Habilidade 52",
+        "custo": 49.315939191368
+      }
+    ],
+    "encantamentos": [
+      "Crítico"
+    ],
+    "passiva": null,
+    "critico": 3.68,
+    "velocidade_ataque": 1.04,
+    "afinidade_elemento": "GELO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 10",
+    "custo_mana": 35.969541423679054
+  },
+  {
+    "nome": "Corrente Raro",
+    "tipo": "Corrente",
+    "dano": 6.1,
+    "peso": 1.99,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 128,
+    "g": 127,
+    "b": 210,
+    "estilo": "Corrente Estilo 1",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 99",
+        "custo": 43.77152216610768
+      }
+    ],
+    "encantamentos": [
+      "Recarga",
+      "Velocidade",
+      "Gelo"
+    ],
+    "passiva": {
+      "nome": "Passiva 57",
+      "efeito": "velocidade",
+      "valor": 28,
+      "descricao": "+11% algum efeito"
+    },
+    "critico": 10.01,
+    "velocidade_ataque": 1.17,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 84",
+    "custo_mana": 52.651283294023244
+  },
+  {
+    "nome": "Adaga Épico",
+    "tipo": "Leve",
+    "dano": 4.59,
+    "peso": 0.89,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 179,
+    "g": 245,
+    "b": 245,
+    "estilo": "Adaga Estilo 2",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 7",
+        "custo": 58.28394445433398
+      }
+    ],
+    "encantamentos": [
+      "Bênção",
+      "Maldição"
+    ],
+    "passiva": {
+      "nome": "Passiva 34",
+      "efeito": "resistência",
+      "valor": 10,
+      "descricao": "+18% algum efeito"
+    },
+    "critico": 12.63,
+    "velocidade_ataque": 1.36,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 99",
+    "custo_mana": 39.38666904051414
+  },
+  {
+    "nome": "Lança Raro",
+    "tipo": "Alcance",
+    "dano": 5.72,
+    "peso": 1.41,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 157,
+    "g": 131,
+    "b": 100,
+    "estilo": "Lança Estilo 5",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 34",
+        "custo": 45.64644301900194
+      }
+    ],
+    "encantamentos": [
+      "Velocidade"
+    ],
+    "passiva": {
+      "nome": "Passiva 20",
+      "efeito": "velocidade",
+      "valor": 28,
+      "descricao": "+11% algum efeito"
+    },
+    "critico": 4.27,
+    "velocidade_ataque": 0.96,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 74",
+    "custo_mana": 34.17359430215949
+  },
+  {
+    "nome": "Arco Incomum",
+    "tipo": "Arco",
+    "dano": 5.12,
+    "peso": 3.95,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 7.799583021887724,
+    "forma_atual": 1,
+    "r": 95,
+    "g": 254,
+    "b": 192,
+    "estilo": "Arco Estilo 5",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 52",
+        "custo": 44.48057720071711
+      },
+      {
+        "nome": "Habilidade 86",
+        "custo": 35.416316960863114
+      }
+    ],
+    "encantamentos": [
+      "Raio"
+    ],
+    "passiva": {
+      "nome": "Passiva 1",
+      "efeito": "resistência",
+      "valor": 21,
+      "descricao": "+17% algum efeito"
+    },
+    "critico": 4.01,
+    "velocidade_ataque": 0.92,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 71",
+    "custo_mana": 31.689184619455798
+  },
+  {
+    "nome": "Adaga Épico",
+    "tipo": "Leve",
+    "dano": 3.72,
+    "peso": 0.96,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 138,
+    "g": 128,
+    "b": 195,
+    "estilo": "Adaga Estilo 4",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 99",
+        "custo": 59.70514717701761
+      }
+    ],
+    "encantamentos": [
+      "Fogo",
+      "Veneno",
+      "Trevas"
+    ],
+    "passiva": {
+      "nome": "Passiva 43",
+      "efeito": "defesa",
+      "valor": 14,
+      "descricao": "+29% algum efeito"
+    },
+    "critico": 12.53,
+    "velocidade_ataque": 1.44,
+    "afinidade_elemento": "ESCURIDÃO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 18",
+    "custo_mana": 39.23069692114862
+  },
+  {
+    "nome": "Corrente Comum",
+    "tipo": "Corrente",
+    "dano": 5.96,
+    "peso": 2.05,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 0,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 94,
+    "g": 67,
+    "b": 236,
+    "estilo": "Corrente Estilo 3",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 72",
+        "custo": 49.46281318771301
+      }
+    ],
+    "encantamentos": [
+      "Gelo",
+      "Fogo",
+      "Dano"
+    ],
+    "passiva": {
+      "nome": "Passiva 8",
+      "efeito": "defesa",
+      "valor": 27,
+      "descricao": "+20% algum efeito"
+    },
+    "critico": 10.9,
+    "velocidade_ataque": 1.17,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 25",
+    "custo_mana": 56.59886584577018
+  },
+  {
+    "nome": "Machado Lendário",
+    "tipo": "Pesada",
+    "dano": 8.17,
+    "peso": 2.51,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 110,
+    "g": 226,
+    "b": 222,
+    "estilo": "Machado Estilo 3",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 48",
+        "custo": 51.489839318389016
+      },
+      {
+        "nome": "Habilidade 78",
+        "custo": 34.42404753881189
+      }
+    ],
+    "encantamentos": [
+      "Recarga"
+    ],
+    "passiva": null,
+    "critico": 8.64,
+    "velocidade_ataque": 0.83,
+    "afinidade_elemento": "GELO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 5",
+    "custo_mana": 33.249478597564526
+  },
+  {
+    "nome": "Machado Raro",
+    "tipo": "Pesada",
+    "dano": 6.75,
+    "peso": 2.48,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 63,
+    "g": 227,
+    "b": 136,
+    "estilo": "Machado Estilo 3",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 100",
+        "custo": 41.84122286102517
+      }
+    ],
+    "encantamentos": [
+      "Fogo"
+    ],
+    "passiva": {
+      "nome": "Passiva 37",
+      "efeito": "defesa",
+      "valor": 23,
+      "descricao": "+18% algum efeito"
+    },
+    "critico": 7.89,
+    "velocidade_ataque": 0.84,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 23",
+    "custo_mana": 30.979400351044784
+  },
+  {
+    "nome": "Arco Lendário",
+    "tipo": "Arco",
+    "dano": 5.14,
+    "peso": 4.08,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 7.706786705838438,
+    "forma_atual": 1,
+    "r": 90,
+    "g": 66,
+    "b": 162,
+    "estilo": "Arco Estilo 5",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 59",
+        "custo": 44.14318044551092
+      },
+      {
+        "nome": "Habilidade 42",
+        "custo": 35.98117758156612
+      }
+    ],
+    "encantamentos": [
+      "Trevas",
+      "Fogo",
+      "Recarga"
+    ],
+    "passiva": null,
+    "critico": 3.93,
+    "velocidade_ataque": 0.91,
+    "afinidade_elemento": "FOGO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 68",
+    "custo_mana": 52.51017537798865
+  },
+  {
+    "nome": "Machado Épico",
+    "tipo": "Pesada",
+    "dano": 8.23,
+    "peso": 2.31,
+    "raridade": "Incomum",
+    "quantidade": 1,
+    "quantidade_orbitais": 1,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 96,
+    "g": 147,
+    "b": 237,
+    "estilo": "Machado Estilo 5",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 18",
+        "custo": 48.19245253264456
+      }
+    ],
+    "encantamentos": [
+      "Dano"
+    ],
+    "passiva": {
+      "nome": "Passiva 87",
+      "efeito": "dano",
+      "valor": 25,
+      "descricao": "+23% algum efeito"
+    },
+    "critico": 8.69,
+    "velocidade_ataque": 0.87,
+    "afinidade_elemento": "GELO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 50",
+    "custo_mana": 55.271543082376596
+  },
+  {
+    "nome": "Lança Incomum",
+    "tipo": "Alcance",
+    "dano": 4.85,
+    "peso": 1.58,
+    "raridade": "Raro",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 245,
+    "g": 223,
+    "b": 87,
+    "estilo": "Lança Estilo 5",
+    "cabo_dano": false,
+    "habilidades": [
+      {
+        "nome": "Habilidade 13",
+        "custo": 45.29246666149993
+      }
+    ],
+    "encantamentos": [
+      "Crítico"
+    ],
+    "passiva": {
+      "nome": "Passiva 57",
+      "efeito": "defesa",
+      "valor": 16,
+      "descricao": "+27% algum efeito"
+    },
+    "critico": 4.27,
+    "velocidade_ataque": 1.04,
+    "afinidade_elemento": "GELO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 86",
+    "custo_mana": 41.329214419250526
+  },
+  {
+    "nome": "Corrente Épico",
+    "tipo": "Corrente",
+    "dano": 7.35,
+    "peso": 2.13,
+    "raridade": "Comum",
+    "quantidade": 1,
+    "quantidade_orbitais": 2,
+    "forca_arco": 0.0,
+    "forma_atual": 1,
+    "r": 248,
+    "g": 188,
+    "b": 192,
+    "estilo": "Corrente Estilo 1",
+    "cabo_dano": true,
+    "habilidades": [
+      {
+        "nome": "Habilidade 51",
+        "custo": 34.82868799642601
+      }
+    ],
+    "encantamentos": [
+      "Bênção",
+      "Trevas",
+      "Veneno"
+    ],
+    "passiva": {
+      "nome": "Passiva 25",
+      "efeito": "defesa",
+      "valor": 12,
+      "descricao": "+25% algum efeito"
+    },
+    "critico": 9.82,
+    "velocidade_ataque": 1.17,
+    "afinidade_elemento": "RAIO",
+    "durabilidade": 100.0,
+    "durabilidade_max": 100.0,
+    "habilidade": "Habilidade 26",
+    "custo_mana": 31.757551946750915
+  }
+]

@@ -1,12 +1,20 @@
 """
-NEURAL FIGHTS - Módulo Database
-Funções de persistência de dados (JSON).
-[PHASE 3] Adicionado hook para sincronização com World Map (WorldStateSync).
+NEURAL FIGHTS - Módulo Database  [LEGADO — C08]
+================================================
+Persistência JSON original do projeto.
+
+⚠️  ATENÇÃO — LEGADO: Este módulo é a camada de dados original (JSON flat-file).
+    A stack atual usa app_state.py (event-bus in-memory) e battle_db.py (SQLite).
+    Novos arquivos NÃO devem importar este módulo.
+    Manter apenas para compatibilidade com código existente até migração completa (Sprint D01).
 """
 import json
+import logging
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+_log = logging.getLogger("database")
 
 from models import Personagem, Arma
 
@@ -28,10 +36,10 @@ def carregar_json(arquivo):
         with open(arquivo, "r", encoding="utf-8") as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        print(f"[Database] JSON inválido em {arquivo}: {e}")
+        _log.error("JSON inválido em %s: %s", arquivo, e)
         return []
     except Exception as e:
-        print(f"[Database] Erro ao ler {arquivo}: {e}")
+        _log.error("Erro ao ler %s: %s", arquivo, e)
         return []
 
 def salvar_json(arquivo, dados):

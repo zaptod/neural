@@ -290,14 +290,14 @@ class WeaponAnalyzer:
         """Tamanho base fixo por tipo (geometria removida — escala vem do personagem em runtime)."""
         # Valores calibrados para personagem padrão (tamanho=1.0, raio_fisico≈0.4m)
         TAMANHOS = {
-            "Reta":          0.80,
-            "Dupla":         0.55,
+            "Reta":          0.95,
+            "Dupla":         0.70,
             "Corrente":      1.60,
             "Arremesso":     0.25,
-            "Arco":          3.20,
-            "Orbital":       0.60,
-            "Mágica":        1.00,
-            "Transformável": 0.75,
+            "Arco":          2.45,
+            "Orbital":       0.95,
+            "Mágica":        0.90,
+            "Transformável": 0.95,
         }
         return TAMANHOS.get(arma.tipo, 0.75)
     

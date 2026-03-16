@@ -85,6 +85,7 @@ class ChoreographyMixin(_AIBrainMixinBase):
             "CONTRA_MATAR": ("MATAR", lambda: (setattr(self, 'raiva', min(1.0, self.raiva + 0.15)),
                                                setattr(self, 'adrenalina', min(1.0, self.adrenalina + 0.2)))),
             "RECUAR": ("RECUAR", None),
+            "FUGIR": ("FUGIR", None),
             "PERSEGUIR": ("APROXIMAR", lambda: setattr(self, 'excitacao', min(1.0, self.excitacao + 0.15))),
             "PRESSIONAR": ("APROXIMAR", None),
             "INTERCEPTAR": ("FLANQUEAR", None),

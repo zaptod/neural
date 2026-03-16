@@ -1,4 +1,4 @@
-"""Auto-generated mixin â€” see scripts/split_simulacao.py"""
+"""Auto-generated mixin â€” gerado por scripts/split_simulacao.py (arquivado em _archive/scripts/)"""
 import pygame
 import logging
 _log = logging.getLogger("simulacao")  # QC-02
@@ -53,8 +53,34 @@ class SimuladorRenderer:
             cls._font_cache[key] = pygame.font.SysFont(name, size, bold=bold)
         return cls._font_cache[key]
 
+    # ── SURFACE CACHE (A01) ─── evita alocar pygame.Surface(SRCALPHA) todo frame
+    # Chave: (width, height, flags). fill() limpa sem realocar memória.
+    _surface_cache: dict = {}
+
+    @classmethod
+    def _get_surface(cls, width: int, height: int, flags: int = 0) -> "pygame.Surface":
+        """Retorna Surface cacheada e limpa (fill transparente). Usar apenas na thread pygame."""
+        key = (width, height, flags)
+        surf = cls._surface_cache.get(key)
+        if surf is None:
+            surf = pygame.Surface((width, height), flags)
+            cls._surface_cache[key] = surf
+        else:
+            surf.fill((0, 0, 0, 0))
+        return surf
+
     def desenhar(self):
-        self.tela.fill(COR_FUNDO)
+        # C03: mistura COR_FUNDO com cor_ambiente da arena para luz ambiente perceptível
+        fundo = COR_FUNDO
+        if self.arena and hasattr(self.arena, 'config'):
+            ca = self.arena.config.cor_ambiente  # e.g. (10, 30, 10)
+            if ca and any(c > 0 for c in ca):
+                fundo = (
+                    min(255, COR_FUNDO[0] + ca[0]),
+                    min(255, COR_FUNDO[1] + ca[1]),
+                    min(255, COR_FUNDO[2] + ca[2]),
+                )
+        self.tela.fill(fundo)
         
         # === DESENHA ARENA v9.0 (ANTES DE TUDO) ===
         if self.arena:
@@ -79,13 +105,13 @@ class SimuladorRenderer:
                         
                         # Múltiplas camadas para glow dramático
                         # Camada externa (glow)
-                        s_glow = pygame.Surface((ar*4, ar*4), pygame.SRCALPHA)
+                        s_glow = self._get_surface(ar*4, ar*4, pygame.SRCALPHA)
                         glow_alpha = int(30 + 20 * math.sin(pulse_time * 4))
                         pygame.draw.circle(s_glow, (*area.cor[:3], glow_alpha), (ar*2, ar*2), ar*2)
                         self.tela.blit(s_glow, (ax - ar*2, ay - ar*2))
                         
                         # Camada média
-                        s = pygame.Surface((ar*2, ar*2), pygame.SRCALPHA)
+                        s = self._get_surface(ar*2, ar*2, pygame.SRCALPHA)
                         cor_com_alpha = (*area.cor[:3], min(255, area.alpha // 3))
                         pygame.draw.circle(s, cor_com_alpha, (ar, ar), ar_pulsing)
                         self.tela.blit(s, (ax - ar, ay - ar))
@@ -97,7 +123,7 @@ class SimuladorRenderer:
                             ring_r = int(ar * ring_pulse)
                             if ring_r > 2 and ring_r < ar:
                                 ring_alpha = int(150 * (1 - ring_pulse))
-                                s_ring = pygame.Surface((ring_r*2+4, ring_r*2+4), pygame.SRCALPHA)
+                                s_ring = self._get_surface(ring_r*2+4, ring_r*2+4, pygame.SRCALPHA)
                                 pygame.draw.circle(s_ring, (*area.cor[:3], ring_alpha), (ring_r+2, ring_r+2), ring_r, 2)
                                 self.tela.blit(s_ring, (ax - ring_r - 2, ay - ring_r - 2))
                         
@@ -106,7 +132,7 @@ class SimuladorRenderer:
                         # Core brilhante
                         inner_r = int(ar * 0.3)
                         if inner_r > 2:
-                            s_core = pygame.Surface((inner_r*2+4, inner_r*2+4), pygame.SRCALPHA)
+                            s_core = self._get_surface(inner_r*2+4, inner_r*2+4, pygame.SRCALPHA)
                             pygame.draw.circle(s_core, (255, 255, 255, 80), (inner_r+2, inner_r+2), inner_r)
                             self.tela.blit(s_core, (ax - inner_r - 2, ay - inner_r - 2))
         
@@ -134,7 +160,7 @@ class SimuladorRenderer:
                         h = int(max_y - min_y + 1)
                         
                         if w > 0 and h > 0:
-                            s = pygame.Surface((w, h), pygame.SRCALPHA)
+                            s = self._get_surface(w, h, pygame.SRCALPHA)
                             local_pts = [(int(p[0] - min_x), int(p[1] - min_y)) for p in pts_screen]
                             
                             # Glow externo (muito largo, semi-transparente)
@@ -174,7 +200,7 @@ class SimuladorRenderer:
             life_alpha = max(0, min(255, int(255 * max(0, p.vida))))
             if tam > 3:
                 surf_size = int(tam * 3) + 6
-                s = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+                s = self._get_surface(surf_size, surf_size, pygame.SRCALPHA)
                 c = surf_size // 2
                 # Glow externo suave
                 glow_a = max(0, min(255, life_alpha // 4))
@@ -187,7 +213,7 @@ class SimuladorRenderer:
                 pygame.draw.circle(s, (255, 255, 255, hot_a), (c, c), max(1, int(tam * 0.3)))
                 self.tela.blit(s, (sx - c, sy - c))
             elif tam > 1:
-                s = pygame.Surface((6, 6), pygame.SRCALPHA)
+                s = self._get_surface(6, 6, pygame.SRCALPHA)
                 pygame.draw.circle(s, (*p.cor[:3], life_alpha), (3, 3), max(1, int(tam)))
                 self.tela.blit(s, (sx - 3, sy - 3))
             else:
@@ -204,7 +230,7 @@ class SimuladorRenderer:
                     # Círculo mágico no chão (rotacionando)
                     rotacao = pulse_time * 2
                     circle_r = int(raio * 1.5)
-                    s_circle = pygame.Surface((circle_r*2+4, circle_r*2+4), pygame.SRCALPHA)
+                    s_circle = self._get_surface(circle_r*2+4, circle_r*2+4, pygame.SRCALPHA)
                     pygame.draw.circle(s_circle, (*summon.cor, 60), (circle_r+2, circle_r+2), circle_r, 2)
                     for i in range(8):
                         ang = rotacao + i * (math.pi / 4)
@@ -223,7 +249,7 @@ class SimuladorRenderer:
                     # Glow exterior pulsante
                     glow_pulse = 0.8 + 0.4 * math.sin(pulse_time * 5 + summon.vida_timer)
                     sr4 = max(1, int(raio*4))
-                    s = pygame.Surface((sr4, sr4), pygame.SRCALPHA)
+                    s = self._get_surface(sr4, sr4, pygame.SRCALPHA)
                     glow_alpha = int((60 + 40 * math.sin(summon.vida_timer * 3)) * glow_pulse)
                     pygame.draw.circle(s, (*summon.cor, glow_alpha), (sr4//2, sr4//2), int(raio * 1.8 * glow_pulse))
                     self.tela.blit(s, (sx - sr4//2, sy - sr4//2))
@@ -233,7 +259,7 @@ class SimuladorRenderer:
                         flash_cor = getattr(summon, 'flash_cor', (255, 255, 255))
                         flash_alpha = int(200 * (summon.flash_timer / 0.15))
                         sr3 = max(1, int(raio*3))
-                        s_flash = pygame.Surface((sr3, sr3), pygame.SRCALPHA)
+                        s_flash = self._get_surface(sr3, sr3, pygame.SRCALPHA)
                         pygame.draw.circle(s_flash, (*flash_cor, min(255, flash_alpha)), (sr3//2, sr3//2), int(raio * 1.2))
                         self.tela.blit(s_flash, (sx - sr3//2, sy - sr3//2))
                     
@@ -277,7 +303,7 @@ class SimuladorRenderer:
                         flash_cor = getattr(trap, 'flash_cor', (255, 255, 255))
                         flash_alpha = int(200 * (trap.flash_timer / 0.15))
                         tf4 = max(1, int(traio*4))
-                        s_flash = pygame.Surface((tf4, tf4), pygame.SRCALPHA)
+                        s_flash = self._get_surface(tf4, tf4, pygame.SRCALPHA)
                         pygame.draw.circle(s_flash, (*flash_cor, min(255, flash_alpha)), (tf4//2, tf4//2), int(traio * 1.5))
                         self.tela.blit(s_flash, (tx - tf4//2, ty - tf4//2))
                     
@@ -291,7 +317,7 @@ class SimuladorRenderer:
                         
                         # Corpo semi-transparente
                         sw = max(1, int(traio*2+4))
-                        s_wall = pygame.Surface((sw, sw), pygame.SRCALPHA)
+                        s_wall = self._get_surface(sw, sw, pygame.SRCALPHA)
                         pts_local = [(p[0] - tx + sw//2, p[1] - ty + sw//2) for p in pts]
                         alpha_wall = int(180 * vida_pct + 60)
                         pygame.draw.polygon(s_wall, (*trap.cor, alpha_wall), pts_local)
@@ -318,7 +344,7 @@ class SimuladorRenderer:
                             # Explodindo! Flash brilhante
                             exp_alpha = int(200 * (trap.vida_timer / 0.5)) if trap.vida_timer > 0 else 0
                             te4 = max(1, int(traio*4))
-                            s_exp = pygame.Surface((te4, te4), pygame.SRCALPHA)
+                            s_exp = self._get_surface(te4, te4, pygame.SRCALPHA)
                             pygame.draw.circle(s_exp, (*trap.cor, min(255, exp_alpha)), (te4//2, te4//2), int(traio * 2))
                             self.tela.blit(s_exp, (tx - te4//2, ty - te4//2))
                         else:
@@ -327,7 +353,7 @@ class SimuladorRenderer:
                             trap_r = max(1, int(traio * trap_pulse))
                             
                             # Círculo semi-transparente
-                            s = pygame.Surface((trap_r*2+4, trap_r*2+4), pygame.SRCALPHA)
+                            s = self._get_surface(trap_r*2+4, trap_r*2+4, pygame.SRCALPHA)
                             pygame.draw.circle(s, (*trap.cor, 80), (trap_r+2, trap_r+2), trap_r)
                             self.tela.blit(s, (tx - trap_r - 2, ty - trap_r - 2))
                             
@@ -385,7 +411,7 @@ class SimuladorRenderer:
             glow_pulse = 0.8 + 0.4 * math.sin(pulse_time * 10 + id(proj) % 100)
             glow_r = int(pr * 2 * glow_pulse)
             if glow_r > 3:
-                s = pygame.Surface((glow_r*2+4, glow_r*2+4), pygame.SRCALPHA)
+                s = self._get_surface(glow_r*2+4, glow_r*2+4, pygame.SRCALPHA)
                 pygame.draw.circle(s, (*cor[:3], 60), (glow_r+2, glow_r+2), glow_r)
                 self.tela.blit(s, (px - glow_r - 2, py - glow_r - 2))
             
@@ -618,14 +644,14 @@ class SimuladorRenderer:
                     for part in orbe.particulas:
                         ppx, ppy = self.cam.converter(part['x'] * PPM, part['y'] * PPM)
                         palpha = int(255 * (part['vida'] / 0.3))
-                        s = pygame.Surface((6, 6), pygame.SRCALPHA)
+                        s = self._get_surface(6, 6, pygame.SRCALPHA)
                         pygame.draw.circle(s, (*part['cor'], palpha), (3, 3), 3)
                         self.tela.blit(s, (ppx - 3, ppy - 3))
                     
                     # Glow externo
                     glow_size = int(or_visual * 2.5)
                     if glow_size > 2:
-                        s = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
+                        s = self._get_surface(glow_size * 2, glow_size * 2, pygame.SRCALPHA)
                         # Pulso de brilho
                         pulso = 0.7 + 0.3 * math.sin(orbe.pulso)
                         glow_alpha = int(100 * pulso)
@@ -724,7 +750,7 @@ class SimuladorRenderer:
                 min_y, max_y = int(min(ys)) - 2, int(max(ys)) + 2
                 sw = max(1, max_x - min_x); sh = max(1, max_y - min_y)
                 if sw < 2000 and sh < 2000:  # sanity cap
-                    s = pygame.Surface((sw, sh), pygame.SRCALPHA)
+                    s = self._get_surface(sw, sh, pygame.SRCALPHA)
                     local_pts = [(p[0] - min_x, p[1] - min_y) for p in pts_rastro]
                     pygame.draw.polygon(s, cor_rastro, local_pts)
                     self.tela.blit(s, (min_x, min_y))
@@ -741,7 +767,7 @@ class SimuladorRenderer:
         if not hasattr(self, '_shadow_cache'):
             self._shadow_cache = {}
         if sombra_d not in self._shadow_cache:
-            ss = pygame.Surface((sombra_d, sombra_d), pygame.SRCALPHA)
+            ss = self._get_surface(sombra_d, sombra_d, pygame.SRCALPHA)
             pygame.draw.ellipse(ss, (0,0,0,80), (0, 0, sombra_d, sombra_d))
             self._shadow_cache[sombra_d] = ss
         sombra = self._shadow_cache[sombra_d]
@@ -789,12 +815,60 @@ class SimuladorRenderer:
             largura = max(1, self.cam.converter_tam(2))
         
         pygame.draw.circle(self.tela, contorno, centro, raio, largura)
+
+        # === Sprint3: EMOÇÕES → CONTORNOS SECUNDÁRIOS ===
+        # raiva alta → anel vermelho pulsante (fora do contorno principal)
+        # medo alto  → anel azul frio
+        # As emoções eram calculadas a cada frame mas não tinham nenhum output visual.
+        brain = getattr(l, 'brain', None)
+        if brain is not None and not l.morto:
+            pulso = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 120)
+            raiva_val  = getattr(brain, 'raiva', 0.0)
+            medo_val   = getattr(brain, 'medo', 0.0)
+            excit_val  = getattr(brain, 'excitacao', 0.0)
+
+            if raiva_val > 0.55:
+                # Anel vermelho — intensidade proporcional à raiva
+                ring_alpha = int(min(200, raiva_val * 160 * pulso))
+                ring_r = max(1, raio + self.cam.converter_tam(4))
+                ring_w = max(1, self.cam.converter_tam(3))
+                s_ring = self._get_surface(ring_r * 2 + ring_w * 2, ring_r * 2 + ring_w * 2, pygame.SRCALPHA)
+                pygame.draw.circle(
+                    s_ring, (220, 40, 40, ring_alpha),
+                    (ring_r + ring_w, ring_r + ring_w), ring_r + ring_w // 2, ring_w
+                )
+                self.tela.blit(s_ring, (centro[0] - ring_r - ring_w, centro[1] - ring_r - ring_w))
+
+            elif medo_val > 0.50:
+                # Anel azul frio — trêmulo
+                tremor = int(2 * medo_val * pulso)
+                ring_alpha = int(min(180, medo_val * 140))
+                ring_r = max(1, raio + self.cam.converter_tam(3))
+                ring_w = max(1, self.cam.converter_tam(2))
+                s_ring = self._get_surface(ring_r * 2 + ring_w * 2 + tremor * 2, ring_r * 2 + ring_w * 2 + tremor * 2, pygame.SRCALPHA)
+                pygame.draw.circle(
+                    s_ring, (80, 140, 255, ring_alpha),
+                    (ring_r + ring_w + tremor, ring_r + ring_w + tremor), ring_r + ring_w // 2, ring_w
+                )
+                self.tela.blit(s_ring, (centro[0] - ring_r - ring_w - tremor, centro[1] - ring_r - ring_w - tremor))
+
+            elif excit_val > 0.70:
+                # Anel dourado-branco quando excitado (após combos ou vitórias parciais)
+                ring_alpha = int(min(150, excit_val * 120 * pulso))
+                ring_r = max(1, raio + self.cam.converter_tam(2))
+                ring_w = max(1, self.cam.converter_tam(2))
+                s_ring = self._get_surface(ring_r * 2 + ring_w * 2, ring_r * 2 + ring_w * 2, pygame.SRCALPHA)
+                pygame.draw.circle(
+                    s_ring, (255, 220, 80, ring_alpha),
+                    (ring_r + ring_w, ring_r + ring_w), ring_r + ring_w // 2, ring_w
+                )
+                self.tela.blit(s_ring, (centro[0] - ring_r - ring_w, centro[1] - ring_r - ring_w))
         
         # === EFEITO DE GLOW EM VIDA BAIXA (ADRENALINA) ===
         if l.modo_adrenalina and not l.morto:
             pulso = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() / 150)
             glow_size = int(raio * 1.3)
-            s = pygame.Surface((glow_size * 2, glow_size * 2), pygame.SRCALPHA)
+            s = self._get_surface(glow_size * 2, glow_size * 2, pygame.SRCALPHA)
             glow_alpha = int(60 * pulso)
             pygame.draw.circle(s, (255, 50, 50, glow_alpha), (glow_size, glow_size), glow_size)
             self.tela.blit(s, (centro[0] - glow_size, centro[1] - glow_size))
@@ -849,7 +923,7 @@ class SimuladorRenderer:
         bg_x = tag_x - bg_w // 2
         bg_y = tag_y - padding_y
 
-        bg = pygame.Surface((bg_w, bg_h), pygame.SRCALPHA)
+        bg = self._get_surface(bg_w, bg_h, pygame.SRCALPHA)
         bg.fill((0, 0, 0, 160))
         self.tela.blit(bg, (bg_x, bg_y))
 
@@ -939,7 +1013,7 @@ class SimuladorRenderer:
         surf_size = int(arc_radius * 3.5)
         if surf_size < 10:
             return
-        s = pygame.Surface((surf_size, surf_size), pygame.SRCALPHA)
+        s = self._get_surface(surf_size, surf_size, pygame.SRCALPHA)
         arc_center = (surf_size // 2, surf_size // 2)
         
         # === CAMADA 1: GLOW EXTERNO (amplo e suave) ===
@@ -1416,7 +1490,7 @@ class SimuladorRenderer:
                     if atacando or glow_alpha_base > 50:
                         try:
                             sz = max(8, int(lamina_len * 2))
-                            gs = pygame.Surface((sz * 2, sz * 2), pygame.SRCALPHA)
+                            gs = self._get_surface(sz * 2, sz * 2, pygame.SRCALPHA)
                             mid_x = int((cabo_ex + tip_x) / 2) - sz
                             mid_y = int((cabo_ey + tip_y) / 2) - sz
                             local_s = (sz - int(cabo_ex - mid_x - sz), sz - int(cabo_ey - mid_y - sz))
@@ -1444,7 +1518,7 @@ class SimuladorRenderer:
                     tip_r = max(2, larg - 1)
                     tip_a = int(160 + 80 * math.sin(tempo / 90 + i))
                     try:
-                        ts = pygame.Surface((tip_r * 5, tip_r * 5), pygame.SRCALPHA)
+                        ts = self._get_surface(tip_r * 5, tip_r * 5, pygame.SRCALPHA)
                         pygame.draw.circle(ts, (*cor_clara, tip_a), (tip_r*2, tip_r*2), tip_r * 2)
                         self.tela.blit(ts, (int(tip_x) - tip_r*2, int(tip_y) - tip_r*2))
                     except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -1505,7 +1579,7 @@ class SimuladorRenderer:
                         # Glow na ponta
                         glow_r = max(3, lw)
                         try:
-                            gs = pygame.Surface((glow_r*4, glow_r*4), pygame.SRCALPHA)
+                            gs = self._get_surface(glow_r*4, glow_r*4, pygame.SRCALPHA)
                             pygame.draw.circle(gs, (*cor_clara, int(150+80*pulso)), (glow_r*2, glow_r*2), glow_r*2)
                             self.tela.blit(gs, (int(hook_x)-glow_r*2, int(hook_y)-glow_r*2))
                         except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -1566,7 +1640,7 @@ class SimuladorRenderer:
                         if atacando:
                             try:
                                 sz = int(garra_len * 2.5)
-                                gs = pygame.Surface((sz, sz), pygame.SRCALPHA)
+                                gs = self._get_surface(sz, sz, pygame.SRCALPHA)
                                 pygame.draw.circle(gs, (*cor, int(80*pulso)), (sz//2, sz//2), sz//2)
                                 self.tela.blit(gs, (int(cabo_ex)-sz//2, int(cabo_ey)-sz//2))
                             except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -1644,7 +1718,7 @@ class SimuladorRenderer:
                         glow_a = int(100 + 70 * pulso) if atacando else int(30 + 15 * pulso)
                         try:
                             sz = max(8, int(lamina_len * 2))
-                            gs = pygame.Surface((sz*2, sz*2), pygame.SRCALPHA)
+                            gs = self._get_surface(sz*2, sz*2, pygame.SRCALPHA)
                             mid_x = int((cabo_ex + tip_x) / 2) - sz
                             mid_y = int((cabo_ey + tip_y) / 2) - sz
                             ls = (sz - int(cabo_ex - mid_x - sz), sz - int(cabo_ey - mid_y - sz))
@@ -1768,7 +1842,7 @@ class SimuladorRenderer:
                             t_alpha = int(60 + 80 * (ti / len(trail_pts)))
                             t_r = max(2, int(head_r * (0.3 + 0.4 * ti / len(trail_pts))))
                             try:
-                                ts = pygame.Surface((t_r*2, t_r*2), pygame.SRCALPHA)
+                                ts = self._get_surface(t_r*2, t_r*2, pygame.SRCALPHA)
                                 pygame.draw.circle(ts, (*cor, min(255, t_alpha)), (t_r, t_r), t_r)
                                 self.tela.blit(ts, (int(trail_pts[ti][0])-t_r, int(trail_pts[ti][1])-t_r))
                             except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -1776,7 +1850,7 @@ class SimuladorRenderer:
                     # Glow interno (energia pulsante)
                     glow_r = int(head_r * (1.8 + 0.4 * breath))
                     try:
-                        gs = pygame.Surface((glow_r*2, glow_r*2), pygame.SRCALPHA)
+                        gs = self._get_surface(glow_r*2, glow_r*2, pygame.SRCALPHA)
                         glow_a = int(50 + 40 * breath) if not atacando else int(140 * anim_scale)
                         pygame.draw.circle(gs, (*cor, min(255, glow_a)), (glow_r, glow_r), glow_r)
                         self.tela.blit(gs, (int(hx)-glow_r, int(hy)-glow_r))
@@ -1845,7 +1919,7 @@ class SimuladorRenderer:
                         impact_r = int(head_r * 2.5 * ring_prog)
                         if impact_r > 3:
                             try:
-                                irs = pygame.Surface((impact_r*2+4, impact_r*2+4), pygame.SRCALPHA)
+                                irs = self._get_surface(impact_r*2+4, impact_r*2+4, pygame.SRCALPHA)
                                 ring_a = int(180 * (1 - ring_prog * 0.7))
                                 pygame.draw.circle(irs, (*cor_raridade, ring_a),
                                     (impact_r+2, impact_r+2), impact_r, max(2, larg_base//2))
@@ -1857,7 +1931,7 @@ class SimuladorRenderer:
                         rar_a = int(80 + 60 * pulso)
                         rar_r = head_r + int(head_r * 0.6 * breath)
                         try:
-                            rs = pygame.Surface((rar_r*4, rar_r*4), pygame.SRCALPHA)
+                            rs = self._get_surface(rar_r*4, rar_r*4, pygame.SRCALPHA)
                             pygame.draw.circle(rs, (*cor_raridade, rar_a), (rar_r*2, rar_r*2), rar_r)
                             self.tela.blit(rs, (int(hx)-rar_r*2, int(hy)-rar_r*2))
                         except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -1904,7 +1978,7 @@ class SimuladorRenderer:
                     # Aura de fogo
                     fire_r = int(head_r * (2.2 + 0.5 * pulso))
                     try:
-                        fs = pygame.Surface((fire_r*2, fire_r*2), pygame.SRCALPHA)
+                        fs = self._get_surface(fire_r*2, fire_r*2, pygame.SRCALPHA)
                         pygame.draw.circle(fs, (255, 80, 20, int(60 + 40*pulso)), (fire_r, fire_r), fire_r)
                         pygame.draw.circle(fs, (255, 160, 40, int(40 + 30*pulso)), (fire_r, fire_r), int(fire_r*0.7))
                         self.tela.blit(fs, (int(mx)-fire_r, int(my)-fire_r))
@@ -1922,7 +1996,7 @@ class SimuladorRenderer:
                         f_y = my + math.sin(f_ang) * f_dist
                         f_size = max(2, int(head_r * 0.35))
                         try:
-                            fs = pygame.Surface((f_size*2, f_size*2), pygame.SRCALPHA)
+                            fs = self._get_surface(f_size*2, f_size*2, pygame.SRCALPHA)
                             pygame.draw.circle(fs, (255, 120+int(80*pulso), 20, int(150+50*pulso)), (f_size, f_size), f_size)
                             self.tela.blit(fs, (int(f_x)-f_size, int(f_y)-f_size))
                         except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -2100,7 +2174,7 @@ class SimuladorRenderer:
                     # Glow de ataque
                     if atacando:
                         try:
-                            gs = pygame.Surface((r2*4, r2*4), pygame.SRCALPHA)
+                            gs = self._get_surface(r2*4, r2*4, pygame.SRCALPHA)
                             pygame.draw.circle(gs, (*cor, int(80*pulso)), (r2*2,r2*2), r2*2)
                             self.tela.blit(gs, (int(px)-r2*2, int(py)-r2*2))
                         except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -2287,7 +2361,7 @@ class SimuladorRenderer:
                     except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
                     if raridade not in ['Comum']:
                         try:
-                            gs = pygame.Surface((tam_orbe*4, tam_orbe*4), pygame.SRCALPHA)
+                            gs = self._get_surface(tam_orbe*4, tam_orbe*4, pygame.SRCALPHA)
                             pygame.draw.circle(gs, (*cor_raridade, int(60*pulso)), (tam_orbe*2,tam_orbe*2), tam_orbe*2)
                             self.tela.blit(gs, (int(ox)-tam_orbe*2, int(oy)-tam_orbe*2))
                         except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -2309,7 +2383,7 @@ class SimuladorRenderer:
                     thrust_y = int(oy + math.sin(ang+math.pi)*tam_orbe*1.4)
                     pygame.draw.line(self.tela, (100,180,255), (int(ox),int(oy)), (thrust_x,thrust_y), max(2,larg_base-1))
                     try:
-                        gs = pygame.Surface((8,8), pygame.SRCALPHA)
+                        gs = self._get_surface(8,8, pygame.SRCALPHA)
                         pygame.draw.circle(gs, (100,180,255,int(120*pulso)), (4,4), 4)
                         self.tela.blit(gs, (thrust_x-4, thrust_y-4))
                     except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -2408,7 +2482,7 @@ class SimuladorRenderer:
                     pygame.draw.circle(self.tela, cor_raridade, (int(px),int(py)), max(2,r2//3))
                     if raridade not in ['Comum']:
                         try:
-                            gs = pygame.Surface((r2*4,r2*4), pygame.SRCALPHA)
+                            gs = self._get_surface(r2*4,r2*4, pygame.SRCALPHA)
                             pygame.draw.circle(gs, (*cor_raridade, int(80*pulso)), (r2*2,r2*2), r2*2)
                             self.tela.blit(gs, (int(px)-r2*2, int(py)-r2*2))
                         except Exception as _e: _log.debug("Render: %s", _e)  # QC-01
@@ -2596,7 +2670,7 @@ class SimuladorRenderer:
             cy_screen -= off_y
             
             # Surface transparente para desenho
-            s = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+            s = self._get_surface(self.screen_width, self.screen_height, pygame.SRCALPHA)
             
             # Desenha raio de alcance
             alcance_screen = self.cam.converter_tam(hitbox.alcance)
@@ -2724,7 +2798,7 @@ class SimuladorRenderer:
         x, y = self.screen_width - 300, 80
         w, h = 280, 250
         
-        s = pygame.Surface((w, h), pygame.SRCALPHA)
+        s = self._get_surface(w, h, pygame.SRCALPHA)
         s.fill((0, 0, 0, 180))
         self.tela.blit(s, (x, y))
         pygame.draw.rect(self.tela, (255, 100, 100), (x, y, w, h), 2)
@@ -2838,7 +2912,7 @@ class SimuladorRenderer:
     def desenhar_controles(self):
         x, y = 20, 90 
         w, h = 220, 210
-        s = pygame.Surface((w, h), pygame.SRCALPHA); s.fill(COR_UI_BG); self.tela.blit(s, (x, y))
+        s = self._get_surface(w, h, pygame.SRCALPHA); s.fill(COR_UI_BG); self.tela.blit(s, (x, y))
         pygame.draw.rect(self.tela, (100, 100, 100), (x, y, w, h), 1)
         fonte_tit = self._get_font("Arial", 14, bold=True); fonte_txt = self._get_font("Arial", 12)
         self.tela.blit(fonte_tit.render("COMANDOS", True, COR_TEXTO_TITULO), (x + 10, y + 10))
@@ -2877,7 +2951,7 @@ class SimuladorRenderer:
 
 
     def desenhar_vitoria(self):
-        s = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA); s.fill(COR_UI_BG); self.tela.blit(s, (0,0))
+        s = self._get_surface(self.screen_width, self.screen_height, pygame.SRCALPHA); s.fill(COR_UI_BG); self.tela.blit(s, (0,0))
         ft = self._get_font("Impact", 80); txt = ft.render(f"{self.vencedor} VENCEU!", True, COR_TEXTO_TITULO)
         self.tela.blit(txt, (self.screen_width//2 - txt.get_width()//2, self.screen_height//2 - 100))
         ft2 = self._get_font("Arial", 24); msg = ft2.render("Pressione 'R' para Reiniciar ou 'ESC' para Sair", True, COR_TEXTO_INFO)
