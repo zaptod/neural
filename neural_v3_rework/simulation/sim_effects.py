@@ -481,17 +481,17 @@ class SimuladorEffects:
     def _salvar_memorias_rivais(self):
         """CB-04: Persiste memória de rivalidade ao fim da luta (MEL-AI-07)."""
         p1, p2 = self.p1, self.p2
-        if not (hasattr(p1, 'ai') and p1.ai and hasattr(p2, 'ai') and p2.ai):
+        if not (hasattr(p1, 'brain') and p1.brain and hasattr(p2, 'brain') and p2.brain):
             return
         if not self.vencedor:
             return
         venceu_p1 = (self.vencedor == p1.dados.nome)
         venceu_p2 = (self.vencedor == p2.dados.nome)
         try:
-            p1.ai.salvar_memoria_rival(p2, venceu=venceu_p1)
+            p1.brain.salvar_memoria_rival(p2, venceu=venceu_p1)
         except Exception as e:
             _log.debug("[IA] salvar_memoria_rival p1 falhou: %s", e)
         try:
-            p2.ai.salvar_memoria_rival(p1, venceu=venceu_p2)
+            p2.brain.salvar_memoria_rival(p1, venceu=venceu_p2)
         except Exception as e:
             _log.debug("[IA] salvar_memoria_rival p2 falhou: %s", e)

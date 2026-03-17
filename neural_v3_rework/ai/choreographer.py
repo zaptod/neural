@@ -167,11 +167,11 @@ class CombatChoreographer:
         ambos_agressivos = False
         ambos_cautelosos = False
         
-        if hasattr(l1, 'ai') and hasattr(l2, 'ai') and l1.ai and l2.ai:
-            a1 = l1.ai.acao_atual in ["MATAR", "ESMAGAR", "PRESSIONAR", "APROXIMAR"]
-            a2 = l2.ai.acao_atual in ["MATAR", "ESMAGAR", "PRESSIONAR", "APROXIMAR"]
-            c1 = l1.ai.acao_atual in ["RECUAR", "CIRCULAR", "BLOQUEAR"]
-            c2 = l2.ai.acao_atual in ["RECUAR", "CIRCULAR", "BLOQUEAR"]
+        if hasattr(l1, 'brain') and hasattr(l2, 'brain') and l1.brain and l2.brain:
+            a1 = l1.brain.acao_atual in ["MATAR", "ESMAGAR", "PRESSIONAR", "APROXIMAR"]
+            a2 = l2.brain.acao_atual in ["MATAR", "ESMAGAR", "PRESSIONAR", "APROXIMAR"]
+            c1 = l1.brain.acao_atual in ["RECUAR", "CIRCULAR", "BLOQUEAR"]
+            c2 = l2.brain.acao_atual in ["RECUAR", "CIRCULAR", "BLOQUEAR"]
             
             ambos_agressivos = a1 and a2
             ambos_cautelosos = c1 and c2
@@ -239,16 +239,16 @@ class CombatChoreographer:
     def _notificar_mudanca_ritmo(self, ritmo):
         """Notifica IAs sobre mudança de ritmo"""
         for l in [self.lutador1, self.lutador2]:
-            if hasattr(l, 'ai') and l.ai:
+            if hasattr(l, 'brain') and l.brain:
                 # IAs podem reagir ao ritmo
-                if hasattr(l.ai, 'on_ritmo_mudou'):
-                    l.ai.on_ritmo_mudou(ritmo)
+                if hasattr(l.brain, 'on_ritmo_mudou'):
+                    l.brain.on_ritmo_mudou(ritmo)
                 
                 # Ajusta comportamento base
                 if ritmo == "EXPLOSIVO":
-                    l.ai.excitacao = min(1.0, l.ai.excitacao + 0.2)
+                    l.brain.excitacao = min(1.0, l.brain.excitacao + 0.2)
                 elif ritmo == "CAUTELOSO":
-                    l.ai.tedio = min(0.5, l.ai.tedio + 0.1)
+                    l.brain.tedio = min(0.5, l.brain.tedio + 0.1)
     
     def _calcular_intensidade(self):
         """Calcula intensidade atual da luta"""
@@ -267,8 +267,8 @@ class CombatChoreographer:
         acao_fator = min(1.0, self.trocas_seguidas / 5.0)
         
         # Tempo (builds up)
-        if hasattr(l1, 'ai') and l1.ai:
-            tempo_fator = min(1.0, l1.ai.tempo_combate / 60.0)
+        if hasattr(l1, 'brain') and l1.brain:
+            tempo_fator = min(1.0, l1.brain.tempo_combate / 60.0)
         else:
             tempo_fator = 0.5
         
@@ -382,9 +382,9 @@ class CombatChoreographer:
         if self._pode_momento("FEINT_DANCE"):
             if 2.5 < distancia < 5.0 and self.tempo_sem_hit > 1.5:
                 # Ambos em postura de combate mas sem atacar
-                if hasattr(l1, 'ai') and hasattr(l2, 'ai') and l1.ai and l2.ai:
-                    a1 = l1.ai.acao_atual in ["COMBATE", "CIRCULAR", "FLANQUEAR"]
-                    a2 = l2.ai.acao_atual in ["COMBATE", "CIRCULAR", "FLANQUEAR"]
+                if hasattr(l1, 'brain') and hasattr(l2, 'brain') and l1.brain and l2.brain:
+                    a1 = l1.brain.acao_atual in ["COMBATE", "CIRCULAR", "FLANQUEAR"]
+                    a2 = l2.brain.acao_atual in ["COMBATE", "CIRCULAR", "FLANQUEAR"]
                     if a1 and a2 and random.random() < 0.06:
                         self._iniciar_momento("FEINT_DANCE", random.uniform(1.5, 3.0))
                         return
@@ -438,14 +438,14 @@ class CombatChoreographer:
     def _notificar_momento_iniciado(self, tipo):
         """Notifica IAs sobre momento iniciado"""
         for l in [self.lutador1, self.lutador2]:
-            if hasattr(l, 'ai') and l.ai:
-                l.ai.on_momento_cinematografico(tipo, True, self.duracao_momento)
+            if hasattr(l, 'brain') and l.brain:
+                l.brain.on_momento_cinematografico(tipo, True, self.duracao_momento)
     
     def _notificar_momento_finalizado(self, tipo):
         """Notifica IAs sobre momento finalizado"""
         for l in [self.lutador1, self.lutador2]:
-            if hasattr(l, 'ai') and l.ai:
-                l.ai.on_momento_cinematografico(tipo, False, 0)
+            if hasattr(l, 'brain') and l.brain:
+                l.brain.on_momento_cinematografico(tipo, False, 0)
     
     def registrar_hit(self, atacante, defensor, dano=0):
         """Registra quando um hit acontece - integrado com sistema de fluxo"""
@@ -464,13 +464,13 @@ class CombatChoreographer:
             self.sequencia_hits.pop(0)
         
         # Notifica IAs
-        if hasattr(atacante, 'ai') and atacante.ai:
-            atacante.ai.on_hit_dado()
-        if hasattr(defensor, 'ai') and defensor.ai:
-            defensor.ai.on_hit_recebido_de(atacante)
+        if hasattr(atacante, 'brain') and atacante.brain:
+            atacante.brain.on_hit_dado()
+        if hasattr(defensor, 'brain') and defensor.brain:
+            defensor.brain.on_hit_recebido_de(atacante)
             # CB-03: notifica dano recebido (momentum negativo + quebra combo_state)
-            if hasattr(defensor.ai, 'on_hit_recebido'):
-                defensor.ai.on_hit_recebido(dano)
+            if hasattr(defensor.brain, 'on_hit_recebido'):
+                defensor.brain.on_hit_recebido(dano)
         
         self.ultimo_agressor = atacante
         
@@ -481,9 +481,9 @@ class CombatChoreographer:
     
     def registrar_esquiva(self, esquivador, atacante):
         """Registra quando alguém desvia de um ataque"""
-        if hasattr(esquivador, 'ai') and esquivador.ai:
-            if hasattr(esquivador.ai, 'on_esquiva_sucesso'):
-                esquivador.ai.on_esquiva_sucesso()
+        if hasattr(esquivador, 'brain') and esquivador.brain:
+            if hasattr(esquivador.brain, 'on_esquiva_sucesso'):
+                esquivador.brain.on_esquiva_sucesso()
         
         # Pode criar momento de tensão
         if self._pode_momento("NEAR_MISS") and random.random() < 0.15:

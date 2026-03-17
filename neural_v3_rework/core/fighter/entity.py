@@ -271,6 +271,15 @@ class Lutador(StatsMixin, PhysicsMixin, CombatMixin, WeaponsMixin):
         from ai import AIBrain  # noqa: PLC0415
         self.brain = AIBrain(self)
 
+    @property
+    def ai(self):
+        """Alias legado compatível com o brain atual."""
+        return self.brain
+
+    @ai.setter
+    def ai(self, value):
+        self.brain = value
+
     # ------------------------------------------------------------------
     # Loop principal
     # ------------------------------------------------------------------

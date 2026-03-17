@@ -1,16 +1,13 @@
-"""Test brain skill strategy updates for SUMMON/TRAP handling."""
-import sys
-import os
-from ai.skill_strategy import (
-    SkillStrategySystem, SkillProfile, BattlePlan,
-    CombatSituation, StrategicRole, SkillPurpose, CombatPhase
-)
-from ai.brain_skills import SkillsMixin
+"""Pytest coverage for SkillStrategySystem SUMMON/TRAP behavior."""
+
+import pytest
+
+from ai.skill_strategy import CombatSituation, SkillPurpose, SkillStrategySystem, StrategicRole
 from core.skills import SKILL_DB
 
 
 def _make_skill_info(nome):
-    """Build a skill_info dict from SKILL_DB, mimicking what the game provides."""
+    """Build a runtime-like skill_info dict from SKILL_DB."""
     data = SKILL_DB.get(nome, {})
     info = dict(data)
     info["nome"] = nome
@@ -33,162 +30,100 @@ class FakeBrain:
         self.debug_mode = False
 
 
-def test_battle_plan():
+@pytest.fixture
+def sss():
     skill_names = [
-        "Fênix", "Muralha de Gelo", "Armadilha Elétrica",
-        "Bola de Fogo", "Portal do Vazio"
+        "F\u00eanix",
+        "Muralha de Gelo",
+        "Armadilha El\u00e9trica",
+        "Bola de Fogo",
+        "Portal do Vazio",
     ]
-    char = FakeChar(skill_names)
-    brain = FakeBrain()
-    sss = SkillStrategySystem(char, brain)
+    return SkillStrategySystem(FakeChar(skill_names), FakeBrain())
+
+
+def test_battle_plan(sss):
     plan = sss.plano
-
-    print(f"--- BattlePlan for {char.nome} ---")
-    print(f"Role: {sss.role_principal}")
-    print(f"Style: {plan.estilo}")
-    print(f"Distance: {plan.distancia_preferida}")
-    print(f"Profiles: {len(sss.skills)}")
-
-    for name, profile in sss.skills.items():
-        purposes = [p.value for p in profile.propositos]
-        print(f"  [{name}] type={profile.tipo} dano={profile.dano_total:.1f} "
-              f"purposes={purposes} alcance={profile.alcance_efetivo}")
-
-    print(f"\nCombos discovered: {len(plan.combos)}")
-    for combo in plan.combos:
-        print(f"  combo: {combo}")
-
-    # Verify SUMMON profiles
-    fenix = sss.skills.get("Fênix")
-    assert fenix is not None, "Fenix not profiled!"
-    assert fenix.tipo == "SUMMON"
-    assert SkillPurpose.ZONING in fenix.propositos, f"Fenix missing ZONING: {fenix.propositos}"
-    print("\n[OK] Fenix has ZONING purpose (aura)")
-
+    fenix = sss.skills.get("F\u00eanix")
     portal = sss.skills.get("Portal do Vazio")
-    assert portal is not None, "Portal do Vazio not profiled!"
-    assert portal.tipo == "SUMMON"
-    print(f"[OK] Portal do Vazio profiled: purposes={[p.value for p in portal.propositos]}")
-
-    # Verify TRAP profiles
     muralha = sss.skills.get("Muralha de Gelo")
-    assert muralha is not None, "Muralha not profiled!"
+    armadilha = sss.skills.get("Armadilha El\u00e9trica")
+
+    assert plan.rotacao_opening
+    assert fenix is not None
+    assert fenix.tipo == "SUMMON"
+    assert SkillPurpose.ZONING in fenix.propositos
+
+    assert portal is not None
+    assert portal.tipo == "SUMMON"
+
+    assert muralha is not None
     assert muralha.tipo == "TRAP"
-    muralha_data = SKILL_DB.get("Muralha de Gelo", {})
-    is_wall = muralha_data.get("bloqueia_movimento", True)
-    print(f"[OK] Muralha de Gelo: wall={is_wall}, purposes={[p.value for p in muralha.propositos]}")
-    if is_wall:
-        assert SkillPurpose.ESCAPE in muralha.propositos, "Wall should have ESCAPE purpose"
-        print("[OK] Muralha has ESCAPE purpose (wall barrier)")
+    if SKILL_DB.get("Muralha de Gelo", {}).get("bloqueia_movimento", True):
+        assert SkillPurpose.ESCAPE in muralha.propositos
 
-    armadilha = sss.skills.get("Armadilha Elétrica")
-    assert armadilha is not None, "Armadilha Elétrica not profiled!"
-    armadilha_data = SKILL_DB.get("Armadilha Elétrica", {})
-    is_trigger = not armadilha_data.get("bloqueia_movimento", True)
-    print(f"[OK] Armadilha Elétrica: trigger={is_trigger}, purposes={[p.value for p in armadilha.propositos]}")
-    if is_trigger:
-        assert SkillPurpose.OPENER in armadilha.propositos, "Trigger trap should have OPENER purpose"
-        print("[OK] Armadilha Elétrica has OPENER purpose (trigger trap)")
-
-    return sss
+    assert armadilha is not None
+    if not SKILL_DB.get("Armadilha El\u00e9trica", {}).get("bloqueia_movimento", True):
+        assert SkillPurpose.OPENER in armadilha.propositos
 
 
 def test_condicoes_ideais(sss):
-    print("\n--- Testing _condicoes_ideais ---")
-
-    fenix = sss.skills.get("Fênix")
+    fenix = sss.skills.get("F\u00eanix")
     if fenix:
-        sit_full = CombatSituation(
-            distancia=3.0, meu_hp_percent=80,
-            inimigo_hp_percent=70, meu_mana_percent=60,
-            tenho_summons_ativos=2
+        lotado = CombatSituation(
+            distancia=3.0,
+            meu_hp_percent=80,
+            inimigo_hp_percent=70,
+            meu_mana_percent=60,
+            tenho_summons_ativos=2,
         )
-        result = sss._condicoes_ideais("Fênix", sit_full)
-        print(f"Fenix w/ 2 summons active: {result} (expected: False)")
-        assert result is False, "Should block summon when 2 already active!"
-
-        sit_ok = CombatSituation(
-            distancia=3.0, meu_hp_percent=80,
-            inimigo_hp_percent=70, meu_mana_percent=60,
-            tenho_summons_ativos=1
+        disponivel = CombatSituation(
+            distancia=3.0,
+            meu_hp_percent=80,
+            inimigo_hp_percent=70,
+            meu_mana_percent=60,
+            tenho_summons_ativos=1,
         )
-        result2 = sss._condicoes_ideais("Fênix", sit_ok)
-        print(f"Fenix w/ 1 summon active: {result2} (expected: True)")
-        assert result2 is True, "Should allow summon when <2 active!"
+        assert sss._condicoes_ideais("F\u00eanix", lotado) is False
+        assert sss._condicoes_ideais("F\u00eanix", disponivel) is True
 
     muralha = sss.skills.get("Muralha de Gelo")
     if muralha:
-        sit_full = CombatSituation(
-            distancia=3.0, meu_hp_percent=80,
-            inimigo_hp_percent=70, meu_mana_percent=60,
-            tenho_traps_ativos=3
+        lotado = CombatSituation(
+            distancia=3.0,
+            meu_hp_percent=80,
+            inimigo_hp_percent=70,
+            meu_mana_percent=60,
+            tenho_traps_ativos=3,
         )
-        result = sss._condicoes_ideais("Muralha de Gelo", sit_full)
-        print(f"Muralha w/ 3 traps active: {result} (expected: False)")
-        assert result is False, "Should block trap when 3 already active!"
-
-        sit_ok = CombatSituation(
-            distancia=3.0, meu_hp_percent=80,
-            inimigo_hp_percent=70, meu_mana_percent=60,
-            tenho_traps_ativos=1
+        disponivel = CombatSituation(
+            distancia=3.0,
+            meu_hp_percent=80,
+            inimigo_hp_percent=70,
+            meu_mana_percent=60,
+            tenho_traps_ativos=1,
         )
-        result2 = sss._condicoes_ideais("Muralha de Gelo", sit_ok)
-        print(f"Muralha w/ 1 trap active: {result2} (expected: True)")
-        assert result2 is True, "Should allow trap when <3 active!"
-
-    print("[OK] All condicoes ideais tests passed!")
+        assert sss._condicoes_ideais("Muralha de Gelo", lotado) is False
+        assert sss._condicoes_ideais("Muralha de Gelo", disponivel) is True
 
 
 def test_rotations(sss):
-    plan = sss.plano
-    print("\n--- Testing rotations ---")
-    print(f"Opening rotation: {plan.rotacao_opening}")
-    print(f"Disadvantage rotation: {plan.rotacao_disadvantage}")
-
-    assert len(plan.rotacao_opening) > 0, "Opening rotation should not be empty!"
-    print("[OK] Opening rotation populated")
-    print("[OK] Rotation tests passed!")
+    assert sss.plano.rotacao_opening
+    assert isinstance(sss.plano.rotacao_disadvantage, list)
 
 
 def test_role_detection():
-    """Test that chars with 2+ summons get SUMMONER role, 2+ traps get TRAP_MASTER."""
-    print("\n--- Testing role detection ---")
+    summoner = SkillStrategySystem(
+        FakeChar(["F\u00eanix", "Portal do Vazio", "Invoca\u00e7\u00e3o: Esp\u00edrito", "Bola de Fogo"]),
+        FakeBrain(),
+    )
+    trapper = SkillStrategySystem(
+        FakeChar(["Muralha de Gelo", "Armadilha El\u00e9trica", "Armadilha Incendi\u00e1ria", "Bola de Fogo"]),
+        FakeBrain(),
+    )
 
-    skill_names = ["Fênix", "Portal do Vazio", "Invocação: Espírito", "Bola de Fogo"]
-    char = FakeChar(skill_names)
-    sss = SkillStrategySystem(char, FakeBrain())
-    print(f"SummonerBot role: {sss.role_principal} style: {sss.plano.estilo}")
-    if sss.role_principal == StrategicRole.SUMMONER:
-        print("[OK] SummonerBot detected as SUMMONER")
-        assert sss.plano.estilo == "kite", f"SUMMONER should kite, got {sss.plano.estilo}"
-        print("[OK] SUMMONER uses kite style")
-    else:
-        print(f"[WARN] SummonerBot got role {sss.role_principal} instead of SUMMONER (may be ok if hybrid)")
+    if summoner.role_principal == StrategicRole.SUMMONER:
+        assert summoner.plano.estilo == "kite"
 
-    skill_names2 = ["Muralha de Gelo", "Armadilha Elétrica", "Armadilha Incendiária", "Bola de Fogo"]
-    char2 = FakeChar(skill_names2)
-    sss2 = SkillStrategySystem(char2, FakeBrain())
-    print(f"TrapperBot role: {sss2.role_principal} style: {sss2.plano.estilo}")
-    if sss2.role_principal == StrategicRole.TRAP_MASTER:
-        print("[OK] TrapperBot detected as TRAP_MASTER")
-        assert sss2.plano.estilo == "kite", f"TRAP_MASTER should kite, got {sss2.plano.estilo}"
-        print("[OK] TRAP_MASTER uses kite style")
-    else:
-        print(f"[WARN] TrapperBot got role {sss2.role_principal} instead of TRAP_MASTER")
-
-    print("[OK] Role detection tests passed!")
-
-
-if __name__ == "__main__":
-    print("=" * 60)
-    print("TEST: Brain Skill Strategy - SUMMON/TRAP Updates")
-    print("=" * 60)
-
-    sss = test_battle_plan()
-    test_condicoes_ideais(sss)
-    test_rotations(sss)
-    test_role_detection()
-
-    print("\n" + "=" * 60)
-    print("[ALL TESTS PASSED]")
-    print("=" * 60)
+    if trapper.role_principal == StrategicRole.TRAP_MASTER:
+        assert trapper.plano.estilo == "kite"

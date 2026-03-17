@@ -802,9 +802,9 @@ class SimuladorCombat:
             self.audio.play_special("shield_block", volume=0.7)
         
         # CB-01: notifica IA do bloqueio bem-sucedido (abre janela pos_bloqueio)
-        if hasattr(bloqueador, 'ai') and bloqueador.ai:
-            if hasattr(bloqueador.ai, 'on_bloqueio_sucesso'):
-                bloqueador.ai.on_bloqueio_sucesso()
+        if hasattr(bloqueador, 'brain') and bloqueador.brain:
+            if hasattr(bloqueador.brain, 'on_bloqueio_sucesso'):
+                bloqueador.brain.on_bloqueio_sucesso()
         
         # Direção do impacto
         ang = math.atan2(proj.y * PPM - pos_escudo[1], proj.x * PPM - pos_escudo[0])
@@ -854,9 +854,9 @@ class SimuladorCombat:
         if hasattr(self, 'stats_collector'):
             self.stats_collector.record_block(parryer.dados.nome)
         # CB-01: notifica IA do parry (também conta como bloqueio — abre janela pos_bloqueio)
-        if hasattr(parryer, 'ai') and parryer.ai:
-            if hasattr(parryer.ai, 'on_bloqueio_sucesso'):
-                parryer.ai.on_bloqueio_sucesso()
+        if hasattr(parryer, 'brain') and parryer.brain:
+            if hasattr(parryer.brain, 'on_bloqueio_sucesso'):
+                parryer.brain.on_bloqueio_sucesso()
         
         # Cor do parryer
         cor = (parryer.dados.cor_r, parryer.dados.cor_g, parryer.dados.cor_b)

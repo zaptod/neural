@@ -574,7 +574,24 @@ class PersonalityMixin(_AIBrainMixinBase):
             # Ajusta estratégia baseado na arma
             if hasattr(self.parent.dados, 'arma_obj') and self.parent.dados.arma_obj:
                 arma = self.parent.dados.arma_obj
-                alcance_arma = getattr(arma, 'alcance', 2.0)
+                alcance_arma = 2.0
+                if WEAPON_ANALYSIS_AVAILABLE:
+                    try:
+                        perfil = get_weapon_profile(arma)
+                    except Exception:
+                        perfil = None
+                    if perfil:
+                        alcance_arma = max(2.0, getattr(perfil, 'alcance_maximo', 2.0))
+                if alcance_arma <= 2.0:
+                    alcance_por_tipo = {
+                        "Arco": 8.0,
+                        "Arremesso": 6.0,
+                        "Mágica": 7.0,
+                        "Magica": 7.0,
+                        "Orbital": 4.0,
+                        "Corrente": 3.5,
+                    }
+                    alcance_arma = alcance_por_tipo.get(getattr(arma, 'tipo', ''), 2.0)
                 vel_arma = getattr(arma, 'velocidade_ataque', 1.0)
                 self.skill_strategy.ajustar_para_arma(alcance_arma, vel_arma)
                 

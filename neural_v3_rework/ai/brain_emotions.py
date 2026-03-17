@@ -802,7 +802,7 @@ class EmotionsMixin(_AIBrainMixinBase):
                 triggered = True
             elif trigger == "oponente_whiff" and self.janela_ataque.get("tipo") == "whiff":
                 triggered = True
-            elif trigger == "oponente_recuando" and hasattr(inimigo, 'ai') and inimigo.ai and inimigo.ai.acao_atual in ["RECUAR", "FUGIR"]:
+            elif trigger == "oponente_recuando" and hasattr(inimigo, 'brain') and inimigo.brain and inimigo.brain.acao_atual in ["RECUAR", "FUGIR"]:
                 triggered = True
             elif trigger == "vantagem_hp" and hp_pct > inimigo_hp_pct + 0.2:
                 triggered = True

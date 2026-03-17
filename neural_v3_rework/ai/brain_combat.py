@@ -321,8 +321,8 @@ class CombatMixin(_AIBrainMixinBase):
         if bait["ativo"]:
             bait["timer"] -= dt
             # FP-04 fix: registra ação do inimigo no início do bait para comparar depois
-            if bait.get("acao_inimigo_antes") is None and hasattr(inimigo, 'ai') and inimigo.ai:
-                bait["acao_inimigo_antes"] = inimigo.ai.acao_atual
+            if bait.get("acao_inimigo_antes") is None and hasattr(inimigo, 'brain') and inimigo.brain:
+                bait["acao_inimigo_antes"] = inimigo.brain.acao_atual
             if bait["timer"] <= 0:
                 # MEL-AI-04: não avalia imediatamente — inicia janela de observação
                 bait["ativo"] = False
@@ -355,8 +355,8 @@ class CombatMixin(_AIBrainMixinBase):
                 bait["timer"] = random.uniform(0.3, 0.6)
                 # FP-04 fix: salva ação atual do inimigo para detectar mudança real
                 bait["acao_inimigo_antes"] = (
-                    inimigo.ai.acao_atual
-                    if hasattr(inimigo, 'ai') and inimigo.ai else None
+                    inimigo.brain.acao_atual
+                    if hasattr(inimigo, 'brain') and inimigo.brain else None
                 )
                 
                 # Executa início do bait
@@ -382,9 +382,9 @@ class CombatMixin(_AIBrainMixinBase):
         # Agora: só conta se o inimigo mudou de uma ação neutra/defensiva para agressiva
         # dentro da janela do bait.
         oponente_caiu = False
-        if hasattr(inimigo, 'ai') and inimigo.ai:
+        if hasattr(inimigo, 'brain') and inimigo.brain:
             acao_antes = bait.get("acao_inimigo_antes")
-            acao_agora = inimigo.ai.acao_atual
+            acao_agora = inimigo.brain.acao_atual
             acoes_agressivas = {"APROXIMAR", "MATAR", "ESMAGAR", "PRESSIONAR"}
             acoes_neutras_defensivas = {
                 "CIRCULAR", "BLOQUEAR", "RECUAR", "FUGIR", "COMBATE",
@@ -453,8 +453,8 @@ class CombatMixin(_AIBrainMixinBase):
             self.pressao_aplicada = max(0.0, self.pressao_aplicada - dt * 0.5)
         
         # Pressão recebida
-        if hasattr(inimigo, 'ai') and inimigo.ai:
-            ai_ini = inimigo.ai
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            ai_ini = inimigo.brain
             if distancia < 3.0 and ai_ini.acao_atual in ["MATAR", "PRESSIONAR", "ESMAGAR"]:
                 self.pressao_recebida = min(1.0, self.pressao_recebida + dt * 0.5)
             else:
@@ -522,8 +522,8 @@ class CombatMixin(_AIBrainMixinBase):
             duracao = 1.5
         
         # 6. Oponente recuando (costas viradas parcialmente)
-        if hasattr(inimigo, 'ai') and inimigo.ai:
-            if inimigo.ai.acao_atual in ["RECUAR", "FUGIR"]:
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            if inimigo.brain.acao_atual in ["RECUAR", "FUGIR"]:
                 nova_janela = True
                 tipo_janela = "recuando"
                 qualidade = 0.75

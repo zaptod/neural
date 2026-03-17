@@ -84,8 +84,8 @@ class PerceptionMixin(_AIBrainMixinBase):
             # Cooldown baixo = recém atacou ou prestes a atacar; só relevante se perto
             if distancia < distancia_ameaca * 1.2:
                 ataque_prep = True
-        if hasattr(inimigo, 'ai') and inimigo.ai:
-            ai_ini = inimigo.ai
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            ai_ini = inimigo.brain
             if ai_ini.acao_atual in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO", "CONTRA_ATAQUE"]:
                 # FP-03 fix: intenção de ataque só é iminente se o inimigo está próximo o suficiente
                 if distancia < distancia_ameaca:
@@ -132,8 +132,8 @@ class PerceptionMixin(_AIBrainMixinBase):
             leitura["previsibilidade"] = max(0.1, min(0.9, 1.0 - (media_var / 20.0)))
         
         # Percebe agressividade do oponente
-        if hasattr(inimigo, 'ai') and inimigo.ai:
-            ai_ini = inimigo.ai
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            ai_ini = inimigo.brain
             if ai_ini.acao_atual in ["MATAR", "ESMAGAR", "PRESSIONAR", "APROXIMAR"]:
                 leitura["agressividade_percebida"] = min(1.0, leitura["agressividade_percebida"] + 0.03)
             elif ai_ini.acao_atual in ["RECUAR", "FUGIR", "BLOQUEAR"]:
@@ -142,8 +142,8 @@ class PerceptionMixin(_AIBrainMixinBase):
         # === BUG-AI-01 fix: detecta se inimigo está reposicionando ===
         # Reposicionando = movimentação lateral/recuo sem intenção de ataque imediato
         inimigo_reposiciona = False
-        if hasattr(inimigo, 'ai') and inimigo.ai:
-            acao_ini = inimigo.ai.acao_atual
+        if hasattr(inimigo, 'brain') and inimigo.brain:
+            acao_ini = inimigo.brain.acao_atual
             inimigo_reposiciona = acao_ini in ["CIRCULAR", "FLANQUEAR", "APROXIMAR", "RECUAR"]
             # Só conta como reposicionamento se NÃO está em iminência de ataque
             if leitura["ataque_iminente"]:
@@ -153,8 +153,8 @@ class PerceptionMixin(_AIBrainMixinBase):
         # === BUG-AI-02 fix: detecta whiff (ataque do inimigo que não acertou) ===
         inimigo_atacando_agora = (
             (hasattr(inimigo, 'atacando') and inimigo.atacando) or
-            (hasattr(inimigo, 'ai') and inimigo.ai and
-             inimigo.ai.acao_atual in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO"])
+            (hasattr(inimigo, 'brain') and inimigo.brain and
+             inimigo.brain.acao_atual in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO"])
         )
         if self._inimigo_estava_atacando and not inimigo_atacando_agora:
             # Inimigo parou de atacar — verifica se não acertou (hits_recebidos não aumentou)
@@ -521,10 +521,10 @@ class PerceptionMixin(_AIBrainMixinBase):
     
     def _observar_oponente(self, inimigo, distancia):
         """Observa o que o oponente está fazendo"""
-        if not hasattr(inimigo, 'ai') or not inimigo.ai:
+        if not hasattr(inimigo, 'brain') or not inimigo.brain:
             return
-        
-        ai_ini = inimigo.ai
+
+        ai_ini = inimigo.brain
         mem = self.memoria_oponente
         
         acao_oponente = ai_ini.acao_atual

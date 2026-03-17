@@ -249,7 +249,8 @@ class SkillsMixin(_AIBrainMixinBase):
         def tentar(nome, motivo=""):
             if pode_usar(nome):
                 # v13.0: AoE friendly fire check
-                if not _aoe_safe(nome):
+                sk = skills.get(nome)
+                if sk and not self._skill_aoe_segura_para_time(sk, inimigo, has_team):
                     return False
                 if self._executar_skill_por_nome(nome):
                     strategy.registrar_uso_skill(nome)
@@ -706,6 +707,100 @@ class SkillsMixin(_AIBrainMixinBase):
                     return True
 
         return False
+
+
+    def _distancia_ponto_segmento(self, ponto, inicio, fim):
+        """Retorna a distÃ¢ncia de um ponto a um segmento."""
+        px, py = ponto
+        x1, y1 = inicio
+        x2, y2 = fim
+        dx = x2 - x1
+        dy = y2 - y1
+        seg_len2 = dx * dx + dy * dy
+        if seg_len2 <= 1e-9:
+            return math.hypot(px - x1, py - y1)
+
+        t = ((px - x1) * dx + (py - y1) * dy) / seg_len2
+        t = max(0.0, min(1.0, t))
+        proj_x = x1 + t * dx
+        proj_y = y1 + t * dy
+        return math.hypot(px - proj_x, py - proj_y)
+
+
+    def _aliados_em_risco_por_skill(self, skill_profile, inimigo=None):
+        """Retorna aliados que realmente estÃ£o na geometria de risco da skill."""
+        if not skill_profile or skill_profile.tipo not in ("AREA", "BEAM"):
+            return []
+
+        ma = getattr(self, 'multi_awareness', {}) or {}
+        aliados = ma.get("aliados", [])
+        if not aliados:
+            return []
+
+        p = self.parent
+        origem = (p.pos[0], p.pos[1])
+        em_risco = []
+
+        if skill_profile.tipo == "AREA":
+            raio = (
+                skill_profile.data.get("raio_area", 0.0)
+                or skill_profile.data.get("raio", 0.0)
+                or skill_profile.alcance_efetivo
+                or 2.0
+            )
+            for aliado in aliados:
+                lutador = aliado.get("lutador")
+                if not lutador:
+                    continue
+                dist = math.hypot(lutador.pos[0] - origem[0], lutador.pos[1] - origem[1])
+                margem = getattr(lutador, 'raio_fisico', 0.35)
+                if dist <= raio + margem:
+                    em_risco.append(aliado)
+            return em_risco
+
+        alcance = skill_profile.data.get("alcance", 0.0) or skill_profile.alcance_efetivo or 5.0
+        angulo = math.radians(getattr(p, 'angulo_olhar', 0.0))
+        destino = (
+            origem[0] + math.cos(angulo) * alcance,
+            origem[1] + math.sin(angulo) * alcance,
+        )
+        if inimigo is not None:
+            destino = (inimigo.pos[0], inimigo.pos[1])
+
+        largura = skill_profile.data.get("largura", 8.0)
+        semi_largura = max(0.35, largura / 50.0)
+
+        for aliado in aliados:
+            lutador = aliado.get("lutador")
+            if not lutador:
+                continue
+            dist = self._distancia_ponto_segmento((lutador.pos[0], lutador.pos[1]), origem, destino)
+            margem = getattr(lutador, 'raio_fisico', 0.35)
+            if dist <= semi_largura + margem:
+                em_risco.append(aliado)
+
+        return em_risco
+
+
+    def _skill_aoe_segura_para_time(self, skill_profile, inimigo=None, has_team=None):
+        """Valida friendly fire real antes de permitir AREA/BEAM."""
+        if not skill_profile or skill_profile.tipo not in ("AREA", "BEAM"):
+            return True
+
+        if has_team is None:
+            has_team = getattr(self, 'team_orders', {}).get("alive_count", 1) > 1
+        if not has_team:
+            return True
+
+        aliados_em_risco = self._aliados_em_risco_por_skill(skill_profile, inimigo)
+        if not aliados_em_risco:
+            return True
+
+        ma = getattr(self, 'multi_awareness', {}) or {}
+        if skill_profile.tipo == "BEAM" and ma.get("aliado_no_caminho", False):
+            return random.random() >= 0.90
+
+        return random.random() >= 0.75
 
 
     def _executar_skill_por_nome(self, nome_skill):

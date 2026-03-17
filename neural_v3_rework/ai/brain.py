@@ -602,10 +602,11 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             self.acao_atual = "RECUAR"
             return
         
-        # v13.0: Se friendly fire risk alto, suprime ataque/skills AoE
+        # v13.0: Se friendly fire risk alto, suprime apenas ataques em linha.
         ff_suppressed = False
-        if self.multi_awareness.get("aliado_no_caminho", False):
-            # Checa se o aliado está muito perto: suprime 70% dos ataques
+        arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
+        arma_tipo = getattr(arma, 'tipo', '')
+        if self.multi_awareness.get("aliado_no_caminho", False) and arma_tipo in ("Arco", "Arremesso", "Mágica", "Magica"):
             if random.random() < 0.7:
                 ff_suppressed = True
         
@@ -780,11 +781,28 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             ameaca += 0.15
         
         # Se tem arma de longo alcance
-        weapon_data = getattr(lutador, 'weapon_data', None)
-        if weapon_data:
-            alcance = weapon_data.get("alcance", 1.5)
+        arma = getattr(getattr(lutador, 'dados', None), 'arma_obj', None)
+        alcance = 0.0
+        if arma:
+            if WEAPON_ANALYSIS_AVAILABLE:
+                try:
+                    perfil = get_weapon_profile(arma)
+                except Exception:
+                    perfil = None
+                if perfil:
+                    alcance = getattr(perfil, 'alcance_maximo', 0.0)
+            if alcance <= 0:
+                alcance_por_tipo = {
+                    "Arco": 8.0,
+                    "Arremesso": 6.0,
+                    "Mágica": 7.0,
+                    "Magica": 7.0,
+                    "Orbital": 4.0,
+                    "Corrente": 3.5,
+                }
+                alcance = alcance_por_tipo.get(getattr(arma, 'tipo', ''), 1.5)
             if alcance > 3.0:
-                ameaca += 0.1
+                ameaca += 0.1 if alcance < 6.0 else 0.15
         
         return max(0.0, min(1.0, ameaca))
 

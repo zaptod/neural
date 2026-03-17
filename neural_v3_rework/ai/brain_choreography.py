@@ -102,8 +102,8 @@ class ChoreographyMixin(_AIBrainMixinBase):
             return True
         
         if reacao == "CONTRA_CIRCULAR":
-            if hasattr(inimigo, 'ai') and inimigo.ai:
-                self.dir_circular = -inimigo.ai.dir_circular
+            if hasattr(inimigo, 'brain') and inimigo.brain:
+                self.dir_circular = -inimigo.brain.dir_circular
             self.acao_atual = "CIRCULAR"
             return True
         
@@ -142,8 +142,8 @@ class ChoreographyMixin(_AIBrainMixinBase):
             return True
         
         if acao == "CIRCULAR_SINCRONIZADO":
-            if hasattr(inimigo, 'ai') and inimigo.ai:
-                self.dir_circular = inimigo.ai.dir_circular
+            if hasattr(inimigo, 'brain') and inimigo.brain:
+                self.dir_circular = inimigo.brain.dir_circular
             self.acao_atual = "CIRCULAR"
             return True
         
