@@ -1,4 +1,4 @@
-"""Quick integration test: AppState → BattleDB → ELO.
+﻿"""Quick integration test: AppState â†’ BattleDB â†’ ELO.
 
 Uses a temp directory for the DB so it never touches production data.
 """
@@ -12,7 +12,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 os.chdir(_ROOT)
 
-from data.battle_db import BattleDB
+from dados.battle_db import BattleDB
 
 
 class TestIntegrationAppStateDB(unittest.TestCase):
@@ -23,19 +23,19 @@ class TestIntegrationAppStateDB(unittest.TestCase):
         self.db = BattleDB(os.path.join(self.tmp_dir, "test_integration.db"))
         BattleDB._instance = self.db
 
-        from data.app_state import AppState
+        from dados.app_state import AppState
         AppState.reset()
         self.state = AppState.get()
 
     def tearDown(self):
         self.db.close()
         BattleDB._instance = None
-        from data.app_state import AppState
+        from dados.app_state import AppState
         AppState.reset()
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_full_pipeline(self):
-        """AppState.record_fight_result → BattleDB + ELO end-to-end."""
+        """AppState.record_fight_result â†’ BattleDB + ELO end-to-end."""
         s = self.state
         match_id = s.record_fight_result("TestWinner", "TestLoser", 5.0, True)
         self.assertIsNotNone(match_id)
@@ -75,3 +75,4 @@ class TestIntegrationAppStateDB(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

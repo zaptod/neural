@@ -1,13 +1,13 @@
-"""Runtime-focused regression tests for active AI flow."""
+﻿"""Runtime-focused regression tests for active AI flow."""
 
 from types import SimpleNamespace
 
 import pytest
 
-from ai.skill_strategy import SkillProfile
-from core.entities import Lutador
-from models import Arma, Personagem
-from simulation.sim_combat import SimuladorCombat
+from ia.skill_strategy import SkillProfile
+from nucleo.entities import Lutador
+from modelos import Arma, Personagem
+from simulacao.sim_combat import SimuladorCombat
 
 
 def _make_fighter(nome, weapon_type="Espada Reta", team_id=0, x=0.0, y=0.0):
@@ -23,7 +23,7 @@ def _make_fighter(nome, weapon_type="Espada Reta", team_id=0, x=0.0, y=0.0):
         tamanho=1.5,
         forca=5.0,
         mana=5.0,
-        classe="Guerreiro (ForÃ§a Bruta)",
+        classe="Guerreiro (ForÃƒÂ§a Bruta)",
     )
     dados.recalcular_com_arma(arma)
     return Lutador(dados, x, y, team_id=team_id)
@@ -148,3 +148,4 @@ def test_beam_skill_detects_ally_inside_line_of_fire():
 
     assert len(em_risco) == 1
     assert em_risco[0]["lutador"] is ally
+

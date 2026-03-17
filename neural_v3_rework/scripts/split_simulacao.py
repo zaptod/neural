@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-split_simulacao.py — Splits simulation/simulacao.py (4570+ lines) into mixin modules.
+split_simulacao.py â€” Splits simulacao/simulacao.py (4570+ lines) into mixin modules.
 Run from the neural_v3_rework directory:
     python scripts/split_simulacao.py
 """
@@ -14,13 +14,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SIM_PATH = os.path.join(BASE_DIR, "simulation", "simulacao.py")
 SIM_DIR = os.path.join(BASE_DIR, "simulation")
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# METHOD → MIXIN ASSIGNMENT
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# METHOD â†’ MIXIN ASSIGNMENT
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 MIXIN_DEFS = {
     "SimuladorRenderer": {
         "file": "sim_renderer.py",
-        "doc": "Mixin de renderização: desenho de lutadores, armas, UI e debug.",
+        "doc": "Mixin de renderizaÃ§Ã£o: desenho de lutadores, armas, UI e debug.",
         "methods": [
             "desenhar",
             "desenhar_grid",
@@ -40,7 +40,7 @@ MIXIN_DEFS = {
     },
     "SimuladorCombat": {
         "file": "sim_combat.py",
-        "doc": "Mixin de combate: detecção de hits, clashes, bloqueios e física.",
+        "doc": "Mixin de combate: detecÃ§Ã£o de hits, clashes, bloqueios e fÃ­sica.",
         "methods": [
             "checar_ataque",
             "verificar_colisoes_combate",
@@ -59,7 +59,7 @@ MIXIN_DEFS = {
     },
     "SimuladorEffects": {
         "file": "sim_effects.py",
-        "doc": "Mixin de efeitos visuais: partículas, trails, colisões, slow motion.",
+        "doc": "Mixin de efeitos visuais: partÃ­culas, trails, colisÃµes, slow motion.",
         "methods": [
             "_criar_efeito_colisao_parede",
             "_get_cor_efeito",
@@ -81,9 +81,9 @@ for mname, mdata in MIXIN_DEFS.items():
     for method in mdata["methods"]:
         METHOD_TO_MIXIN[method] = mname
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # PARSE
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 with open(SIM_PATH, "r", encoding="utf-8") as f:
     source = f.read()
 source_lines = source.split("\n")
@@ -140,9 +140,9 @@ if missing:
     print(f"ERROR: Missing methods: {missing}")
     sys.exit(1)
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # READ IMPORTS FROM ORIGINAL FILE
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Find all import lines before the class definition
 imports_end = sim_node.lineno - 1
 import_lines = source_lines[:imports_end]
@@ -151,9 +151,9 @@ while import_lines and import_lines[-1].strip() == "":
     import_lines.pop()
 import_block = "\n".join(import_lines)
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # GENERATE MIXIN FILES
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 for mixin_name, mixin_data in MIXIN_DEFS.items():
     filename = mixin_data["file"]
     filepath = os.path.join(SIM_DIR, filename)
@@ -161,7 +161,7 @@ for mixin_name, mixin_data in MIXIN_DEFS.items():
     methods = mixin_data["methods"]
 
     lines_out = []
-    lines_out.append(f'"""Auto-generated mixin — see scripts/split_simulacao.py"""')
+    lines_out.append(f'"""Auto-generated mixin â€” see scripts/split_simulacao.py"""')
     lines_out.append(import_block)
     lines_out.append("")
     lines_out.append("")
@@ -185,9 +185,9 @@ for mixin_name, mixin_data in MIXIN_DEFS.items():
     n_methods = sum(1 for m in methods if m in method_blocks)
     print(f"  Created {filename}: {n_methods} methods, {len(lines_out)} lines")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # GENERATE NEW simulacao.py ORCHESTRATOR
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 backup_path = os.path.join(SIM_DIR, "simulacao_original.py")
 shutil.copy2(SIM_PATH, backup_path)
 print(f"\n  Backup saved to: simulacao_original.py")
@@ -196,7 +196,7 @@ print(f"\n  Backup saved to: simulacao_original.py")
 orch = []
 orch.append(import_block)
 orch.append("")
-orch.append("# ── Mixin imports ──")
+orch.append("# â”€â”€ Mixin imports â”€â”€")
 for mixin_name, mixin_data in MIXIN_DEFS.items():
     module = mixin_data["file"].replace(".py", "")
     orch.append(f"from simulation.{module} import {mixin_name}")
@@ -265,3 +265,4 @@ for mixin_name, mixin_data in MIXIN_DEFS.items():
     total_mixin += n
     print(f"  {mixin_data['file']}: {n} lines")
 print(f"Total mixin lines: {total_mixin}")
+

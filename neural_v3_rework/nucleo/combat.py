@@ -1,0 +1,1512 @@
+﻿# combat.py
+import math
+import random
+from utilitarios.config import BRANCO
+from nucleo.skills import get_skill_data
+
+
+class ArmaProjetil:
+    """ProjÃ©til de arma fÃ­sica (facas, flechas, etc) - diferente de skills"""
+    def __init__(self, tipo, x, y, angulo, dono, dano, velocidade=15.0, tamanho=0.3, cor=(200, 200, 200)):
+        self.tipo = tipo  # "faca", "flecha", "chakram", "shuriken"
+        self.nome = tipo.capitalize()  # Nome para compatibilidade com debug
+        self.x = x
+        self.y = y
+        self.angulo = angulo
+        self.angulo_visual = angulo  # Para rotaÃ§Ã£o visual
+        self.dono = dono
+        
+        self.dano = dano
+        self.vel = velocidade
+        self.raio = tamanho  # Raio de colisÃ£o em metros
+        self.cor = cor
+        
+        self.vida = 3.0  # Segundos atÃ© desaparecer
+        self.ativo = True
+        self.trail = []
+        
+        # RotaÃ§Ã£o visual (shurikens giram rÃ¡pido)
+        self.rotacao_vel = 0
+        if tipo in ["shuriken", "chakram"]:
+            self.rotacao_vel = 720  # graus/segundo
+        elif tipo == "faca":
+            self.rotacao_vel = 360
+    
+    def atualizar(self, dt):
+        # Movimento
+        rad = math.radians(self.angulo)
+        self.x += math.cos(rad) * self.vel * dt
+        self.y += math.sin(rad) * self.vel * dt
+        
+        # RotaÃ§Ã£o visual
+        self.angulo_visual += self.rotacao_vel * dt
+        
+        # Trail
+        self.trail.append((self.x, self.y))
+        if len(self.trail) > 8:
+            self.trail.pop(0)
+        
+        # Vida
+        self.vida -= dt
+        if self.vida <= 0:
+            self.ativo = False
+    
+    def colidir(self, alvo):
+        """Verifica colisÃ£o com um lutador"""
+        if alvo == self.dono:
+            return False
+        if alvo.morto:
+            return False
+        
+        dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+        # Usa raio_fisico se disponÃ­vel, senÃ£o calcula do tamanho
+        raio_alvo = getattr(alvo, 'raio_fisico', alvo.dados.tamanho / 4.0)
+        
+        # ColisÃ£o generosa para projÃ©teis
+        return dist < (self.raio + raio_alvo * 1.2)
+
+
+class FlechaProjetil(ArmaProjetil):
+    """Flecha rÃ¡pida e precisa - voa em linha reta"""
+    def __init__(self, x, y, angulo, dono, dano, forca=1.0, cor=(139, 90, 43)):
+        # Flecha MUITO rÃ¡pida: 35-55 m/s dependendo da forÃ§a do arco
+        super().__init__("flecha", x, y, angulo, dono, dano, 
+                        velocidade=35.0 + forca * 20.0,  # MUITO mais rÃ¡pido!
+                        tamanho=0.6, cor=cor)  # Raio maior para colisÃ£o generosa
+        self.forca = forca
+        # CM-03: gravidade=0.0 e vel_y_extra=0 removidos â€” nunca eram lidos
+        self.vida = 5.0  # Vive 5 segundos (alcanÃ§a ~200m)
+        self.perfurante = forca > 0.5  # Flechas mÃ©dias+ perfuram
+    
+    def atualizar(self, dt):
+        # Movimento em LINHA RETA - flecha voa direto no alvo
+        rad = math.radians(self.angulo)
+        self.x += math.cos(rad) * self.vel * dt
+        self.y += math.sin(rad) * self.vel * dt
+        
+        # Ã‚ngulo visual = Ã¢ngulo de voo (linha reta)
+        self.angulo_visual = self.angulo
+        
+        # Trail
+        self.trail.append((self.x, self.y))
+        if len(self.trail) > 6:
+            self.trail.pop(0)
+        
+        self.vida -= dt
+        if self.vida <= 0:
+            self.ativo = False
+
+
+class OrbeMagico:
+    """Orbe mÃ¡gico que flutua ao redor do mago e depois dispara no inimigo"""
+    def __init__(self, x, y, dono, dano, indice=0, total=1, cor=(100, 100, 255)):
+        self.x = x
+        self.y = y
+        self.dono = dono
+        self.dano = dano
+        self.cor = cor
+        self.raio = 0.25  # Raio de colisÃ£o
+        self.raio_visual = 0.15  # Tamanho visual inicial
+        
+        # Ãndice para posicionamento orbital
+        self.indice = indice
+        self.total = total
+        
+        # Estados: "orbitando", "carregando", "disparando"
+        self.estado = "orbitando"
+        
+        # Ã“rbita
+        self.angulo_orbital = (360.0 / total) * indice
+        self.vel_orbital = 180.0  # graus/segundo
+        self.dist_orbital = 0.8  # distÃ¢ncia do dono
+        
+        # Carregamento
+        self.tempo_carga = 0.0
+        self.carga_max = 0.6  # tempo para carregar
+        
+        # Disparo
+        self.angulo_disparo = 0
+        self.vel_disparo = 0
+        self.vel_max = 18.0
+        self.alvo = None
+        
+        # Visual
+        self.pulso = 0.0
+        self.particulas = []
+        self.trail = []
+        
+        self.vida = 8.0  # Tempo mÃ¡ximo de existÃªncia
+        self.ativo = True
+    
+    def iniciar_carga(self, alvo):
+        """ComeÃ§a a carregar para disparar"""
+        if self.estado == "orbitando":
+            self.estado = "carregando"
+            self.tempo_carga = 0.0
+            self.alvo = alvo
+    
+    def atualizar(self, dt):
+        self.vida -= dt
+        self.pulso += dt * 5.0
+        
+        if self.vida <= 0:
+            self.ativo = False
+            return
+        
+        if self.estado == "orbitando":
+            self._atualizar_orbita(dt)
+        elif self.estado == "carregando":
+            self._atualizar_carga(dt)
+        elif self.estado == "disparando":
+            self._atualizar_disparo(dt)
+        
+        # PartÃ­culas mÃ¡gicas
+        if random.random() < 0.3:
+            self.particulas.append({
+                'x': self.x + random.uniform(-0.1, 0.1),
+                'y': self.y + random.uniform(-0.1, 0.1),
+                'vida': 0.3,
+                'cor': self.cor
+            })
+        
+        # Atualiza partÃ­culas
+        for p in self.particulas:
+            p['vida'] -= dt
+            p['y'] -= dt * 0.5  # Sobe levemente
+        self.particulas = [p for p in self.particulas if p['vida'] > 0]
+    
+    def _atualizar_orbita(self, dt):
+        """Orbita ao redor do dono"""
+        self.angulo_orbital += self.vel_orbital * dt
+        rad = math.radians(self.angulo_orbital)
+        
+        # Flutua suavemente
+        offset_y = math.sin(self.pulso) * 0.1
+        
+        self.x = self.dono.pos[0] + math.cos(rad) * self.dist_orbital
+        self.y = self.dono.pos[1] + math.sin(rad) * self.dist_orbital + offset_y
+    
+    def _atualizar_carga(self, dt):
+        """Carrega energia antes de disparar"""
+        self.tempo_carga += dt
+        
+        # Cresce durante carga
+        self.raio_visual = 0.15 + (self.tempo_carga / self.carga_max) * 0.15
+        
+        # Move-se para posiÃ§Ã£o de disparo (entre dono e alvo)
+        if self.alvo:
+            dir_x = self.alvo.pos[0] - self.dono.pos[0]
+            dir_y = self.alvo.pos[1] - self.dono.pos[1]
+            dist = math.hypot(dir_x, dir_y)
+            if dist > 0:
+                dir_x /= dist
+                dir_y /= dist
+            
+            # Move para frente do dono na direÃ§Ã£o do alvo
+            target_x = self.dono.pos[0] + dir_x * 0.6
+            target_y = self.dono.pos[1] + dir_y * 0.6
+            
+            self.x += (target_x - self.x) * dt * 5.0
+            self.y += (target_y - self.y) * dt * 5.0
+            
+            # Calcula Ã¢ngulo de disparo
+            self.angulo_disparo = math.degrees(math.atan2(dir_y, dir_x))
+        
+        # Pronto para disparar
+        if self.tempo_carga >= self.carga_max:
+            self.estado = "disparando"
+            self.vel_disparo = self.vel_max
+    
+    def _atualizar_disparo(self, dt):
+        """Voa em direÃ§Ã£o ao alvo"""
+        # Se tem alvo, persegue levemente
+        if self.alvo and not self.alvo.morto:
+            dir_x = self.alvo.pos[0] - self.x
+            dir_y = self.alvo.pos[1] - self.y
+            ang_alvo = math.degrees(math.atan2(dir_y, dir_x))
+            
+            # Ajuste suave de direÃ§Ã£o (homing leve)
+            diff = ang_alvo - self.angulo_disparo
+            while diff > 180: diff -= 360
+            while diff < -180: diff += 360
+            self.angulo_disparo += diff * dt * 2.0  # Homing suave
+        
+        # Movimento
+        rad = math.radians(self.angulo_disparo)
+        self.x += math.cos(rad) * self.vel_disparo * dt
+        self.y += math.sin(rad) * self.vel_disparo * dt
+        
+        # Trail
+        self.trail.append((self.x, self.y))
+        if len(self.trail) > 12:
+            self.trail.pop(0)
+    
+    def colidir(self, alvo):
+        """Verifica colisÃ£o - sÃ³ colide quando disparando"""
+        if self.estado != "disparando":
+            return False
+        if alvo == self.dono:
+            return False
+        if alvo.morto:
+            return False
+        
+        dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+        raio_alvo = alvo.dados.tamanho / 2
+        
+        return dist < (self.raio + raio_alvo)
+
+
+class Projetil:
+    """
+    ProjÃ©til genÃ©rico que carrega dados do SKILL_DB
+    v2.0 COLOSSAL - Suporta todos os novos tipos de projÃ©teis
+    """
+    def __init__(self, nome_skill, x, y, angulo, dono):
+        self.nome = nome_skill
+        data = get_skill_data(nome_skill)
+        
+        self.x = x
+        self.y = y
+        self.angulo = angulo
+        self.dono = dono
+        
+        # Atributos bÃ¡sicos carregados
+        self.tipo_efeito = data.get("efeito", "NORMAL")
+        self.vel = data.get("velocidade", 10.0)
+        self.raio = data.get("raio", 0.3)
+        self.dano = data.get("dano", 10.0)
+        self.cor = data.get("cor", BRANCO)
+        self.vida = data.get("vida", 2.0)
+        self.vida_max = self.vida
+        
+        # Elemento
+        self.elemento = data.get("elemento", None)
+        self.classe_magia = data.get("classe_magia", {})
+        self.classe_forca = data.get("classe_forca", "IMPACTO")
+        self.classe_utilidade = data.get("classe_utilidade", "DANO")
+        self.assinatura_visual = data.get("assinatura_visual", "cometa")
+        # CM-04: multi_shot nÃ£o Ã© necessÃ¡rio como atributo de instÃ¢ncia â€”
+        # os callers (entities.py) lÃªem data diretamente antes de criar o Projetil
+        
+        # === NOVOS ATRIBUTOS v2.0 ===
+        
+        # Homing (teleguiado)
+        self.homing = data.get("homing", False)
+        self.homing_strength = 2.0 if self.homing else 0
+        self.alvo = None
+        
+        # PerfuraÃ§Ã£o
+        self.perfura = data.get("perfura", False)
+        self.alvos_perfurados = set() if self.perfura else None
+        
+        # Chain (correntes para mÃºltiplos alvos)
+        self.chain = data.get("chain", 0)
+        self.chain_count = 0
+        self.chain_decay = data.get("chain_decay", 0.8)
+        self.chain_targets = set()
+        
+        # Retorno (volta para o dono)
+        self.retorna = data.get("retorna", False)
+        self.retornando = False
+        self.dist_max_retorno = 8.0
+        
+        # ExplosÃ£o no impacto
+        self.raio_explosao = data.get("raio_explosao", 0)
+        
+        # ExplosÃ£o com delay
+        self.delay_explosao = data.get("delay_explosao", 0)
+        self.explodiu = False
+        
+        # Cone (atinge Ã¡rea cÃ´nica)
+        self.cone = data.get("cone", False)
+        self.angulo_cone = data.get("angulo_cone", 60)
+        
+        # DuplicaÃ§Ã£o temporal
+        self.duplica_apos = data.get("duplica_apos", 0)
+        self.duplicado = False
+        
+        # Split aleatÃ³rio (Caos)
+        self.split_aleatorio = data.get("split_aleatorio", False)
+        self.max_splits = data.get("max_splits", 0)
+        self.splits_feitos = 0
+        
+        # Backfire chance (Caos)
+        self.chance_backfire = data.get("chance_backfire", 0)
+        if self.chance_backfire > 0 and random.random() < self.chance_backfire:
+            # Reverte direÃ§Ã£o!
+            self.angulo += 180
+        
+        # Elemento aleatÃ³rio (Caos)
+        if data.get("elemento_aleatorio", False):
+            elementos = ["FOGO", "GELO", "RAIO", "TREVAS", "LUZ", "NATUREZA", "ARCANO"]
+            self.elemento = random.choice(elementos)
+            # Ajusta cor baseado no elemento
+            cores_elemento = {
+                "FOGO": (255, 100, 0), "GELO": (150, 220, 255), "RAIO": (255, 255, 100),
+                "TREVAS": (100, 0, 150), "LUZ": (255, 255, 200), "NATUREZA": (100, 255, 100),
+                "ARCANO": (150, 100, 255)
+            }
+            self.cor = cores_elemento.get(self.elemento, self.cor)
+        
+        # Dano variÃ¡vel (Caos)
+        dano_var = data.get("dano_variavel", None)
+        if dano_var:
+            multiplier = random.uniform(dano_var[0], dano_var[1])
+            self.dano *= multiplier
+        
+        # Efeito aleatÃ³rio (Caos)
+        if data.get("efeito_aleatorio", False):
+            efeitos = data.get("efeitos_possiveis", ["NORMAL"])
+            self.tipo_efeito = random.choice(efeitos)
+        
+        # CondiÃ§Ãµes de dano extra
+        self.condicao = data.get("condicao", None)
+        self.dano_bonus_condicao = data.get("dano_bonus_condicao", 1.0)
+        self.executa = data.get("executa", False)  # Executa alvos com baixa vida
+        
+        # Lifesteal
+        self.lifesteal = data.get("lifesteal", 0)
+        
+        # Remove congelamento (para Shatter)
+        self.remove_congelamento = data.get("remove_congelamento", False)
+        
+        # Contagioso (espalha para outros)
+        self.contagioso = data.get("contagioso", False)
+        self.raio_contagio = data.get("raio_contagio", 2.0)
+        
+        self.ativo = True
+        self.trail = []  # Rastro visual
+
+    def atualizar(self, dt, alvos=None):
+        """Atualiza projÃ©til com suporte a homing e comportamentos especiais"""
+        
+        # === HOMING ===
+        if self.homing and alvos:
+            # A06 Sprint 9: cache de alvo â€” sÃ³ faz scan linear quando necessÃ¡rio.
+            # Se o alvo atual estÃ¡ vivo e dentro de 15m, mantÃ©m sem recalcular.
+            _alvo_valido = (
+                self.alvo is not None
+                and not self.alvo.morto
+                and math.hypot(self.alvo.pos[0] - self.x, self.alvo.pos[1] - self.y) < 15.0
+            )
+            if not _alvo_valido:
+                menor_dist = float('inf')
+                for alvo in alvos:
+                    if alvo != self.dono and not alvo.morto:
+                        dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+                        if dist < menor_dist:
+                            menor_dist = dist
+                            self.alvo = alvo
+            
+            # Persegue o alvo
+            if self.alvo and not self.alvo.morto:
+                dir_x = self.alvo.pos[0] - self.x
+                dir_y = self.alvo.pos[1] - self.y
+                ang_alvo = math.degrees(math.atan2(dir_y, dir_x))
+                
+                diff = ang_alvo - self.angulo
+                while diff > 180: diff -= 360
+                while diff < -180: diff += 360
+                self.angulo += diff * self.homing_strength * dt
+        
+        # === RETORNO ===
+        if self.retorna and not self.retornando:
+            dist_dono = math.hypot(self.dono.pos[0] - self.x, self.dono.pos[1] - self.y)
+            if dist_dono > self.dist_max_retorno or self.vida < self.vida_max * 0.3:
+                self.retornando = True
+        
+        if self.retornando:
+            dir_x = self.dono.pos[0] - self.x
+            dir_y = self.dono.pos[1] - self.y
+            self.angulo = math.degrees(math.atan2(dir_y, dir_x))
+            dist_dono = math.hypot(dir_x, dir_y)
+            if dist_dono < 0.5:
+                self.ativo = False
+        
+        # === MOVIMENTO ===
+        rad = math.radians(self.angulo)
+        self.x += math.cos(rad) * self.vel * dt
+        self.y += math.sin(rad) * self.vel * dt
+        
+        # Salva posiÃ§Ã£o para trail
+        self.trail.append((self.x, self.y))
+        if len(self.trail) > 10:
+            self.trail.pop(0)
+        
+        # === DUPLICAÃ‡ÃƒO TEMPORAL ===
+        if self.duplica_apos > 0 and not self.duplicado:
+            self.duplica_apos -= dt
+            if self.duplica_apos <= 0:
+                self.duplicado = True
+                # Retorna dados para criar duplicata
+                return {"duplicar": True, "x": self.x, "y": self.y, 
+                        "angulo": self.angulo + random.uniform(-30, 30)}
+        
+        # === SPLIT ALEATÃ“RIO ===
+        if self.split_aleatorio and self.splits_feitos < self.max_splits:
+            if random.random() < 0.05:  # 5% chance por frame
+                self.splits_feitos += 1
+                return {"split": True, "x": self.x, "y": self.y,
+                        "angulo": self.angulo + random.choice([-45, 45])}
+        
+        # === VIDA ===
+        self.vida -= dt
+        if self.vida <= 0:
+            # ExplosÃ£o com delay
+            if self.delay_explosao > 0 and not self.explodiu:
+                self.explodiu = True
+                return {"explodir": True, "x": self.x, "y": self.y, 
+                        "raio": self.raio_explosao or 2.0}
+            self.ativo = False
+        
+        return None
+    
+    def verificar_condicao(self, alvo):
+        """Verifica se a condiÃ§Ã£o de dano extra Ã© cumprida"""
+        if not self.condicao:
+            return 1.0
+        
+        hp_percent = alvo.vida / max(alvo.vida_max, 1)
+        
+        if self.condicao == "ALVO_BAIXA_VIDA" and hp_percent < 0.3:
+            if self.executa:
+                return 10.0  # ExecuÃ§Ã£o!
+            return self.dano_bonus_condicao
+        
+        elif self.condicao == "ALVO_QUEIMANDO":
+            for dot in alvo.dots_ativos:
+                if dot.tipo in ["QUEIMANDO", "QUEIMAR"]:
+                    return self.dano_bonus_condicao
+        
+        elif self.condicao == "ALVO_CONGELADO":
+            if getattr(alvo, 'congelado', False):
+                return self.dano_bonus_condicao
+        
+        return 1.0
+    
+    def pode_atingir(self, alvo):
+        """Verifica se pode atingir o alvo (para perfuraÃ§Ã£o)"""
+        if self.perfura:
+            if alvo in self.alvos_perfurados:
+                return False
+            self.alvos_perfurados.add(alvo)
+        return True
+    
+    def colidir(self, alvo):
+        """
+        Verifica colisÃ£o com um lutador.
+        Usa geometria de cÃ­rculo: dist < (raio_projÃ©til + raio_alvo)
+        
+        BUG-FIREBALL-FIX v1.0: Implementa mÃ©todo colidir que estava faltando.
+        Sem este mÃ©todo, Projetil cai no fallback que era menos preciso.
+        """
+        if alvo == self.dono:
+            return False
+        if alvo.morto:
+            return False
+        
+        dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+        raio_alvo = alvo.dados.tamanho / 2.0
+        
+        return dist < (self.raio + raio_alvo)
+    
+    def chain_para(self, alvo):
+        """Tenta fazer chain para outro alvo"""
+        if self.chain <= 0 or self.chain_count >= self.chain:
+            return None
+        
+        self.chain_count += 1
+        self.chain_targets.add(id(alvo))
+        
+        # Reduz dano
+        self.dano *= self.chain_decay
+        
+        return {"chain": True, "from": (self.x, self.y), "to": alvo}
+
+
+class AreaEffect:
+    """
+    Efeito de Ã¡rea (explosÃµes, nuvens, campos, etc)
+    v2.0 COLOSSAL - Suporta campos persistentes, vÃ³rtices, e mais
+    """
+    def __init__(self, nome_skill, x, y, dono):
+        self.nome = nome_skill
+        data = get_skill_data(nome_skill)
+        
+        self.x = x
+        self.y = y
+        self.dono = dono
+        
+        self.raio = data.get("raio_area", 2.0)
+        self.dano = data.get("dano", 10.0)
+        self.cor = data.get("cor", BRANCO)
+        self.duracao = data.get("duracao", 0.5)
+        self.tipo_efeito = data.get("efeito", "NORMAL")
+        
+        # Elemento
+        self.elemento = data.get("elemento", None)
+        self.classe_magia = data.get("classe_magia", {})
+        self.classe_forca = data.get("classe_forca", "IMPACTO")
+        self.classe_utilidade = data.get("classe_utilidade", "ZONA")
+        self.assinatura_visual = data.get("assinatura_visual", "campo")
+        
+        # Delay antes de ativar
+        self.delay = data.get("delay", 0)
+        self.ativado = self.delay <= 0
+        self.aviso_visual = data.get("aviso_visual", self.delay > 0)
+        
+        # Garante que duraÃ§Ã£o Ã© suficiente apÃ³s o delay
+        if self.delay > 0 and self.duracao < 0.5:
+            self.duracao = 0.5  # MÃ­nimo 0.5s de duraÃ§Ã£o ativa apÃ³s delay
+        
+        self.vida = self.duracao
+        self.ativo = True
+        self.alvos_atingidos = set()  # Evita hit mÃºltiplo inicial
+        
+        # AnimaÃ§Ã£o
+        self.raio_atual = 0.0
+        self.alpha = 255
+        
+        # === NOVOS ATRIBUTOS v2.0 ===
+        
+        # Dano por segundo (para campos persistentes)
+        self.dano_por_segundo = data.get("dano_por_segundo", 0) or data.get("dano_tick", 0)
+        self.tick_timer = 0
+        self.tick_interval = 0.5
+        
+        # Slow
+        self.slow_fator = data.get("slow_fator", 1.0)
+        
+        # Pull/Push
+        self.puxa_para_centro = data.get("puxa_para_centro", False)
+        self.puxa_continuo = data.get("puxa_continuo", False)
+        self.forca_empurrao = data.get("forca_empurrao", 0)
+        self.forca_puxar = 5.0 if self.puxa_para_centro else 0
+        
+        # Gravidade aumentada
+        self.gravidade_aumentada = data.get("gravidade_aumentada", 1.0)
+        
+        # Ondas (mÃºltiplas explosÃµes)
+        self.ondas = data.get("ondas", 1)
+        self.onda_atual = 0
+        self.intervalo_onda = 0.5
+        self.timer_onda = 0
+        
+        # Pilares (mÃºltiplos pontos)
+        self.pilares = data.get("pilares", 0)
+        self.posicoes_pilares = []
+        if self.pilares > 0:
+            for i in range(self.pilares):
+                ang = (360 / self.pilares) * i + random.uniform(-20, 20)
+                dist = random.uniform(1.0, self.raio)
+                px = self.x + math.cos(math.radians(ang)) * dist
+                py = self.y + math.sin(math.radians(ang)) * dist
+                self.posicoes_pilares.append((px, py))
+        
+        # VÃ³rtex (puxa continuamente)
+        self.vortex = data.get("efeito") == "VORTEX" or self.puxa_continuo
+        
+        # Meteoros aleatÃ³rios (Caos)
+        self.meteoros = data.get("meteoros_aleatorios", 0)
+        self.meteoros_spawned = 0
+        self.timer_meteoro = 0
+        
+        # Efeito secundÃ¡rio
+        self.efeito2 = data.get("efeito2", None)
+        
+        # Stun/CC
+        self.duracao_stun = data.get("duracao_stun", 0)
+        self.duracao_fear = data.get("duracao_fear", 0)
+        self.duracao_charme = data.get("duracao_charme", 0)
+        self.chance_stun = data.get("chance_stun", 1.0)  # 100% por padrÃ£o
+        
+        # Taunt
+        self.taunt = data.get("taunt", False)
+        self.duracao_taunt = data.get("duracao_taunt", 0)
+
+    def _is_ally(self, alvo):
+        """v13.0: Check if target is on same team as owner"""
+        return (hasattr(self.dono, 'team_id') and hasattr(alvo, 'team_id')
+                and alvo.team_id == self.dono.team_id)
+
+    def atualizar(self, dt, alvos=None):
+        """Atualiza efeito de Ã¡rea com todos os novos comportamentos"""
+        resultados = []
+        
+        # === DELAY ===
+        if not self.ativado:
+            self.delay -= dt
+            if self.delay <= 0:
+                self.ativado = True
+                self.alvos_atingidos.clear()  # Reset para aplicar dano
+            return resultados
+        
+        self.vida -= dt
+        
+        # === EXPANSÃƒO DO RAIO ===
+        if self.raio_atual < self.raio:
+            self.raio_atual += self.raio * 3 * dt
+        
+        # === ONDAS ===
+        if self.ondas > 1 and self.onda_atual < self.ondas:
+            self.timer_onda += dt
+            if self.timer_onda >= self.intervalo_onda:
+                self.timer_onda = 0
+                self.onda_atual += 1
+                self.alvos_atingidos.clear()  # Nova onda = novo dano
+                resultados.append({"nova_onda": True, "x": self.x, "y": self.y})  # bugfix: x/y obrigatÃ³rios
+        
+        # === METEOROS ALEATÃ“RIOS ===
+        if self.meteoros > 0 and self.meteoros_spawned < self.meteoros:
+            self.timer_meteoro += dt
+            if self.timer_meteoro >= 0.3:  # 1 meteoro a cada 0.3s
+                self.timer_meteoro = 0
+                self.meteoros_spawned += 1
+                # PosiÃ§Ã£o aleatÃ³ria dentro da Ã¡rea
+                ang = random.uniform(0, 360)
+                dist = random.uniform(0, self.raio)
+                mx = self.x + math.cos(math.radians(ang)) * dist
+                my = self.y + math.sin(math.radians(ang)) * dist
+                resultados.append({"meteoro": True, "x": mx, "y": my})
+        
+        # === VÃ“RTEX / PUXAR ===
+        if (self.vortex or self.puxa_continuo) and alvos:
+            for alvo in alvos:
+                if alvo == self.dono or alvo.morto or self._is_ally(alvo):
+                    continue
+                dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+                if dist < self.raio_atual * 1.5:  # Pull range um pouco maior
+                    resultados.append({"pull": True, "alvo": alvo, "forca": self.forca_puxar})
+        
+        # === DANO POR SEGUNDO ===
+        if self.dano_por_segundo > 0 and alvos:
+            self.tick_timer += dt
+            if self.tick_timer >= self.tick_interval:
+                self.tick_timer = 0
+                for alvo in alvos:
+                    if alvo == self.dono or alvo.morto or self._is_ally(alvo):
+                        continue
+                    dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+                    if dist < self.raio_atual:
+                        resultados.append({
+                            "dot_tick": True, 
+                            "alvo": alvo, 
+                            "dano": self.dano_por_segundo * self.tick_interval
+                        })
+        
+        # === FADE OUT ===
+        self.alpha = int(255 * max(0, self.vida / max(self.duracao, 0.01)))
+        
+        if self.vida <= 0:
+            self.ativo = False
+        
+        return resultados
+    
+    def aplicar_efeitos_alvo(self, alvo):
+        """Aplica todos os efeitos da Ã¡rea no alvo"""
+        # Slow
+        if self.slow_fator < 1.0:
+            alvo.slow_timer = max(alvo.slow_timer, self.duracao)
+            alvo.slow_fator = min(alvo.slow_fator, self.slow_fator)
+        
+        # Stun
+        if self.duracao_stun > 0 and random.random() < self.chance_stun:
+            alvo.stun_timer = max(alvo.stun_timer, self.duracao_stun)
+        
+        # Fear
+        if self.duracao_fear > 0:
+            if hasattr(alvo, 'medo_timer'):
+                alvo.medo_timer = max(alvo.medo_timer, self.duracao_fear)
+            if getattr(alvo, 'brain', None):
+                alvo.brain.medo = 1.0
+        
+        # Gravidade
+        if self.gravidade_aumentada > 1.0:
+            # Impede pulo e causa slow
+            alvo.vel_z = min(alvo.vel_z, 0)
+            alvo.slow_fator = min(alvo.slow_fator, 1.0 / self.gravidade_aumentada)
+        
+        # Efeito principal
+        alvo._aplicar_efeito_status(self.tipo_efeito)
+        
+        # Efeito secundÃ¡rio
+        if self.efeito2:
+            alvo._aplicar_efeito_status(self.efeito2)
+    
+    def calcular_puxar(self, alvo_pos):
+        """Calcula forÃ§a de puxar para o centro"""
+        if not (self.puxa_para_centro or self.vortex):
+            return (0, 0)
+        
+        dx = self.x - alvo_pos[0]
+        dy = self.y - alvo_pos[1]
+        dist = math.hypot(dx, dy)
+        
+        if dist < 0.1:
+            return (0, 0)
+        
+        # Normaliza e aplica forÃ§a
+        forca = self.forca_puxar * (1.0 - dist / self.raio)  # Mais forte no centro
+        return (dx / dist * forca, dy / dist * forca)
+
+
+class Beam:
+    """Raio instantÃ¢neo (relÃ¢mpagos, lasers)"""
+    def __init__(self, nome_skill, x_origem, y_origem, x_destino, y_destino, dono):
+        self.nome = nome_skill
+        data = get_skill_data(nome_skill)
+        
+        self.x1, self.y1 = x_origem, y_origem
+        self.x2, self.y2 = x_destino, y_destino
+        self.dono = dono
+        
+        self.dano = data.get("dano", 15.0)
+        self.cor = data.get("cor", (255, 255, 100))
+        self.tipo_efeito = data.get("efeito", "ATORDOAR")
+        self.alcance = data.get("alcance", 8.0)
+        self.elemento = data.get("elemento", None)
+        self.classe_magia = data.get("classe_magia", {})
+        self.classe_forca = data.get("classe_forca", "PRECISAO")
+        self.classe_utilidade = data.get("classe_utilidade", "DANO")
+        self.assinatura_visual = data.get("assinatura_visual", "fluxo")
+        
+        # Chain (Corrente em Cadeia)
+        self.chain = data.get("chain", 0)
+        self.chain_count = 0
+        self.chain_decay = data.get("chain_decay", 0.8)
+        self.chain_targets = set()
+        
+        # CanalizaÃ§Ã£o
+        self.canalizavel = data.get("canalizavel", False)
+        self.dano_por_segundo = data.get("dano_por_segundo", 0)
+        self.duracao_max = data.get("duracao_max", 0)
+        self.penetra_escudo = data.get("penetra_escudo", False)
+        
+        self.vida = 0.15  # Curta duraÃ§Ã£o visual
+        self.ativo = True
+        self.hit_aplicado = False
+        
+        # Efeito visual
+        self.largura = 8
+        self.segments = self._gerar_zigzag()
+
+    def _gerar_zigzag(self):
+        """Gera pontos de zigzag para efeito de raio"""
+        segments = [(self.x1, self.y1)]
+        dx = self.x2 - self.x1
+        dy = self.y2 - self.y1
+        dist = math.hypot(dx, dy)
+        
+        if dist == 0:
+            return segments
+        
+        num_segs = int(dist / 0.5) + 1
+        for i in range(1, num_segs):
+            t = i / num_segs
+            px = self.x1 + dx * t + random.uniform(-0.3, 0.3)
+            py = self.y1 + dy * t + random.uniform(-0.3, 0.3)
+            segments.append((px, py))
+        
+        segments.append((self.x2, self.y2))
+        return segments
+
+    def atualizar(self, dt):
+        self.vida -= dt
+        self.largura = max(1, int(8 * (self.vida / 0.15)))
+        if self.vida <= 0:
+            self.ativo = False
+
+
+class Buff:
+    """Efeito de buff/debuff em um lutador"""
+    def __init__(self, nome_skill, alvo):
+        self.nome = nome_skill
+        data = get_skill_data(nome_skill)
+
+        self.alvo = alvo
+        self.duracao = data.get("duracao", 5.0)
+        self.vida = self.duracao
+        self.cor = data.get("cor", BRANCO)
+        self.elemento = data.get("elemento", None)
+        self.classe_magia = data.get("classe_magia", {})
+        self.classe_forca = data.get("classe_forca", "SUPORTE")
+        self.classe_utilidade = data.get("classe_utilidade", "AMPLIFICACAO")
+        self.assinatura_visual = data.get("assinatura_visual", "halo")
+
+        # Efeitos possÃ­veis
+        self.escudo = data.get("escudo", 0)
+        self.escudo_atual = self.escudo
+        self.buff_dano = data.get("buff_dano", 1.0)
+        self.buff_velocidade = data.get("buff_velocidade", 1.0)
+        self.refletir = data.get("refletir", 0)
+        self.cura_por_segundo = data.get("regen", 0)
+
+        # BUG-04 fix: Sobrecarga e outros buffs com stats de velocidade/dano recebido
+        self.bonus_velocidade_ataque  = data.get("bonus_velocidade_ataque", 1.0)
+        self.bonus_velocidade_movimento = data.get("bonus_velocidade_movimento", 1.0)
+        self.dano_recebido_bonus      = data.get("dano_recebido_bonus", 1.0)
+
+        # CM-15: FP4 â€” ConjuraÃ§Ã£o Perfeita: sem_cooldown e custo_mana_metade
+        self.sem_cooldown = data.get("sem_cooldown", False)
+        self.custo_mana_metade = data.get("custo_mana_metade", False)
+
+        # CM-14: FP1 â€” Ãšltimo Suspiro: ativa_ao_morrer + cura_percent
+        self.ativa_ao_morrer = data.get("ativa_ao_morrer", False)
+        self.cura_percent = data.get("cura_percent", 0)
+
+        # CM-13: FP5 â€” PrevisÃ£o: esquiva_garantida (cargas de esquiva)
+        esquivas = data.get("esquiva_garantida", 0)
+        if esquivas > 0 and hasattr(alvo, 'esquivas_garantidas'):
+            alvo.esquivas_garantidas = getattr(alvo, 'esquivas_garantidas', 0) + esquivas
+        elif esquivas > 0:
+            alvo.esquivas_garantidas = esquivas
+
+        # CM-18: stats_aleatorios (MutaÃ§Ã£o) â€” aplica bonus/malus random
+        if data.get("stats_aleatorios"):
+            import random as _rng
+            self._mutacao_dano = _rng.uniform(0.5, 2.0)
+            self._mutacao_vel = _rng.uniform(0.6, 1.8)
+            self._mutacao_def = _rng.uniform(0.7, 1.5)
+            self.buff_dano *= self._mutacao_dano
+            if hasattr(alvo, 'velocidade'):
+                alvo.velocidade *= self._mutacao_vel
+            alvo.vulnerabilidade = getattr(alvo, 'vulnerabilidade', 1.0) * self._mutacao_def
+        else:
+            self._mutacao_dano = 1.0
+            self._mutacao_vel = 1.0
+            self._mutacao_def = 1.0
+
+        # Tipo de buff especial para DeterminaÃ§Ã£o (cooldown reduzido)
+        self.bonus_velocidade = data.get("bonus_velocidade", 1.0)
+        if self.bonus_velocidade != 1.0 and hasattr(alvo, 'velocidade'):
+            alvo.velocidade *= self.bonus_velocidade
+
+        # Dano de contato (Escudo de Brasas)
+        self.dano_contato = data.get("dano_contato", 0)
+
+        # Aplica imediatamente os modificadores de velocidade na entidade
+        if self.bonus_velocidade_ataque != 1.0 and hasattr(alvo, 'arma_vel_ataque'):
+            alvo.arma_vel_ataque *= self.bonus_velocidade_ataque
+        if self.bonus_velocidade_movimento != 1.0 and hasattr(alvo, 'velocidade'):
+            alvo.velocidade *= self.bonus_velocidade_movimento
+
+        self.ativo = True
+
+    def atualizar(self, dt):
+        self.vida -= dt
+
+        # Cura contÃ­nua â€” bloqueada se NECROSE ou outro efeito anti-heal estiver ativo
+        if self.cura_por_segundo > 0 and getattr(self.alvo, 'cura_bloqueada', 0) <= 0:
+            self.alvo.vida = min(self.alvo.vida_max, self.alvo.vida + self.cura_por_segundo * dt)
+
+        if self.vida <= 0:
+            self._reverter_stats()
+            self.ativo = False
+
+    def _reverter_stats(self):
+        """BUG-04 fix: reverte modificadores de velocidade ao expirar"""
+        if self.bonus_velocidade_ataque not in (0, 1.0) and hasattr(self.alvo, 'arma_vel_ataque'):
+            self.alvo.arma_vel_ataque /= self.bonus_velocidade_ataque
+        if self.bonus_velocidade_movimento not in (0, 1.0) and hasattr(self.alvo, 'velocidade'):
+            self.alvo.velocidade /= self.bonus_velocidade_movimento
+        # CM-18: reverte mutaÃ§Ã£o
+        if self._mutacao_vel not in (0, 1.0) and hasattr(self.alvo, 'velocidade'):
+            self.alvo.velocidade /= self._mutacao_vel
+        if self._mutacao_def not in (0, 1.0):
+            vuln = getattr(self.alvo, 'vulnerabilidade', 1.0)
+            self.alvo.vulnerabilidade = vuln / self._mutacao_def
+        # CM-bonus_velocidade revert
+        if self.bonus_velocidade not in (0, 1.0) and hasattr(self.alvo, 'velocidade'):
+            self.alvo.velocidade /= self.bonus_velocidade
+    
+    def absorver_dano(self, dano):
+        """Tenta absorver dano com escudo, retorna dano restante"""
+        if self.escudo_atual <= 0:
+            return dano
+        
+        if dano <= self.escudo_atual:
+            self.escudo_atual -= dano
+            return 0
+        else:
+            restante = dano - self.escudo_atual
+            self.escudo_atual = 0
+            return restante
+
+
+class DotEffect:
+    """Damage over Time (veneno, sangramento, queimadura)"""
+    def __init__(self, tipo, alvo, dano_por_tick, duracao, cor):
+        self.tipo = tipo
+        self.alvo = alvo
+        self.dano_por_tick = dano_por_tick * 0.5  # Reduzido em 50%
+        self.duracao = duracao
+        self.vida = duracao
+        self.cor = cor
+        
+        self.tick_timer = 0.0
+        self.tick_interval = 0.5
+        self.ativo = True
+
+    def atualizar(self, dt):
+        self.vida -= dt
+        self.tick_timer += dt
+        
+        if self.tick_timer >= self.tick_interval:
+            self.tick_timer = 0
+            # Aplica dano respeitando escudos e modificadores
+            if not self.alvo.morto:
+                dano = self.dano_por_tick
+
+                # Respeita vulnerabilidade e debuffs de dano recebido
+                dano *= getattr(self.alvo, 'vulnerabilidade', 1.0)
+
+                # AbsorÃ§Ã£o por escudos de buff (ex: BLINDADO)
+                for buff in getattr(self.alvo, 'buffs_ativos', []):
+                    if getattr(buff, 'escudo_atual', 0) > 0:
+                        dano = buff.absorver_dano(dano)
+                        if dano <= 0:
+                            break
+
+                if dano > 0:
+                    self.alvo.vida -= dano
+                    if self.alvo.vida <= 0:
+                        self.alvo.morrer()
+        
+        if self.vida <= 0:
+            self.ativo = False
+
+
+# =============================================================================
+# NOVAS CLASSES v2.0 - SUMMON, TRAP, TRANSFORM, CHANNEL
+# =============================================================================
+
+class Summon:
+    """
+    Criatura invocada que luta ao lado do conjurador
+    v3.0 - Suporta Fenix, Treant, Espirito, Copia Sombria
+    - Ataques aplicam elemento/efeito da skill
+    - Tomam dano de projÃ©teis e Ã¡reas inimigas
+    - IA melhorada com esquiva e posicionamento
+    """
+    def __init__(self, nome_skill, x, y, dono):
+        self.nome = nome_skill
+        data = get_skill_data(nome_skill)
+        
+        self.x = x
+        self.y = y
+        self.dono = dono
+        
+        # Stats da criatura
+        self.vida_max = data.get("summon_vida", 50.0)
+        self.vida = self.vida_max
+        self.dano = data.get("summon_dano", 10.0)
+        self.cor = data.get("cor", (200, 200, 200))
+        self.duracao = data.get("duracao", 10.0)
+        self.vida_timer = self.duracao
+        
+        # Tipo e elemento
+        self.summon_tipo = data.get("summon_tipo", "BASICO")
+        self.elemento = data.get("elemento", None)
+        self.efeito = data.get("efeito", "NORMAL")
+        self.classe_magia = data.get("classe_magia", {})
+        self.classe_forca = data.get("classe_forca", "PRESSAO")
+        self.classe_utilidade = data.get("classe_utilidade", "INVOCACAO")
+        self.assinatura_visual = data.get("assinatura_visual", "sigilo")
+        
+        # Raio de colisÃ£o (projÃ©teis podem acertÃ¡-lo)
+        self.raio_fisico = 0.6
+        
+        # Comportamento
+        self.raio_agressao = 6.0
+        self.raio_ataque = 1.5
+        self.velocidade = 4.5
+        self.cooldown_ataque = 1.2
+        self.cd_timer = 0
+        
+        # Estado
+        self.ativo = True
+        self.alvo = None
+        self.vel = [0, 0]
+        self.angulo = 0
+        self.flash_timer = 0  # Para feedback visual de dano
+        self.flash_cor = (255, 255, 255)
+        
+        # Habilidades especiais
+        self.revive_count = 1 if "fenix" in nome_skill.lower() or "fÃªnix" in nome_skill.lower() else 0
+        self.aura_dano = data.get("aura_dano", 0)
+        self.aura_raio = data.get("aura_raio", 0)
+        
+        # IA: esquiva simples
+        self._evade_timer = 0
+        self._strafe_dir = 1
+    
+    def atualizar(self, dt, alvos):
+        """Atualiza comportamento do summon"""
+        if not self.ativo:
+            return []
+        
+        resultados = []
+        
+        # Timer de duracao
+        self.vida_timer -= dt
+        if self.vida_timer <= 0:
+            self.ativo = False
+            return resultados
+        
+        # Flash timer
+        if self.flash_timer > 0:
+            self.flash_timer -= dt
+        
+        # Cooldown de ataque
+        if self.cd_timer > 0:
+            self.cd_timer -= dt
+        
+        # Esquiva timer
+        if self._evade_timer > 0:
+            self._evade_timer -= dt
+        
+        # Encontra alvo mais proximo (inimigo do dono)
+        # A06 Sprint 9: cache de alvo â€” sÃ³ faz scan quando necessÃ¡rio.
+        _alvo_summon_valido = (
+            self.alvo is not None
+            and not self.alvo.morto
+            and math.hypot(self.alvo.pos[0] - self.x, self.alvo.pos[1] - self.y) < self.raio_agressao * 2
+        )
+        if not _alvo_summon_valido:
+            melhor_alvo = None
+            menor_dist = self.raio_agressao
+            for alvo in alvos:
+                if alvo == self.dono or alvo.morto:
+                    continue
+                # v13.0: Don't target allies in team battles
+                if hasattr(self.dono, 'team_id') and hasattr(alvo, 'team_id') and alvo.team_id == self.dono.team_id:
+                    continue
+                dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+                if dist < menor_dist:
+                    menor_dist = dist
+                    melhor_alvo = alvo
+            self.alvo = melhor_alvo
+        
+        if self.alvo:
+            dx = self.alvo.pos[0] - self.x
+            dy = self.alvo.pos[1] - self.y
+            dist = math.hypot(dx, dy) or 1
+            self.angulo = math.degrees(math.atan2(dy, dx))
+            
+            if dist > self.raio_ataque:
+                # Move em direÃ§Ã£o ao alvo com leve strafe
+                move_x = (dx / dist) * self.velocidade * dt
+                move_y = (dy / dist) * self.velocidade * dt
+                
+                # Strafe lateral para nÃ£o ser previsÃ­vel
+                if self._evade_timer <= 0 and dist < 4.0:
+                    perp_x = -dy / dist
+                    perp_y = dx / dist
+                    strafe = 0.3 * self._strafe_dir
+                    move_x += perp_x * strafe * self.velocidade * dt
+                    move_y += perp_y * strafe * self.velocidade * dt
+                
+                self.x += move_x
+                self.y += move_y
+            elif self.cd_timer <= 0:
+                # Ataca!
+                self.cd_timer = self.cooldown_ataque
+                resultados.append({
+                    "tipo": "ataque",
+                    "alvo": self.alvo,
+                    "dano": self.dano,
+                    "efeito": self.efeito,
+                    "x": self.x,
+                    "y": self.y
+                })
+        else:
+            # Segue o dono mantendo distÃ¢ncia
+            dx = self.dono.pos[0] - self.x
+            dy = self.dono.pos[1] - self.y
+            dist = math.hypot(dx, dy) or 1
+            
+            if dist > 2.5:
+                self.x += (dx / dist) * self.velocidade * dt
+                self.y += (dy / dist) * self.velocidade * dt
+        
+        # Aura de dano
+        if self.aura_dano > 0 and self.aura_raio > 0:
+            for alvo in alvos:
+                if alvo == self.dono or alvo.morto:
+                    continue
+                dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+                if dist < self.aura_raio:
+                    resultados.append({
+                        "tipo": "aura",
+                        "alvo": alvo,
+                        "dano": self.aura_dano * dt,
+                        "efeito": self.efeito
+                    })
+        
+        return resultados
+    
+    def tomar_dano(self, dano):
+        """Summon recebe dano â€” retorna dict de evento ou None"""
+        self.vida -= dano
+        self.flash_timer = 0.15
+        self.flash_cor = (255, 100, 100)
+        
+        # Muda strafe direction ao levar dano (esquiva reativa)
+        self._strafe_dir *= -1
+        self._evade_timer = 0.5
+        
+        if self.vida <= 0:
+            if self.revive_count > 0:
+                # Fenix revive!
+                self.revive_count -= 1
+                self.vida = self.vida_max * 0.5
+                self.flash_timer = 0.3
+                self.flash_cor = (255, 200, 50)
+                return {"revive": True, "x": self.x, "y": self.y}
+            else:
+                self.ativo = False
+                return {"morreu": True, "x": self.x, "y": self.y}
+        return None
+
+
+class Trap:
+    """
+    Estrutura/armadilha colocada no campo
+    v3.0 - Dois modos: WALL (bloqueia movimento) e TRIGGER (dispara ao pisar)
+    
+    WALLs: Muralha de Gelo â€” bloqueia movimento e projÃ©teis, dano contÃ­nuo de contato
+    TRIGGERs: Armadilhas â€” invisÃ­veis/semi-visÃ­veis, disparam uma vez ao pisar
+    """
+    def __init__(self, nome_skill, x, y, dono):
+        self.nome = nome_skill
+        data = get_skill_data(nome_skill)
+        
+        self.x = x
+        self.y = y
+        self.dono = dono
+        
+        self.vida_max = data.get("vida_estrutura", 60.0)
+        self.vida = self.vida_max
+        self.duracao = data.get("duracao", 5.0)
+        self.vida_timer = self.duracao
+        self.cor = data.get("cor", (200, 200, 255))
+        self.elemento = data.get("elemento", None)
+        self.classe_magia = data.get("classe_magia", {})
+        self.classe_forca = data.get("classe_forca", "IMPACTO")
+        self.classe_utilidade = data.get("classe_utilidade", "CONTROLE")
+        self.assinatura_visual = data.get("assinatura_visual", "campo")
+        
+        # Dimensoes (para muralhas/walls)
+        self.largura = data.get("largura", 2.0)
+        self.altura = data.get("altura", 3.0)
+        self.raio = max(self.largura, self.altura) / 2
+        self.angulo = 0
+        
+        # Comportamento â€” DEFAULT: False (armadilhas sÃ£o o caso mais comum)
+        self.bloqueia_movimento = data.get("bloqueia_movimento", False)
+        self.bloqueia_projeteis = data.get("bloqueia_projeteis", self.bloqueia_movimento)
+        
+        # Dano e efeito â€” lÃª TANTO "dano" quanto "dano_contato" para compatibilidade
+        self.dano_trigger = data.get("dano", data.get("dano_contato", 0))
+        self.efeito = data.get("efeito", data.get("efeito_contato", "NORMAL"))
+        
+        # Para walls: dano por segundo ao tocar
+        self.dano_por_segundo = data.get("dano_contato", self.dano_trigger * 0.3)
+        
+        # Raio de trigger para armadilhas (nÃ£o-bloqueantes)
+        self.raio_trigger = data.get("raio_trigger", 1.2)
+        
+        # Estado
+        self.ativo = True
+        self.ativada = False          # Armadilha jÃ¡ disparou?
+        self.flash_timer = 0          # Feedback visual
+        self.flash_cor = (255, 255, 255)
+        self._vitimas = set()         # IDs de lutadores jÃ¡ atingidos (evita multi-hit em 1 frame)
+        self._arm_delay = 0.3         # Atraso antes de armar (evita auto-trigger)
+        self._arm_timer = self._arm_delay
+    
+    def atualizar(self, dt):
+        """Atualiza trap â€” retorna None ou resultado de trigger"""
+        if self.flash_timer > 0:
+            self.flash_timer -= dt
+        
+        # Timer de armamento
+        if self._arm_timer > 0:
+            self._arm_timer -= dt
+        
+        self.vida_timer -= dt
+        if self.vida_timer <= 0 or self.vida <= 0:
+            self.ativo = False
+    
+    def esta_armada(self):
+        """Retorna se a trap jÃ¡ passou o delay de armamento"""
+        return self._arm_timer <= 0
+    
+    def colidir_ponto(self, px, py):
+        """Verifica se um ponto colide com a trap"""
+        if self.bloqueia_movimento:
+            # Colisao retangular para walls
+            return (abs(px - self.x) < self.largura / 2 and 
+                    abs(py - self.y) < self.altura / 2)
+        else:
+            # Colisao circular para armadilhas
+            return math.hypot(px - self.x, py - self.y) < self.raio_trigger
+    
+    def tentar_trigger(self, lutador):
+        """
+        Tenta disparar armadilha contra um lutador.
+        Retorna dict com resultado ou None se nÃ£o ativou.
+        SÃ³ dispara se: nÃ£o-bloqueante, armada, nÃ£o ativada, lutador nÃ£o Ã© dono.
+        """
+        if self.bloqueia_movimento:
+            return None
+        if self.ativada or not self.esta_armada():
+            return None
+        if lutador == self.dono or lutador.morto:
+            return None
+        if id(lutador) in self._vitimas:
+            return None
+        
+        # Verifica proximidade
+        dist = math.hypot(lutador.pos[0] - self.x, lutador.pos[1] - self.y)
+        if dist > self.raio_trigger:
+            return None
+        
+        # TRIGGER!
+        self.ativada = True
+        self._vitimas.add(id(lutador))
+        self.flash_timer = 0.3
+        self.flash_cor = (255, 200, 50)
+        
+        # Armadilha desaparece logo apÃ³s ativar
+        self.vida_timer = min(self.vida_timer, 0.5)
+        
+        return {
+            "tipo": "trigger",
+            "alvo": lutador,
+            "dano": self.dano_trigger,
+            "efeito": self.efeito,
+            "x": self.x,
+            "y": self.y
+        }
+    
+    def dano_wall_contato(self, dt):
+        """Retorna dano por frame para walls (Muralha de Gelo etc)"""
+        if not self.bloqueia_movimento:
+            return 0
+        return self.dano_por_segundo * dt
+    
+    def tomar_dano(self, dano):
+        """Trap recebe dano â€” retorna True se destruÃ­da"""
+        self.vida -= dano
+        self.flash_timer = 0.12
+        self.flash_cor = (255, 100, 100)
+        if self.vida <= 0:
+            self.ativo = False
+            return True
+        return False
+
+
+class Transform:
+    """
+    Transformacao temporaria do personagem
+    v2.0 - Avatar de Gelo, Forma Relampago
+    """
+    def __init__(self, nome_skill, alvo):
+        self.nome = nome_skill
+        data = get_skill_data(nome_skill)
+        
+        self.alvo = alvo
+        self.duracao = data.get("duracao", 10.0)
+        self.vida = self.duracao
+        self.cor = data.get("cor", (200, 200, 255))
+        
+        # Salva stats originais
+        self.stats_originais = {
+            "velocidade": alvo.velocidade if hasattr(alvo, 'velocidade') else 5.0,
+            "cor": alvo.cor if hasattr(alvo, 'cor') else (255, 255, 255),
+        }
+        
+        # Modificadores
+        self.bonus_resistencia = data.get("bonus_resistencia", 0)
+        self.bonus_velocidade = data.get("bonus_velocidade", 1.0)
+        self.intangivel = data.get("intangivel", False)
+        self.dano_contato = data.get("dano_contato", 0)
+        
+        # Auras
+        self.aura_slow = data.get("aura_slow", 1.0)
+        self.aura_raio = data.get("aura_raio", 0)
+        
+        # Aplica transformacao
+        self._aplicar_transformacao()
+        self.ativo = True
+    
+    def _aplicar_transformacao(self):
+        """Aplica os efeitos da transformacao"""
+        if hasattr(self.alvo, 'velocidade'):
+            self.alvo.velocidade *= self.bonus_velocidade
+        if hasattr(self.alvo, 'cor'):
+            self.alvo.cor = self.cor
+        if self.intangivel and hasattr(self.alvo, 'intangivel'):
+            self.alvo.intangivel = True
+    
+    def _reverter_transformacao(self):
+        """Reverte para estado original"""
+        if hasattr(self.alvo, 'velocidade'):
+            self.alvo.velocidade = self.stats_originais["velocidade"]
+        if hasattr(self.alvo, 'cor'):
+            self.alvo.cor = self.stats_originais["cor"]
+        if self.intangivel and hasattr(self.alvo, 'intangivel'):
+            self.alvo.intangivel = False
+    
+    def atualizar(self, dt, alvos=None):
+        """Atualiza transformacao"""
+        resultados = []
+        
+        self.vida -= dt
+        
+        # Dano de contato
+        if self.dano_contato > 0 and alvos:
+            for alvo in alvos:
+                if alvo == self.alvo or alvo.morto:
+                    continue
+                dist = math.hypot(alvo.pos[0] - self.alvo.pos[0], 
+                                 alvo.pos[1] - self.alvo.pos[1])
+                if dist < 1.0:  # Raio de contato
+                    resultados.append({
+                        "tipo": "contato",
+                        "alvo": alvo,
+                        "dano": self.dano_contato * dt
+                    })
+        
+        # Aura de slow
+        if self.aura_raio > 0 and self.aura_slow < 1.0 and alvos:
+            for alvo in alvos:
+                if alvo == self.alvo or alvo.morto:
+                    continue
+                dist = math.hypot(alvo.pos[0] - self.alvo.pos[0],
+                                 alvo.pos[1] - self.alvo.pos[1])
+                if dist < self.aura_raio:
+                    resultados.append({
+                        "tipo": "slow",
+                        "alvo": alvo,
+                        "fator": self.aura_slow
+                    })
+        
+        if self.vida <= 0:
+            self._reverter_transformacao()
+            self.ativo = False
+        
+        return resultados
+
+
+class Channel:
+    """
+    Skill canalizada que requer concentracao
+    v2.0 - Chamas do Dragao, Fotossintese, Desintegrar
+    """
+    def __init__(self, nome_skill, dono):
+        self.nome = nome_skill
+        data = get_skill_data(nome_skill)
+        
+        self.dono = dono
+        self.duracao_max = data.get("duracao_max", 3.0)
+        self.vida = self.duracao_max
+        self.cor = data.get("cor", (255, 200, 100))
+        self.elemento = data.get("elemento", None)
+        self.classe_magia = data.get("classe_magia", {})
+        self.classe_forca = data.get("classe_forca", "PRESSAO")
+        self.classe_utilidade = data.get("classe_utilidade", "DISRUPCAO")
+        self.assinatura_visual = data.get("assinatura_visual", "fluxo")
+        
+        # Efeitos
+        self.dano_por_segundo = data.get("dano_por_segundo", 0)
+        self.cura_por_segundo = data.get("cura_por_segundo", 0)
+        self.alcance = data.get("alcance", 6.0)
+        self.tipo_efeito = data.get("efeito", "NORMAL")
+        self.penetra_escudo = data.get("penetra_escudo", False)
+        
+        # Restricoes
+        self.imobiliza = data.get("imobiliza", False)
+        
+        # Estado
+        self.ativo = True
+        self.canalizando = True
+        self.tick_timer = 0
+        self.tick_interval = 0.1
+        
+        # DireÃ§Ã£o do beam (se aplicavel)
+        self.angulo = dono.angulo_olhar if hasattr(dono, 'angulo_olhar') else 0
+    
+    def atualizar(self, dt, alvos=None):
+        """Atualiza canalizacao"""
+        resultados = []
+        
+        if not self.canalizando:
+            self.ativo = False
+            return resultados
+        
+        # Rastreia Ã¢ngulo do dono a cada frame â€” beam segue para onde o caster olha
+        if hasattr(self.dono, 'angulo_olhar'):
+            self.angulo = self.dono.angulo_olhar
+        
+        self.vida -= dt
+        self.tick_timer += dt
+        
+        # Imobiliza o caster
+        if self.imobiliza and hasattr(self.dono, 'vel'):
+            self.dono.vel = [0, 0]
+        
+        # Aplica efeitos a cada tick
+        if self.tick_timer >= self.tick_interval:
+            self.tick_timer = 0
+            
+            # Cura o caster
+            if self.cura_por_segundo > 0:
+                cura = self.cura_por_segundo * self.tick_interval
+                self.dono.vida = min(self.dono.vida_max, self.dono.vida + cura)
+                resultados.append({
+                    "tipo": "cura",
+                    "alvo": self.dono,
+                    "valor": cura
+                })
+            
+            # Dano em linha (beam)
+            if self.dano_por_segundo > 0 and alvos:
+                rad = math.radians(self.angulo)
+                for alvo in alvos:
+                    if alvo == self.dono or alvo.morto:
+                        continue
+                    
+                    # Verifica se alvo esta na linha do beam
+                    dx = alvo.pos[0] - self.dono.pos[0]
+                    dy = alvo.pos[1] - self.dono.pos[1]
+                    dist = math.hypot(dx, dy)
+                    
+                    if dist < self.alcance:
+                        # Angulo para o alvo
+                        ang_alvo = math.degrees(math.atan2(dy, dx))
+                        diff = abs(ang_alvo - self.angulo)
+                        if diff > 180:
+                            diff = 360 - diff
+                        
+                        # Se o alvo esta dentro de 15 graus do beam
+                        if diff < 15:
+                            dano = self.dano_por_segundo * self.tick_interval
+                            resultados.append({
+                                "tipo": "dano",
+                                "alvo": alvo,
+                                "dano": dano,
+                                "efeito": self.tipo_efeito,
+                                "penetra_escudo": self.penetra_escudo
+                            })
+        
+        if self.vida <= 0:
+            self.ativo = False
+        
+        return resultados
+    
+    def interromper(self):
+        """Interrompe a canalizacao"""
+        self.canalizando = False
+        self.ativo = False

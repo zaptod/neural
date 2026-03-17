@@ -1,9 +1,9 @@
-"""Pytest coverage for SkillStrategySystem SUMMON/TRAP behavior."""
+﻿"""Pytest coverage for SkillStrategySystem SUMMON/TRAP behavior."""
 
 import pytest
 
-from ai.skill_strategy import CombatSituation, SkillPurpose, SkillStrategySystem, StrategicRole
-from core.skills import SKILL_DB
+from ia.skill_strategy import CombatSituation, SkillPurpose, SkillStrategySystem, StrategicRole
+from nucleo.skills import SKILL_DB
 
 
 def _make_skill_info(nome):
@@ -12,6 +12,14 @@ def _make_skill_info(nome):
     info = dict(data)
     info["nome"] = nome
     return info
+
+
+def _skill_key(*candidates):
+    """Resolve nomes com ou sem mojibake presentes no SKILL_DB."""
+    for candidate in candidates:
+        if candidate in SKILL_DB:
+            return candidate
+    raise KeyError(f"Skill não encontrada: {candidates}")
 
 
 class FakeChar:
@@ -33,9 +41,9 @@ class FakeBrain:
 @pytest.fixture
 def sss():
     skill_names = [
-        "F\u00eanix",
+        _skill_key("F\u00eanix", "FÃªnix"),
         "Muralha de Gelo",
-        "Armadilha El\u00e9trica",
+        _skill_key("Armadilha El\u00e9trica", "Armadilha ElÃ©trica"),
         "Bola de Fogo",
         "Portal do Vazio",
     ]
@@ -44,10 +52,10 @@ def sss():
 
 def test_battle_plan(sss):
     plan = sss.plano
-    fenix = sss.skills.get("F\u00eanix")
+    fenix = sss.skills.get(_skill_key("F\u00eanix", "FÃªnix"))
     portal = sss.skills.get("Portal do Vazio")
     muralha = sss.skills.get("Muralha de Gelo")
-    armadilha = sss.skills.get("Armadilha El\u00e9trica")
+    armadilha = sss.skills.get(_skill_key("Armadilha El\u00e9trica", "Armadilha ElÃ©trica"))
 
     assert plan.rotacao_opening
     assert fenix is not None
@@ -63,12 +71,13 @@ def test_battle_plan(sss):
         assert SkillPurpose.ESCAPE in muralha.propositos
 
     assert armadilha is not None
-    if not SKILL_DB.get("Armadilha El\u00e9trica", {}).get("bloqueia_movimento", True):
+    if not SKILL_DB.get(_skill_key("Armadilha El\u00e9trica", "Armadilha ElÃ©trica"), {}).get("bloqueia_movimento", True):
         assert SkillPurpose.OPENER in armadilha.propositos
 
 
 def test_condicoes_ideais(sss):
-    fenix = sss.skills.get("F\u00eanix")
+    fenix_name = _skill_key("F\u00eanix", "FÃªnix")
+    fenix = sss.skills.get(fenix_name)
     if fenix:
         lotado = CombatSituation(
             distancia=3.0,
@@ -84,8 +93,8 @@ def test_condicoes_ideais(sss):
             meu_mana_percent=60,
             tenho_summons_ativos=1,
         )
-        assert sss._condicoes_ideais("F\u00eanix", lotado) is False
-        assert sss._condicoes_ideais("F\u00eanix", disponivel) is True
+        assert sss._condicoes_ideais(fenix_name, lotado) is False
+        assert sss._condicoes_ideais(fenix_name, disponivel) is True
 
     muralha = sss.skills.get("Muralha de Gelo")
     if muralha:
@@ -114,11 +123,21 @@ def test_rotations(sss):
 
 def test_role_detection():
     summoner = SkillStrategySystem(
-        FakeChar(["F\u00eanix", "Portal do Vazio", "Invoca\u00e7\u00e3o: Esp\u00edrito", "Bola de Fogo"]),
+        FakeChar([
+            _skill_key("F\u00eanix", "FÃªnix"),
+            "Portal do Vazio",
+            _skill_key("Invoca\u00e7\u00e3o: Esp\u00edrito", "InvocaÃ§Ã£o: EspÃ­rito"),
+            "Bola de Fogo",
+        ]),
         FakeBrain(),
     )
     trapper = SkillStrategySystem(
-        FakeChar(["Muralha de Gelo", "Armadilha El\u00e9trica", "Armadilha Incendi\u00e1ria", "Bola de Fogo"]),
+        FakeChar([
+            "Muralha de Gelo",
+            _skill_key("Armadilha El\u00e9trica", "Armadilha ElÃ©trica"),
+            _skill_key("Armadilha Incendi\u00e1ria", "Armadilha IncendiÃ¡ria"),
+            "Bola de Fogo",
+        ]),
         FakeBrain(),
     )
 
@@ -127,3 +146,4 @@ def test_role_detection():
 
     if trapper.role_principal == StrategicRole.TRAP_MASTER:
         assert trapper.plano.estilo == "kite"
+

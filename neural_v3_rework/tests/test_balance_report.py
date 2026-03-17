@@ -1,5 +1,5 @@
-"""
-Tests for tools/balance_report.py — BalanceReport
+﻿"""
+Tests for ferramentas/balance_report.py â€” BalanceReport
 """
 
 import os
@@ -9,8 +9,8 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.battle_db import BattleDB
-from tools.balance_report import BalanceReport
+from dados.battle_db import BattleDB
+from ferramentas.balance_report import BalanceReport
 
 
 class TestBalanceReport(unittest.TestCase):
@@ -93,3 +93,4 @@ class TestBalanceReport(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

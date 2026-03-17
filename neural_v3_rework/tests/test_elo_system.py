@@ -1,8 +1,8 @@
-"""Tests for core/elo_system.py — ELO rating calculations."""
+﻿"""Tests for nucleo/elo_system.py â€” ELO rating calculations."""
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from core.elo_system import calculate_elo, get_tier, get_tier_info, _k_factor, _expected_score
+from nucleo.elo_system import calculate_elo, get_tier, get_tier_info, _k_factor, _expected_score
 
 
 def test_equal_elo():
@@ -159,3 +159,4 @@ if __name__ == "__main__":
     if failed == 0:
         print("ALL TESTS PASSED!")
     sys.exit(failed)
+

@@ -25,10 +25,10 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = [
-    "ai*", "core*", "data*", "effects*",
-    "models*", "simulation*", "tools*",
-    "tournament*", "ui*", "utils*",
-    "video_pipeline*",
+    "ia*", "nucleo*", "dados*", "efeitos*",
+    "modelos*", "simulacao*", "ferramentas*",
+    "torneio*", "interface*", "utilitarios*",
+    "pipeline_video*",
 ]
 
 [tool.pytest.ini_options]

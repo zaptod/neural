@@ -1,23 +1,23 @@
-# Neural Fights v3
+﻿# Neural Fights v3
 
-Simulador de combate 2D com IA avançada — 120+ personagens, 15 tipos de arma, 14 elementos mágicos e batalhas multi-combatente.
+Simulador de combate 2D com IA avanÃ§ada â€” 120+ personagens, 15 tipos de arma, 14 elementos mÃ¡gicos e batalhas multi-combatente.
 
 ---
 
-## Instalação
+## InstalaÃ§Ã£o
 
 ```bash
-# Instalação rápida (apenas o jogo)
+# InstalaÃ§Ã£o rÃ¡pida (apenas o jogo)
 pip install pygame customtkinter
 
-# Instalação completa (jogo + vídeo + testes)
+# InstalaÃ§Ã£o completa (jogo + vÃ­deo + testes)
 pip install -e ".[dev,video]"
 ```
 
 ## Executar
 
 ```bash
-# Interface gráfica principal
+# Interface grÃ¡fica principal
 python run.py
 
 # Modo torneio headless
@@ -34,68 +34,69 @@ pytest tests/
 
 ```
 neural_v3_rework/
-├── ai/                  Sistema de IA — brain, mixins, perfis de comportamento
-├── core/
-│   ├── fighter/         Lutador dividido em 4 mixins (Sprint 8)
-│   │   ├── entity.py    — __init__ + update()
-│   │   ├── stats.py     — vida/mana/skills
-│   │   ├── physics_mixin.py  — física e movimento
-│   │   ├── combat_mixin.py   — dano, status, morte
-│   │   └── weapons_mixin.py  — ataques v15.0
-│   ├── skills/          Catálogo de skills por elemento (14 arquivos)
-│   ├── arena.py         Arenas com efeitos especiais e obstáculos destruíveis
-│   └── combat.py        Projéteis, áreas, beams, summons
-├── data/
-│   ├── app_state.py     Event-bus central (fonte de verdade)
-│   ├── battle_db.py     SQLite — histórico e ELO
-│   └── world_bridge.py  Sincronização com World Map
-├── effects/             Partículas, câmera, VFX, áudio
-├── models/              Personagens, armas, classes, constantes
-├── simulation/          Loop de simulação, renderer, combate, efeitos
-├── tools/               auto_balance.py, balance_report.py
-├── tests/               Testes automáticos (pytest)
-├── ui/                  Interface customtkinter
-├── utils/               config.py, balance_config.py
-├── video_pipeline/      Geração de vídeos de lutas
-└── _archive/            Código arquivado (não remover sem consultar)
+â”œâ”€â”€ ia/                  Sistema de IA â€” brain, mixins, perfis de comportamento
+â”œâ”€â”€ nucleo/
+â”‚   â”œâ”€â”€ fighter/         Lutador dividido em 4 mixins (Sprint 8)
+â”‚   â”‚   â”œâ”€â”€ entity.py    â€” __init__ + update()
+â”‚   â”‚   â”œâ”€â”€ stats.py     â€” vida/mana/skills
+â”‚   â”‚   â”œâ”€â”€ physics_mixin.py  â€” fÃ­sica e movimento
+â”‚   â”‚   â”œâ”€â”€ combat_mixin.py   â€” dano, status, morte
+â”‚   â”‚   â””â”€â”€ weapons_mixin.py  â€” ataques v15.0
+â”‚   â”œâ”€â”€ skills/          CatÃ¡logo de skills por elemento (14 arquivos)
+â”‚   â”œâ”€â”€ arena.py         Arenas com efeitos especiais e obstÃ¡culos destruÃ­veis
+â”‚   â””â”€â”€ combat.py        ProjÃ©teis, Ã¡reas, beams, summons
+â”œâ”€â”€ dados/
+â”‚   â”œâ”€â”€ app_state.py     Event-bus central (fonte de verdade)
+â”‚   â”œâ”€â”€ battle_db.py     SQLite â€” histÃ³rico e ELO
+â”‚   â””â”€â”€ world_bridge.py  SincronizaÃ§Ã£o com World Map
+â”œâ”€â”€ efeitos/             PartÃ­culas, cÃ¢mera, VFX, Ã¡udio
+â”œâ”€â”€ modelos/              Personagens, armas, classes, constantes
+â”œâ”€â”€ simulacao/          Loop de simulaÃ§Ã£o, renderer, combate, efeitos
+â”œâ”€â”€ ferramentas/               auto_balance.py, balance_report.py
+â”œâ”€â”€ tests/               Testes automÃ¡ticos (pytest)
+â”œâ”€â”€ interface/                  Interface customtkinter
+â”œâ”€â”€ utilitarios/               config.py, balance_config.py
+â”œâ”€â”€ pipeline_video/      GeraÃ§Ã£o de vÃ­deos de lutas
+â””â”€â”€ _archive/            CÃ³digo arquivado (nÃ£o remover sem consultar)
 ```
 
-## Configurações úteis
+## ConfiguraÃ§Ãµes Ãºteis
 
 ### Debug da IA
 
-Em `utils/config.py`:
+Em `utilitarios/config.py`:
 
 ```python
-DEBUG_AI = True            # loga todas as decisões da IA
-DEBUG_AI_FIGHTER = "Nome"  # filtra por lutador específico
+DEBUG_AI = True            # loga todas as decisÃµes da IA
+DEBUG_AI_FIGHTER = "Nome"  # filtra por lutador especÃ­fico
 ```
 
-Saída em nível `DEBUG` no logger `neural_ai`.
+SaÃ­da em nÃ­vel `DEBUG` no logger `neural_ai`.
 
 ### Balance
 
 ```bash
-# Torneio automático com relatório de win-rate
-python tools/auto_balance.py --fights 50 --top 10
+# Torneio automÃ¡tico com relatÃ³rio de win-rate
+python ferramentas/auto_balance.py --fights 50 --top 10
 ```
 
-Ajuste constantes em `utils/balance_config.py` e reexecute para medir o efeito.
+Ajuste constantes em `utilitarios/balance_config.py` e reexecute para medir o efeito.
 
 ---
 
-## Sprints de refactoring (histórico)
+## Sprints de refactoring (histÃ³rico)
 
-| Sprint | Descrição |
+| Sprint | DescriÃ§Ã£o |
 |---|---|
-| 1 | Infraestrutura base — pyproject.toml, logging, arquivamento |
-| 2 | Logging + legado — database.py marcado |
-| 3 | Pipeline de dados — BridgeResult, flush stats |
-| 4 | Performance — surface cache, AI throttle, StatusSnapshot |
-| 5 | Balance & organização — balance_config.py, skills por elemento |
-| 6 | Features órfãs — cor_ambiente, obstáculos, reações elementais |
-| 7 | Status effects — aplicar_cc(), cc_effects, física O(n²) |
-| 8 | Entities refactor — Lutador dividido em 4 mixins, D04 inline imports |
-| 9 | Performance & debug — DEBUG_AI, rand_pool×4, clash budget, homing cache |
-| 10 | D01/C01/C09 — database migrado, magic_system e simulacao_original arquivados |
-| 11 | Qualidade final — E02 excepts, E03 testes organizados, README |
+| 1 | Infraestrutura base â€” pyproject.toml, logging, arquivamento |
+| 2 | Logging + legado â€” database.py marcado |
+| 3 | Pipeline de dados â€” BridgeResult, flush stats |
+| 4 | Performance â€” surface cache, AI throttle, StatusSnapshot |
+| 5 | Balance & organizaÃ§Ã£o â€” balance_config.py, skills por elemento |
+| 6 | Features Ã³rfÃ£s â€” cor_ambiente, obstÃ¡culos, reaÃ§Ãµes elementais |
+| 7 | Status effects â€” aplicar_cc(), cc_effects, fÃ­sica O(nÂ²) |
+| 8 | Entities refactor â€” Lutador dividido em 4 mixins, D04 inline imports |
+| 9 | Performance & debug â€” DEBUG_AI, rand_poolÃ—4, clash budget, homing cache |
+| 10 | D01/C01/C09 â€” database migrado, magic_system e simulacao_original arquivados |
+| 11 | Qualidade final â€” E02 excepts, E03 testes organizados, README |
+

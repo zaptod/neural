@@ -1,12 +1,12 @@
-"""Tests for ai/behavior_profiles.py — Phase 1 AI Overhaul personality fidelity."""
+﻿"""Tests for ia/behavior_profiles.py â€” Phase 1 AI Overhaul personality fidelity."""
 import sys, os, unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from ai.behavior_profiles import (
+from ia.behavior_profiles import (
     BEHAVIOR_PROFILES, TRAIT_EFFECTS, FALLBACK_PROFILE,
     get_behavior_profile, get_trait_effects,
 )
-from ai.personalities import (
+from ia.personalities import (
     PERSONALIDADES_PRESETS, TODOS_TRACOS,
     TRACOS_AGRESSIVIDADE, TRACOS_DEFENSIVO, TRACOS_MOBILIDADE,
     TRACOS_SKILLS, TRACOS_MENTAL, TRACOS_ESPECIAIS,
@@ -156,19 +156,19 @@ class TestPersonalityFidelity(unittest.TestCase):
                              "Masoquista should have low retreat_weight")
 
     def test_tatico_balanced_and_patient(self):
-        """Tático should have high paciencia_mult."""
+        """TÃ¡tico should have high paciencia_mult."""
         p_tat = get_behavior_profile(u"T\u00e1tico")
         self.assertGreater(p_tat["paciencia_mult"], 1.3,
-                           "Tático should be patient")
+                           "TÃ¡tico should be patient")
 
     def test_caotico_has_variety(self):
-        """Caótico should have non-standard weights."""
+        """CaÃ³tico should have non-standard weights."""
         p_cao = get_behavior_profile(u"Ca\u00f3tico")
-        # Caótico should not have all multipliers at exactly 1.0
+        # CaÃ³tico should not have all multipliers at exactly 1.0
         mults = [p_cao["approach_weight"], p_cao["retreat_weight"],
                  p_cao["flank_weight"], p_cao["poke_weight"]]
         self.assertFalse(all(m == 1.0 for m in mults),
-                         "Caótico should have at least some non-1.0 weights")
+                         "CaÃ³tico should have at least some non-1.0 weights")
 
 
 class TestTraitEffectsFidelity(unittest.TestCase):
@@ -197,3 +197,4 @@ class TestTraitEffectsFidelity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

@@ -1,5 +1,5 @@
-"""
-Tests for data/match_stats.py — MatchStatsCollector
+﻿"""
+Tests for dados/match_stats.py â€” MatchStatsCollector
 """
 
 import os
@@ -9,7 +9,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data.match_stats import MatchStatsCollector
+from dados.match_stats import MatchStatsCollector
 
 
 class TestMatchStatsCollector(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.stats.register("Caleb")
         self.stats.register("Bjorn")
 
-    # ── Registration ─────────────────────────────────────────────────────────
+    # â”€â”€ Registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_register_creates_fighter_entry(self):
         s = self.stats._fighters
@@ -38,7 +38,7 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.stats.record_death("Ghost")
         # No exception = pass
 
-    # ── record_hit ───────────────────────────────────────────────────────────
+    # â”€â”€ record_hit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_record_hit_basic(self):
         self.stats.record_hit("Caleb", "Bjorn", 25.0)
@@ -72,7 +72,7 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.assertTrue(e["crit"])
         self.assertEqual(e["elem"], "FOGO")
 
-    # ── Combo tracking ───────────────────────────────────────────────────────
+    # â”€â”€ Combo tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_combo_tracking(self):
         self.stats.record_hit("Caleb", "Bjorn", 10)
@@ -84,18 +84,18 @@ class TestMatchStatsCollector(unittest.TestCase):
     def test_combo_reset_on_receiving_hit(self):
         self.stats.record_hit("Caleb", "Bjorn", 10)
         self.stats.record_hit("Caleb", "Bjorn", 10)  # Caleb combo = 2
-        self.stats.record_hit("Bjorn", "Caleb", 5)   # Caleb hit → combo reset
+        self.stats.record_hit("Bjorn", "Caleb", 5)   # Caleb hit â†’ combo reset
         self.assertEqual(self.stats._fighters["Caleb"]["current_combo"], 0)
         self.assertEqual(self.stats._fighters["Caleb"]["max_combo"], 2)  # Peak preserved
 
-    # ── record_attack_attempt ────────────────────────────────────────────────
+    # â”€â”€ record_attack_attempt â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_record_attack_attempt(self):
         self.stats.record_attack_attempt("Caleb")
         self.stats.record_attack_attempt("Caleb")
         self.assertEqual(self.stats._fighters["Caleb"]["attacks_attempted"], 2)
 
-    # ── record_skill ─────────────────────────────────────────────────────────
+    # â”€â”€ record_skill â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_record_skill(self):
         self.stats.record_skill("Caleb", "Bola de Fogo", mana_cost=15)
@@ -113,7 +113,7 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.assertEqual(events[0]["skill"], "Ice Blast")
         self.assertEqual(events[0]["cost"], 20.0)
 
-    # ── record_block / record_dodge ──────────────────────────────────────────
+    # â”€â”€ record_block / record_dodge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_record_block(self):
         self.stats.record_block("Bjorn")
@@ -123,7 +123,7 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.stats.record_dodge("Bjorn")
         self.assertEqual(self.stats._fighters["Bjorn"]["dodges"], 1)
 
-    # ── record_death ─────────────────────────────────────────────────────────
+    # â”€â”€ record_death â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_record_death(self):
         self.stats.record_death("Bjorn", killer="Caleb")
@@ -138,7 +138,7 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.assertEqual(events[0]["type"], "death")
         self.assertEqual(events[0]["victim"], "Bjorn")
 
-    # ── get_summary ──────────────────────────────────────────────────────────
+    # â”€â”€ get_summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_get_summary_accuracy(self):
         self.stats.record_attack_attempt("Caleb")
@@ -148,7 +148,7 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.assertAlmostEqual(summary["Caleb"]["accuracy"], 0.5, places=2)
 
     def test_get_summary_no_current_combo(self):
-        """current_combo is internal — should not appear in summary."""
+        """current_combo is internal â€” should not appear in summary."""
         summary = self.stats.get_summary()
         self.assertNotIn("current_combo", summary["Caleb"])
 
@@ -158,11 +158,11 @@ class TestMatchStatsCollector(unittest.TestCase):
         # DPS = damage / elapsed. elapsed > 0 so dps should be > 0
         self.assertGreater(summary["Caleb"]["dps"], 0)
 
-    # ── flush_to_db ──────────────────────────────────────────────────────────
+    # â”€â”€ flush_to_db â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_flush_to_db_writes_events(self):
         """flush_to_db should insert events into BattleDB without errors."""
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB._instance = None  # Reset singleton
         tmp_dir = tempfile.mkdtemp()
         try:
@@ -213,3 +213,4 @@ class TestMatchStatsEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

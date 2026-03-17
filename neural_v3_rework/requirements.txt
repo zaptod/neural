@@ -1,18 +1,18 @@
-# Neural Fights - Requirements
+﻿# Neural Fights - Requirements
 # =============================
-# Simulador de combate 2D com IA avançada
+# Simulador de combate 2D com IA avanÃ§ada
 # Python 3.10+ recomendado
 
 # === CORE DEPENDENCIES ===
 
-# Interface gráfica do simulador de combate
+# Interface grÃ¡fica do simulador de combate
 pygame>=2.5.0
 
 # Interface moderna para o modo torneio
 customtkinter>=5.2.0
 
 # === VIDEO PIPELINE DEPENDENCIES ===
-# Necessárias para gravar lutas em vídeo (video_pipeline/)
+# NecessÃ¡rias para gravar lutas em vÃ­deo (pipeline_video/)
 # Instalar com: pip install -r requirements.txt -r requirements-video.txt
 #               ou: pip install -e ".[video]"  (via pyproject.toml)
 opencv-python>=4.8.0
@@ -20,22 +20,22 @@ numpy>=1.24.0
 
 # === DEVELOPMENT DEPENDENCIES ===
 # Instalar com: pip install -e ".[dev]"  (via pyproject.toml)
-pytest>=7.0.0        # E04 Sprint 11: movido de comentário para dependência ativa
+pytest>=7.0.0        # E04 Sprint 11: movido de comentÃ¡rio para dependÃªncia ativa
 pytest-cov>=4.0.0
 
-# === OPTIONAL (análise de performance) ===
+# === OPTIONAL (anÃ¡lise de performance) ===
 # line_profiler>=4.0.0
 # memory_profiler>=0.60.0
 
 # === NOTES ===
 #
-# Instalação rápida (jogo apenas):
+# InstalaÃ§Ã£o rÃ¡pida (jogo apenas):
 #   pip install pygame customtkinter
 #
-# Instalação completa:
+# InstalaÃ§Ã£o completa:
 #   pip install -r requirements.txt
 #
-# Instalação como pacote (recomendado para dev):
+# InstalaÃ§Ã£o como pacote (recomendado para dev):
 #   pip install -e ".[dev,video]"
 #
 # Executar o jogo:
@@ -43,3 +43,4 @@ pytest-cov>=4.0.0
 #
 # Executar modo torneio:
 #   python run_tournament.py
+

@@ -1,11 +1,11 @@
-"""Tests for data/battle_db.py — SQLite battle log persistence."""
+﻿"""Tests for dados/battle_db.py â€” SQLite battle log persistence."""
 import os
 import sys
 import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from data.battle_db import BattleDB
+from dados.battle_db import BattleDB
 
 
 def get_test_db() -> BattleDB:
@@ -28,7 +28,7 @@ def test_insert_and_query_match():
     db = get_test_db()
     mid = db.insert_match(
         p1="Caleb", p2="Bjorn", winner="Caleb", loser="Bjorn",
-        duration=23.5, ko_type="KO", arena="Arena Padrão",
+        duration=23.5, ko_type="KO", arena="Arena PadrÃ£o",
         p1_class="Guerreiro", p2_class="Mago",
         p1_weapon="Espada Reta", p2_weapon="Cajado"
     )
@@ -177,7 +177,7 @@ def test_foreign_key_cascade():
     events_before = db.get_events(mid)
     assert len(events_before) == 2
 
-    # Delete the match — events should cascade
+    # Delete the match â€” events should cascade
     with db._cursor() as cur:
         cur.execute("DELETE FROM matches WHERE id = ?", (mid,))
 
@@ -188,7 +188,7 @@ def test_foreign_key_cascade():
 
 
 def test_file_persistence():
-    """Test that data survives close → reopen on a real file."""
+    """Test that data survives close â†’ reopen on a real file."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         path = f.name
 
@@ -290,3 +290,4 @@ if __name__ == "__main__":
     if failed == 0:
         print("ALL TESTS PASSED!")
     sys.exit(failed)
+

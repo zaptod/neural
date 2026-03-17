@@ -1,20 +1,20 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-split_brain.py — Splits ai/brain.py (5000+ lines) into mixin modules.
+split_brain.py â€” Splits ia/brain.py (5000+ lines) into mixin modules.
 Run from the neural_v3_rework directory:
     python scripts/split_brain.py
 
 Creates:
-  ai/brain_personality.py   — PersonalityMixin
-  ai/brain_perception.py    — PerceptionMixin
-  ai/brain_evasion.py       — EvasionMixin
-  ai/brain_combat.py        — CombatMixin
-  ai/brain_skills.py        — SkillsMixin
-  ai/brain_spatial.py       — SpatialMixin
-  ai/brain_emotions.py      — EmotionsMixin
-  ai/brain_choreography.py  — ChoreographyMixin
-  ai/brain.py               — Thin orchestrator (overwritten)
-  ai/brain_original.py      — Backup of original
+  ia/brain_personality.py   â€” PersonalityMixin
+  ia/brain_perception.py    â€” PerceptionMixin
+  ia/brain_evasion.py       â€” EvasionMixin
+  ia/brain_combat.py        â€” CombatMixin
+  ia/brain_skills.py        â€” SkillsMixin
+  ia/brain_spatial.py       â€” SpatialMixin
+  ia/brain_emotions.py      â€” EmotionsMixin
+  ia/brain_choreography.py  â€” ChoreographyMixin
+  ia/brain.py               â€” Thin orchestrator (overwritten)
+  ia/brain_original.py      â€” Backup of original
 """
 import ast
 import os
@@ -27,14 +27,14 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRAIN_PATH = os.path.join(BASE_DIR, "ai", "brain.py")
 AI_DIR = os.path.join(BASE_DIR, "ai")
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# METHOD → MIXIN ASSIGNMENT
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# METHOD â†’ MIXIN ASSIGNMENT
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # Methods NOT listed here stay in the orchestrator: __init__, processar
 MIXIN_DEFS = {
     "PersonalityMixin": {
         "file": "brain_personality.py",
-        "doc": "Mixin de geração e configuração de personalidade procedural.",
+        "doc": "Mixin de geraÃ§Ã£o e configuraÃ§Ã£o de personalidade procedural.",
         "methods": [
             "_gerar_personalidade",
             "_gerar_personalidade_aleatoria",
@@ -62,7 +62,7 @@ MIXIN_DEFS = {
     },
     "PerceptionMixin": {
         "file": "brain_perception.py",
-        "doc": "Mixin de leitura de oponente e percepção de armas.",
+        "doc": "Mixin de leitura de oponente e percepÃ§Ã£o de armas.",
         "methods": [
             "_atualizar_leitura_oponente",
             "_atualizar_percepcao_armas",
@@ -78,7 +78,7 @@ MIXIN_DEFS = {
     },
     "EvasionMixin": {
         "file": "brain_evasion.py",
-        "doc": "Mixin de esquiva inteligente, pulos evasivos e detecção de projéteis.",
+        "doc": "Mixin de esquiva inteligente, pulos evasivos e detecÃ§Ã£o de projÃ©teis.",
         "methods": [
             "_processar_desvio_inteligente",
             "_calcular_direcao_desvio",
@@ -93,7 +93,7 @@ MIXIN_DEFS = {
     },
     "CombatMixin": {
         "file": "brain_combat.py",
-        "doc": "Mixin de decisão de ataque, combos, baiting, momentum e movimento tático.",
+        "doc": "Mixin de decisÃ£o de ataque, combos, baiting, momentum e movimento tÃ¡tico.",
         "methods": [
             "_avaliar_e_executar_ataque",
             "_executar_ataque_oportunidade",
@@ -116,7 +116,7 @@ MIXIN_DEFS = {
     },
     "SkillsMixin": {
         "file": "brain_skills.py",
-        "doc": "Mixin de uso inteligente de skills (estratégico + legado).",
+        "doc": "Mixin de uso inteligente de skills (estratÃ©gico + legado).",
         "methods": [
             "_processar_skills",
             "_processar_skills_estrategico",
@@ -143,7 +143,7 @@ MIXIN_DEFS = {
     },
     "SpatialMixin": {
         "file": "brain_spatial.py",
-        "doc": "Mixin de consciência espacial, paredes, obstáculos e táticas de posicionamento.",
+        "doc": "Mixin de consciÃªncia espacial, paredes, obstÃ¡culos e tÃ¡ticas de posicionamento.",
         "methods": [
             "_atualizar_consciencia_espacial",
             "_avaliar_taticas_espaciais",
@@ -154,7 +154,7 @@ MIXIN_DEFS = {
     },
     "EmotionsMixin": {
         "file": "brain_emotions.py",
-        "doc": "Mixin de emoções, humor, estados humanos, quirks, reações, ritmo e instintos.",
+        "doc": "Mixin de emoÃ§Ãµes, humor, estados humanos, quirks, reaÃ§Ãµes, ritmo e instintos.",
         "methods": [
             "_atualizar_estados_humanos",
             "_verificar_hesitacao",
@@ -180,7 +180,7 @@ MIXIN_DEFS = {
     },
     "ChoreographyMixin": {
         "file": "brain_choreography.py",
-        "doc": "Mixin de coreografia de combate, reações ao oponente e callbacks.",
+        "doc": "Mixin de coreografia de combate, reaÃ§Ãµes ao oponente e callbacks.",
         "methods": [
             "_processar_reacao_oponente",
             "_executar_acao_sincronizada",
@@ -203,19 +203,19 @@ for mname, mdata in MIXIN_DEFS.items():
     for method in mdata["methods"]:
         METHOD_TO_MIXIN[method] = mname
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # SHARED IMPORTS BLOCK (used by every mixin file)
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 SHARED_IMPORTS = '''\
-"""Auto-generated mixin — see scripts/split_brain.py"""
+"""Auto-generated mixin â€” see scripts/split_brain.py"""
 import random
 import math
 import logging
 
 _log = logging.getLogger("neural_ai")
 
-from utils.config import PPM
-from utils.config import (
+from utilitarios.config import PPM
+from utilitarios.config import (
     AI_HP_CRITICO, AI_HP_BAIXO, AI_HP_EXECUTE,
     AI_DIST_ATAQUE_IMINENTE, AI_DIST_PAREDE_CRITICA, AI_DIST_PAREDE_AVISO,
     AI_INTERVALO_ESPACIAL, AI_INTERVALO_ARMAS,
@@ -223,7 +223,7 @@ from utils.config import (
     AI_MOMENTUM_POSITIVO, AI_MOMENTUM_NEGATIVO, AI_PRESSAO_ALTA,
     AI_RAND_POOL_SIZE,
 )
-from ai.personalities import (
+from ia.personalities import (
     TODOS_TRACOS, TRACOS_AGRESSIVIDADE, TRACOS_DEFENSIVO, TRACOS_MOBILIDADE,
     TRACOS_SKILLS, TRACOS_MENTAL, TRACOS_ESPECIAIS,
     ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES,
@@ -231,7 +231,7 @@ from ai.personalities import (
 )
 
 try:
-    from core.weapon_analysis import (
+    from nucleo.weapon_analysis import (
         analisador_armas, get_weapon_profile, compare_weapons,
         get_safe_distance, evaluate_combat_position, ThreatLevel, WeaponStyle
     )
@@ -240,26 +240,26 @@ except ImportError:
     WEAPON_ANALYSIS_AVAILABLE = False
 
 try:
-    from ai.skill_strategy import SkillStrategySystem, CombatSituation, SkillPriority
+    from ia.skill_strategy import SkillStrategySystem, CombatSituation, SkillPriority
     SKILL_STRATEGY_AVAILABLE = True
 except ImportError:
     SKILL_STRATEGY_AVAILABLE = False
 
 try:
-    from core.hitbox import HITBOX_PROFILES
+    from nucleo.hitbox import HITBOX_PROFILES
 except ImportError:
     HITBOX_PROFILES = {}
 
 try:
-    from core.arena import get_arena as _get_arena
+    from nucleo.arena import get_arena as _get_arena
 except ImportError:
     _get_arena = None
 '''
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # STEP 1: Parse brain.py with AST to find exact method boundaries
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 with open(BRAIN_PATH, "r", encoding="utf-8") as f:
     source = f.read()
@@ -286,9 +286,9 @@ for item in aibrain_node.body:
 
 print(f"Found {len(method_nodes)} methods in AIBrain")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # STEP 2: Extract method bodies with preceding comments
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # For each method, we want:
 #   - Any section comments/blank lines preceding the `def` line
 #   - The method body itself (up to end_lineno from AST)
@@ -336,9 +336,9 @@ if missing:
     print(f"ERROR: Methods in map but not found in brain.py: {missing}")
     sys.exit(1)
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # STEP 3: Generate mixin files
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 for mixin_name, mixin_data in MIXIN_DEFS.items():
     filename = mixin_data["file"]
@@ -349,23 +349,23 @@ for mixin_name, mixin_data in MIXIN_DEFS.items():
 
     lines_out = []
 
-    # ── File header with shared imports ──
+    # â”€â”€ File header with shared imports â”€â”€
     lines_out.append(SHARED_IMPORTS)
     lines_out.append("")
 
-    # ── Extra imports specific to this mixin ──
+    # â”€â”€ Extra imports specific to this mixin â”€â”€
     if extra_imports:
         for imp in extra_imports:
             lines_out.append(imp)
         lines_out.append("")
 
-    # ── Class definition ──
+    # â”€â”€ Class definition â”€â”€
     lines_out.append("")
     lines_out.append(f"class {mixin_name}:")
     lines_out.append(f'    """{doc}"""')
     lines_out.append("")
 
-    # ── Method bodies ──
+    # â”€â”€ Method bodies â”€â”€
     for method_name in methods:
         if method_name not in method_blocks:
             print(f"  SKIP: {method_name} not found in brain.py")
@@ -385,9 +385,9 @@ for mixin_name, mixin_data in MIXIN_DEFS.items():
     print(f"  Created {filename}: {n_methods} methods, {n_lines} lines")
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # STEP 4: Generate new brain.py orchestrator
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 # First, backup the original
 backup_path = os.path.join(AI_DIR, "brain_original.py")
@@ -456,11 +456,11 @@ if init_node:
 
 orchestrator = []
 
-# ── Module docstring ──
+# â”€â”€ Module docstring â”€â”€
 orchestrator.append(module_docstring.rstrip())
 orchestrator.append("")
 
-# ── Original imports ──
+# â”€â”€ Original imports â”€â”€
 orchestrator.append("import random")
 orchestrator.append("import math")
 orchestrator.append("import re as _re_arquetipo")
@@ -514,31 +514,31 @@ orchestrator.append("except ImportError:")
 orchestrator.append("    _get_arena = None")
 orchestrator.append("")
 
-# ── Mixin imports ──
-orchestrator.append("# ── Mixin imports ──")
+# â”€â”€ Mixin imports â”€â”€
+orchestrator.append("# â”€â”€ Mixin imports â”€â”€")
 for line in mixin_imports:
     orchestrator.append(line)
 orchestrator.append("")
 orchestrator.append("")
 
-# ── Class definition ──
+# â”€â”€ Class definition â”€â”€
 orchestrator.append(f"class AIBrain({bases}):")
 
-# ── Class-level code (docstring, class variable, etc.) ──
+# â”€â”€ Class-level code (docstring, class variable, etc.) â”€â”€
 for line in class_level_code:
     orchestrator.append(line)
 
-# ── __init__ ──
+# â”€â”€ __init__ â”€â”€
 orchestrator.append("")
 for line in init_block:
     orchestrator.append(line)
 
-# ── processar ──
+# â”€â”€ processar â”€â”€
 orchestrator.append("")
 for line in processar_block:
     orchestrator.append(line)
 
-# ── Unassigned extra methods ──
+# â”€â”€ Unassigned extra methods â”€â”€
 for block in extra_method_blocks:
     orchestrator.append("")
     for line in block:
@@ -554,9 +554,9 @@ with open(BRAIN_PATH, "w", encoding="utf-8") as f:
 total_orchestrator = len(orchestrator)
 print(f"  Created brain.py orchestrator: {total_orchestrator} lines")
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 # SUMMARY
-# ═══════════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 print("\n=== SPLIT COMPLETE ===")
 print(f"Original: {len(source_lines)} lines")
 print(f"Orchestrator: {total_orchestrator} lines")
@@ -571,3 +571,4 @@ for mixin_name, mixin_data in MIXIN_DEFS.items():
 print(f"Total mixin lines: {total_mixin_lines}")
 print(f"Backup: brain_original.py")
 print("\nDone! Run your tests to verify correctness.")
+

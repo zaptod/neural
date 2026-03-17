@@ -1,47 +1,46 @@
-"""
-Tests for v14.0 Fase 2 — UI Visibility Features
+﻿"""
+Tests for v14.0 Fase 2 â€” UI Visibility Features
 =================================================
 Tests the data layer integration used by the new UI screens.
 Does NOT require a running Tk/Pygame instance.
 """
 import os
 import sys
-import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 
 class TestPostFightResult(unittest.TestCase):
     """Test the post-fight result dict construction used by view_resultado."""
 
     def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.tmpdir, "test_pf.db")
+        self.tmpdir = None
+        self.db_path = ":memory:"
 
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB.reset()
         self.db = BattleDB(self.db_path)
         BattleDB._instance = self.db
 
-        from data.app_state import AppState
+        from dados.app_state import AppState
         AppState.reset()
 
     def tearDown(self):
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB.reset()
-        try:
-            os.unlink(self.db_path)
-        except OSError:
-            pass
-        try:
-            os.rmdir(self.tmpdir)
-        except OSError:
-            pass
+        if self.tmpdir:
+            try:
+                os.unlink(self.db_path)
+            except OSError:
+                pass
+            try:
+                os.rmdir(self.tmpdir)
+            except OSError:
+                pass
 
     def test_elo_before_after_captured(self):
         """ELO before/after values should differ after a fight."""
-        from core.elo_system import calculate_elo, get_tier
+        from nucleo.elo_system import calculate_elo, get_tier
 
         # Initial: both at 1600
         self.db.ensure_character("Alpha")
@@ -83,7 +82,7 @@ class TestPostFightResult(unittest.TestCase):
 
     def test_stats_summary_integration(self):
         """MatchStatsCollector summary should contain expected fields."""
-        from data.match_stats import MatchStatsCollector
+        from dados.match_stats import MatchStatsCollector
 
         stats = MatchStatsCollector()
         stats.register("W")
@@ -131,25 +130,26 @@ class TestLeaderboardData(unittest.TestCase):
     """Test leaderboard data queries used by view_ranking."""
 
     def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.tmpdir, "test_lb.db")
+        self.tmpdir = None
+        self.db_path = ":memory:"
 
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB.reset()
         self.db = BattleDB(self.db_path)
         BattleDB._instance = self.db
 
     def tearDown(self):
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB.reset()
-        try:
-            os.unlink(self.db_path)
-        except OSError:
-            pass
-        try:
-            os.rmdir(self.tmpdir)
-        except OSError:
-            pass
+        if self.tmpdir:
+            try:
+                os.unlink(self.db_path)
+            except OSError:
+                pass
+            try:
+                os.rmdir(self.tmpdir)
+            except OSError:
+                pass
 
     def test_leaderboard_empty(self):
         """Leaderboard should return empty list when no data."""
@@ -243,25 +243,26 @@ class TestELOInSelection(unittest.TestCase):
     """Test logic for showing ELO in character selection."""
 
     def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.tmpdir, "test_sel.db")
+        self.tmpdir = None
+        self.db_path = ":memory:"
 
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB.reset()
         self.db = BattleDB(self.db_path)
         BattleDB._instance = self.db
 
     def tearDown(self):
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB.reset()
-        try:
-            os.unlink(self.db_path)
-        except OSError:
-            pass
-        try:
-            os.rmdir(self.tmpdir)
-        except OSError:
-            pass
+        if self.tmpdir:
+            try:
+                os.unlink(self.db_path)
+            except OSError:
+                pass
+            try:
+                os.rmdir(self.tmpdir)
+            except OSError:
+                pass
 
     def test_elo_tag_new_character(self):
         """New character with no fights should show no ELO tag."""
@@ -284,7 +285,7 @@ class TestELOInSelection(unittest.TestCase):
 
     def test_tier_visual_mapping(self):
         """All tiers should have visual properties defined."""
-        from ui.view_resultado import TIER_VISUAL
+        from interface.view_resultado import TIER_VISUAL
 
         for tier_name, _ in [("MASTER", 2200), ("DIAMOND", 2000), ("PLATINUM", 1800),
                               ("GOLD", 1600), ("SILVER", 1400), ("BRONZE", 0)]:
@@ -298,14 +299,14 @@ class TestFormatHelpers(unittest.TestCase):
     """Test format helpers in view_resultado."""
 
     def test_fmt_num(self):
-        from ui.view_resultado import _fmt_num
+        from interface.view_resultado import _fmt_num
         self.assertEqual(_fmt_num(1234.56), "1,234.6")
         self.assertEqual(_fmt_num(0), "0.0")
         self.assertEqual(_fmt_num(None), "0")
         self.assertEqual(_fmt_num("abc"), "0")
 
     def test_fmt_pct(self):
-        from ui.view_resultado import _fmt_pct
+        from interface.view_resultado import _fmt_pct
         self.assertEqual(_fmt_pct(0.756), "75.6%")
         self.assertEqual(_fmt_pct(1.0), "100.0%")
         self.assertEqual(_fmt_pct(0), "0.0%")
@@ -316,8 +317,8 @@ class TestTierColors(unittest.TestCase):
     """Test that tier visual constants in view_ranking match elo_system tiers."""
 
     def test_all_tiers_have_colors(self):
-        from core.elo_system import TIERS
-        from ui.view_ranking import TIER_COLORS, TIER_EMOJI
+        from nucleo.elo_system import TIERS
+        from interface.view_ranking import TIER_COLORS, TIER_EMOJI
 
         for tier_name, _ in TIERS:
             self.assertIn(tier_name, TIER_COLORS, f"Missing color for tier {tier_name}")
@@ -328,25 +329,26 @@ class TestSecuritySanitization(unittest.TestCase):
     """Security tests: ensure no SQL injection via character names."""
 
     def setUp(self):
-        self.tmpdir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.tmpdir, "test_sec.db")
+        self.tmpdir = None
+        self.db_path = ":memory:"
 
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB.reset()
         self.db = BattleDB(self.db_path)
         BattleDB._instance = self.db
 
     def tearDown(self):
-        from data.battle_db import BattleDB
+        from dados.battle_db import BattleDB
         BattleDB.reset()
-        try:
-            os.unlink(self.db_path)
-        except OSError:
-            pass
-        try:
-            os.rmdir(self.tmpdir)
-        except OSError:
-            pass
+        if self.tmpdir:
+            try:
+                os.unlink(self.db_path)
+            except OSError:
+                pass
+            try:
+                os.rmdir(self.tmpdir)
+            except OSError:
+                pass
 
     def test_sql_injection_character_name(self):
         """Names with SQL special chars should be safely handled."""
@@ -381,3 +383,4 @@ class TestSecuritySanitization(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

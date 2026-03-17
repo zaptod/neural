@@ -1,0 +1,724 @@
+[
+    {
+        "nome": "Aurora Celeste",
+        "tipo": "Reta",
+        "dano": 8.6,
+        "peso": 4.4,
+        "raridade": "Lendário",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 150.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 120,
+        "g": 210,
+        "b": 255,
+        "estilo": "Corte (Espada)",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Raio Sagrado",
+                "custo": 22.0
+            },
+            {
+                "nome": "Barreira Divina",
+                "custo": 28.0
+            }
+        ],
+        "encantamentos": [
+            "Sagrado",
+            "Crítico"
+        ],
+        "passiva": {
+            "nome": "Executora",
+            "efeito": "execute",
+            "valor": 15,
+            "descricao": "Executa inimigos abaixo de 15% HP"
+        },
+        "critico": 12.0,
+        "velocidade_ataque": 1.12,
+        "afinidade_elemento": "LUZ",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Raio Sagrado",
+        "custo_mana": 22.0
+    },
+    {
+        "nome": "Fauces Rubras",
+        "tipo": "Dupla",
+        "dano": 7.4,
+        "peso": 2.1,
+        "raridade": "Épico",
+        "quantidade": 2,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 100.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 230,
+        "g": 70,
+        "b": 70,
+        "estilo": "Adagas Gêmeas",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Marca da Morte",
+                "custo": 20.0
+            },
+            {
+                "nome": "Sombra Envolvente",
+                "custo": 18.0
+            }
+        ],
+        "encantamentos": [
+            "Crítico",
+            "Vampirismo"
+        ],
+        "passiva": {
+            "nome": "Eco",
+            "efeito": "double_hit",
+            "valor": 20,
+            "descricao": "20% chance de atacar duas vezes"
+        },
+        "critico": 18.5,
+        "velocidade_ataque": 1.32,
+        "afinidade_elemento": "TREVAS",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Marca da Morte",
+        "custo_mana": 20.0
+    },
+    {
+        "nome": "Besta de Jade",
+        "tipo": "Arco",
+        "dano": 6.8,
+        "peso": 3.7,
+        "raridade": "Raro",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 8.3,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 1200.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 80,
+        "g": 195,
+        "b": 140,
+        "estilo": "Besta de Repetição",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Corrente em Cadeia",
+                "custo": 24.0
+            },
+            {
+                "nome": "Tempestade",
+                "custo": 26.0
+            }
+        ],
+        "encantamentos": [
+            "Relâmpago",
+            "Execução"
+        ],
+        "passiva": {
+            "nome": "Precisa",
+            "efeito": "crit_chance",
+            "valor": 15,
+            "descricao": "+15% chance crítico"
+        },
+        "critico": 9.0,
+        "velocidade_ataque": 1.06,
+        "afinidade_elemento": "RAIO",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Corrente em Cadeia",
+        "custo_mana": 24.0
+    },
+    {
+        "nome": "Cetro do Eclipse",
+        "tipo": "Mágica",
+        "dano": 8.1,
+        "peso": 2.8,
+        "raridade": "Lendário",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 400.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 120,
+        "g": 90,
+        "b": 220,
+        "estilo": "Cristais Arcanos",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Buraco Negro",
+                "custo": 34.0
+            },
+            {
+                "nome": "Anomalia Espacial",
+                "custo": 30.0
+            }
+        ],
+        "encantamentos": [
+            "Trevas",
+            "Espelhamento"
+        ],
+        "passiva": {
+            "nome": "Infinita",
+            "efeito": "no_mana_cost",
+            "valor": 50,
+            "descricao": "50% chance de skill sem custo de mana"
+        },
+        "critico": 7.0,
+        "velocidade_ataque": 1.04,
+        "afinidade_elemento": "VOID",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Buraco Negro",
+        "custo_mana": 34.0
+    },
+    {
+        "nome": "Lira Boreal",
+        "tipo": "Orbital",
+        "dano": 6.2,
+        "peso": 2.5,
+        "raridade": "Épico",
+        "quantidade": 1,
+        "quantidade_orbitais": 3,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 90.0,
+        "distancia": 50.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 150,
+        "g": 230,
+        "b": 255,
+        "estilo": "Mágico (Orbe)",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Muralha de Gelo",
+                "custo": 22.0
+            },
+            {
+                "nome": "Nevasca",
+                "custo": 28.0
+            }
+        ],
+        "encantamentos": [
+            "Gelo",
+            "Espelhamento"
+        ],
+        "passiva": {
+            "nome": "Resistente",
+            "efeito": "durabilidade",
+            "valor": 20,
+            "descricao": "+20% durabilidade"
+        },
+        "critico": 4.5,
+        "velocidade_ataque": 1.08,
+        "afinidade_elemento": "GELO",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Muralha de Gelo",
+        "custo_mana": 22.0
+    },
+    {
+        "nome": "Raiz do Pântano",
+        "tipo": "Corrente",
+        "dano": 7.9,
+        "peso": 4.8,
+        "raridade": "Raro",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 300.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 90,
+        "g": 145,
+        "b": 80,
+        "estilo": "Chicote",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Dardo Venenoso",
+                "custo": 16.0
+            },
+            {
+                "nome": "Praga",
+                "custo": 22.0
+            }
+        ],
+        "encantamentos": [
+            "Veneno",
+            "Velocidade"
+        ],
+        "passiva": {
+            "nome": "Veloz",
+            "efeito": "velocidade",
+            "valor": 25,
+            "descricao": "+25% velocidade de ataque"
+        },
+        "critico": 8.2,
+        "velocidade_ataque": 1.19,
+        "afinidade_elemento": "NATUREZA",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Dardo Venenoso",
+        "custo_mana": 16.0
+    },
+    {
+        "nome": "Meteora das Cinzas",
+        "tipo": "Corrente",
+        "dano": 9.2,
+        "peso": 5.4,
+        "raridade": "Lendário",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 300.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 253,
+        "g": 104,
+        "b": 66,
+        "estilo": "Meteor Hammer",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Meteoro",
+                "custo": 34.0
+            },
+            {
+                "nome": "Inferno",
+                "custo": 20.0
+            }
+        ],
+        "encantamentos": [
+            "Chamas",
+            "Penetração"
+        ],
+        "passiva": {
+            "nome": "Devastadora",
+            "efeito": "dano_bonus",
+            "valor": 15,
+            "descricao": "+15% dano"
+        },
+        "critico": 10.8,
+        "velocidade_ataque": 0.95,
+        "afinidade_elemento": "FOGO",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Meteoro",
+        "custo_mana": 34.0
+    },
+    {
+        "nome": "Véu da Hemomancia",
+        "tipo": "Mágica",
+        "dano": 8.4,
+        "peso": 3.0,
+        "raridade": "Épico",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 400.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 190,
+        "g": 35,
+        "b": 55,
+        "estilo": "Tentáculos Sombrios",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Avatar de Sangue",
+                "custo": 24.0
+            },
+            {
+                "nome": "Sanguessuga",
+                "custo": 20.0
+            }
+        ],
+        "encantamentos": [
+            "Vampirismo",
+            "Trevas"
+        ],
+        "passiva": {
+            "nome": "Sanguinária",
+            "efeito": "lifesteal",
+            "valor": 12,
+            "descricao": "12% roubo de vida"
+        },
+        "critico": 7.5,
+        "velocidade_ataque": 1.02,
+        "afinidade_elemento": "SANGUE",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Avatar de Sangue",
+        "custo_mana": 24.0
+    },
+    {
+        "nome": "Solstício Quebrado",
+        "tipo": "Transformável",
+        "dano": 8.8,
+        "peso": 3.9,
+        "raridade": "Mítico",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 200.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 255,
+        "g": 180,
+        "b": 90,
+        "estilo": "Arco→Lâminas",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Julgamento Celestial",
+                "custo": 32.0
+            },
+            {
+                "nome": "Tempestade Ascendente",
+                "custo": 26.0
+            }
+        ],
+        "encantamentos": [
+            "Sagrado",
+            "Relâmpago",
+            "Crítico"
+        ],
+        "passiva": {
+            "nome": "Temporal",
+            "efeito": "cooldown",
+            "valor": 40,
+            "descricao": "-40% cooldown de habilidades"
+        },
+        "critico": 14.0,
+        "velocidade_ataque": 1.18,
+        "afinidade_elemento": "LUZ",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Julgamento Celestial",
+        "custo_mana": 32.0
+    },
+    {
+        "nome": "Mandíbula do Trovão",
+        "tipo": "Arremesso",
+        "dano": 8.0,
+        "peso": 3.6,
+        "raridade": "Épico",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 800.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 240,
+        "g": 215,
+        "b": 80,
+        "estilo": "Chakram (Retorna)",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Mjolnir",
+                "custo": 24.0
+            },
+            {
+                "nome": "Tempestade",
+                "custo": 18.0
+            }
+        ],
+        "encantamentos": [
+            "Relâmpago",
+            "Crítico"
+        ],
+        "passiva": {
+            "nome": "Brutal",
+            "efeito": "crit_damage",
+            "valor": 35,
+            "descricao": "+35% dano crítico"
+        },
+        "critico": 13.2,
+        "velocidade_ataque": 1.16,
+        "afinidade_elemento": "RAIO",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Mjolnir",
+        "custo_mana": 24.0
+    },
+    {
+        "nome": "Pilares do Santuário",
+        "tipo": "Orbital",
+        "dano": 6.9,
+        "peso": 4.2,
+        "raridade": "Raro",
+        "quantidade": 1,
+        "quantidade_orbitais": 2,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 90.0,
+        "distancia": 50.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 220,
+        "g": 220,
+        "b": 255,
+        "estilo": "Defensivo (Escudo)",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Aura Sagrada",
+                "custo": 25.0
+            },
+            {
+                "nome": "Aura Sagrada",
+                "custo": 18.0
+            }
+        ],
+        "encantamentos": [
+            "Sagrado",
+            "Espelhamento"
+        ],
+        "passiva": {
+            "nome": "Imortal",
+            "efeito": "sobreviver",
+            "valor": 1,
+            "descricao": "Uma vez por luta, sobrevive com 1 HP"
+        },
+        "critico": 4.2,
+        "velocidade_ataque": 0.9699999999999999,
+        "afinidade_elemento": "LUZ",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Aura Sagrada",
+        "custo_mana": 25.0
+    },
+    {
+        "nome": "Rosário do Caos",
+        "tipo": "Mágica",
+        "dano": 8.7,
+        "peso": 2.9,
+        "raridade": "Mítico",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 400.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "r": 180,
+        "g": 85,
+        "b": 240,
+        "estilo": "Runas Flutuantes",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Cometa",
+                "custo": 26.0
+            },
+            {
+                "nome": "Portal Arcano",
+                "custo": 24.0
+            }
+        ],
+        "encantamentos": [
+            "Espelhamento",
+            "Crítico",
+            "Velocidade"
+        ],
+        "passiva": {
+            "nome": "Caótica",
+            "efeito": "random_element",
+            "valor": 100,
+            "descricao": "Cada ataque tem elemento aleatório"
+        },
+        "critico": 9.8,
+        "velocidade_ataque": 1.11,
+        "afinidade_elemento": "CAOS",
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Cometa",
+        "custo_mana": 26.0
+    }
+]

@@ -1,0 +1,27 @@
+{
+    "p1_nome": "Asterion Valebrilho",
+    "p2_nome": "Eira Neblina",
+    "cenario": "Campo de Batalha",
+    "best_of": 1,
+    "portrait_mode": false,
+    "teams": [
+        {
+            "team_id": 0,
+            "members": [
+                "Asterion Valebrilho",
+                "Nyx Serracurta",
+                "Tamaris Voltagem",
+                "Mordren Vaziofrio"
+            ]
+        },
+        {
+            "team_id": 1,
+            "members": [
+                "Eira Neblina",
+                "Brakka Musgoferro",
+                "Ragan Cinzaforte",
+                "Selene Carmesim"
+            ]
+        }
+    ]
+}

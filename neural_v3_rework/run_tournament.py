@@ -1,5 +1,5 @@
-"""
-NEURAL FIGHTS - Lançador do Modo Torneio
+﻿"""
+NEURAL FIGHTS - LanÃ§ador do Modo Torneio
 ========================================
 Execute este script para iniciar o Modo Torneio diretamente.
 """
@@ -15,7 +15,7 @@ def main():
         import customtkinter as ctk
     except ImportError:
         print("=" * 60)
-        print("  ERRO: CustomTkinter não instalado!")
+        print("  ERRO: CustomTkinter nÃ£o instalado!")
         print("=" * 60)
         print("\n  Execute: pip install customtkinter")
         print("\n  Depois execute este script novamente.")
@@ -26,11 +26,11 @@ def main():
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
     
-    # Importa e lança o torneio
-    from ui.view_torneio import TournamentWindow
+    # Importa e lanÃ§a o torneio
+    from interface.view_torneio import TournamentWindow
     
     print("=" * 60)
-    print("  🏆 NEURAL FIGHTS - MODO TORNEIO")
+    print("  ðŸ† NEURAL FIGHTS - MODO TORNEIO")
     print("=" * 60)
     print("\n  Iniciando janela do torneio...")
     
@@ -48,3 +48,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
