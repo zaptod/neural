@@ -1,0 +1,66 @@
+{
+  "timestamp": "20260316_224356",
+  "num_fights": 3,
+  "results": [
+    {
+      "platform": "reels",
+      "fighter1": {
+        "nome": "Lucian o Solar",
+        "classe": "Feiticeiro (Caos)"
+      },
+      "fighter2": {
+        "nome": "Freya do Vazio",
+        "classe": "Paladino (Sagrado)"
+      },
+      "winner": "Freya do Vazio",
+      "duration": 77.41666666666356,
+      "frames": 4738,
+      "video": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\reels\\reels_Lucian_vs_Freya.mp4",
+      "metadata": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\reels\\reels_Lucian_vs_Freya_meta.json",
+      "metadata_text": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\reels\\reels_Lucian_vs_Freya_meta.txt",
+      "metadata_copy": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\reels\\reels_Lucian_vs_Freya_copy.txt",
+      "metadata_copy_all_platforms": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\reels\\reels_Lucian_vs_Freya_copy_all_platforms.txt",
+      "title": "⚔️ Lucian o Solar vs Freya do Vazio — Quem vence?"
+    },
+    {
+      "platform": "tiktok",
+      "fighter1": {
+        "nome": "Yasuo o Relâmpago",
+        "classe": "Gladiador (Combate)"
+      },
+      "fighter2": {
+        "nome": "Seraphina das Sombras",
+        "classe": "Monge (Chi)"
+      },
+      "winner": "Yasuo o Relâmpago",
+      "duration": 62.916666666664376,
+      "frames": 3866,
+      "video": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\tiktok\\tiktok_Yasuo_vs_Seraphina.mp4",
+      "metadata": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\tiktok\\tiktok_Yasuo_vs_Seraphina_meta.json",
+      "metadata_text": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\tiktok\\tiktok_Yasuo_vs_Seraphina_meta.txt",
+      "metadata_copy": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\tiktok\\tiktok_Yasuo_vs_Seraphina_copy.txt",
+      "metadata_copy_all_platforms": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\tiktok\\tiktok_Yasuo_vs_Seraphina_copy_all_platforms.txt",
+      "title": "💀 Yasuo o Relâmpago contra Seraphina das Sombras — Batalha brutal!"
+    },
+    {
+      "platform": "shorts",
+      "fighter1": {
+        "nome": "Zed o Lendário",
+        "classe": "Ladino (Evasão)"
+      },
+      "fighter2": {
+        "nome": "Griffin o Predador",
+        "classe": "Ninja (Velocidade)"
+      },
+      "winner": "Zed o Lendário",
+      "duration": 130.01666666666227,
+      "frames": 7892,
+      "video": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\shorts\\shorts_Zed_vs_Griffin.mp4",
+      "metadata": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\shorts\\shorts_Zed_vs_Griffin_meta.json",
+      "metadata_text": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\shorts\\shorts_Zed_vs_Griffin_meta.txt",
+      "metadata_copy": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\shorts\\shorts_Zed_vs_Griffin_copy.txt",
+      "metadata_copy_all_platforms": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework\\video_pipeline\\output\\batch_20260316_224356\\shorts\\shorts_Zed_vs_Griffin_copy_all_platforms.txt",
+      "title": "🗡️ Zed o Lendário × Griffin o Predador — RESULTADO INSANO"
+    }
+  ]
+}

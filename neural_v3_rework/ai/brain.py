@@ -71,6 +71,7 @@ from utils.config import (
     AI_PREVISIBILIDADE_ALTA, AI_AGRESSIVIDADE_ALTA,
     AI_MOMENTUM_POSITIVO, AI_MOMENTUM_NEGATIVO, AI_PRESSAO_ALTA,
     AI_RAND_POOL_SIZE,
+    DEBUG_AI, DEBUG_AI_FIGHTER,         # F01 Sprint 9: modo debug da IA
 )
 from core.physics import normalizar_angulo
 from core.skills import get_skill_data
@@ -473,7 +474,25 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         # mais fácil de reproduzir em debug e mais eficiente em batalhas multi-combatente.
         self._rand_pool = [random.random() for _ in range(AI_RAND_POOL_SIZE)]
         self._rand_idx = 0
-        
+
+        # F01 Sprint 9: modo debug da IA — ligar em utils/config.py: DEBUG_AI = True
+        # Filtrar por nome: DEBUG_AI_FIGHTER = "NomeDoLutador"
+        if DEBUG_AI:
+            _nome = p.dados.nome if hasattr(p, 'dados') and hasattr(p.dados, 'nome') else '?'
+            if DEBUG_AI_FIGHTER is None or _nome == DEBUG_AI_FIGHTER:
+                _ultima_skill = getattr(self, '_ultima_skill_usada', 'none')
+                _log.debug(
+                    "[AI:%s] dist=%.1f | acao=%-18s | skill=%-20s | humor=%-12s | "
+                    "hp=%3.0f%% | mana=%3.0f%% | momentum=%+.2f | raiva=%.2f | medo=%.2f",
+                    _nome, distancia, self.acao_atual,
+                    _ultima_skill, getattr(self, 'humor', '?'),
+                    p.vida / max(p.vida_max, 1) * 100,
+                    p.mana / max(p.mana_max, 1) * 100,
+                    getattr(self, 'momentum', 0.0),
+                    getattr(self, 'raiva', 0.0),
+                    getattr(self, 'medo', 0.0),
+                )
+
         # v13.0: Atualiza consciência multi-combatente
         if todos_lutadores is not None:
             self._atualizar_multi_awareness(dt, inimigo, todos_lutadores)

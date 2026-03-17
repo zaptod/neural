@@ -10,7 +10,6 @@ import os
 # Adiciona o diretório pai ao path para imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data import database
 from utils.config import (
     PPM, LARGURA, ALTURA, LARGURA_PORTRAIT, ALTURA_PORTRAIT, FPS,
     BRANCO, VERMELHO_SANGUE, SANGUE_ESCURO, AMARELO_FAISCA,
@@ -79,8 +78,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         try:
             pygame.display.quit()
             pygame.mixer.quit()
-        except Exception:
-            pass
+        except Exception as _e_cleanup:  # E02 Sprint 11: pygame cleanup — não-fatal
+            _log.debug("pygame cleanup ignorado (não-fatal): %s", _e_cleanup)
 
 
     def _check_portrait_mode(self) -> bool:
@@ -715,15 +714,15 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             break
                     if elem_alvo and elem_alvo != elem_proj:
                         try:
-                            from core.magic_system import verificar_reacao_elemental, Elemento
+                            from core.magic_system import verificar_reacao_elemental, Elemento  # archived → _archive/core/
                             e1 = Elemento[elem_proj] if elem_proj in Elemento.__members__ else None
                             e2 = Elemento[elem_alvo] if elem_alvo in Elemento.__members__ else None
                             if e1 and e2:
                                 reacao = verificar_reacao_elemental(e1, e2)
                                 if reacao:
                                     reacao_nome, reacao_efeito, mult_reacao = reacao
-                        except Exception:
-                            pass
+                        except Exception as _e_reacao:  # E02 Sprint 11: magic_system arquivado
+                            _log.debug("Reação elemental indisponível: %s", _e_reacao)
 
                 # Aplica dano com efeito
                 dano_base = proj.dono.get_dano_modificado(proj.dano) if hasattr(proj.dono, 'get_dano_modificado') else proj.dano
@@ -918,7 +917,10 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                         if res.get("nova_onda"):
                             # Cria nova onda expandindo
                             from core.combat import AreaEffect
-                            nova = AreaEffect(area.nome + " Onda", res["x"], res["y"], area.dono)
+                            # bugfix: garante x/y mesmo em dicts legados sem a chave
+                            _nx = res.get("x", area.x)
+                            _ny = res.get("y", area.y)
+                            nova = AreaEffect(area.nome + " Onda", _nx, _ny, area.dono)
                             # BUG-C6: AreaEffect não tem raio_max, usa raio
                             nova.raio = res.get("raio", area.raio * 1.5)
                             nova.dano = area.dano * 0.7

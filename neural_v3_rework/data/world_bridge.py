@@ -20,12 +20,43 @@ import json
 import os
 import sys
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, List
 import logging
 _log = logging.getLogger("world_bridge")
+
+
+# ── GodEntry — objeto simples usado por view_chars.py ──────────────────────────
+class GodEntry:
+    """
+    Representação de um deus para a UI de criação de personagens.
+    Atributos são mutáveis para que view_chars.py possa editar antes de salvar.
+    """
+    def __init__(self, data: dict):
+        self.god_id          = data.get("god_id", "")
+        self.god_name        = data.get("god_name", self.god_id)
+        self.nature          = data.get("nature", "Balanced")
+        self.nature_element  = data.get("nature_element", "balanced")
+        self.color_primary   = data.get("color_primary", "#00d9ff")
+        self.follower_count  = data.get("follower_count", 0)
+        self.owned_zones     = data.get("owned_zones", [])
+        self.lore_description = data.get("lore_description", "")
+        self.source          = data.get("source", "")
+
+    def to_dict(self) -> dict:
+        return {
+            "god_id":           self.god_id,
+            "god_name":         self.god_name,
+            "nature":           self.nature,
+            "nature_element":   self.nature_element,
+            "color_primary":    self.color_primary,
+            "follower_count":   self.follower_count,
+            "owned_zones":      self.owned_zones,
+            "lore_description": self.lore_description,
+            "source":           self.source,
+        }
 
 
 # ── B04: Resultado explícito de on_fight_result ─────────────────────────────
@@ -238,6 +269,91 @@ class WorldBridge:
         ws = _load_json_safe(_wm_path("world_state.json"), {})
         events = ws.get("world_events", [])
         return list(reversed(events[-limit:]))
+
+    def get_all_gods(self) -> List[GodEntry]:
+        """
+        Retorna lista de todos os deuses como GodEntry.
+        Usado por view_chars.py para o passo de seleção de divindade.
+        """
+        if not WORLDMAP_AVAILABLE:
+            return []
+        gds = _load_json_safe(_wm_path("gods.json"), {"gods": []})
+        return [GodEntry(g) for g in gds.get("gods", [])]
+
+    def get_god(self, god_id: str) -> Optional[GodEntry]:
+        """
+        Retorna um GodEntry pelo god_id, ou None se não encontrado.
+        Usado por view_chars.py para exibir o deus vinculado atual.
+        """
+        if not WORLDMAP_AVAILABLE or not god_id:
+            return None
+        gds = _load_json_safe(_wm_path("gods.json"), {"gods": []})
+        for g in gds.get("gods", []):
+            if g.get("god_id") == god_id:
+                return GodEntry(g)
+        return None
+
+    def create_god(self, god_name: str, nature: str, nature_element: str,
+                   source: str = "manual") -> GodEntry:
+        """
+        Cria um novo deus no gods.json do worldmap e retorna GodEntry.
+        Usado por view_chars.py no wizard de criação de deus.
+        """
+        import re
+        # Gera god_id a partir do nome (snake_case sem acentos)
+        god_id = re.sub(r'\W+', '_', god_name.lower()).strip('_') or "deus_desconhecido"
+        # Garante unicidade
+        gds = _load_json_safe(_wm_path("gods.json"), {"gods": []})
+        existing = {g["god_id"] for g in gds.get("gods", [])}
+        base_id, n = god_id, 2
+        while god_id in existing:
+            god_id = f"{base_id}_{n}"
+            n += 1
+
+        entry_data = {
+            "god_id":           god_id,
+            "god_name":         god_name,
+            "nature":           nature,
+            "nature_element":   nature_element,
+            "color_primary":    "#00d9ff",
+            "follower_count":   0,
+            "owned_zones":      [],
+            "lore_description": "",
+            "source":           source,
+            "registered_at":    datetime.utcnow().isoformat(),
+        }
+        gds.setdefault("gods", []).append(entry_data)
+        _save_json_safe(_wm_path("gods.json"), gds)
+        _log.info("Deus '%s' (%s) criado via UI.", god_name, god_id)
+        return GodEntry(entry_data)
+
+    def save_all(self):
+        """
+        Persiste alterações feitas em GodEntry de volta ao gods.json.
+        view_chars.py chama este método após editar follower_count e lore_description.
+
+        Nota: como GodEntry é uma cópia em memória, este método precisa da lista
+        completa. Por isso view_chars.py deve usar o padrão:
+            god = sync.create_god(...)
+            god.follower_count = N
+            sync.update_god(god)   ← usar update_god ao invés de save_all
+        save_all() é mantido como no-op para não quebrar código existente.
+        """
+        pass  # WorldBridge salva atomicamente em cada operação — save_all é no-op
+
+    def update_god(self, entry: GodEntry):
+        """
+        Atualiza os dados de um GodEntry existente no gods.json.
+        Use após modificar atributos de um GodEntry retornado por create_god() ou get_god().
+        """
+        if not WORLDMAP_AVAILABLE:
+            return
+        gds = _load_json_safe(_wm_path("gods.json"), {"gods": []})
+        for i, g in enumerate(gds.get("gods", [])):
+            if g.get("god_id") == entry.god_id:
+                gds["gods"][i] = entry.to_dict()
+                break
+        _save_json_safe(_wm_path("gods.json"), gds)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # PRIVADOS

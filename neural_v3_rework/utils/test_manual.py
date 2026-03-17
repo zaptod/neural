@@ -49,7 +49,7 @@ sys.path.insert(0, PROJECT_DIR)
 from simulation.simulacao import Simulador
 from utils.config import PPM, LARGURA, ALTURA
 from core.skills import SKILL_DB, listar_skills_para_ui
-from data.database import carregar_personagens
+from data import carregar_personagens  # D01 Sprint 10
 
 # Cores
 BRANCO = (255, 255, 255)

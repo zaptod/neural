@@ -297,8 +297,8 @@ class Tournament:
                 if _pending:
                     _pending.flush_to_db(match_id)
                     _AS.get()._pending_stats_collector = None
-            except Exception:
-                pass
+            except Exception as _e:  # E02 Sprint 12
+                import logging as _lg; _lg.getLogger("tournament").warning("Stats flush falhou: %s", _e)
 
         # ── WorldBridge: conquista de território pelo deus do vencedor ───────
         try:

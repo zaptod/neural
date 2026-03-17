@@ -163,8 +163,8 @@ def simulate_battle(p1_data: Dict, p2_data: Dict, max_duration_frames: int = 200
             import pygame
             pygame.display.quit()
             pygame.mixer.quit()
-        except:
-            pass
+        except Exception as _e:  # E02 Sprint 12
+            import logging as _lg; _lg.getLogger('tools').debug('pygame cleanup: %s', _e)
 
 
 def run_stress_test(

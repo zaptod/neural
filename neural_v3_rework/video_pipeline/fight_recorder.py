@@ -96,17 +96,18 @@ def _inject_match_config(char1: dict, arma1: dict, char2: dict, arma2: dict,
     p1 = _build_char(char1, a1)
     p2 = _build_char(char2, a2)
 
+    # B02 Sprint fix: usa API pública em vez de atributos privados.
     # Substitui listas/config APENAS em memória para não poluir JSON global.
-    state._characters = [p1, p2]
-    state._weapons = [a1, a2]
-    state._match = {
-        **state._match,
+    state.set_characters([p1, p2])
+    state.set_weapons([a1, a2])
+    state.set_match_config({
+        **state.match_config,
         "p1_nome": p1.nome,
         "p2_nome": p2.nome,
         "cenario": cenario,
         "portrait_mode": True,
         "teams": None,
-    }
+    })
 
 
 def _snapshot_app_state() -> dict:
@@ -378,8 +379,8 @@ class FightRecorder:
             try:
                 pygame.display.quit()
                 pygame.mixer.quit()
-            except Exception:
-                pass
+            except Exception as _e:  # E02 Sprint 12
+                import logging as _lg; _lg.getLogger('video_pipeline').debug('pygame cleanup (não-fatal): %s', _e)
 
         # === PÓS-PROCESSAMENTO: ÁUDIO ===
         if self.total_frames > 0 and audio_capture.events:
@@ -441,16 +442,16 @@ class FightRecorder:
                             if getattr(sim, "audio", None):
                                 sim.audio.play_special("slowmo_end", 0.5)
                                 sim.audio.play_special("arena_victory", 1.0)
-                        except Exception:
-                            pass
+                        except Exception as _e:  # E02 Sprint 12
+                            import logging as _lg; _lg.getLogger('video_pipeline').debug('audio pós-luta (não-fatal): %s', _e)
                         try:
                             sim._salvar_memorias_rivais()
-                        except Exception:
-                            pass
+                        except Exception as _e:  # E02 Sprint 12
+                            import logging as _lg; _lg.getLogger('video_pipeline').debug('audio pós-luta (não-fatal): %s', _e)
                         try:
                             sim._flush_match_stats()
-                        except Exception:
-                            pass
+                        except Exception as _e:  # E02 Sprint 12
+                            import logging as _lg; _lg.getLogger('video_pipeline').debug('audio pós-luta (não-fatal): %s', _e)
                         sim._slow_mo_ended = True
 
         return raw_dt * getattr(sim, "time_scale", 1.0)

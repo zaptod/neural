@@ -74,5 +74,36 @@
         "durabilidade_max": 100.0,
         "habilidade": "Forma Relâmpago",
         "custo_mana": 45.0
+    },
+    {
+        "nome": "sla",
+        "tipo": "Reta",
+        "dano": 10.0,
+        "peso": 5.0,
+        "raridade": "Comum",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "forma_atual": 1,
+        "r": 200,
+        "g": 200,
+        "b": 200,
+        "estilo": "Corte (Espada)",
+        "cabo_dano": false,
+        "habilidades": [
+            {
+                "nome": "Sombra Envolvente",
+                "custo": 18.0
+            }
+        ],
+        "encantamentos": [],
+        "passiva": null,
+        "critico": 0.0,
+        "velocidade_ataque": 1.0,
+        "afinidade_elemento": null,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "habilidade": "Sombra Envolvente",
+        "custo_mana": 18.0
     }
 ]

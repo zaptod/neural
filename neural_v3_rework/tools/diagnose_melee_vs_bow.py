@@ -127,8 +127,8 @@ def run_diagnostic(sim_seconds: float = 30.0):
 
             pygame.display.quit()
             pygame.mixer.quit()
-        except Exception:
-            pass
+        except Exception as _e:  # E02 Sprint 12
+            import logging as _lg; _lg.getLogger('tools').debug('pygame cleanup: %s', _e)
 
 
 if __name__ == "__main__":

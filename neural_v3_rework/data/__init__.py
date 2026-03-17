@@ -56,8 +56,7 @@ def salvar_json(arquivo, dados):
     with open(arquivo, "w", encoding="utf-8") as f:
         json.dump(dados, f, indent=4, ensure_ascii=False)
 
-# Keep the old module reference for code that does `from data import database`
-from data import database
+# D01 Sprint 11: shim database removido — todos os callers migrados em Sprint 10.
 
 # File path constants (unchanged)
 from data.app_state import FILE_CHARS  as ARQUIVO_CHARS
@@ -67,7 +66,6 @@ __all__ = [
     # New
     "AppState",
     # Legacy
-    "database",
     "carregar_json",
     "salvar_json",
     "carregar_armas",

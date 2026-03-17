@@ -49,8 +49,8 @@ class MatchCard(ctk.CTkFrame):
                 cs = BattleDB.get().get_character_stats(name)
                 if cs and cs.get("matches_played", 0) > 0:
                     return f" [{cs['elo']:.0f}]"
-            except Exception:
-                pass
+            except Exception as _e:  # E02 Sprint 12
+                import logging as _lg; _lg.getLogger('ui.view_torneio').debug('ELO label: %s', _e)
             return ""
 
         # Fighter 1
@@ -214,9 +214,8 @@ class TournamentWindow(ctk.CTkToplevel):
         """Called by AppState whenever tournament_changed fires. Keeps the bracket in sync."""
         try:
             self.refresh_bracket()
-        except Exception:
-            pass  # Window may have been destroyed
-
+        except Exception as _e:  # E02 Sprint 12 — window may have been destroyed
+            import logging as _lg; _lg.getLogger('ui.view_torneio').debug('refresh_bracket (window destroyed?): %s', _e)
     def refresh_bracket(self):
         """Atualiza visualização do bracket"""
         # Limpa

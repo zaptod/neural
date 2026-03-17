@@ -13,7 +13,8 @@ _log = logging.getLogger("ui.view_chars")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models import Personagem, LISTA_CLASSES, CLASSES_DATA, get_class_data
-from data import carregar_personagens, salvar_lista_chars, carregar_armas, database
+from data import carregar_personagens, salvar_lista_chars, carregar_armas
+from data.world_bridge import WorldBridge, WORLDMAP_AVAILABLE  # D01 Sprint 10
 from data.app_state import AppState
 from ui.theme import (
     COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS, 
@@ -34,7 +35,7 @@ class TelaPersonagens(tk.Frame):
         self.passo_atual = 1
         # MEL-C6: total_passos dinâmico — passo 7 (Divindade) só existe quando WorldMap está ativo.
         # Quando inativo, o passo 6 é o último e "CRIAR!" realmente cria o personagem.
-        self.total_passos = 7 if database.is_worldmap_active() else 6
+        self.total_passos = 7 if WORLDMAP_AVAILABLE else 6
         
         # Dados do personagem sendo criado
         self.dados_char = {
@@ -1111,7 +1112,7 @@ class TelaPersonagens(tk.Frame):
         )
 
         # Tenta carregar o WorldStateSync
-        sync = database.get_worldmap_sync() if database.is_worldmap_active() else None
+        sync = WorldBridge.get() if WORLDMAP_AVAILABLE else None  # D01 Sprint 10
 
         frame = self.frame_conteudo_passo
 
@@ -1224,7 +1225,7 @@ class TelaPersonagens(tk.Frame):
 
     def _criar_card_deus(self, parent, god):
         """Cria um card de seleção de deus."""
-        from data import database
+        # D01 Sprint 10: WorldBridge já importado no topo
 
         is_selected = (self.dados_char.get("god_id") == god.god_id)
 
@@ -1379,7 +1380,7 @@ class TelaPersonagens(tk.Frame):
             god.follower_count = followers
             if lore:
                 god.lore_description = lore
-            sync.save_all()
+            sync.update_god(god)  # persiste follower_count e lore (save_all é no-op)
 
             # Seleciona este deus automaticamente
             self._selecionar_deus(god.god_id)
@@ -1557,8 +1558,8 @@ class TelaPersonagens(tk.Frame):
                 cs = BattleDB.get().get_character_stats(p.nome)
                 if cs and cs.get("matches_played", 0) > 0:
                     elo_txt = f"{cs['elo']:.0f}"
-            except Exception:
-                pass
+            except Exception as _e:  # E02 Sprint 12
+                import logging as _lg; _lg.getLogger("ui.view_chars").debug("ELO card lookup: %s", _e)
             self.tree.insert("", "end", values=(
                 p.nome, classe_curta, p.nome_arma or "Nenhuma", elo_txt
             ))

@@ -193,8 +193,8 @@ def run_matchup_diagnostic(
             import pygame
             pygame.display.quit()
             pygame.mixer.quit()
-        except Exception:
-            pass
+        except Exception as _e:  # E02 Sprint 12
+            import logging as _lg; _lg.getLogger('tools').debug('pygame cleanup: %s', _e)
 
 
 def print_matchup_result(result: MatchupResult) -> None:

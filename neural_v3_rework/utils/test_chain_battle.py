@@ -5,7 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 os.environ['SDL_VIDEODRIVER'] = 'dummy'
 os.environ['SDL_AUDIODRIVER'] = 'dummy'
 
-from data.database import carregar_personagens, carregar_armas
+from data import carregar_personagens, carregar_armas  # D01 Sprint 10
 from models.characters import Personagem
 from models.weapons import Arma
 from core.entities import Lutador

@@ -250,8 +250,8 @@ class TelaLuta(tk.Frame):
                 cs = BattleDB.get().get_character_stats(p.nome)
                 if cs and cs.get("matches_played", 0) > 0:
                     elo_tag = f" [{cs['elo']:.0f}]"
-            except Exception:
-                pass
+            except Exception as _e:  # E02 Sprint 12
+                _log.debug("ELO lookup listbox falhou (não-crítico): %s", _e)
             texto = f"{p.nome} ({classe}){elo_tag}"
             self.listbox_p1.insert(tk.END, texto)
             self.listbox_p2.insert(tk.END, texto)
@@ -348,8 +348,8 @@ class TelaLuta(tk.Frame):
                 emoji = TIER_EMOJI.get(tier, "🥉")
                 stats += f"\n{emoji} {tier} — ELO {elo:.0f}"
                 stats += f"\n{wins}W — {losses}L ({wr:.0f}%)"
-        except Exception:
-            pass
+        except Exception as _e:  # E02 Sprint 12
+            _log.debug("Stats block falhou (não-crítico): %s", _e)
         # ──────────────────────────────────────────────────────────────────
 
         lbl_stats.config(text=stats)
@@ -434,8 +434,8 @@ class TelaLuta(tk.Frame):
                         elo_before_w = ws["elo"]
                     if ls:
                         elo_before_l = ls["elo"]
-                except Exception:
-                    pass
+                except Exception as _e:  # E02 Sprint 12
+                    import logging as _lg; _lg.getLogger('ui.view_luta').debug('ELO before: %s', _e)
 
                 try:
                     match_id = AppState.get().record_fight_result(
@@ -461,8 +461,8 @@ class TelaLuta(tk.Frame):
                     if ls2:
                         elo_after_l = ls2["elo"]
                         tier_l = ls2["tier"]
-                except Exception:
-                    pass
+                except Exception as _e:  # E02 Sprint 12
+                    _log.debug("ELO after read falhou: %s", _e)
 
                 # Build stats summary
                 w_stats, l_stats = {}, {}
@@ -471,8 +471,8 @@ class TelaLuta(tk.Frame):
                         summary = sim.stats_collector.get_summary()
                         w_stats = summary.get(sim.vencedor, {})
                         l_stats = summary.get(loser, {})
-                    except Exception:
-                        pass
+                    except Exception as _e:  # E02 Sprint 12
+                        _log.debug("stats_collector summary falhou: %s", _e)
 
                 post_fight_result = {
                     "winner": sim.vencedor,

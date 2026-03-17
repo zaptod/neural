@@ -11,7 +11,6 @@ import os
 # Adiciona o diretório pai ao path para imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data import database
 from utils.config import (
     PPM, LARGURA, ALTURA, LARGURA_PORTRAIT, ALTURA_PORTRAIT, FPS,
     BRANCO, VERMELHO_SANGUE, SANGUE_ESCURO, AMARELO_FAISCA,

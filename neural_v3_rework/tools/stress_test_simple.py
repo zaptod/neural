@@ -144,8 +144,8 @@ def simulate_battle(
             import pygame
             pygame.display.quit()
             pygame.mixer.quit()
-        except:
-            pass
+        except Exception as _e:  # E02 Sprint 12
+            import logging as _lg; _lg.getLogger('tools').debug('pygame cleanup: %s', _e)
 
 
 def run_stress_test(num_battles: int = 200, output_dir: str = "stress_test_data") -> List[BattleResult]:

@@ -56,5 +56,29 @@ AI_MOMENTUM_POSITIVO        = 0.30  # Momentum acima disto → mais agressivo
 AI_MOMENTUM_NEGATIVO        = -0.30 # Momentum abaixo disto → mais cauteloso
 AI_PRESSAO_ALTA             = 0.70  # Pressão acima disto → decisões extremas
 
-# --- Tamanho do Pool de Aleatoriedade (QC-03) ---
-AI_RAND_POOL_SIZE           = 8     # Valores aleatórios pré-gerados por frame
+# --- Tamanho do Pool de Aleatoriedade (F05/B06 Sprint 9) ---
+# 8 era pequeno demais para 35 consumidores — pool de 32 elimina o fallback
+# para random.random() em qualquer cenário realista de batalha multi-combatente.
+AI_RAND_POOL_SIZE           = 32    # era 8 — suficiente para todos os consumidores
+
+# =============================================================================
+# DEBUG DA IA (F01 Sprint 9)
+# Permite entender qualquer decisão de IA em < 30 segundos sem prints no código.
+#
+# Uso:
+#   DEBUG_AI = True                       → loga TODOS os lutadores
+#   DEBUG_AI_FIGHTER = "NomeDoLutador"    → filtra por nome específico
+#
+# Saída (nível DEBUG no logger "ai.brain"):
+#   [AI:Nome] dist=3.2 | acao=MATAR | skill=Bola de Fogo | humor=AGRESSIVO |
+#            hp=72% | mana=45% | momentum=0.41 | raiva=0.18 | medo=0.00
+# =============================================================================
+DEBUG_AI         = False   # ligar para diagnóstico de comportamento
+DEBUG_AI_FIGHTER = None    # None = todos; "Nome" = filtra por nome exato
+
+# =============================================================================
+# PARTÍCULAS — rate limits (A04 Sprint 9)
+# Reduz picos de alocação em clashes sem degradar o visual significativamente.
+# =============================================================================
+BUDGET_PARTICULAS_CLASH       = 15   # era 35 — clash físico
+BUDGET_PARTICULAS_CLASH_MAGICO = 12  # era 30 — clash mágico (projétil × projétil)

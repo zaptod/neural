@@ -378,8 +378,14 @@ class Projetil:
         
         # === HOMING ===
         if self.homing and alvos:
-            # Encontra alvo mais próximo
-            if self.alvo is None or self.alvo.morto:
+            # A06 Sprint 9: cache de alvo — só faz scan linear quando necessário.
+            # Se o alvo atual está vivo e dentro de 15m, mantém sem recalcular.
+            _alvo_valido = (
+                self.alvo is not None
+                and not self.alvo.morto
+                and math.hypot(self.alvo.pos[0] - self.x, self.alvo.pos[1] - self.y) < 15.0
+            )
+            if not _alvo_valido:
                 menor_dist = float('inf')
                 for alvo in alvos:
                     if alvo != self.dono and not alvo.morto:
@@ -640,7 +646,7 @@ class AreaEffect:
                 self.timer_onda = 0
                 self.onda_atual += 1
                 self.alvos_atingidos.clear()  # Nova onda = novo dano
-                resultados.append({"nova_onda": True})
+                resultados.append({"nova_onda": True, "x": self.x, "y": self.y})  # bugfix: x/y obrigatórios
         
         # === METEOROS ALEATÓRIOS ===
         if self.meteoros > 0 and self.meteoros_spawned < self.meteoros:
@@ -1038,21 +1044,26 @@ class Summon:
             self._evade_timer -= dt
         
         # Encontra alvo mais proximo (inimigo do dono)
-        melhor_alvo = None
-        menor_dist = self.raio_agressao
-        
-        for alvo in alvos:
-            if alvo == self.dono or alvo.morto:
-                continue
-            # v13.0: Don't target allies in team battles
-            if hasattr(self.dono, 'team_id') and hasattr(alvo, 'team_id') and alvo.team_id == self.dono.team_id:
-                continue
-            dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
-            if dist < menor_dist:
-                menor_dist = dist
-                melhor_alvo = alvo
-        
-        self.alvo = melhor_alvo
+        # A06 Sprint 9: cache de alvo — só faz scan quando necessário.
+        _alvo_summon_valido = (
+            self.alvo is not None
+            and not self.alvo.morto
+            and math.hypot(self.alvo.pos[0] - self.x, self.alvo.pos[1] - self.y) < self.raio_agressao * 2
+        )
+        if not _alvo_summon_valido:
+            melhor_alvo = None
+            menor_dist = self.raio_agressao
+            for alvo in alvos:
+                if alvo == self.dono or alvo.morto:
+                    continue
+                # v13.0: Don't target allies in team battles
+                if hasattr(self.dono, 'team_id') and hasattr(alvo, 'team_id') and alvo.team_id == self.dono.team_id:
+                    continue
+                dist = math.hypot(alvo.pos[0] - self.x, alvo.pos[1] - self.y)
+                if dist < menor_dist:
+                    menor_dist = dist
+                    melhor_alvo = alvo
+            self.alvo = melhor_alvo
         
         if self.alvo:
             dx = self.alvo.pos[0] - self.x

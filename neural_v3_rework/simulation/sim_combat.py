@@ -11,12 +11,12 @@ import os
 # Adiciona o diretório pai ao path para imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data import database
 from utils.config import (
     PPM, LARGURA, ALTURA, LARGURA_PORTRAIT, ALTURA_PORTRAIT, FPS,
     BRANCO, VERMELHO_SANGUE, SANGUE_ESCURO, AMARELO_FAISCA,
     AZUL_MANA, COR_CORPO, COR_P1, COR_P2, COR_FUNDO, COR_GRID,
     COR_UI_BG, COR_TEXTO_TITULO, COR_TEXTO_INFO,
+    BUDGET_PARTICULAS_CLASH, BUDGET_PARTICULAS_CLASH_MAGICO,  # A04 Sprint 9
 )
 from effects import (Particula, FloatingText, Decal, Shockwave, Câmera, EncantamentoEffect,
                      ImpactFlash, MagicClash, BlockEffect, DashTrail, HitSpark,
@@ -526,8 +526,10 @@ class SimuladorCombat:
         mx = (p1.pos[0] + p2.pos[0]) / 2 * PPM
         my = (p1.pos[1] + p2.pos[1]) / 2 * PPM
         
-        # === PARTÍCULAS DE FAÍSCA EM TODAS DIREÇÕES ===
-        for _ in range(35):
+        # === PARTÍCULAS DE FAÍSCA EM TODAS DIREÇÕES (A04: rate-limited) ===
+        _slots = max(0, 600 - len(self.particulas))
+        _n_clash = min(BUDGET_PARTICULAS_CLASH, _slots)
+        for _ in range(_n_clash):
             ang = random.uniform(0, math.pi * 2)
             vel = random.uniform(80, 180)
             vx = math.cos(ang) * vel / 60
@@ -604,8 +606,10 @@ class SimuladorCombat:
         self.cam.aplicar_shake(25.0, 0.25)
         self.hit_stop_timer = 0.15
         
-        # Partículas extras
-        for _ in range(30):
+        # Partículas extras (A04: rate-limited)
+        _slots = max(0, 600 - len(self.particulas))
+        _n_magico = min(BUDGET_PARTICULAS_CLASH_MAGICO, _slots)
+        for _ in range(_n_magico):
             ang = random.uniform(0, math.pi * 2)
             vel = random.uniform(80, 200)
             cor = random.choice([cor1, cor2])
