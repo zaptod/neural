@@ -18,6 +18,7 @@ from utilitarios.config import (
     AZUL_MANA, COR_CORPO, COR_P1, COR_P2, COR_FUNDO, COR_GRID,
     COR_UI_BG, COR_TEXTO_TITULO, COR_TEXTO_INFO,
 )
+from utilitarios.estado_espectador import resolver_badges_estado, resolver_destaque_cinematico
 from efeitos import (Particula, FloatingText, Decal, Shockwave, Camera, EncantamentoEffect,
                      ImpactFlash, MagicClash, BlockEffect, DashTrail, HitSpark,
                      MovementAnimationManager, MovementType,  # v8.0 Movement Animations
@@ -26,6 +27,7 @@ from efeitos import (Particula, FloatingText, Decal, Shockwave, Camera, Encantam
 from efeitos.audio import AudioManager  # v10.0 Sistema de Ãudio
 from nucleo.entities import Lutador
 from nucleo.skills import get_skill_classification
+from nucleo.armas import inferir_familia
 from nucleo.physics import colisao_linha_circulo, intersect_line_circle, colisao_linha_linha, normalizar_angulo
 from nucleo.hitbox import sistema_hitbox, verificar_hit, get_debug_visual, atualizar_debug, DEBUG_VISUAL
 from nucleo.arena import Arena, ARENAS, get_arena, set_arena  # v9.0 Sistema de Arena
@@ -85,6 +87,86 @@ class SimuladorRenderer:
     def _misturar_cor(self, cor_a, cor_b, ratio):
         ratio = max(0.0, min(1.0, ratio))
         return tuple(int(cor_a[i] + (cor_b[i] - cor_a[i]) * ratio) for i in range(3))
+
+    def _desenhar_badges_estado(self, lutador, x, y, *, align_right=False, compact=False, max_badges=2):
+        badges = resolver_badges_estado(lutador, max_badges=max_badges)
+        if not badges:
+            return
+
+        font_size = 10 if compact else (11 if self.portrait_mode else 12)
+        font = self._get_font("Arial", font_size, bold=True)
+        padding_x = 6 if compact else 8
+        badge_h = 14 if compact else (16 if self.portrait_mode else 18)
+        spacing = 4
+
+        total_w = 0
+        renders = []
+        for badge in badges:
+            surf = font.render(str(badge.get("texto", "")), True, badge.get("fg", BRANCO))
+            rect_w = surf.get_width() + padding_x * 2
+            total_w += rect_w
+            renders.append((badge, surf, rect_w))
+        total_w += spacing * max(0, len(renders) - 1)
+
+        cursor_x = x - total_w if align_right else x
+        for badge, surf, rect_w in renders:
+            rect = pygame.Rect(cursor_x, y, rect_w, badge_h)
+            pygame.draw.rect(self.tela, badge.get("bg", (40, 40, 40)), rect, border_radius=badge_h // 2)
+            pygame.draw.rect(self.tela, badge.get("borda", BRANCO), rect, 1, border_radius=badge_h // 2)
+            text_y = rect.y + (badge_h - surf.get_height()) // 2 - 1
+            self.tela.blit(surf, (rect.x + padding_x, text_y))
+            cursor_x += rect_w + spacing
+
+    def _desenhar_overlay_cinematico(self):
+        destaque = getattr(self, "direcao_cinematica", None) or resolver_destaque_cinematico(getattr(self, "fighters", []))
+        if not isinstance(destaque, dict):
+            return
+
+        intensidade = max(0.0, min(1.0, float(destaque.get("intensidade", 0.0) or 0.0)))
+        overlay_timer = max(0.0, float(destaque.get("overlay_timer", destaque.get("duracao_overlay", 0.0)) or 0.0))
+        if intensidade <= 0.08 and overlay_timer <= 0.0:
+            return
+
+        pulse_time = pygame.time.get_ticks() / 1000.0
+        pulso = 0.75 + 0.25 * math.sin(pulse_time * 7.0)
+        overlay_mix = max(intensidade * 0.75, min(1.0, overlay_timer / max(float(destaque.get("duracao_overlay", 0.25) or 0.25), 0.01)))
+        alpha_base = int(18 + 68 * destaque.get("overlay", 0.4) * overlay_mix * pulso)
+        cor = tuple(int(c) for c in destaque.get("cor", (255, 200, 120)))
+        cor_sec = tuple(int(c) for c in destaque.get("cor_secundaria", (255, 240, 180)))
+
+        overlay = self._get_surface(self.screen_width, self.screen_height, pygame.SRCALPHA)
+        pygame.draw.rect(overlay, (*cor, min(110, alpha_base)), overlay.get_rect(), width=max(4, int(self.screen_width * 0.008)), border_radius=22)
+        band_h = max(36, int(self.screen_height * 0.055))
+        self._draw_gradient_band(overlay, pygame.Rect(0, 0, self.screen_width, band_h), cor, cor_sec, min(76, alpha_base))
+        self._draw_gradient_band(overlay, pygame.Rect(0, self.screen_height - band_h, self.screen_width, band_h), cor_sec, cor, min(58, alpha_base))
+        self.tela.blit(overlay, (0, 0))
+
+        label = str(destaque.get("rotulo", "")).upper()
+        if label:
+            font = self._get_font("Impact", 18 if self.portrait_mode else 22, bold=False)
+            surf = font.render(label, True, cor_sec)
+            badge_w = surf.get_width() + 28
+            badge_h = surf.get_height() + 10
+            badge_x = self.screen_width // 2 - badge_w // 2
+            badge_y = 10 if self.portrait_mode else 12
+            badge = pygame.Rect(badge_x, badge_y, badge_w, badge_h)
+            pygame.draw.rect(self.tela, (10, 14, 22), badge, border_radius=badge_h // 2)
+            pygame.draw.rect(self.tela, cor, badge, 2, border_radius=badge_h // 2)
+            self.tela.blit(surf, (badge.x + 14, badge.y + 3))
+
+    def _draw_gradient_band(self, surface, rect, cor_a, cor_b, alpha):
+        band = self._get_surface(rect.width, rect.height, pygame.SRCALPHA)
+        span = max(1, rect.width)
+        for idx in range(span):
+            t = idx / max(1, span - 1)
+            color = (
+                int(cor_a[0] + (cor_b[0] - cor_a[0]) * t),
+                int(cor_a[1] + (cor_b[1] - cor_a[1]) * t),
+                int(cor_a[2] + (cor_b[2] - cor_a[2]) * t),
+                int(alpha),
+            )
+            pygame.draw.line(band, color, (idx, 0), (idx, rect.height))
+        surface.blit(band, rect.topleft)
 
     def _paleta_magica(self, elemento=None, cor_base=None):
         paleta = ELEMENT_PALETTES.get(elemento or "DEFAULT", ELEMENT_PALETTES["DEFAULT"])
@@ -1272,10 +1354,22 @@ class SimuladorRenderer:
         arma = lutador.dados.arma_obj
         if not arma:
             return
+        perfil_visual = getattr(arma, "perfil_visual", {}) or {}
         cor = (getattr(arma, 'r', 180), getattr(arma, 'g', 180), getattr(arma, 'b', 180))
         tipo = _texto_normalizado(getattr(arma, 'tipo', ''))
+        familia = getattr(arma, "familia", None) or inferir_familia(getattr(arma, "tipo", ""), getattr(arma, "estilo", ""))
         rad = math.radians(lutador.angulo_arma_visual)
         alcance = raio * {
+            "lamina": 1.75,
+            "haste": 2.05,
+            "dupla": 1.28,
+            "corrente": 2.2,
+            "arremesso": 1.18,
+            "disparo": 1.55,
+            "orbital": 1.78,
+            "foco": 1.62,
+            "hibrida": 1.92,
+        }.get(familia, {
             "reta": 1.8,
             "dupla": 1.35,
             "corrente": 2.1,
@@ -1284,27 +1378,85 @@ class SimuladorRenderer:
             "orbital": 1.7,
             "magica": 1.6,
             "transformavel": 1.9,
-        }.get(tipo, 1.5)
+        }.get(tipo, 1.5))
         tip_x = centro[0] + math.cos(rad) * alcance
         tip_y = centro[1] + math.sin(rad) * alcance
         intensidade = max(0.0, anim_scale - 0.92)
-        if intensidade <= 0.05 and tipo not in {"magica", "orbital"}:
+        if intensidade <= 0.05 and familia not in {"foco", "orbital"} and tipo not in {"magica", "orbital"}:
             return
-        aura_alpha = 30 + 90 * min(1.0, intensidade * 1.8)
-        self._desenhar_glow_circular(tip_x, tip_y, max(6, int(raio * (0.24 + intensidade * 0.22))), cor, aura_alpha)
-        if tipo in {"reta", "dupla", "transformavel"}:
+        brilho = float(perfil_visual.get("brilho", 0.18) or 0.18)
+        aura_alpha = 30 + 90 * min(1.0, intensidade * (1.4 + brilho * 1.5))
+        glow_r = max(6, int(raio * (0.22 + brilho * 0.24 + intensidade * 0.22)))
+        self._desenhar_glow_circular(tip_x, tip_y, glow_r, cor, aura_alpha)
+        ornamento = perfil_visual.get("ornamento", "")
+        perp_x = math.cos(rad + math.pi / 2.0)
+        perp_y = math.sin(rad + math.pi / 2.0)
+        if familia in {"lamina", "haste"} or tipo == "reta":
             back_x = tip_x - math.cos(rad) * raio * 0.55
             back_y = tip_y - math.sin(rad) * raio * 0.55
             pygame.draw.line(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.4), (int(back_x), int(back_y)), (int(tip_x), int(tip_y)), max(1, int(2 * self.cam.zoom)))
-        elif tipo == "corrente":
+            if familia == "haste":
+                head_x = tip_x + math.cos(rad) * raio * 0.10
+                head_y = tip_y + math.sin(rad) * raio * 0.10
+                wing = raio * 0.12
+                pygame.draw.line(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.22), (int(tip_x - perp_x * wing), int(tip_y - perp_y * wing)), (int(head_x), int(head_y)), max(1, int(2 * self.cam.zoom)))
+                pygame.draw.line(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.22), (int(tip_x + perp_x * wing), int(tip_y + perp_y * wing)), (int(head_x), int(head_y)), max(1, int(2 * self.cam.zoom)))
+        elif familia == "dupla" or tipo == "dupla":
+            branch = raio * 0.13
+            branch_len = raio * 0.42
+            for side in (-1, 1):
+                sx = tip_x - math.cos(rad) * branch_len + perp_x * branch * side
+                sy = tip_y - math.sin(rad) * branch_len + perp_y * branch * side
+                ex = tip_x + perp_x * branch * side
+                ey = tip_y + perp_y * branch * side
+                pygame.draw.line(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.35), (int(sx), int(sy)), (int(ex), int(ey)), max(1, int(2 * self.cam.zoom)))
+        elif familia == "corrente" or tipo == "corrente":
             for i in range(3):
                 orbit = pygame.time.get_ticks() / 220.0 + i * 2.0
                 ex = tip_x + math.cos(orbit) * raio * 0.18
                 ey = tip_y + math.sin(orbit) * raio * 0.18
                 pygame.draw.circle(self.tela, cor, (int(ex), int(ey)), max(1, int(raio * 0.08)))
-        elif tipo in {"magica", "orbital"}:
+        elif familia in {"arremesso", "disparo"} or tipo in {"arremesso", "arco"}:
+            tail_x = tip_x - math.cos(rad) * raio * 0.48
+            tail_y = tip_y - math.sin(rad) * raio * 0.48
+            pygame.draw.line(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.30), (int(tail_x), int(tail_y)), (int(tip_x), int(tip_y)), max(1, int(2 * self.cam.zoom)))
+            if familia == "disparo":
+                ring_r = max(3, int(raio * 0.10))
+                pygame.draw.circle(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.25), (int(tip_x), int(tip_y)), ring_r, 1)
+                pygame.draw.line(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.18), (int(tip_x - perp_x * ring_r * 1.5), int(tip_y - perp_y * ring_r * 1.5)), (int(tip_x + perp_x * ring_r * 1.5), int(tip_y + perp_y * ring_r * 1.5)), 1)
+        elif familia in {"foco", "orbital"} or tipo in {"magica", "orbital"}:
             paleta = self._paleta_magica(getattr(arma, "afinidade_elemento", None), cor)
             self._desenhar_sigilo_magico(tip_x, tip_y, int(raio * 0.28), paleta, pygame.time.get_ticks() / 1000.0, 0.65)
+            if familia == "orbital":
+                for i in range(3):
+                    orbit = pygame.time.get_ticks() / 280.0 + i * (math.pi * 2.0 / 3.0)
+                    ex = tip_x + math.cos(orbit) * raio * 0.16
+                    ey = tip_y + math.sin(orbit) * raio * 0.16
+                    pygame.draw.circle(self.tela, paleta["mid"][0], (int(ex), int(ey)), max(1, int(raio * 0.05)))
+            elif familia == "foco":
+                rune_r = raio * 0.14
+                for i in range(4):
+                    orbit = pygame.time.get_ticks() / 420.0 + i * (math.pi / 2.0)
+                    ex = tip_x + math.cos(orbit) * rune_r
+                    ey = tip_y + math.sin(orbit) * rune_r
+                    pygame.draw.line(self.tela, paleta["spark"], (int(ex - perp_x * 3), int(ey - perp_y * 3)), (int(ex + perp_x * 3), int(ey + perp_y * 3)), 1)
+        elif familia == "hibrida" or tipo == "transformavel":
+            split = raio * 0.12
+            for side in (-1, 1):
+                sx = tip_x - math.cos(rad) * raio * 0.38
+                sy = tip_y - math.sin(rad) * raio * 0.38
+                ex = tip_x + perp_x * split * side
+                ey = tip_y + perp_y * split * side
+                pygame.draw.line(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.28), (int(sx), int(sy)), (int(ex), int(ey)), max(1, int(2 * self.cam.zoom)))
+
+        if ornamento == "elo":
+            for idx in range(3):
+                ex = tip_x - math.cos(rad) * raio * (0.10 + idx * 0.10)
+                ey = tip_y - math.sin(rad) * raio * (0.10 + idx * 0.10)
+                pygame.draw.circle(self.tela, self._misturar_cor(cor, (255, 255, 255), 0.25), (int(ex), int(ey)), max(1, int(raio * 0.06)), 1)
+        elif ornamento in {"anel_runico", "sigilo_orbital"}:
+            paleta = self._paleta_magica(getattr(arma, "afinidade_elemento", None), cor)
+            self._desenhar_sigilo_magico(tip_x, tip_y, int(raio * 0.20), paleta, pygame.time.get_ticks() / 1200.0, 0.45 + brilho * 0.3)
 
     def _desenhar_sparks_arma(self, lutador, centro, raio):
         arma = lutador.dados.arma_obj
@@ -1548,6 +1700,8 @@ class SimuladorRenderer:
         # === SCREEN EFFECTS (FLASH) v8.0 IMPACT ===
         if hasattr(self, 'attack_anims') and self.attack_anims:
             self.attack_anims.draw_screen_effects(self.tela, self.screen_width, self.screen_height)
+
+        self._desenhar_overlay_cinematico()
 
         # === DEBUG VISUAL DE HITBOX ===
         if self.show_hitbox_debug:
@@ -3747,6 +3901,7 @@ class SimuladorRenderer:
                 ft_nome = self._get_font("Arial", 11, bold=True)
                 cor_nome = (150, 150, 150) if f.morto else BRANCO
                 self.tela.blit(ft_nome.render(f.dados.nome, True, cor_nome), (base_x + 2, y))
+                self._desenhar_badges_estado(f, base_x + bar_w - 2, y, align_right=True, compact=True, max_badges=1)
                 
                 y_bar = y + nome_h
                 
@@ -3780,6 +3935,7 @@ class SimuladorRenderer:
         ft_size = 14 if self.portrait_mode else 16
         ft = self._get_font("Arial", ft_size, bold=True)
         self.tela.blit(ft.render(f"{l.dados.nome}", True, BRANCO), (x+10, y+5))
+        self._desenhar_badges_estado(l, x + w - 8, y + 4, align_right=True, compact=self.portrait_mode, max_badges=2)
 
 
     def desenhar_controles(self):

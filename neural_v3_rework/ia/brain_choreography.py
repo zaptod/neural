@@ -224,12 +224,18 @@ class ChoreographyMixin(_AIBrainMixinBase):
             if tipo == "CLASH":
                 self.excitacao = 1.0
                 self.adrenalina = min(1.0, self.adrenalina + 0.3)
+                if hasattr(self, "_ativar_memoria_cena"):
+                    self._ativar_memoria_cena("clash", 1.0, max(1.4, duracao))
             elif tipo == "STANDOFF":
                 self.confianca = 0.5
             elif tipo == "FINAL_SHOWDOWN":
                 self.adrenalina = 1.0
                 self.excitacao = 1.0
                 self.medo = 0.0
+                if hasattr(self, "_ativar_memoria_cena"):
+                    self._ativar_memoria_cena("final_showdown", 1.0, max(2.0, duracao))
+                if hasattr(self, "_registrar_relacao_oponente"):
+                    self._registrar_relacao_oponente(getattr(self, "_alvo_atual", None), "obsessao", 0.12, evento="final_showdown")
             elif tipo == "FACE_OFF":
                 self.excitacao = min(1.0, self.excitacao + 0.2)
             elif tipo == "CLIMAX_CHARGE":
@@ -240,6 +246,12 @@ class ChoreographyMixin(_AIBrainMixinBase):
         """Callback quando recebe hit de um atacante especÃ­fico"""
         self.memoria_oponente["ameaca_nivel"] = min(1.0, 
             self.memoria_oponente["ameaca_nivel"] + 0.15)
+        if hasattr(self, "_registrar_aprendizado_oponente"):
+            self._registrar_aprendizado_oponente(atacante, "vies_cautela", 0.18, evento="hit_recebido")
+            self._registrar_aprendizado_oponente(atacante, "vies_agressao", -0.05)
+        if hasattr(self, "_registrar_relacao_oponente"):
+            self._registrar_relacao_oponente(atacante, "vinganca", 0.16, evento="hit_recebido")
+            self._registrar_relacao_oponente(atacante, "respeito", 0.08)
         
         if "VINGATIVO" in self.tracos:
             self.reacao_pendente = "CONTRA_MATAR"
@@ -261,6 +273,13 @@ class ChoreographyMixin(_AIBrainMixinBase):
         self.janela_ataque["tipo"] = "pos_bloqueio"
         self.janela_ataque["qualidade"] = 0.80
         self.janela_ataque["duracao"] = 0.5
+        if hasattr(self, "_registrar_aprendizado_tatico"):
+            self._registrar_aprendizado_tatico("vies_contra_ataque", 0.20, evento="bloqueio_sucesso")
+            self._registrar_aprendizado_tatico("vies_cautela", -0.08)
+        if hasattr(self, "_ativar_memoria_cena"):
+            self._ativar_memoria_cena("leitura_perfeita", 0.58, 1.4)
+        if hasattr(self, "_registrar_relacao_oponente"):
+            self._registrar_relacao_oponente(getattr(self, "_alvo_atual", None), "respeito", 0.05, evento="bloqueio_sucesso")
         if "CONTRA_ATAQUE_PERFEITO" in self.quirks:
             self.reacao_pendente = "CONTRA_MATAR"
 
@@ -292,7 +311,24 @@ class ChoreographyMixin(_AIBrainMixinBase):
         # Momentum positivo
         self.momentum = min(1.0, self.momentum + 0.15)
         self.burst_counter += 1
-        
+        if hasattr(self, "_registrar_aprendizado_tatico"):
+            self._registrar_aprendizado_tatico("vies_agressao", 0.16, evento="hit_dado")
+            self._registrar_aprendizado_tatico("vies_pressao", 0.10)
+            self._registrar_aprendizado_tatico("vies_cautela", -0.05)
+        if hasattr(self, "_registrar_aprendizado_oponente"):
+            self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_agressao", 0.14, evento="hit_dado")
+            self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_pressao", 0.10)
+        if hasattr(self, "_registrar_relacao_oponente"):
+            self._registrar_relacao_oponente(getattr(self, "_alvo_atual", None), "caca", 0.10, evento="hit_dado")
+            self._registrar_relacao_oponente(getattr(self, "_alvo_atual", None), "obsessao", 0.04)
+        if hasattr(self, "_ativar_memoria_cena"):
+            if self.combo_atual >= 4:
+                self._ativar_memoria_cena("sequencia_perfeita", min(1.0, 0.50 + self.combo_atual * 0.08), 1.8)
+                if hasattr(self, "_registrar_relacao_oponente"):
+                    self._registrar_relacao_oponente(getattr(self, "_alvo_atual", None), "caca", 0.12, evento="sequencia_perfeita")
+            elif getattr(self, "momentum", 0.0) > 0.45 and self.confianca > 0.62:
+                self._ativar_memoria_cena("virada", 0.62, 1.5)
+
         if "SEDE_SANGUE" in self.quirks:
             self.adrenalina = min(1.0, self.adrenalina + 0.2)
         
@@ -305,7 +341,24 @@ class ChoreographyMixin(_AIBrainMixinBase):
         """Quando recebe dano"""
         # Momentum negativo
         self.momentum = max(-1.0, self.momentum - 0.1)
-        
+        if hasattr(self, "_registrar_aprendizado_tatico"):
+            intensidade = 0.12 + min(0.18, max(0.0, float(dano)) * 0.01)
+            self._registrar_aprendizado_tatico("vies_cautela", intensidade, evento="hit_recebido")
+            self._registrar_aprendizado_tatico("vies_agressao", -0.06)
+        if hasattr(self, "_registrar_relacao_oponente"):
+            alvo_relacao = getattr(self, "_alvo_atual", None)
+            self._registrar_relacao_oponente(alvo_relacao, "vinganca", 0.08 + min(0.12, max(0.0, float(dano)) * 0.004), evento="hit_recebido")
+        if hasattr(self, "_ativar_memoria_cena"):
+            hp_pct = self.parent.vida / max(self.parent.vida_max, 1)
+            if hp_pct < 0.22:
+                self._ativar_memoria_cena("quase_morte", min(1.0, 0.55 + float(dano) * 0.01), 1.8)
+                if hasattr(self, "_registrar_relacao_oponente"):
+                    self._registrar_relacao_oponente(alvo_relacao, "obsessao", 0.10, evento="quase_morte")
+            elif float(dano) >= max(8.0, self.parent.vida_max * 0.10):
+                self._ativar_memoria_cena("humilhado", 0.50, 1.4)
+                if hasattr(self, "_registrar_relacao_oponente"):
+                    self._registrar_relacao_oponente(alvo_relacao, "respeito", 0.10, evento="humilhado")
+
         # Quebra combo
         self.combo_state["em_combo"] = False
         self.combo_state["hits_combo"] = 0
@@ -315,14 +368,37 @@ class ChoreographyMixin(_AIBrainMixinBase):
         """Quando usa skill"""
         if not sucesso:
             self.frustracao = min(1.0, self.frustracao + 0.1)
+            if hasattr(self, "_registrar_aprendizado_tatico"):
+                self._registrar_aprendizado_tatico("vies_skill", -0.18, evento="skill_falhou")
+                self._registrar_aprendizado_tatico("vies_cautela", 0.10)
+            if hasattr(self, "_registrar_aprendizado_oponente"):
+                self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_skill", -0.16, evento="skill_falhou")
+                self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_cautela", 0.08)
         else:
             self.burst_counter += 2  # Skills contam mais pro burst
+            if hasattr(self, "_registrar_aprendizado_tatico"):
+                self._registrar_aprendizado_tatico("vies_skill", 0.22, evento="skill_sucesso")
+                self._registrar_aprendizado_tatico("vies_pressao", 0.08)
+            if hasattr(self, "_registrar_aprendizado_oponente"):
+                self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_skill", 0.20, evento="skill_sucesso")
+                self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_pressao", 0.06)
 
     
     def on_inimigo_fugiu(self):
         """Quando inimigo foge"""
         # Ganha momentum
         self.momentum = min(1.0, self.momentum + 0.1)
+        if hasattr(self, "_registrar_aprendizado_tatico"):
+            self._registrar_aprendizado_tatico("vies_pressao", 0.16, evento="inimigo_fugiu")
+            self._registrar_aprendizado_tatico("vies_agressao", 0.08)
+        if hasattr(self, "_registrar_aprendizado_oponente"):
+            self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_pressao", 0.16, evento="inimigo_fugiu")
+            self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_agressao", 0.08)
+        if hasattr(self, "_registrar_relacao_oponente"):
+            self._registrar_relacao_oponente(getattr(self, "_alvo_atual", None), "caca", 0.22, evento="inimigo_fugiu")
+            self._registrar_relacao_oponente(getattr(self, "_alvo_atual", None), "obsessao", 0.06)
+        if hasattr(self, "_ativar_memoria_cena"):
+            self._ativar_memoria_cena("dominando", 0.62, 1.7)
         
         if "PERSEGUIDOR" in self.tracos:
             self.raiva = min(1.0, self.raiva + 0.2)
@@ -341,6 +417,16 @@ class ChoreographyMixin(_AIBrainMixinBase):
         """Quando desvia com sucesso de um ataque"""
         self.confianca = min(1.0, self.confianca + 0.1)
         self.excitacao = min(1.0, self.excitacao + 0.15)
+        if hasattr(self, "_registrar_aprendizado_tatico"):
+            self._registrar_aprendizado_tatico("vies_contra_ataque", 0.18, evento="esquiva_sucesso")
+            self._registrar_aprendizado_tatico("vies_cautela", -0.06)
+        if hasattr(self, "_registrar_aprendizado_oponente"):
+            self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_contra_ataque", 0.18, evento="esquiva_sucesso")
+            self._registrar_aprendizado_oponente(getattr(self, "_alvo_atual", None), "vies_cautela", -0.04)
+        if hasattr(self, "_registrar_relacao_oponente"):
+            self._registrar_relacao_oponente(getattr(self, "_alvo_atual", None), "respeito", 0.05, evento="esquiva_sucesso")
+        if hasattr(self, "_ativar_memoria_cena"):
+            self._ativar_memoria_cena("leitura_perfeita", 0.66, 1.6)
         
         # Abre janela de contra-ataque
         self.janela_ataque["aberta"] = True

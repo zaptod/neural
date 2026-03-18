@@ -26,6 +26,7 @@ from efeitos.weapon_animations import (
     get_weapon_animation_manager, WEAPON_PROFILES, STYLE_PROFILES,
 )
 from nucleo.hitbox import HITBOX_PROFILES
+from nucleo.armas import get_weapon_runtime_controller
 
 _log = logging.getLogger("entities")
 
@@ -68,6 +69,14 @@ def _vfx_chargeup(nome_skill, data, pos, classe_nome):
             _vfx.spawn_impact_burst(_cx, _cy, _elem, _intens * 0.55)
     except Exception as e:
         _log.debug("VFX chargeup error: %s", e)
+
+
+def _registrar_skill_cast(lutador, nome_skill, custo_mana, tipo_skill):
+    """Envia uso de skill para o coletor de stats quando houver simulador ativo."""
+    collector = getattr(lutador, "stats_collector", None)
+    dados = getattr(lutador, "dados", None)
+    if collector and dados and getattr(dados, "nome", ""):
+        collector.record_skill(dados.nome, nome_skill, mana_cost=custo_mana, skill_type=tipo_skill)
 
 
 class WeaponsMixin:
@@ -123,6 +132,7 @@ class WeaponsMixin:
             return False
 
         self.mana -= custo_real
+        _registrar_skill_cast(self, nome_skill, custo_real, tipo)
 
         _vfx_chargeup(nome_skill, data, self.pos, self.classe_nome)
 
@@ -283,6 +293,7 @@ class WeaponsMixin:
             return False
 
         self.mana -= custo
+        _registrar_skill_cast(self, skill_nome, custo, tipo)
 
         _vfx_chargeup(skill_nome, data, self.pos, self.classe_nome)
 
@@ -398,24 +409,34 @@ class WeaponsMixin:
         """Executa ataques fÃ­sicos â€” sistema v15.0."""
         self.cooldown_ataque -= dt
 
-        arma_tipo = self.dados.arma_obj.tipo if self.dados.arma_obj else "Reta"
-        arma_estilo = getattr(self.dados.arma_obj, 'estilo', '') if self.dados.arma_obj else ''
-        is_orbital = self.dados.arma_obj and "Orbital" in arma_tipo
+        arma = self.dados.arma_obj
+        arma_tipo = arma.tipo if arma else "Reta"
+        arma_estilo = getattr(arma, 'estilo', '') if arma else ''
+        controller = get_weapon_runtime_controller(arma) if arma else get_weapon_runtime_controller(None)
 
-        if arma_tipo == "Corrente":
+        if controller.handler == "corrente":
             self._executar_ataques_corrente(dt, distancia, inimigo, arma_estilo)
             return
-        if arma_tipo == "Dupla":
+        if controller.handler == "dupla":
             self._executar_ataques_dupla(dt, distancia, inimigo, arma_estilo)
             return
-        if arma_tipo == "Reta":
+        if controller.handler == "reta":
             self._executar_ataques_reta(dt, distancia, inimigo, arma_estilo)
             return
-        if is_orbital:
+        if controller.handler == "orbital":
             self._executar_ataques_orbital(dt, distancia, inimigo, arma_estilo)
             return
-        if arma_tipo in ("TransformÃ¡vel", "Transformavel"):
+        if controller.handler == "transformavel":
             self._executar_ataques_transformavel(dt, distancia, inimigo, arma_estilo)
+            return
+        if controller.handler == "arremesso":
+            self._executar_ataques_arremesso(dt, distancia, inimigo, arma_estilo)
+            return
+        if controller.handler == "disparo":
+            self._executar_ataques_disparo(dt, distancia, inimigo, arma_estilo)
+            return
+        if controller.handler == "foco":
+            self._executar_ataques_foco(dt, distancia, inimigo, arma_estilo)
             return
 
         anim_manager = get_weapon_animation_manager()
@@ -426,7 +447,7 @@ class WeaponsMixin:
             self.pos[1] + math.sin(rad) * tip_dist
         )
         transform = anim_manager.get_weapon_transform(
-            id(self), arma_tipo, self.angulo_olhar, weapon_tip, dt, weapon_style=arma_estilo
+            id(self), controller.animation_key, self.angulo_olhar, weapon_tip, dt, weapon_style=arma_estilo
         )
         self.weapon_anim_scale = transform["scale"]
         self.weapon_anim_shake = transform["shake"]
@@ -448,18 +469,9 @@ class WeaponsMixin:
             deve_atacar = False
 
             try:
-                profile_hitbox = HITBOX_PROFILES.get(arma_tipo, HITBOX_PROFILES.get("Reta", {}))
-                alcance_base = self.raio_fisico * profile_hitbox.get("range_mult", 2.0)
-                alcance_ataque = alcance_base * 1.1
+                alcance_ataque = controller.attack_range(self, arma)
             except Exception:
                 alcance_ataque = self.raio_fisico * 3.0
-
-            if arma_tipo == "Arco":
-                alcance_ataque = 14.0
-            elif arma_tipo == "Arremesso":
-                alcance_ataque = 10.0
-            elif arma_tipo == "MÃ¡gica":
-                alcance_ataque = 7.0
 
             if self.brain.acao_atual in acoes_ofensivas and distancia < alcance_ataque:
                 deve_atacar = True
@@ -468,7 +480,7 @@ class WeaponsMixin:
             if self.modo_ataque_aereo and distancia < 2.0:
                 deve_atacar = True
 
-            if arma_tipo in ["Arremesso", "Arco"] and distancia < alcance_ataque:
+            if controller.allows_reposition_attack and distancia < alcance_ataque:
                 if self.brain.acao_atual in ["RECUAR", "FUGIR", "APROXIMAR"]:
                     if random.random() < 0.25:
                         deve_atacar = True
@@ -478,30 +490,30 @@ class WeaponsMixin:
                 self.ataque_id += 1
                 self.alvos_atingidos_neste_ataque.clear()
 
-                profile = WEAPON_PROFILES.get(arma_tipo, WEAPON_PROFILES["Reta"])
+                profile = WEAPON_PROFILES.get(controller.animation_key, WEAPON_PROFILES["Reta"])
                 self.timer_animacao = profile.total_time
-                anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar, weapon_style=arma_estilo)
+                anim_manager.start_attack(id(self), controller.animation_key, tuple(self.pos), self.angulo_olhar, weapon_style=arma_estilo)
 
-                if arma_tipo == "Arremesso":
+                if controller.familia == "arremesso":
                     self._disparar_arremesso(inimigo)
-                elif arma_tipo == "Arco":
+                elif controller.familia == "disparo":
                     self._disparar_flecha(inimigo)
-                elif arma_tipo == "MÃ¡gica":
+                elif controller.familia == "foco":
                     self._disparar_orbes(inimigo)
 
-                base_cd = 0.5 + random.random() * 0.5
-                if arma_tipo == "Arremesso":
+                base_cd = controller.base_cooldown(self, arma)
+                if controller.familia == "arremesso":
                     self.throw_consecutive += 1
-                    base_cd = max(0.55, 1.05 - self.throw_consecutive * 0.04) + random.random() * 0.35
+                    base_cd = max(0.28, base_cd * 0.9 - self.throw_consecutive * 0.03)
                     if self.throw_consecutive >= 5:
                         self.throw_consecutive = 0
-                elif arma_tipo == "Arco":
+                elif controller.familia == "disparo":
                     charge_bonus = min(0.3, self.bow_charge * 0.2) if self.bow_charge > 0 else 0
-                    base_cd = max(0.85, 1.25 - charge_bonus * 0.7) + random.random() * 0.35
+                    base_cd = max(0.4, base_cd * 1.15 - charge_bonus * 0.5)
                     self.bow_charge = 0.0
                     self.bow_charging = False
-                elif arma_tipo == "MÃ¡gica":
-                    base_cd = 1.35 + random.random() * 0.65
+                elif controller.familia == "foco":
+                    base_cd = max(0.5, base_cd * 1.2)
 
                 if "Assassino" in self.classe_nome or "Ninja" in self.classe_nome:
                     base_cd *= 0.7
@@ -521,9 +533,13 @@ class WeaponsMixin:
         if not arma:
             return
         tipo = arma.tipo
+        familia = getattr(arma, "familia", None)
         estilo = getattr(arma, 'estilo', '')
 
-        if tipo == "Corrente":
+        if familia == "arremesso":
+            self.throw_consecutive = max(0.0, self.throw_consecutive - dt * 1.25)
+
+        if familia == "Corrente" or familia == "corrente" or tipo == "Corrente":
             if "Mangual" in estilo or "Flail" in estilo:
                 self.chain_momentum = max(0, self.chain_momentum - dt * 0.15)
             elif estilo == "Kusarigama":
@@ -545,7 +561,7 @@ class WeaponsMixin:
                 if self.chain_pull_timer <= 0:
                     self.chain_pull_target = None
 
-        elif tipo == "Dupla":
+        elif familia == "dupla" or tipo == "Dupla":
             if self.dual_combo_timer > 0:
                 self.dual_combo_timer -= dt
                 if self.dual_combo_timer <= 0:
@@ -557,7 +573,7 @@ class WeaponsMixin:
             if self.dual_combo >= 6:
                 self.dual_cross_slash = True
 
-        elif tipo == "Reta":
+        elif familia in ("lamina", "haste") or tipo == "Reta":
             if self.reta_combo_timer > 0:
                 self.reta_combo_timer -= dt
                 if self.reta_combo_timer <= 0:
@@ -565,19 +581,19 @@ class WeaponsMixin:
             if self.reta_parry_window > 0:
                 self.reta_parry_window -= dt
 
-        elif tipo in ("TransformÃ¡vel", "Transformavel"):
+        elif familia == "hibrida" or tipo in ("TransformÃ¡vel", "Transformavel"):
             if self.transform_cd > 0:
                 self.transform_cd -= dt
             if self.transform_bonus_timer > 0:
                 self.transform_bonus_timer -= dt
 
-        elif tipo == "Arco":
+        elif familia == "disparo" or tipo == "Arco":
             if self.bow_charging:
-                self.bow_charge += dt
+                self.bow_charge = min(1.6, self.bow_charge + dt)
             if self.bow_perfect_timer > 0:
                 self.bow_perfect_timer -= dt
 
-        if tipo in ("Orbital", "Orbe"):
+        if familia in ("orbital", "foco") or tipo in ("Orbital", "Orbe", "Mágica", "Magica"):
             arma_obj = self.dados.arma_obj
             if arma_obj:
                 self.orbital_angle += self.orbital_speed * dt
@@ -589,151 +605,137 @@ class WeaponsMixin:
                 self.orbital_burst_cd -= dt
 
     def _executar_ataques_corrente(self, dt, distancia, inimigo, estilo):
-        """Sistema Corrente v5.0."""
-        anim_manager = get_weapon_animation_manager()
-        arma_tipo = "Corrente"
+        """Sistema Corrente v6.0 com modos mais consistentes."""
+        arma = self.dados.arma_obj
+        controller = get_weapon_runtime_controller(arma)
+        estilo_n = (estilo or "").lower()
+        anim_manager, transform = self._aplicar_animacao_runtime(dt, "Corrente", estilo, self.raio_fisico * 3.5)
 
-        if estilo in STYLE_PROFILES:
-            profile_key, _profile_dict = estilo, STYLE_PROFILES
-        elif estilo in WEAPON_PROFILES:
-            profile_key, _profile_dict = estilo, WEAPON_PROFILES
-        else:
-            profile_key, _profile_dict = arma_tipo, WEAPON_PROFILES
-
-        rad = math.radians(self.angulo_olhar)
-        weapon_tip = (
-            self.pos[0] + math.cos(rad) * self.raio_fisico * 3.5,
-            self.pos[1] + math.sin(rad) * self.raio_fisico * 3.5,
-        )
-        transform = anim_manager.get_weapon_transform(
-            id(self), arma_tipo, self.angulo_olhar, weapon_tip, dt, weapon_style=estilo)
-        self.weapon_anim_scale = transform["scale"]
-        self.weapon_anim_shake = transform["shake"]
-        self.weapon_trail_positions = transform["trail_positions"]
-
-        # Meteor Hammer spin
-        if estilo == "Meteor Hammer" and self.chain_spinning:
+        if "meteor" in estilo_n and self.chain_spinning:
             self.angulo_arma_visual += self.chain_spin_speed * 360 * dt
             if self.chain_spin_dmg_timer <= 0:
-                self.chain_spin_dmg_timer = max(0.2, 0.6 - self.chain_spin_speed * 0.12)
+                self.chain_spin_dmg_timer = max(0.18, 0.52 - self.chain_spin_speed * 0.10)
                 self.atacando = True
                 self.ataque_id += 1
                 self.alvos_atingidos_neste_ataque.clear()
-                self.timer_animacao = 0.15
-                anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+                self.timer_animacao = 0.12
+                anim_manager.start_attack(id(self), "Corrente", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
             elif self.timer_animacao > 0:
                 self.timer_animacao -= dt
                 self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
                 if self.timer_animacao <= 0:
                     self.atacando = False
-            acoes_spin = ["MATAR", "ESMAGAR", "COMBATE", "PRESSIONAR", "CIRCULAR"]
-            if self.brain.acao_atual not in acoes_spin or distancia > 6.0:
+            acoes_spin = {"MATAR", "ESMAGAR", "COMBATE", "PRESSIONAR", "CIRCULAR"}
+            if self.brain.acao_atual not in acoes_spin or distancia > controller.attack_range(self, arma) * 0.95:
                 self.chain_spinning = False
                 self.atacando = False
                 self.cooldown_ataque = 0.8
             return
 
-        if self.atacando:
-            self.timer_animacao -= dt
-            profile = _profile_dict.get(profile_key, WEAPON_PROFILES["Corrente"])
-            if self.timer_animacao <= 0:
-                self.atacando = False
-                self.angulo_arma_visual = self.angulo_olhar
-                if "Mangual" in estilo or "Flail" in estilo:
-                    self.chain_recovery_mult = max(0.7, 1.0 - self.chain_momentum * 0.3)
-            else:
-                self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
-        else:
-            self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
-
-        if self.atacando or self.cooldown_ataque > 0:
+        if self._consumir_animacao_ativa(dt, transform):
+            if "mangual" in estilo_n or "flail" in estilo_n:
+                self.chain_recovery_mult = max(0.72, 1.0 - self.chain_momentum * 0.28)
             return
 
-        acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO",
-                           "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"]
+        if self.cooldown_ataque > 0 or abs(self.z - inimigo.z) > 1.5:
+            return
+
+        acoes_ofensivas = {"MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE", "CIRCULAR"}
         if self.brain.acao_atual not in acoes_ofensivas:
             return
 
         alcance = self._calcular_alcance_corrente(estilo)
-        if distancia > alcance or abs(self.z - inimigo.z) > 1.5:
+        alcance_min = max(0.8, float(getattr(arma, "alcance_minimo", 0.7) or 0.7) * 0.95)
+        if distancia > alcance or distancia < alcance_min * 0.45:
             return
 
-        profile = _profile_dict.get(profile_key, WEAPON_PROFILES["Corrente"])
+        if estilo in STYLE_PROFILES:
+            profile = STYLE_PROFILES[estilo]
+        elif estilo in WEAPON_PROFILES:
+            profile = WEAPON_PROFILES[estilo]
+        else:
+            profile = WEAPON_PROFILES["Corrente"]
 
-        if "Mangual" in estilo or "Flail" in estilo:
-            momentum_bonus = self.chain_momentum * 0.4
-            anim_time = profile.total_time * (1.0 - momentum_bonus)
-            self.timer_animacao = max(0.3, anim_time)
-            peso = getattr(self.dados.arma_obj, 'peso', 8.0)
-            base_cd = 1.2 + (peso / 10.0) * 0.5 - self.chain_momentum * 0.4
+        base_cd = controller.base_cooldown(self, arma)
+
+        if "mangual" in estilo_n or "flail" in estilo_n:
+            self.chain_momentum = min(1.35, self.chain_momentum + 0.18)
+            momentum_bonus = self.chain_momentum * 0.22
+            self.timer_animacao = max(0.24, profile.total_time * (1.0 - momentum_bonus))
             self.chain_recovery_mult = 1.0
+            base_cd = max(0.45, base_cd * (1.08 - momentum_bonus))
 
-        elif estilo == "Kusarigama":
-            if distancia < self.raio_fisico * 2.5:
+        elif "kusarigama" in estilo_n:
+            media_dist = max(alcance_min + 0.9, alcance * 0.58)
+            if distancia < media_dist:
                 self.chain_mode = 0
-                anim_time = profile.total_time * 0.6
-                base_cd = 0.35 + random.random() * 0.2
+                self.timer_animacao = max(0.14, profile.total_time * 0.64)
+                base_cd = max(0.22, base_cd * 0.72)
+                self.chain_pull_target = None
+                self.chain_pull_timer = 0.0
             else:
                 self.chain_mode = 1
-                anim_time = profile.total_time * 1.2
-                base_cd = 0.7 + random.random() * 0.3
-            self.timer_animacao = anim_time
+                self.timer_animacao = max(0.26, profile.total_time * 1.08)
+                base_cd = max(0.46, base_cd * 1.08)
+                self.chain_pull_target = inimigo
+                self.chain_pull_timer = 0.7
             self.chain_combo += 1
             self.chain_combo_timer = 2.5
 
-        elif estilo == "Chicote":
-            speed_mult = 1.0 + min(self.chain_whip_stacks, 5) * 0.12
-            anim_time = profile.total_time / speed_mult
-            self.timer_animacao = max(0.15, anim_time)
-            self.chain_whip_crack = distancia >= alcance * 0.65
-            base_cd = max(0.2, 0.4 / speed_mult)
+        elif "chicote" in estilo_n:
+            speed_mult = 1.0 + min(self.chain_whip_stacks, 5) * 0.10
+            self.timer_animacao = max(0.12, profile.total_time / speed_mult)
+            self.chain_whip_crack = distancia >= alcance * 0.62
+            base_cd = max(0.18, base_cd * (0.70 / speed_mult))
             self.chain_whip_stacks = min(6, self.chain_whip_stacks + 1)
 
-        elif estilo == "Meteor Hammer":
-            if self.brain.acao_atual in ["MATAR", "PRESSIONAR", "COMBATE"] and distancia < 5.0:
+        elif "meteor" in estilo_n:
+            if self.brain.acao_atual in {"MATAR", "PRESSIONAR", "COMBATE", "CIRCULAR"} and distancia < alcance * 0.82:
                 self.chain_spinning = True
-                self.chain_spin_speed = 0.5
-                self.chain_spin_dmg_timer = 0.3
+                self.chain_spin_speed = 0.55
+                self.chain_spin_dmg_timer = 0.25
                 self.atacando = True
                 self.ataque_id += 1
                 self.alvos_atingidos_neste_ataque.clear()
-                self.timer_animacao = 0.15
-                anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+                self.timer_animacao = 0.12
+                anim_manager.start_attack(id(self), "Corrente", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
                 return
-            else:
-                self.timer_animacao = profile.total_time
-                base_cd = 0.9 + random.random() * 0.4
+            self.timer_animacao = max(0.22, profile.total_time)
+            base_cd = max(0.58, base_cd * 1.18)
 
-        elif "Corrente com Peso" in estilo:
-            self.timer_animacao = profile.total_time * 1.1
-            base_cd = 1.0 + random.random() * 0.4
+        elif "peso" in estilo_n:
+            self.timer_animacao = max(0.26, profile.total_time * 1.05)
+            base_cd = max(0.52, base_cd * 1.10)
             self.chain_pull_target = inimigo
             self.chain_pull_timer = 0.8
 
         else:
-            self.timer_animacao = profile.total_time
-            base_cd = 0.6 + random.random() * 0.4
+            self.timer_animacao = max(0.20, profile.total_time)
+            base_cd = max(0.34, base_cd)
 
         self.atacando = True
         self.ataque_id += 1
         self.alvos_atingidos_neste_ataque.clear()
-        anim_manager.start_attack(id(self), arma_tipo, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+        anim_manager.start_attack(id(self), "Corrente", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
         vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
-        self.cooldown_ataque = base_cd * self.chain_recovery_mult / vel_ataque
+        self.cooldown_ataque = max(0.14, base_cd * self.chain_recovery_mult) / vel_ataque
 
     def _calcular_alcance_corrente(self, estilo):
-        base = self.raio_fisico
-        if "Mangual" in estilo or "Flail" in estilo:
-            return base * 4.0
-        elif estilo == "Kusarigama":
-            return base * 5.5
-        elif estilo == "Chicote":
-            return base * 6.0
-        elif estilo == "Meteor Hammer":
-            return base * 5.0
-        elif "Corrente com Peso" in estilo:
-            return base * 3.5
-        return base * 4.0
+        arma = self.dados.arma_obj
+        controller = get_weapon_runtime_controller(arma)
+        alcance_base = controller.attack_range(self, arma)
+        estilo_n = (estilo or "").lower()
+        if "mangual" in estilo_n or "flail" in estilo_n:
+            return max(self.raio_fisico * 4.0, alcance_base * 0.92)
+        if "kusarigama" in estilo_n:
+            return max(self.raio_fisico * 5.2, alcance_base * 1.05)
+        if "chicote" in estilo_n:
+            return max(self.raio_fisico * 5.6, alcance_base * 1.12)
+        if "meteor" in estilo_n:
+            return max(self.raio_fisico * 4.8, alcance_base)
+        if "peso" in estilo_n:
+            return max(self.raio_fisico * 3.6, alcance_base * 0.9)
+        return max(self.raio_fisico * 4.0, alcance_base)
 
     def _executar_ataques_dupla(self, dt, distancia, inimigo, estilo):
         """Sistema Dupla v15.0."""
@@ -938,65 +940,57 @@ class WeaponsMixin:
                 self.atacando = False
 
     def _executar_ataques_transformavel(self, dt, distancia, inimigo, estilo):
-        """Sistema TransformÃ¡vel v15.0."""
-        anim_manager = get_weapon_animation_manager()
-        profile = WEAPON_PROFILES.get("Transformavel", WEAPON_PROFILES["Reta"])
-
-        rad = math.radians(self.angulo_olhar)
-        weapon_tip = (
-            self.pos[0] + math.cos(rad) * self.raio_fisico * 2.5,
-            self.pos[1] + math.sin(rad) * self.raio_fisico * 2.5,
-        )
-        transform = anim_manager.get_weapon_transform(
-            id(self), "TransformÃ¡vel", self.angulo_olhar, weapon_tip, dt, weapon_style=estilo)
-        self.weapon_anim_scale = transform["scale"]
-        self.weapon_anim_shake = transform["shake"]
-        self.weapon_trail_positions = transform["trail_positions"]
-
-        if self.atacando:
-            self.timer_animacao -= dt
-            if self.timer_animacao <= 0:
-                self.atacando = False
-                self.angulo_arma_visual = self.angulo_olhar
-            else:
-                self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+        """Sistema TransformÃ¡vel v16.0 com troca por envelope de alcance."""
+        arma = self.dados.arma_obj
+        controller = get_weapon_runtime_controller(arma)
+        estilo_n = (estilo or "").lower()
+        anim_manager, transform = self._aplicar_animacao_runtime(dt, "TransformÃ¡vel", estilo, self.raio_fisico * 2.8)
+        if self._consumir_animacao_ativa(dt, transform):
             return
 
-        self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+        alcance_total = max(self.raio_fisico * 3.2, controller.attack_range(self, arma))
+        alcance_min = max(self.raio_fisico * 1.4, float(getattr(arma, "alcance_minimo", 0.6) or 0.6) * 1.6)
+        cutoff_longo = max(self.raio_fisico * 3.6, alcance_total * 0.72)
+        cutoff_curto = max(self.raio_fisico * 1.9, alcance_min * 1.25)
+
+        if "arco" in estilo_n or "lança" in estilo_n or "lanca" in estilo_n:
+            cutoff_longo *= 0.92
+        if "chicote" in estilo_n:
+            cutoff_longo *= 1.04
 
         if self.transform_cd <= 0:
             should_switch = (
-                (self.transform_forma == 0 and distancia > self.raio_fisico * 4.0) or
-                (self.transform_forma == 1 and distancia < self.raio_fisico * 2.0)
+                (self.transform_forma == 0 and distancia > cutoff_longo) or
+                (self.transform_forma == 1 and distancia < cutoff_curto)
             )
             if should_switch:
                 self.transform_forma = 1 - self.transform_forma
-                self.transform_cd = 3.0
+                self.transform_cd = 2.4
                 self.transform_combo = 0
-                self.transform_bonus_timer = 1.5
+                self.transform_bonus_timer = 1.2
 
-        if self.cooldown_ataque > 0:
+        if self.cooldown_ataque > 0 or abs(self.z - inimigo.z) > 1.5:
             return
 
-        acoes_ofensivas = ["MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO",
-                           "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"]
+        acoes_ofensivas = {"MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"}
         if self.brain.acao_atual not in acoes_ofensivas:
             return
 
+        profile = WEAPON_PROFILES.get("Transformavel", WEAPON_PROFILES["Reta"])
         if self.transform_forma == 0:
-            alcance = self.raio_fisico * 2.5
-            anim_time = profile.total_time * 0.8
-            base_cd = 0.3 + random.random() * 0.2
+            alcance = max(self.raio_fisico * 2.4, alcance_total * 0.68)
+            anim_time = profile.total_time * 0.78
+            base_cd = max(0.22, controller.base_cooldown(self, arma) * 0.82)
         else:
-            alcance = self.raio_fisico * 4.0
-            anim_time = profile.total_time * 1.2
-            base_cd = 0.5 + random.random() * 0.3
+            alcance = max(self.raio_fisico * 3.8, alcance_total * 1.04)
+            anim_time = profile.total_time * 1.08
+            base_cd = max(0.36, controller.base_cooldown(self, arma) * 1.12)
 
         if self.transform_bonus_timer > 0:
-            anim_time *= 0.7
-            base_cd *= 0.5
+            anim_time *= 0.72
+            base_cd *= 0.62
 
-        if distancia > alcance or abs(self.z - inimigo.z) > 1.5:
+        if distancia > alcance:
             return
 
         self.timer_animacao = max(0.12, anim_time)
@@ -1005,6 +999,167 @@ class WeaponsMixin:
         self.alvos_atingidos_neste_ataque.clear()
         self.transform_combo += 1
         anim_manager.start_attack(id(self), "TransformÃ¡vel", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+        vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
+        self.cooldown_ataque = base_cd / vel_ataque
+
+    def _aplicar_animacao_runtime(self, dt, animation_key, estilo, alcance_visual):
+        anim_manager = get_weapon_animation_manager()
+        rad = math.radians(self.angulo_olhar)
+        weapon_tip = (
+            self.pos[0] + math.cos(rad) * alcance_visual,
+            self.pos[1] + math.sin(rad) * alcance_visual,
+        )
+        transform = anim_manager.get_weapon_transform(
+            id(self), animation_key, self.angulo_olhar, weapon_tip, dt, weapon_style=estilo
+        )
+        self.weapon_anim_scale = transform["scale"]
+        self.weapon_anim_shake = transform["shake"]
+        self.weapon_trail_positions = transform["trail_positions"]
+        return anim_manager, transform
+
+    def _consumir_animacao_ativa(self, dt, transform):
+        if self.atacando:
+            self.timer_animacao -= dt
+            if self.timer_animacao <= 0:
+                self.atacando = False
+                self.angulo_arma_visual = self.angulo_olhar
+            else:
+                self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+            return True
+
+        self.angulo_arma_visual = self.angulo_olhar + transform["angle_offset"]
+        return False
+
+    def _executar_ataques_arremesso(self, dt, distancia, inimigo, estilo):
+        """Ataques de arremesso com ritmo de rajada e kite."""
+        arma = self.dados.arma_obj
+        controller = get_weapon_runtime_controller(arma)
+        anim_manager, transform = self._aplicar_animacao_runtime(dt, controller.animation_key, estilo, self.raio_fisico * 2.3)
+        if self._consumir_animacao_ativa(dt, transform):
+            return
+        if self.cooldown_ataque > 0 or abs(self.z - inimigo.z) > 1.5:
+            return
+
+        acoes_ofensivas = {"MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"}
+        acoes_move = {"RECUAR", "FUGIR", "APROXIMAR"}
+        alcance = controller.attack_range(self, arma)
+        alcance_min = max(1.4, float(getattr(arma, "alcance_minimo", 1.2) or 1.2) * 0.8)
+        pode_kitar = self.brain.acao_atual in acoes_move and distancia > alcance_min
+        if self.brain.acao_atual not in acoes_ofensivas and not pode_kitar:
+            return
+        if distancia > alcance or distancia < alcance_min * 0.55:
+            return
+
+        consec = float(getattr(self, "throw_consecutive", 0.0))
+        cadencia = max(0.16, 0.34 - min(consec * 0.035, 0.12))
+        anim_time = max(0.08, WEAPON_PROFILES.get(controller.animation_key, WEAPON_PROFILES["Reta"]).total_time * (0.58 if pode_kitar else 0.66))
+
+        self.atacando = True
+        self.timer_animacao = anim_time
+        self.ataque_id += 1
+        self.alvos_atingidos_neste_ataque.clear()
+        anim_manager.start_attack(id(self), controller.animation_key, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+        self._disparar_arremesso(inimigo)
+        self.throw_consecutive = min(5.0, consec + 1.0)
+
+        base_cd = max(0.22, controller.base_cooldown(self, arma) * 0.72)
+        if pode_kitar:
+            base_cd *= 0.92
+        base_cd = max(cadencia, base_cd - min(consec * 0.02, 0.08))
+        vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
+        self.cooldown_ataque = base_cd / vel_ataque
+
+    def _executar_ataques_disparo(self, dt, distancia, inimigo, estilo):
+        """Ataques de disparo com carga e janela de tiro."""
+        arma = self.dados.arma_obj
+        controller = get_weapon_runtime_controller(arma)
+        anim_manager, transform = self._aplicar_animacao_runtime(dt, controller.animation_key, estilo, self.raio_fisico * 2.6)
+        if self._consumir_animacao_ativa(dt, transform):
+            return
+
+        acoes_ofensivas = {"MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "FLANQUEAR", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"}
+        alcance = controller.attack_range(self, arma)
+        alcance_min = max(1.8, float(getattr(arma, "alcance_minimo", 1.8) or 1.8))
+
+        if abs(self.z - inimigo.z) > 1.5:
+            self.bow_charging = False
+            self.bow_charge = 0.0
+            return
+
+        if self.cooldown_ataque > 0:
+            self.bow_charging = False
+            self.bow_charge = 0.0
+            return
+
+        if self.brain.acao_atual not in acoes_ofensivas:
+            self.bow_charging = False
+            self.bow_charge = 0.0
+            return
+
+        if distancia > alcance or distancia < alcance_min * 0.75:
+            self.bow_charging = False
+            self.bow_charge = 0.0
+            return
+
+        if not self.bow_charging:
+            self.bow_charging = True
+            self.bow_charge = 0.0
+            self.bow_perfect_timer = 0.18
+            return
+
+        self.bow_charge = min(1.6, self.bow_charge + dt)
+        release_threshold = 0.28 if distancia < alcance * 0.55 else 0.52
+        pressured = distancia < max(alcance_min + 0.7, 3.4)
+        if pressured:
+            release_threshold = min(release_threshold, 0.24)
+
+        if self.bow_charge < release_threshold:
+            self.weapon_anim_scale = max(self.weapon_anim_scale, 1.05 + self.bow_charge * 0.2)
+            return
+
+        self.atacando = True
+        self.timer_animacao = max(0.12, WEAPON_PROFILES.get(controller.animation_key, WEAPON_PROFILES["Reta"]).total_time * (0.82 + min(self.bow_charge, 1.0) * 0.18))
+        self.ataque_id += 1
+        self.alvos_atingidos_neste_ataque.clear()
+        anim_manager.start_attack(id(self), controller.animation_key, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+        self._disparar_flecha(inimigo)
+
+        base_cd = max(0.38, controller.base_cooldown(self, arma) * (0.92 + min(self.bow_charge, 1.2) * 0.22))
+        vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
+        self.cooldown_ataque = base_cd / vel_ataque
+
+    def _executar_ataques_foco(self, dt, distancia, inimigo, estilo):
+        """Ataques de foco magico com weave de orbes."""
+        arma = self.dados.arma_obj
+        controller = get_weapon_runtime_controller(arma)
+        anim_manager, transform = self._aplicar_animacao_runtime(dt, controller.animation_key, estilo, self.raio_fisico * 2.2)
+        if self._consumir_animacao_ativa(dt, transform):
+            return
+        if self.cooldown_ataque > 0 or abs(self.z - inimigo.z) > 1.5:
+            return
+
+        acoes_ofensivas = {"MATAR", "ESMAGAR", "COMBATE", "ATAQUE_RAPIDO", "POKE", "PRESSIONAR", "CONTRA_ATAQUE"}
+        if self.brain.acao_atual not in acoes_ofensivas:
+            return
+
+        alcance = controller.attack_range(self, arma)
+        if distancia > alcance:
+            return
+
+        orbes_orbitando = [o for o in self.buffer_orbes if o.ativo and o.estado == "orbitando"]
+        mana_ratio = self.dados.mana / max(self.dados.mana_max, 1) if hasattr(self.dados, "mana_max") else 0.5
+        weave_mult = 0.82 if orbes_orbitando else 1.0
+        if distancia < 2.2 and not orbes_orbitando:
+            weave_mult *= 1.15
+
+        self.atacando = True
+        self.timer_animacao = max(0.10, WEAPON_PROFILES.get(controller.animation_key, WEAPON_PROFILES["Reta"]).total_time * (0.76 if orbes_orbitando else 0.92))
+        self.ataque_id += 1
+        self.alvos_atingidos_neste_ataque.clear()
+        anim_manager.start_attack(id(self), controller.animation_key, tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+        self._disparar_orbes(inimigo)
+
+        base_cd = max(0.42, controller.base_cooldown(self, arma) * (1.08 - min(mana_ratio * 0.18, 0.12)) * weave_mult)
         vel_ataque = max(0.1, getattr(self, 'arma_vel_ataque', 1.0))
         self.cooldown_ataque = base_cd / vel_ataque
 
@@ -1018,7 +1173,7 @@ class WeaponsMixin:
         if not arma:
             return
 
-        qtd = int(getattr(arma, 'quantidade', 3))
+        qtd = int(getattr(arma, 'quantidade', getattr(arma, 'projeteis_por_ataque', 3)))
         tam = self.raio_fisico * 0.35
         dano_por_proj = arma.dano / max(qtd, 1)
         cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (200, 200, 200)
@@ -1039,8 +1194,8 @@ class WeaponsMixin:
 
         consec = getattr(self, 'throw_consecutive', 0)
         volley_bonus = min(consec * 0.08, 0.30)
-        vel *= (1.0 + volley_bonus)
-        spread_base = 25 if qtd > 1 else 0
+        vel = float(getattr(arma, "velocidade_projetil", vel) or vel) * (1.0 + volley_bonus)
+        spread_base = float(getattr(arma, "spread_base", 25 if qtd > 1 else 0) or 0.0)
         spread = spread_base * max(0.5, 1.0 - consec * 0.1)
         dano_mult = 1.0 + min(consec * 0.05, 0.20)
 
@@ -1077,7 +1232,7 @@ class WeaponsMixin:
             return
 
         dano = arma.dano * (self.dados.forca / 2.0 + 0.5)
-        forca = getattr(arma, 'forca_arco', 1.0)
+        forca = getattr(arma, 'forca_arco', getattr(arma, 'perfil_mecanico', {}).get('forca_disparo', 1.0))
         forca_normalizada = max(0.5, min(2.0, forca / 25.0))
         cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (139, 90, 43)
 
@@ -1102,7 +1257,7 @@ class WeaponsMixin:
         dx = alvo.pos[0] - self.pos[0]
         dy = alvo.pos[1] - self.pos[1]
         dist = math.hypot(dx, dy)
-        vel_flecha = (35.0 + forca_normalizada * 20.0) * (1.0 + vel_bonus)
+        vel_flecha = float(getattr(arma, "velocidade_projetil", 35.0 + forca_normalizada * 20.0) or 35.0) * (1.0 + vel_bonus)
 
         if dist > 0.1:
             tempo_voo = dist / vel_flecha
@@ -1135,7 +1290,7 @@ class WeaponsMixin:
         if not arma:
             return
 
-        qtd = int(getattr(arma, 'quantidade', 2))
+        qtd = int(getattr(arma, 'quantidade', getattr(arma, 'projeteis_por_ataque', 2)))
         dano_por_orbe = arma.dano / max(qtd, 1)
         cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (100, 100, 255)
 

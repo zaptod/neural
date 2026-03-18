@@ -9,6 +9,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame
 
 from pipeline_video.fight_recorder import FightRecorder
+from pipeline_video.roulette_status import gerar_story_roleta_status
 
 
 def _dummy_fighter(nome, classe, cor, vida, vida_max):
@@ -89,3 +90,23 @@ def test_palette_from_name_uses_character_colors_for_winner_overlay():
     assert accent == (255, 96, 130)
     assert all(channel > 0 for channel in accent_dark)
     assert accent_dark != accent
+
+
+def test_story_intro_overlay_draws_comment_roulette_sequence():
+    story = gerar_story_roleta_status("Eu serei Deus de outro mundo")
+    recorder = FightRecorder(
+        story["fighter1"],
+        story["weapon1"],
+        story["fighter2"],
+        story["weapon2"],
+        story_mode="roleta_status",
+        roulette_story=story,
+    )
+    surface = pygame.Surface((540, 960), pygame.SRCALPHA)
+
+    recorder._draw_story_intro_overlay(surface, 0.4)
+
+    pixels = pygame.surfarray.array3d(surface)
+    alpha = pygame.surfarray.array_alpha(surface)
+    assert pixels.sum() > 0
+    assert alpha.sum() > 0

@@ -5,7 +5,6 @@ import logging
 
 _log = logging.getLogger("neural_ai")
 
-from utilitarios.config import PPM
 from utilitarios.config import (
     AI_HP_CRITICO, AI_HP_BAIXO, AI_HP_EXECUTE,
     AI_DIST_ATAQUE_IMINENTE, AI_DIST_PAREDE_CRITICA, AI_DIST_PAREDE_AVISO,
@@ -18,6 +17,13 @@ from ia.personalities import (
     ESTILOS_LUTA, FILOSOFIAS, HUMORES,
 )
 from ia.behavior_profiles import get_behavior_profile, get_trait_effects, FALLBACK_PROFILE
+from ia.weapon_ai import (
+    FAMILIAS_CURTA_DISTANCIA,
+    FAMILIAS_PRESSAO_MELEE,
+    arma_eh_ranged,
+    obter_metricas_arma,
+    resolver_familia_arma,
+)
 
 try:
     from nucleo.weapon_analysis import (
@@ -45,6 +51,285 @@ class CombatMixin(_AIBrainMixinBase):
 
     # MEL-AI-04: janela de observaÃ§Ã£o pÃ³s-bait
     BAIT_JANELA_OBSERVACAO = 0.2  # segundos de observaÃ§Ã£o apÃ³s o bait terminar
+
+    def _aplicar_janela_padrao_oponente(self, inimigo, distancia):
+        """Cria janelas especiais para punir habitos detectados do oponente."""
+        if not hasattr(self, "_obter_padrao_dominante_oponente"):
+            return None
+        padrao = self._obter_padrao_dominante_oponente(inimigo)
+        if not padrao:
+            return None
+
+        acao_inimiga = getattr(getattr(inimigo, "brain", None), "acao_atual", "")
+        burst_orbital_pronto = getattr(inimigo, "orbital_burst_cd", 999.0) <= 0.0
+        bonus_hibrido = getattr(inimigo, "transform_bonus_timer", 0.0) > 0.0
+
+        if padrao == "entrada_agressiva" and acao_inimiga in {"APROXIMAR", "MATAR", "ESMAGAR", "PRESSIONAR"} and distancia < 4.4:
+            return ("punir_entrada", 0.88, 0.45)
+        if padrao == "recuo_pos_ataque" and acao_inimiga in {"RECUAR", "FUGIR", "CIRCULAR"} and distancia < 5.8:
+            return ("punir_recuo", 0.82, 0.65)
+        if padrao == "guarda_reativa" and acao_inimiga == "BLOQUEAR" and distancia < 4.0:
+            return ("quebrar_guarda_lida", 0.78, 0.55)
+        if padrao == "prepara_burst_orbital" and burst_orbital_pronto and distancia < 4.2:
+            return ("punir_burst_orbital", 0.86, 0.40)
+        if padrao == "troca_forma_burst" and bonus_hibrido and distancia < 4.4:
+            return ("punir_troca_burst", 0.84, 0.50)
+        return None
+
+    def _resolver_plano_punish(self, tipo, distancia, inimigo):
+        """Resolve opener e follow-up para janelas especiais de punish."""
+        arma = getattr(getattr(self.parent, "dados", None), "arma_obj", None)
+        familia = resolver_familia_arma(arma)
+        forma_hibrida = int(getattr(self.parent, "transform_forma", getattr(arma, "forma_atual", 0)) or 0)
+
+        if tipo == "punir_entrada":
+            if familia == "corrente":
+                return self._modular_plano_punish_por_personalidade("CONTRA_ATAQUE", "ESMAGAR", familia)
+            if familia == "foco":
+                return self._modular_plano_punish_por_personalidade("COMBATE", "POKE", familia)
+            if familia == "orbital":
+                return self._modular_plano_punish_por_personalidade("ATAQUE_RAPIDO", "COMBATE", familia)
+            if familia == "hibrida":
+                opener, followup = ("POKE", "MATAR") if forma_hibrida == 1 else ("CONTRA_ATAQUE", "POKE")
+                return self._modular_plano_punish_por_personalidade(opener, followup, familia)
+            if "CALCULISTA" in self.tracos or "REATIVO" in self.tracos:
+                return self._modular_plano_punish_por_personalidade("CONTRA_ATAQUE", "PRESSIONAR", familia)
+            if "BERSERKER" in self.tracos or "FURIOSO" in self.tracos:
+                return self._modular_plano_punish_por_personalidade("MATAR", "ESMAGAR", familia)
+            return self._modular_plano_punish_por_personalidade("CONTRA_ATAQUE", "MATAR", familia)
+
+        if tipo == "punir_recuo":
+            if familia in {"foco", "disparo", "arremesso", "orbital"}:
+                return self._modular_plano_punish_por_personalidade("POKE", "COMBATE", familia)
+            if familia == "corrente":
+                return self._modular_plano_punish_por_personalidade("PRESSIONAR", "MATAR", familia)
+            return self._modular_plano_punish_por_personalidade("APROXIMAR", "MATAR", familia)
+
+        if tipo == "quebrar_guarda_lida":
+            if familia == "corrente":
+                return self._modular_plano_punish_por_personalidade("FLANQUEAR", "ESMAGAR", familia)
+            if familia == "foco":
+                return self._modular_plano_punish_por_personalidade("CIRCULAR", "POKE", familia)
+            if "CALCULISTA" in self.tracos or "OPORTUNISTA" in self.tracos:
+                return self._modular_plano_punish_por_personalidade("FLANQUEAR", "ATAQUE_RAPIDO", familia)
+            return self._modular_plano_punish_por_personalidade("MATAR", "PRESSIONAR", familia)
+
+        if tipo == "punir_burst_orbital":
+            if familia in {"foco", "orbital"}:
+                return self._modular_plano_punish_por_personalidade("CIRCULAR", "POKE", familia)
+            return self._modular_plano_punish_por_personalidade("ATAQUE_RAPIDO", "COMBATE", familia)
+
+        if tipo == "punir_troca_burst":
+            if familia == "hibrida":
+                opener, followup = ("POKE", "COMBATE") if forma_hibrida == 1 else ("PRESSIONAR", "MATAR")
+                return self._modular_plano_punish_por_personalidade(opener, followup, familia)
+            if familia == "foco":
+                return self._modular_plano_punish_por_personalidade("POKE", "COMBATE", familia)
+            if "PACIENTE" in self.tracos or "CALCULISTA" in self.tracos:
+                return self._modular_plano_punish_por_personalidade("POKE", "PRESSIONAR", familia)
+            return self._modular_plano_punish_por_personalidade("PRESSIONAR", "MATAR", familia)
+
+        return self._modular_plano_punish_por_personalidade(None, None, familia)
+
+    def _modular_plano_punish_por_personalidade(self, opener, followup, familia):
+        """Dá assinatura dramatica ao punish a partir do arquétipo, humor e tracos."""
+        arquetipo = (self.arquetipo or "").upper()
+        humor = (self.humor or "").upper()
+        timer = 0.45
+        boost_excitacao = 0.08
+        boost_adrenalina = 0.04
+        assinatura_agil = arquetipo in {"ASSASSINO", "NINJA", "SOMBRA", "DUELISTA"} or "FLANQUEADOR" in self.tracos or "ACROBATA" in self.tracos
+        assinatura_guardia = arquetipo in {"GUARDIAO", "PALADINO", "CAVALEIRO", "SAMURAI"} or "DETERMINADO" in self.tracos or "FOCADO" in self.tracos
+        assinatura_furia = arquetipo in {"BERSERKER", "VIKING"} or "BERSERKER" in self.tracos or "FURIOSO" in self.tracos or humor in {"FURIOSO", "EUFORICO", "EXTASE", "BERSERK"}
+        assinatura_fria = "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos or humor in {"CALMO", "FOCADO", "GLACIAL"}
+
+        if assinatura_furia:
+            if opener in {"POKE", "FLANQUEAR", "CIRCULAR", "CONTRA_ATAQUE"}:
+                opener = "MATAR"
+            if followup in {None, "POKE", "COMBATE", "FLANQUEAR", "MATAR"}:
+                followup = "ESMAGAR" if familia in {"corrente", "lamina", "hibrida"} else "PRESSIONAR"
+            timer = 0.30
+            boost_excitacao = 0.16
+            boost_adrenalina = 0.12
+
+        elif assinatura_agil:
+            if opener in {"MATAR", "CONTRA_ATAQUE"}:
+                opener = "ATAQUE_RAPIDO"
+            if followup in {"MATAR", "ESMAGAR", "COMBATE"}:
+                followup = "FLANQUEAR"
+            timer = 0.34
+            boost_excitacao = 0.12
+
+        elif assinatura_guardia:
+            if opener == "MATAR":
+                opener = "CONTRA_ATAQUE"
+            if followup in {"FLANQUEAR", "POKE"}:
+                followup = "COMBATE"
+            timer = 0.50
+            boost_adrenalina = 0.06
+
+        elif assinatura_fria:
+            if opener == "MATAR":
+                opener = "CONTRA_ATAQUE"
+            if followup in {"ESMAGAR", "MATAR"} and familia not in {"corrente"}:
+                followup = "POKE" if familia in {"foco", "orbital", "disparo", "arremesso"} else "COMBATE"
+            timer = 0.56
+            boost_excitacao = 0.05
+
+        return self._modular_plano_punish_por_estado_emocional(
+            opener, followup, timer, boost_excitacao, boost_adrenalina, familia
+        )
+
+    def _modular_plano_punish_por_estado_emocional(self, opener, followup, timer, boost_excitacao, boost_adrenalina, familia):
+        """Ajusta o tom do punish conforme emoção e momentum do momento."""
+        hp_pct = self.parent.vida / max(self.parent.vida_max, 1)
+        confianca = getattr(self, "confianca", 0.5)
+        medo = getattr(self, "medo", 0.0)
+        raiva = getattr(self, "raiva", 0.0)
+        excitacao = getattr(self, "excitacao", 0.0)
+        momentum = getattr(self, "momentum", 0.0)
+        humor = (self.humor or "").upper()
+        arquetipo = (self.arquetipo or "").upper()
+        assinatura_agil = arquetipo in {"ASSASSINO", "NINJA", "SOMBRA", "DUELISTA"} or "FLANQUEADOR" in self.tracos or "ACROBATA" in self.tracos
+
+        if medo > 0.62 and confianca < 0.48:
+            if opener in {"MATAR", "ESMAGAR"}:
+                opener = "CONTRA_ATAQUE" if familia not in {"foco", "orbital", "disparo", "arremesso"} else "POKE"
+            if followup in {"ESMAGAR", "MATAR", "PRESSIONAR"}:
+                followup = "COMBATE" if familia not in {"foco", "orbital"} else "POKE"
+            timer = max(timer, 0.52)
+            boost_excitacao = min(boost_excitacao, 0.06)
+
+        if (raiva > 0.72 or excitacao > 0.78 or momentum > 0.45 or humor in {"EUFORICO", "EXTASE", "FURIOSO", "BERSERK"}) and hp_pct > 0.22:
+            if assinatura_agil:
+                if opener in {"APROXIMAR", "CONTRA_ATAQUE", "COMBATE", "POKE", "CIRCULAR", "MATAR"}:
+                    opener = "ATAQUE_RAPIDO"
+                if followup in {None, "COMBATE", "POKE", "MATAR", "ESMAGAR", "PRESSIONAR"}:
+                    followup = "FLANQUEAR"
+            else:
+                if opener in {"APROXIMAR", "CONTRA_ATAQUE", "COMBATE", "POKE", "CIRCULAR"}:
+                    opener = "MATAR" if familia not in {"foco", "orbital"} else "COMBATE"
+                if followup in {None, "COMBATE", "POKE", "FLANQUEAR"}:
+                    followup = "ESMAGAR" if familia in {"corrente", "lamina", "hibrida"} else "PRESSIONAR"
+            timer = min(timer, 0.32)
+            boost_excitacao = max(boost_excitacao, 0.14)
+            boost_adrenalina = max(boost_adrenalina, 0.10)
+
+        if confianca > 0.78 and momentum > 0.20 and medo < 0.35:
+            if followup in {"COMBATE", "POKE"} and familia not in {"foco", "orbital"}:
+                followup = "PRESSIONAR"
+            timer = min(timer, 0.40)
+            boost_excitacao = max(boost_excitacao, 0.10)
+
+        memoria_cena = getattr(self, "memoria_cena", {})
+        tipo_cena = memoria_cena.get("tipo") if isinstance(memoria_cena, dict) else None
+        intensidade_cena = memoria_cena.get("intensidade", 0.0) if isinstance(memoria_cena, dict) else 0.0
+
+        if tipo_cena == "clash":
+            if opener in {"CONTRA_ATAQUE", "COMBATE", "CIRCULAR"}:
+                opener = "ESMAGAR" if familia in {"corrente", "lamina", "hibrida"} else "MATAR"
+            if followup in {None, "POKE", "COMBATE"}:
+                followup = "MATAR"
+            timer = min(timer, 0.30)
+            boost_excitacao = max(boost_excitacao, 0.16 + intensidade_cena * 0.06)
+
+        elif tipo_cena == "final_showdown":
+            if opener in {"APROXIMAR", "CONTRA_ATAQUE", "POKE"}:
+                opener = "MATAR" if familia not in {"foco", "orbital"} else "COMBATE"
+            if followup in {None, "COMBATE", "POKE", "FLANQUEAR"}:
+                followup = "ESMAGAR" if familia in {"corrente", "lamina", "hibrida"} else "PRESSIONAR"
+            timer = min(timer, 0.28)
+            boost_adrenalina = max(boost_adrenalina, 0.14)
+
+        elif tipo_cena == "sequencia_perfeita":
+            if followup in {"COMBATE", "POKE"}:
+                followup = "PRESSIONAR"
+            timer = min(timer, 0.33)
+            boost_excitacao = max(boost_excitacao, 0.14)
+
+        elif tipo_cena == "dominando":
+            if followup in {"COMBATE", "POKE"} and familia not in {"foco", "orbital"}:
+                followup = "PRESSIONAR"
+            boost_excitacao = max(boost_excitacao, 0.12)
+
+        elif tipo_cena in {"leitura_perfeita", "virada"}:
+            if opener == "MATAR":
+                opener = "CONTRA_ATAQUE" if familia not in {"foco", "orbital"} else "POKE"
+            if followup in {"MATAR", "ESMAGAR"} and familia not in {"corrente"}:
+                followup = "COMBATE" if familia not in {"foco", "orbital"} else "POKE"
+            timer = max(timer, 0.48)
+
+        elif tipo_cena in {"humilhado", "quase_morte"}:
+            if opener in {"MATAR", "ESMAGAR"}:
+                opener = "CONTRA_ATAQUE" if familia not in {"foco", "orbital"} else "POKE"
+            if followup in {"MATAR", "ESMAGAR", "PRESSIONAR"}:
+                followup = "COMBATE" if familia not in {"foco", "orbital"} else "POKE"
+            timer = max(timer, 0.54)
+            boost_excitacao = min(boost_excitacao, 0.07)
+
+        return self._modular_plano_punish_por_rivalidade(
+            opener, followup, timer, boost_excitacao, boost_adrenalina, familia
+        )
+
+    def _modular_plano_punish_por_rivalidade(self, opener, followup, timer, boost_excitacao, boost_adrenalina, familia):
+        """Dá um tom mais pessoal ao punish quando existe vínculo forte com o rival."""
+        alvo = getattr(self, "_alvo_atual", None)
+        if alvo is None:
+            return opener, followup, timer, boost_excitacao, boost_adrenalina
+
+        rivalidade = self._calcular_pressao_rivalidade(alvo) if hasattr(self, "_calcular_pressao_rivalidade") else {}
+        dominante = rivalidade.get("dominante")
+        intensidade = rivalidade.get("intensidade", 0.0)
+        if not dominante or intensidade < 0.18:
+            return opener, followup, timer, boost_excitacao, boost_adrenalina
+
+        if dominante == "respeito":
+            if opener in {"MATAR", "ESMAGAR"}:
+                opener = "CONTRA_ATAQUE" if familia not in {"foco", "orbital"} else "POKE"
+            if followup in {"MATAR", "ESMAGAR", "PRESSIONAR"}:
+                followup = "COMBATE" if familia not in {"foco", "orbital"} else "POKE"
+            timer = max(timer, 0.48 + intensidade * 0.08)
+            boost_excitacao = max(boost_excitacao, 0.06)
+
+        elif dominante == "vinganca":
+            if opener in {"COMBATE", "POKE", "APROXIMAR", "CONTRA_ATAQUE"}:
+                opener = "MATAR" if familia not in {"foco", "orbital"} else "PRESSIONAR"
+            if followup in {None, "COMBATE", "POKE", "FLANQUEAR"}:
+                followup = "ESMAGAR" if familia in {"corrente", "lamina", "hibrida"} else "PRESSIONAR"
+            timer = min(timer, 0.34)
+            boost_excitacao = max(boost_excitacao, 0.15 + intensidade * 0.05)
+            boost_adrenalina = max(boost_adrenalina, 0.10)
+
+        elif dominante == "obsessao":
+            if opener in {"APROXIMAR", "COMBATE"}:
+                opener = "FLANQUEAR" if familia not in {"corrente"} else "PRESSIONAR"
+            if followup in {"COMBATE", "POKE", None}:
+                followup = "PRESSIONAR"
+            timer = min(timer, 0.38)
+            boost_excitacao = max(boost_excitacao, 0.12)
+
+        elif dominante == "caca":
+            if opener in {"POKE", "CIRCULAR", "COMBATE"}:
+                opener = "APROXIMAR" if familia in {"disparo", "arremesso", "foco", "orbital"} else "PRESSIONAR"
+            if followup in {"POKE", "COMBATE", None}:
+                followup = "MATAR" if familia not in {"foco", "orbital"} else "PRESSIONAR"
+            timer = min(timer, 0.36)
+            boost_excitacao = max(boost_excitacao, 0.11)
+
+        return opener, followup, timer, boost_excitacao, boost_adrenalina
+
+    def _agendar_followup_forcado(self, opener, followup, origem, timer_followup=0.45, boost_excitacao=0.0, boost_adrenalina=0.0):
+        if not followup:
+            return
+        combo = self.combo_state
+        combo["em_combo"] = True
+        combo["pode_followup"] = True
+        combo["timer_followup"] = timer_followup
+        combo["ultimo_tipo_ataque"] = opener
+        combo["followup_forcado"] = followup
+        combo["origem_followup"] = origem
+        self.excitacao = min(1.0, self.excitacao + boost_excitacao)
+        self.adrenalina = min(1.0, self.adrenalina + boost_adrenalina)
 
     
     # =========================================================================
@@ -87,6 +372,11 @@ class CombatMixin(_AIBrainMixinBase):
             # Behavior profile drive attack chance
             bp = getattr(self, '_behavior_profile', FALLBACK_PROFILE)
             chance_base = bp.get("ataque_min_chance", 0.5) + bp.get("ataque_bonus_chance", 0.0)
+            memoria = getattr(self, "memoria_adaptativa", {})
+            chance_base += memoria.get("vies_agressao", 0.0) * 0.16
+            chance_base += memoria.get("vies_pressao", 0.0) * 0.10
+            chance_base += memoria.get("vies_contra_ataque", 0.0) * 0.06
+            chance_base -= max(0.0, memoria.get("vies_cautela", 0.0)) * 0.18
             
             # Aumenta chance se inimigo com pouca vida (execute zone)
             inimigo_hp_r = inimigo.vida / max(inimigo.vida_max, 1)
@@ -112,6 +402,10 @@ class CombatMixin(_AIBrainMixinBase):
         if janela["aberta"]:
             # Calcula se vale a pena atacar
             chance_ataque = janela["qualidade"]
+            memoria = getattr(self, "memoria_adaptativa", {})
+            chance_ataque += memoria.get("vies_contra_ataque", 0.0) * 0.12
+            chance_ataque += memoria.get("vies_pressao", 0.0) * 0.08
+            chance_ataque -= max(0.0, memoria.get("vies_cautela", 0.0)) * 0.10
             
             # Modificadores de distÃ¢ncia
             if distancia > alcance_efetivo * 1.5:
@@ -194,6 +488,38 @@ class CombatMixin(_AIBrainMixinBase):
             self.acao_atual = "CONTRA_ATAQUE"
             self.confianca = min(1.0, self.confianca + 0.12)
             return True
+
+        elif tipo == "punir_entrada":
+            opener, followup, timer_followup, boost_excitacao, boost_adrenalina = self._resolver_plano_punish(tipo, distancia, inimigo)
+            self.acao_atual = opener or "CONTRA_ATAQUE"
+            self._agendar_followup_forcado(self.acao_atual, followup, tipo, timer_followup, boost_excitacao, boost_adrenalina)
+            self.excitacao = min(1.0, self.excitacao + 0.12)
+            return True
+
+        elif tipo == "punir_recuo":
+            opener, followup, timer_followup, boost_excitacao, boost_adrenalina = self._resolver_plano_punish(tipo, distancia, inimigo)
+            self.acao_atual = opener or ("PRESSIONAR" if distancia > self.parent.alcance_ideal else "APROXIMAR")
+            self._agendar_followup_forcado(self.acao_atual, followup, tipo, timer_followup, boost_excitacao, boost_adrenalina)
+            return True
+
+        elif tipo == "quebrar_guarda_lida":
+            opener, followup, timer_followup, boost_excitacao, boost_adrenalina = self._resolver_plano_punish(tipo, distancia, inimigo)
+            self.acao_atual = opener or ("FLANQUEAR" if "CALCULISTA" in self.tracos else "MATAR")
+            self._agendar_followup_forcado(self.acao_atual, followup, tipo, timer_followup, boost_excitacao, boost_adrenalina)
+            return True
+
+        elif tipo == "punir_burst_orbital":
+            opener, followup, timer_followup, boost_excitacao, boost_adrenalina = self._resolver_plano_punish(tipo, distancia, inimigo)
+            self.acao_atual = opener or ("CIRCULAR" if self.cd_pulo > 0 else "ATAQUE_RAPIDO")
+            self._agendar_followup_forcado(self.acao_atual, followup, tipo, timer_followup, boost_excitacao, boost_adrenalina)
+            return True
+
+        elif tipo == "punir_troca_burst":
+            opener, followup, timer_followup, boost_excitacao, boost_adrenalina = self._resolver_plano_punish(tipo, distancia, inimigo)
+            self.acao_atual = opener or ("POKE" if "PACIENTE" in self.tracos or "CALCULISTA" in self.tracos else "PRESSIONAR")
+            self._agendar_followup_forcado(self.acao_atual, followup, tipo, timer_followup, boost_excitacao, boost_adrenalina)
+            self.adrenalina = min(1.0, self.adrenalina + 0.08)
+            return True
         
         return False
 
@@ -266,6 +592,21 @@ class CombatMixin(_AIBrainMixinBase):
             combo["pode_followup"] = False
             return False
 
+        followup_forcado = combo.get("followup_forcado")
+        if followup_forcado and combo.get("pode_followup"):
+            alcance_combo = max(self.parent.alcance_ideal * 1.35, self._calcular_alcance_efetivo() * 1.15)
+            if followup_forcado not in {"APROXIMAR", "CIRCULAR", "RECUAR", "POKE", "COMBATE"} and distancia > alcance_combo:
+                self.acao_atual = "APROXIMAR"
+            else:
+                self.acao_atual = followup_forcado
+            combo["followup_forcado"] = None
+            combo["origem_followup"] = None
+            combo["hits_combo"] += 1
+            combo["ultimo_tipo_ataque"] = self.acao_atual
+            combo["timer_followup"] = 0.35
+            self.excitacao = min(1.0, self.excitacao + 0.06)
+            return True
+
         # Determina prÃ³ximo ataque do combo (caminho genÃ©rico â€” sem payload estratÃ©gico)
         ultimo = combo["ultimo_tipo_ataque"]
         proximo = None
@@ -301,6 +642,8 @@ class CombatMixin(_AIBrainMixinBase):
             combo["em_combo"] = False
             combo["hits_combo"] = 0
             combo["pode_followup"] = False
+            combo["followup_forcado"] = None
+            combo["origem_followup"] = None
 
 
     def _processar_baiting(self, dt, distancia, inimigo):
@@ -333,6 +676,7 @@ class CombatMixin(_AIBrainMixinBase):
         # Decide se inicia bait
         if not bait["ativo"]:
             chance_bait = 0.0
+            padrao_dominante = self._obter_padrao_dominante_oponente(inimigo) if hasattr(self, "_obter_padrao_dominante_oponente") else None
             
             # Fatores que aumentam chance de bait
             if "TRICKSTER" in self.tracos:
@@ -347,9 +691,18 @@ class CombatMixin(_AIBrainMixinBase):
                 chance_bait += 0.1
             if self.leitura_oponente["agressividade_percebida"] > 0.7:
                 chance_bait += 0.1  # Oponente agressivo, fÃ¡cil de baitar
+            if padrao_dominante in {"entrada_agressiva", "guarda_reativa", "recuo_pos_ataque"}:
+                chance_bait += 0.12
             
             if 3.0 < distancia < 6.0 and random.random() < chance_bait:
-                tipo_bait = random.choice(["recuo_falso", "abertura_falsa", "hesitacao_falsa"])
+                if padrao_dominante == "entrada_agressiva":
+                    tipo_bait = random.choice(["abertura_falsa", "hesitacao_falsa", "abertura_falsa"])
+                elif padrao_dominante == "guarda_reativa":
+                    tipo_bait = random.choice(["abertura_falsa", "recuo_falso"])
+                elif padrao_dominante == "recuo_pos_ataque":
+                    tipo_bait = random.choice(["recuo_falso", "hesitacao_falsa"])
+                else:
+                    tipo_bait = random.choice(["recuo_falso", "abertura_falsa", "hesitacao_falsa"])
                 bait["ativo"] = True
                 bait["tipo"] = tipo_bait
                 bait["timer"] = random.uniform(0.3, 0.6)
@@ -535,6 +888,15 @@ class CombatMixin(_AIBrainMixinBase):
             tipo_janela = "skill_cd"
             qualidade = 0.65
             duracao = min(2.0, inimigo.cd_skill_arma)
+
+        janela_padrao = self._aplicar_janela_padrao_oponente(inimigo, distancia)
+        if janela_padrao:
+            tipo_padrao, qualidade_padrao, duracao_padrao = janela_padrao
+            if qualidade_padrao > qualidade:
+                nova_janela = True
+                tipo_janela = tipo_padrao
+                qualidade = qualidade_padrao
+                duracao = duracao_padrao
         
         # Atualiza janela se encontrou uma melhor
         if nova_janela and qualidade > janela.get("qualidade", 0):
@@ -579,12 +941,12 @@ class CombatMixin(_AIBrainMixinBase):
 
         # Anti-kite hard override: melee contra arco deve fechar distÃ¢ncia.
         # Reduz o risco de passividade causada por blocos defensivos/eventos reativos.
-        meu_tipo = arma.tipo if arma else ""
-        sou_ranged = meu_tipo in ("Arco", "Arremesso", "MÃ¡gica")
-        inimigo_tipo = ""
-        if hasattr(inimigo, 'dados') and hasattr(inimigo.dados, 'arma_obj') and inimigo.dados.arma_obj:
-            inimigo_tipo = getattr(inimigo.dados.arma_obj, 'tipo', '')
-        if inimigo_tipo == "Arco" and not sou_ranged and hp_pct > 0.22 and distancia > alcance_efetivo * 0.85:
+        minha_familia = resolver_familia_arma(arma)
+        sou_ranged = arma_eh_ranged(arma)
+        inimigo_arma = getattr(getattr(inimigo, 'dados', None), 'arma_obj', None)
+        familia_inimigo = resolver_familia_arma(inimigo_arma)
+        pressao_ritmo = max(0.0, min(1.0, float(getattr(self, "pressao_ritmo", 0.0) or 0.0)))
+        if familia_inimigo == "disparo" and not sou_ranged and hp_pct > 0.22 and distancia > alcance_efetivo * 0.85:
             self.acao_atual = "APROXIMAR" if roll < 0.65 else ("FLANQUEAR" if roll < 0.9 else "PRESSIONAR")
             if debug:
                 _log.debug("[DECISAO] %s â†’ override ANTI_KITE_BOW â†’ %s", p.dados.nome, self.acao_atual)
@@ -612,27 +974,41 @@ class CombatMixin(_AIBrainMixinBase):
             return
 
         if self.medo > 0.75 and "DETERMINADO" not in self.tracos and "FRIO" not in self.tracos:
-            self.acao_atual = "ATAQUE_RAPIDO" if (no_alcance and roll < 0.25) else "FUGIR"
-            if debug: _log.debug("[DECISAO] %s â†’ override MEDO â†’ %s", p.dados.nome, self.acao_atual)
+            if pressao_ritmo >= 0.55:
+                self.acao_atual = "COMBATE" if no_alcance else ("PRESSIONAR" if distancia <= alcance_efetivo * 1.25 else "APROXIMAR")
+                if debug:
+                    _log.debug("[DECISAO] %s â†’ override MEDO QUEBRADO PELA PRESSAO â†’ %s", p.dados.nome, self.acao_atual)
+            else:
+                self.acao_atual = "ATAQUE_RAPIDO" if (no_alcance and roll < 0.25) else "FUGIR"
+                if debug:
+                    _log.debug("[DECISAO] %s â†’ override MEDO â†’ %s", p.dados.nome, self.acao_atual)
             return
 
         # â”€â”€ DELEGAÃ‡ÃƒO POR TIPO DE ARMA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         arma      = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
-        arma_tipo = arma.tipo if arma else ""
-
-        if arma_tipo in ("Arco", "Arremesso"):
-            self._estrategia_ranged(distancia, roll, alcance_efetivo, alcance_ideal, inimigo_hp_pct)
+        if minha_familia in {"disparo", "arremesso", "foco"}:
+            self._estrategia_ranged(distancia, roll, alcance_efetivo, alcance_ideal, inimigo_hp_pct, arma)
             if debug: _log.debug("[DECISAO] %s â†’ estratÃ©gia RANGED â†’ %s", p.dados.nome, self.acao_atual)
             return
 
-        if arma_tipo == "Corrente":
+        if minha_familia == "corrente":
             self._estrategia_corrente(distancia, roll, alcance_efetivo, alcance_ideal, inimigo_hp_pct, arma)
             if debug: _log.debug("[DECISAO] %s â†’ estratÃ©gia CORRENTE â†’ %s", p.dados.nome, self.acao_atual)
             return
 
-        if arma_tipo == "Dupla":
+        if minha_familia == "dupla":
             self._estrategia_dupla(distancia, roll, alcance_efetivo, alcance_ideal, hp_pct, inimigo_hp_pct, arma)
             if debug: _log.debug("[DECISAO] %s â†’ estratÃ©gia DUPLA â†’ %s", p.dados.nome, self.acao_atual)
+            return
+
+        if minha_familia == "orbital":
+            self._estrategia_orbital(distancia, roll, alcance_efetivo, alcance_ideal, hp_pct, inimigo_hp_pct, arma)
+            if debug: _log.debug("[DECISAO] %s â†’ estratÃ©gia ORBITAL â†’ %s", p.dados.nome, self.acao_atual)
+            return
+
+        if minha_familia == "hibrida":
+            self._estrategia_hibrida(distancia, roll, alcance_efetivo, alcance_ideal, hp_pct, inimigo_hp_pct, arma)
+            if debug: _log.debug("[DECISAO] %s â†’ estratÃ©gia HIBRIDA â†’ %s", p.dados.nome, self.acao_atual)
             return
 
         # â”€â”€ CAMINHO GENÃ‰RICO (MEL-AI-03: pesos acumulativos) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -642,28 +1018,58 @@ class CombatMixin(_AIBrainMixinBase):
 
     # â”€â”€ ESTRATÃ‰GIAS POR TIPO DE ARMA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    def _estrategia_ranged(self, distancia, roll, alcance_efetivo, alcance_ideal, inimigo_hp_pct):
-        """EstratÃ©gia de posicionamento para armas de longa distÃ¢ncia (Arco / Arremesso)."""
-        perigosamente_perto = distancia < alcance_ideal * 0.4
-        perto_demais        = distancia < alcance_ideal * 0.7
-        distancia_boa       = alcance_ideal * 0.7 <= distancia <= alcance_efetivo
-        longe_demais        = distancia > alcance_efetivo
+    def _estrategia_ranged(self, distancia, roll, alcance_efetivo, alcance_ideal, inimigo_hp_pct, arma):
+        """Estratégia de posicionamento para famílias ranged com ritmo próprio."""
+        familia = resolver_familia_arma(arma)
+        perigosamente_perto = distancia < alcance_ideal * 0.42
+        perto_demais = distancia < alcance_ideal * 0.72
+        distancia_boa = alcance_ideal * 0.72 <= distancia <= alcance_efetivo
+        longe_demais = distancia > alcance_efetivo
 
-        if perigosamente_perto:
-            self.acao_atual = random.choice(["FUGIR", "RECUAR", "CIRCULAR"])
-        elif perto_demais:
-            if roll < 0.18:
-                self.acao_atual = "ATAQUE_RAPIDO"
-            elif roll < 0.68:
-                self.acao_atual = "RECUAR"
+        if familia == "disparo":
+            carregando = bool(getattr(self.parent, "bow_charging", False))
+            if perigosamente_perto:
+                self.acao_atual = random.choice(["FUGIR", "RECUAR", "CIRCULAR"])
+            elif perto_demais:
+                self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "FLANQUEAR"])
+            elif distancia_boa:
+                self.acao_atual = random.choice(["COMBATE", "POKE", "MATAR"] if carregando else ["COMBATE", "POKE", "PRESSIONAR"])
+            elif longe_demais:
+                self.acao_atual = random.choice(["APROXIMAR", "POKE"])
             else:
-                self.acao_atual = random.choice(["CIRCULAR", "BLOQUEAR"])
+                self.acao_atual = random.choice(["COMBATE", "POKE", "MATAR"])
+            return
+
+        if familia == "arremesso":
+            consec = float(getattr(self.parent, "throw_consecutive", 0.0))
+            ritmo_rajada = consec >= 2.0
+            if perigosamente_perto:
+                self.acao_atual = random.choice(["RECUAR", "ATAQUE_RAPIDO", "CIRCULAR"])
+            elif perto_demais:
+                self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR", "RECUAR"] if ritmo_rajada else ["PRESSIONAR", "ATAQUE_RAPIDO", "FLANQUEAR"])
+            elif distancia_boa:
+                self.acao_atual = random.choice(["PRESSIONAR", "COMBATE", "FLANQUEAR"] if ritmo_rajada else ["MATAR", "PRESSIONAR", "COMBATE"])
+            elif longe_demais:
+                self.acao_atual = "APROXIMAR"
+            else:
+                self.acao_atual = random.choice(["PRESSIONAR", "COMBATE", "FLANQUEAR"])
+            return
+
+        # foco
+        orbes_orbitando = len([o for o in getattr(self.parent, "buffer_orbes", []) if getattr(o, "ativo", False) and getattr(o, "estado", "") == "orbitando"])
+        if perigosamente_perto and orbes_orbitando == 0:
+            self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "FLANQUEAR"])
+        elif perto_demais:
+            self.acao_atual = random.choice(["COMBATE", "CIRCULAR", "RECUAR"] if orbes_orbitando >= 2 else ["CIRCULAR", "FLANQUEAR", "RECUAR"])
         elif distancia_boa:
-            self.acao_atual = random.choice(["MATAR", "PRESSIONAR", "ATAQUE_RAPIDO", "COMBATE", "FLANQUEAR"])
+            if inimigo_hp_pct < 0.28:
+                self.acao_atual = random.choice(["MATAR", "COMBATE", "PRESSIONAR"])
+            else:
+                self.acao_atual = random.choice(["COMBATE", "POKE", "PRESSIONAR"] if orbes_orbitando >= 2 else ["COMBATE", "FLANQUEAR", "POKE"])
         elif longe_demais:
-            self.acao_atual = "APROXIMAR"
+            self.acao_atual = random.choice(["APROXIMAR", "POKE"])
         else:
-            self.acao_atual = random.choice(["MATAR", "PRESSIONAR", "COMBATE"])
+            self.acao_atual = random.choice(["COMBATE", "PRESSIONAR", "POKE"])
 
 
     def _estrategia_corrente(self, distancia, roll, alcance_efetivo, alcance_ideal,
@@ -789,6 +1195,51 @@ class CombatMixin(_AIBrainMixinBase):
             else:
                 self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR"])
 
+    def _estrategia_orbital(self, distancia, roll, alcance_efetivo, alcance_ideal, hp_pct, inimigo_hp_pct, arma):
+        """Estratégia para armas orbitais: controlar espaço e explodir janelas de burst."""
+        burst_pronto = getattr(self.parent, "orbital_burst_cd", 0.0) <= 0.0
+        alcance_burst = max(3.2, alcance_efetivo * 1.35)
+        muito_perto = distancia < max(1.2, alcance_ideal * 0.55)
+        zona_orbita = distancia <= max(2.4, alcance_efetivo * 1.05)
+
+        if muito_perto and hp_pct < 0.32:
+            self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "COMBATE"])
+        elif burst_pronto and zona_orbita:
+            self.acao_atual = random.choice(["PRESSIONAR", "COMBATE", "MATAR"] if inimigo_hp_pct < 0.4 else ["PRESSIONAR", "COMBATE", "FLANQUEAR"])
+        elif distancia > alcance_burst:
+            self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR", "PRESSIONAR"])
+        elif zona_orbita:
+            self.acao_atual = random.choice(["COMBATE", "CIRCULAR", "FLANQUEAR"])
+        else:
+            self.acao_atual = random.choice(["APROXIMAR", "COMBATE", "CIRCULAR"])
+
+    def _estrategia_hibrida(self, distancia, roll, alcance_efetivo, alcance_ideal, hp_pct, inimigo_hp_pct, arma):
+        """Estratégia para armas híbridas: alternar envelope curto/longo sem perder pressão."""
+        forma_atual = int(getattr(self.parent, "transform_forma", getattr(arma, "forma_atual", 0)) or 0)
+        bonus_troca = getattr(self.parent, "transform_bonus_timer", 0.0) > 0.0
+        cutoff_curto = max(1.4, alcance_ideal * 0.62)
+        cutoff_longo = max(3.0, alcance_efetivo * 1.08)
+
+        if forma_atual == 0:
+            if distancia > cutoff_longo:
+                self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "FLANQUEAR"])
+            elif distancia < cutoff_curto and hp_pct < 0.35:
+                self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "COMBATE"])
+            elif bonus_troca and inimigo_hp_pct < 0.45:
+                self.acao_atual = random.choice(["MATAR", "ESMAGAR", "PRESSIONAR"])
+            else:
+                self.acao_atual = random.choice(["MATAR", "COMBATE", "PRESSIONAR"])
+            return
+
+        if distancia < cutoff_curto:
+            self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "POKE"])
+        elif bonus_troca and inimigo_hp_pct < 0.5:
+            self.acao_atual = random.choice(["MATAR", "POKE", "PRESSIONAR"])
+        elif distancia <= alcance_efetivo:
+            self.acao_atual = random.choice(["POKE", "COMBATE", "PRESSIONAR"])
+        else:
+            self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR", "POKE"])
+
 
     # â”€â”€ CAMINHO GENÃ‰RICO COM PESOS ACUMULATIVOS (MEL-AI-03) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -804,13 +1255,11 @@ class CombatMixin(_AIBrainMixinBase):
         proporciona decisÃµes mais coerentes com a intenÃ§Ã£o principal da IA.
         """
         p = self.parent
-        minha_arma_tipo = ""
-        if hasattr(p, 'dados') and hasattr(p.dados, 'arma_obj') and p.dados.arma_obj:
-            minha_arma_tipo = getattr(p.dados.arma_obj, 'tipo', '')
-        sou_ranged = minha_arma_tipo in ("Arco", "Arremesso", "MÃ¡gica")
-        tipo_arma_inimigo = ""
-        if hasattr(inimigo, 'dados') and hasattr(inimigo.dados, 'arma_obj') and inimigo.dados.arma_obj:
-            tipo_arma_inimigo = getattr(inimigo.dados.arma_obj, 'tipo', '')
+        minha_arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
+        minha_familia = resolver_familia_arma(minha_arma)
+        sou_ranged = arma_eh_ranged(minha_arma)
+        arma_inimigo = getattr(getattr(inimigo, 'dados', None), 'arma_obj', None)
+        familia_inimigo = resolver_familia_arma(arma_inimigo)
         no_alcance       = distancia <= alcance_efetivo
         quase_no_alcance = distancia <= alcance_efetivo * 1.3
         longe            = distancia > alcance_efetivo * 1.5
@@ -846,7 +1295,7 @@ class CombatMixin(_AIBrainMixinBase):
 
         # Anti-kite dedicado: corpo a corpo contra arco deve colar no alvo.
         # Evita que pesos defensivos secundÃ¡rios mantenham a IA estacionada no mid-range.
-        if tipo_arma_inimigo == "Arco" and not sou_ranged:
+        if familia_inimigo == "disparo" and not sou_ranged:
             if distancia > alcance_efetivo * 0.9:
                 votar("APROXIMAR", 1.3)
                 votar("FLANQUEAR", 0.9)
@@ -983,6 +1432,17 @@ class CombatMixin(_AIBrainMixinBase):
         elif self.momentum < AI_MOMENTUM_NEGATIVO:
             votar("RECUAR", 0.2); votar("COMBATE", 0.2); votar("CIRCULAR", 0.1)
 
+        # Pressao de ritmo v15.0: quando a simulacao detecta neutral morto,
+        # empurra os lutadores para quebrar o impasse.
+        pressao_ritmo = max(0.0, min(1.0, float(getattr(self, "pressao_ritmo", 0.0) or 0.0)))
+        if pressao_ritmo > 0.05:
+            votar("APROXIMAR", 0.22 + pressao_ritmo * 0.32)
+            votar("PRESSIONAR", 0.16 + pressao_ritmo * 0.28)
+            if distancia <= alcance_efetivo * 1.15:
+                votar("MATAR", 0.08 + pressao_ritmo * 0.18)
+            pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * max(0.18, 1.0 - pressao_ritmo * 0.7)
+            pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * max(0.12, 1.0 - pressao_ritmo * 0.8)
+
         # â”€â”€ 8. LEITURA DO OPONENTE (intercepÃ§Ã£o) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         leitura = self.leitura_oponente
         if leitura["previsibilidade"] > AI_PREVISIBILIDADE_ALTA:
@@ -1022,6 +1482,25 @@ class CombatMixin(_AIBrainMixinBase):
                     self.dir_circular = 1; self._dir_circular_cd = 0.4
                 elif tend < 0.35:
                     self.dir_circular = -1; self._dir_circular_cd = 0.4
+
+        padrao_dominante = None
+        if hasattr(self, "_obter_padrao_dominante_oponente"):
+            padrao_dominante = self._obter_padrao_dominante_oponente(inimigo)
+        if padrao_dominante == "entrada_agressiva":
+            votar("CONTRA_ATAQUE", 0.45)
+            votar("CIRCULAR", 0.22)
+        elif padrao_dominante == "recuo_pos_ataque":
+            votar("PRESSIONAR", 0.35)
+            votar("APROXIMAR", 0.24)
+        elif padrao_dominante == "guarda_reativa":
+            votar("FLANQUEAR", 0.30)
+            votar("CIRCULAR", 0.18)
+        elif padrao_dominante == "prepara_burst_orbital":
+            votar("CIRCULAR", 0.38)
+            votar("RECUAR", 0.24)
+        elif padrao_dominante == "troca_forma_burst":
+            votar("CIRCULAR", 0.22)
+            votar("POKE", 0.18)
 
         # â”€â”€ 9. MODIFICADORES ESPACIAIS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         # HIGH-02 fix: antes, _aplicar_modificadores_espaciais sobrescrevia acao_atual
@@ -1151,19 +1630,19 @@ class CombatMixin(_AIBrainMixinBase):
         )
 
         # Perfis muito defensivos em armas de curta distÃ¢ncia tendem a colapsar o tipo.
-        if minha_arma_tipo in ("Reta", "Dupla", "TransformÃ¡vel", "Orbital") and perfil_defensivo > perfil_agressivo * 1.12:
+        if minha_familia in (FAMILIAS_CURTA_DISTANCIA | {"haste"}) and perfil_defensivo > perfil_agressivo * 1.12:
             pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.62
             pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.52
             votar("APROXIMAR", 0.35)
             votar("PRESSIONAR", 0.28)
-            if minha_arma_tipo == "Orbital":
+            if minha_familia == "orbital":
                 votar("COMBATE", 0.42)
                 votos_anti_passivo = 0.24 if distancia > alcance_efetivo * 1.1 else 0.0
                 if votos_anti_passivo > 0:
                     votar("APROXIMAR", votos_anti_passivo)
 
         # Perfis extremamente agressivos em ranged podem inflar demais o tipo.
-        if minha_arma_tipo in ("Arco", "Arremesso", "MÃ¡gica") and perfil_agressivo > perfil_defensivo * 1.20:
+        if minha_familia in {"disparo", "arremesso", "foco"} and perfil_agressivo > perfil_defensivo * 1.20:
             pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.84
             pesos["ESMAGAR"] = pesos.get("ESMAGAR", 0.0) * 0.78
             votar("COMBATE", 0.25)
@@ -1174,7 +1653,7 @@ class CombatMixin(_AIBrainMixinBase):
                 votar("APROXIMAR", 0.18)
 
         # Reduz acoplamento excessivo de anti-kite quando a vantagem de arma jÃ¡ Ã© clara.
-        if tipo_arma_inimigo == "Arco" and not sou_ranged and minha_arma_tipo in ("Reta", "Dupla", "TransformÃ¡vel"):
+        if familia_inimigo == "disparo" and not sou_ranged and minha_familia in FAMILIAS_PRESSAO_MELEE:
             if perfil_agressivo < perfil_defensivo:
                 votar("FLANQUEAR", 0.24)
                 votar("CIRCULAR", 0.12)
@@ -1243,49 +1722,9 @@ class CombatMixin(_AIBrainMixinBase):
         if not arma:
             return 2.0  # Fallback sem arma
         
-        tipo = arma.tipo
-        estilo = getattr(arma, 'estilo', '')
-        raio = p.raio_fisico if hasattr(p, 'raio_fisico') else 0.4
-        
-        # DIS-04 fix: usa get_hitbox_profile(tipo, estilo) para obter perfil per-style.
-        # Antes: HITBOX_PROFILES.get(tipo) retornava o perfil genÃ©rico "Corrente" (range_mult=4.0)
-        # para todos os estilos, subestimando Chicote (6.0) e Kusarigama_peso (5.5).
-        try:
-            from nucleo.hitbox import get_hitbox_profile
-            profile = get_hitbox_profile(tipo, estilo)
-            range_mult = profile.get("range_mult", 2.0)
-        except Exception:
-            try:
-                profile = HITBOX_PROFILES.get(tipo, HITBOX_PROFILES.get("Reta", {}))
-                range_mult = profile.get("range_mult", 2.0)
-            except (KeyError, AttributeError):
-                range_mult = 2.0
-        
-        # Alcance base = raio do personagem * multiplicador do tipo de arma
-        alcance_base = raio * range_mult
-        
-        # Ajustes especÃ­ficos por tipo
-        if tipo == "Reta":
-            alcance_calc = alcance_base
-        elif tipo == "Dupla":
-            alcance_calc = alcance_base
-        elif tipo == "Corrente":
-            zona_morta = alcance_base * profile.get("min_range_ratio", 0.25)
-            alcance_calc = (alcance_base + zona_morta) / 2
-        elif tipo == "Arremesso":
-            alcance_calc = alcance_base * 0.7
-        elif tipo == "Arco":
-            alcance_calc = alcance_base * 1.0
-        elif tipo == "MÃ¡gica":
-            alcance_calc = alcance_base * 0.7
-        elif tipo == "Orbital":
-            dist_orbe = getattr(arma, 'distancia', 50) / PPM
-            alcance_calc = raio + dist_orbe * 0.8
-        elif tipo == "TransformÃ¡vel":
-            alcance_calc = alcance_base
-        else:
-            alcance_calc = alcance_base
-        
+        metricas = obter_metricas_arma(arma, p)
+        alcance_calc = metricas["alcance_tatico"]
+
         # CRIT-03 fix: aplica offset tÃ¡tico da percepÃ§Ã£o de armas sem alterar alcance_ideal
         offset = getattr(self, 'percepcao_arma', {}).get("alcance_tatico_offset", 0.0)
         if offset != 0.0:

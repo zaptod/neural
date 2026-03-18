@@ -1,14 +1,112 @@
 [
     {
+        "schema_version": 2,
+        "id": "aurora-celeste",
         "nome": "Aurora Celeste",
+        "familia": "lamina",
+        "subtipo": "espada",
+        "categoria": "arma_fisica",
         "tipo": "Reta",
-        "dano": 8.6,
+        "tipo_legacy": "Reta",
+        "estilo": "Corte (Espada)",
+        "dano": 7.668,
         "peso": 4.4,
-        "raridade": "Lendário",
+        "critico": 0.066,
+        "velocidade_ataque": 0.9936000000000001,
+        "afinidade_elemento": "LUZ",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 120,
+        "g": 210,
+        "b": 255,
+        "raridade": "Lendário",
+        "habilidades": [
+            {
+                "nome": "Raio Sagrado",
+                "custo": 22.0
+            },
+            {
+                "nome": "Barreira Divina",
+                "custo": 28.0
+            }
+        ],
+        "habilidade": "Raio Sagrado",
+        "custo_mana": 22.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 7.668,
+            "peso": 4.4,
+            "alcance": 1.7,
+            "alcance_minimo": 0.3,
+            "arco": 92.0,
+            "cadencia": 0.9936000000000001,
+            "startup": 0.12600000000000003,
+            "ativo": 0.09,
+            "recovery": 0.2024,
+            "critico": 0.066,
+            "escala_forca": 1.0,
+            "escala_mana": 0.0,
+            "projeteis_por_ataque": 1,
+            "velocidade_projetil": 0.0,
+            "spread": 0.0,
+            "stagger": 0.55,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "corte_limpo",
+            "rastro": "lamina_densa",
+            "impacto": "faísca_metal",
+            "ornamento": "guarda",
+            "brilho": 0.2,
+            "cor_base": {
+                "r": 120,
+                "g": 210,
+                "b": 255
+            },
+            "acabamento": "Lendário"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "LUZ",
+            "habilidades": [
+                {
+                    "nome": "Raio Sagrado",
+                    "custo": 22.0
+                },
+                {
+                    "nome": "Barreira Divina",
+                    "custo": 28.0
+                }
+            ],
+            "skill_primaria": "Raio Sagrado",
+            "custo_primario": 22.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 150.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -26,49 +124,120 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 120,
-        "g": 210,
-        "b": 255,
-        "estilo": "Corte (Espada)",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Raio Sagrado",
-                "custo": 22.0
-            },
-            {
-                "nome": "Barreira Divina",
-                "custo": 28.0
-            }
-        ],
-        "encantamentos": [
-            "Sagrado",
-            "Crítico"
-        ],
-        "passiva": {
-            "nome": "Executora",
-            "efeito": "execute",
-            "valor": 15,
-            "descricao": "Executa inimigos abaixo de 15% HP"
-        },
-        "critico": 12.0,
-        "velocidade_ataque": 1.12,
-        "afinidade_elemento": "LUZ",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Raio Sagrado",
-        "custo_mana": 22.0
+        "meta_legado": {
+            "raridade": "Lendário",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "fauces-rubras",
         "nome": "Fauces Rubras",
+        "familia": "dupla",
+        "subtipo": "adagas",
+        "categoria": "arma_fisica",
         "tipo": "Dupla",
-        "dano": 7.4,
-        "peso": 2.1,
-        "raridade": "Épico",
+        "tipo_legacy": "Dupla",
+        "estilo": "Adagas Gêmeas",
+        "dano": 6.264,
+        "peso": 2.125,
+        "critico": 0.12100000000000001,
+        "velocidade_ataque": 1.1448,
+        "afinidade_elemento": "TREVAS",
         "quantidade": 2,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 230,
+        "g": 70,
+        "b": 70,
+        "raridade": "Épico",
+        "habilidades": [
+            {
+                "nome": "Marca da Morte",
+                "custo": 20.0
+            },
+            {
+                "nome": "Sombra Envolvente",
+                "custo": 18.0
+            }
+        ],
+        "habilidade": "Marca da Morte",
+        "custo_mana": 20.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.264,
+            "peso": 2.125,
+            "alcance": 1.2,
+            "alcance_minimo": 0.08,
+            "arco": 118.0,
+            "cadencia": 1.1448,
+            "startup": 0.07200000000000001,
+            "ativo": 0.07,
+            "recovery": 0.138,
+            "critico": 0.12100000000000001,
+            "escala_forca": 0.88,
+            "escala_mana": 0.0,
+            "projeteis_por_ataque": 2,
+            "velocidade_projetil": 0.0,
+            "spread": 0.0,
+            "stagger": 0.24,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "duplo_flash",
+            "rastro": "corte_nervoso",
+            "impacto": "corte_rasgado",
+            "ornamento": "simetria",
+            "brilho": 0.28,
+            "cor_base": {
+                "r": 230,
+                "g": 70,
+                "b": 70
+            },
+            "acabamento": "Épico"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "TREVAS",
+            "habilidades": [
+                {
+                    "nome": "Marca da Morte",
+                    "custo": 20.0
+                },
+                {
+                    "nome": "Sombra Envolvente",
+                    "custo": 18.0
+                }
+            ],
+            "skill_primaria": "Marca da Morte",
+            "custo_primario": 20.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 100.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -86,49 +255,120 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 230,
-        "g": 70,
-        "b": 70,
-        "estilo": "Adagas Gêmeas",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Marca da Morte",
-                "custo": 20.0
-            },
-            {
-                "nome": "Sombra Envolvente",
-                "custo": 18.0
-            }
-        ],
-        "encantamentos": [
-            "Crítico",
-            "Vampirismo"
-        ],
-        "passiva": {
-            "nome": "Eco",
-            "efeito": "double_hit",
-            "valor": 20,
-            "descricao": "20% chance de atacar duas vezes"
-        },
-        "critico": 18.5,
-        "velocidade_ataque": 1.32,
-        "afinidade_elemento": "TREVAS",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Marca da Morte",
-        "custo_mana": 20.0
+        "meta_legado": {
+            "raridade": "Épico",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "besta-de-jade",
         "nome": "Besta de Jade",
+        "familia": "disparo",
+        "subtipo": "arco",
+        "categoria": "arma_fisica",
         "tipo": "Arco",
-        "dano": 6.8,
+        "tipo_legacy": "Arco",
+        "estilo": "Besta de Repetição",
+        "dano": 6.696000000000001,
         "peso": 3.7,
-        "raridade": "Raro",
+        "critico": 0.08800000000000001,
+        "velocidade_ataque": 0.7776000000000001,
+        "afinidade_elemento": "RAIO",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 8.3,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 80,
+        "g": 195,
+        "b": 140,
+        "raridade": "Raro",
+        "habilidades": [
+            {
+                "nome": "Corrente em Cadeia",
+                "custo": 24.0
+            },
+            {
+                "nome": "Tempestade",
+                "custo": 26.0
+            }
+        ],
+        "habilidade": "Corrente em Cadeia",
+        "custo_mana": 24.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.696000000000001,
+            "peso": 3.7,
+            "alcance": 11.499999999999998,
+            "alcance_minimo": 1.8,
+            "arco": 18.0,
+            "cadencia": 0.7776000000000001,
+            "startup": 0.225,
+            "ativo": 0.05,
+            "recovery": 0.25760000000000005,
+            "critico": 0.08800000000000001,
+            "escala_forca": 0.7992,
+            "escala_mana": 0.0,
+            "projeteis_por_ataque": 1,
+            "velocidade_projetil": 32.0,
+            "spread": 2.0,
+            "stagger": 0.3,
+            "qtd_orbitais": 0,
+            "forca_disparo": 8.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "linha_tensa",
+            "rastro": "flecha",
+            "impacto": "perfuração",
+            "ornamento": "corda",
+            "brilho": 0.2,
+            "cor_base": {
+                "r": 80,
+                "g": 195,
+                "b": 140
+            },
+            "acabamento": "Raro"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "RAIO",
+            "habilidades": [
+                {
+                    "nome": "Corrente em Cadeia",
+                    "custo": 24.0
+                },
+                {
+                    "nome": "Tempestade",
+                    "custo": 26.0
+                }
+            ],
+            "skill_primaria": "Corrente em Cadeia",
+            "custo_primario": 24.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 1200.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -146,49 +386,120 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 80,
-        "g": 195,
-        "b": 140,
-        "estilo": "Besta de Repetição",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Corrente em Cadeia",
-                "custo": 24.0
-            },
-            {
-                "nome": "Tempestade",
-                "custo": 26.0
-            }
-        ],
-        "encantamentos": [
-            "Relâmpago",
-            "Execução"
-        ],
-        "passiva": {
-            "nome": "Precisa",
-            "efeito": "crit_chance",
-            "valor": 15,
-            "descricao": "+15% chance crítico"
-        },
-        "critico": 9.0,
-        "velocidade_ataque": 1.06,
-        "afinidade_elemento": "RAIO",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Corrente em Cadeia",
-        "custo_mana": 24.0
+        "meta_legado": {
+            "raridade": "Raro",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "cetro-do-eclipse",
         "nome": "Cetro do Eclipse",
+        "familia": "foco",
+        "subtipo": "cetro",
+        "categoria": "foco_magico",
         "tipo": "Mágica",
-        "dano": 8.1,
-        "peso": 2.8,
-        "raridade": "Lendário",
+        "tipo_legacy": "Mágica",
+        "estilo": "Cristais Arcanos",
+        "dano": 6.588,
+        "peso": 2.76,
+        "critico": 0.066,
+        "velocidade_ataque": 0.8640000000000001,
+        "afinidade_elemento": "VOID",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 120,
+        "g": 90,
+        "b": 220,
+        "raridade": "Lendário",
+        "habilidades": [
+            {
+                "nome": "Buraco Negro",
+                "custo": 34.0
+            },
+            {
+                "nome": "Anomalia Espacial",
+                "custo": 30.0
+            }
+        ],
+        "habilidade": "Buraco Negro",
+        "custo_mana": 34.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.588,
+            "peso": 2.76,
+            "alcance": 5.8,
+            "alcance_minimo": 0.0085,
+            "arco": 120.0,
+            "cadencia": 0.8640000000000001,
+            "startup": 0.14400000000000002,
+            "ativo": 0.1,
+            "recovery": 0.2024,
+            "critico": 0.066,
+            "escala_forca": 0.2,
+            "escala_mana": 1.045,
+            "projeteis_por_ataque": 2,
+            "velocidade_projetil": 12.0,
+            "spread": 10.0,
+            "stagger": 0.34,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "sigilo_instavel",
+            "rastro": "mana",
+            "impacto": "surto_arcano",
+            "ornamento": "anel_runico",
+            "brilho": 0.55,
+            "cor_base": {
+                "r": 120,
+                "g": 90,
+                "b": 220
+            },
+            "acabamento": "Lendário"
+        },
+        "magia": {
+            "usa_foco": true,
+            "afinidade": "VOID",
+            "habilidades": [
+                {
+                    "nome": "Buraco Negro",
+                    "custo": 34.0
+                },
+                {
+                    "nome": "Anomalia Espacial",
+                    "custo": 30.0
+                }
+            ],
+            "skill_primaria": "Buraco Negro",
+            "custo_primario": 34.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 400.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -206,49 +517,120 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 120,
-        "g": 90,
-        "b": 220,
-        "estilo": "Cristais Arcanos",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Buraco Negro",
-                "custo": 34.0
-            },
-            {
-                "nome": "Anomalia Espacial",
-                "custo": 30.0
-            }
-        ],
-        "encantamentos": [
-            "Trevas",
-            "Espelhamento"
-        ],
-        "passiva": {
-            "nome": "Infinita",
-            "efeito": "no_mana_cost",
-            "valor": 50,
-            "descricao": "50% chance de skill sem custo de mana"
-        },
-        "critico": 7.0,
-        "velocidade_ataque": 1.04,
-        "afinidade_elemento": "VOID",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Buraco Negro",
-        "custo_mana": 34.0
+        "meta_legado": {
+            "raridade": "Lendário",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "lira-boreal",
         "nome": "Lira Boreal",
+        "familia": "orbital",
+        "subtipo": "escudo",
+        "categoria": "arma_tatica",
         "tipo": "Orbital",
-        "dano": 6.2,
-        "peso": 2.5,
-        "raridade": "Épico",
+        "tipo_legacy": "Orbital",
+        "estilo": "Mágico (Orbe)",
+        "dano": 6.200000000000001,
+        "peso": 3.9099999999999997,
+        "critico": 0.045,
+        "velocidade_ataque": 0.9072,
+        "afinidade_elemento": "GELO",
         "quantidade": 1,
         "quantidade_orbitais": 3,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 150,
+        "g": 230,
+        "b": 255,
+        "raridade": "Épico",
+        "habilidades": [
+            {
+                "nome": "Muralha de Gelo",
+                "custo": 22.0
+            },
+            {
+                "nome": "Nevasca",
+                "custo": 28.0
+            }
+        ],
+        "habilidade": "Muralha de Gelo",
+        "custo_mana": 22.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.200000000000001,
+            "peso": 3.9099999999999997,
+            "alcance": 1.9999999999999998,
+            "alcance_minimo": 0.0085,
+            "arco": 360.0,
+            "cadencia": 0.9072,
+            "startup": 0.05,
+            "ativo": 0.12,
+            "recovery": 0.138,
+            "critico": 0.045,
+            "escala_forca": 0.7,
+            "escala_mana": 0.3,
+            "projeteis_por_ataque": 1,
+            "velocidade_projetil": 14.0,
+            "spread": 0.0,
+            "stagger": 0.36,
+            "qtd_orbitais": 2,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "anel_guardiao",
+            "rastro": "orbita",
+            "impacto": "pulso",
+            "ornamento": "sigilo_orbital",
+            "brilho": 0.42,
+            "cor_base": {
+                "r": 150,
+                "g": 230,
+                "b": 255
+            },
+            "acabamento": "Épico"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "GELO",
+            "habilidades": [
+                {
+                    "nome": "Muralha de Gelo",
+                    "custo": 22.0
+                },
+                {
+                    "nome": "Nevasca",
+                    "custo": 28.0
+                }
+            ],
+            "skill_primaria": "Muralha de Gelo",
+            "custo_primario": 22.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 90.0,
+            "distancia": 50.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 90.0,
@@ -266,71 +648,37 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 150,
-        "g": 230,
-        "b": 255,
-        "estilo": "Mágico (Orbe)",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Muralha de Gelo",
-                "custo": 22.0
-            },
-            {
-                "nome": "Nevasca",
-                "custo": 28.0
-            }
-        ],
-        "encantamentos": [
-            "Gelo",
-            "Espelhamento"
-        ],
-        "passiva": {
-            "nome": "Resistente",
-            "efeito": "durabilidade",
-            "valor": 20,
-            "descricao": "+20% durabilidade"
-        },
-        "critico": 4.5,
-        "velocidade_ataque": 1.08,
-        "afinidade_elemento": "GELO",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Muralha de Gelo",
-        "custo_mana": 22.0
+        "meta_legado": {
+            "raridade": "Épico",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "raiz-do-pantano",
         "nome": "Raiz do Pântano",
+        "familia": "corrente",
+        "subtipo": "mangual",
+        "categoria": "arma_fisica",
         "tipo": "Corrente",
-        "dano": 7.9,
+        "tipo_legacy": "Corrente",
+        "estilo": "Chicote",
+        "dano": 7.5600000000000005,
         "peso": 4.8,
-        "raridade": "Raro",
+        "critico": 0.05500000000000001,
+        "velocidade_ataque": 0.7776000000000001,
+        "afinidade_elemento": "NATUREZA",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
-        "comp_cabo": 15.0,
-        "comp_lamina": 50.0,
-        "largura": 30.0,
-        "distancia": 300.0,
-        "comp_corrente": 0.0,
-        "comp_ponta": 0.0,
-        "largura_ponta": 0.0,
-        "tamanho_projetil": 0.0,
-        "tamanho_arco": 0.0,
-        "tamanho_flecha": 0.0,
-        "tamanho": 8.0,
-        "distancia_max": 0.0,
-        "separacao": 0.0,
-        "forma1_cabo": 0.0,
-        "forma1_lamina": 0.0,
-        "forma2_cabo": 0.0,
-        "forma2_lamina": 0.0,
         "r": 90,
         "g": 145,
         "b": 80,
-        "estilo": "Chicote",
-        "cabo_dano": false,
+        "raridade": "Raro",
         "habilidades": [
             {
                 "nome": "Dardo Venenoso",
@@ -341,34 +689,79 @@
                 "custo": 22.0
             }
         ],
-        "encantamentos": [
-            "Veneno",
-            "Velocidade"
-        ],
-        "passiva": {
-            "nome": "Veloz",
-            "efeito": "velocidade",
-            "valor": 25,
-            "descricao": "+25% velocidade de ataque"
-        },
-        "critico": 8.2,
-        "velocidade_ataque": 1.19,
-        "afinidade_elemento": "NATUREZA",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
         "habilidade": "Dardo Venenoso",
-        "custo_mana": 16.0
-    },
-    {
-        "nome": "Meteora das Cinzas",
-        "tipo": "Corrente",
-        "dano": 9.2,
-        "peso": 5.4,
-        "raridade": "Lendário",
-        "quantidade": 1,
-        "quantidade_orbitais": 1,
-        "forca_arco": 0.0,
-        "forma_atual": 1,
+        "custo_mana": 16.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 7.5600000000000005,
+            "peso": 4.8,
+            "alcance": 2.9999999999999996,
+            "alcance_minimo": 0.7,
+            "arco": 165.0,
+            "cadencia": 0.7776000000000001,
+            "startup": 0.198,
+            "ativo": 0.12,
+            "recovery": 0.276,
+            "critico": 0.05500000000000001,
+            "escala_forca": 1.02,
+            "escala_mana": 0.0,
+            "projeteis_por_ataque": 1,
+            "velocidade_projetil": 0.0,
+            "spread": 0.0,
+            "stagger": 0.7,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "arco_pesado",
+            "rastro": "serpenteante",
+            "impacto": "choque_esmagador",
+            "ornamento": "elo",
+            "brilho": 0.24,
+            "cor_base": {
+                "r": 90,
+                "g": 145,
+                "b": 80
+            },
+            "acabamento": "Raro"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "NATUREZA",
+            "habilidades": [
+                {
+                    "nome": "Dardo Venenoso",
+                    "custo": 16.0
+                },
+                {
+                    "nome": "Praga",
+                    "custo": 22.0
+                }
+            ],
+            "skill_primaria": "Dardo Venenoso",
+            "custo_primario": 16.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 300.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -386,11 +779,37 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
+        "meta_legado": {
+            "raridade": "Raro",
+            "encantamentos": [],
+            "passiva": null
+        }
+    },
+    {
+        "schema_version": 2,
+        "id": "meteora-das-cinzas",
+        "nome": "Meteora das Cinzas",
+        "familia": "corrente",
+        "subtipo": "mangual",
+        "categoria": "arma_fisica",
+        "tipo": "Corrente",
+        "tipo_legacy": "Corrente",
+        "estilo": "Meteor Hammer",
+        "dano": 7.5600000000000005,
+        "peso": 5.4,
+        "critico": 0.05500000000000001,
+        "velocidade_ataque": 0.7776000000000001,
+        "afinidade_elemento": "FOGO",
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "forma_atual": 1,
         "r": 253,
         "g": 104,
         "b": 66,
-        "estilo": "Meteor Hammer",
-        "cabo_dano": false,
+        "raridade": "Lendário",
         "habilidades": [
             {
                 "nome": "Meteoro",
@@ -401,34 +820,210 @@
                 "custo": 20.0
             }
         ],
-        "encantamentos": [
-            "Chamas",
-            "Penetração"
-        ],
-        "passiva": {
-            "nome": "Devastadora",
-            "efeito": "dano_bonus",
-            "valor": 15,
-            "descricao": "+15% dano"
-        },
-        "critico": 10.8,
-        "velocidade_ataque": 0.95,
-        "afinidade_elemento": "FOGO",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
         "habilidade": "Meteoro",
-        "custo_mana": 34.0
+        "custo_mana": 34.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 7.5600000000000005,
+            "peso": 5.4,
+            "alcance": 2.9999999999999996,
+            "alcance_minimo": 0.7,
+            "arco": 165.0,
+            "cadencia": 0.7776000000000001,
+            "startup": 0.198,
+            "ativo": 0.12,
+            "recovery": 0.276,
+            "critico": 0.05500000000000001,
+            "escala_forca": 1.02,
+            "escala_mana": 0.0,
+            "projeteis_por_ataque": 1,
+            "velocidade_projetil": 0.0,
+            "spread": 0.0,
+            "stagger": 0.7,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "arco_pesado",
+            "rastro": "serpenteante",
+            "impacto": "choque_esmagador",
+            "ornamento": "elo",
+            "brilho": 0.24,
+            "cor_base": {
+                "r": 253,
+                "g": 104,
+                "b": 66
+            },
+            "acabamento": "Lendário"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "FOGO",
+            "habilidades": [
+                {
+                    "nome": "Meteoro",
+                    "custo": 34.0
+                },
+                {
+                    "nome": "Inferno",
+                    "custo": 20.0
+                }
+            ],
+            "skill_primaria": "Meteoro",
+            "custo_primario": 34.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 300.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 300.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 0.0,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "meta_legado": {
+            "raridade": "Lendário",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "veu-da-hemomancia",
         "nome": "Véu da Hemomancia",
+        "familia": "foco",
+        "subtipo": "cetro",
+        "categoria": "foco_magico",
         "tipo": "Mágica",
-        "dano": 8.4,
-        "peso": 3.0,
-        "raridade": "Épico",
+        "tipo_legacy": "Mágica",
+        "estilo": "Tentáculos Sombrios",
+        "dano": 6.588,
+        "peso": 2.76,
+        "critico": 0.066,
+        "velocidade_ataque": 0.8640000000000001,
+        "afinidade_elemento": "SANGUE",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 190,
+        "g": 35,
+        "b": 55,
+        "raridade": "Épico",
+        "habilidades": [
+            {
+                "nome": "Avatar de Sangue",
+                "custo": 24.0
+            },
+            {
+                "nome": "Sanguessuga",
+                "custo": 20.0
+            }
+        ],
+        "habilidade": "Avatar de Sangue",
+        "custo_mana": 24.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.588,
+            "peso": 2.76,
+            "alcance": 5.8,
+            "alcance_minimo": 0.0085,
+            "arco": 120.0,
+            "cadencia": 0.8640000000000001,
+            "startup": 0.14400000000000002,
+            "ativo": 0.1,
+            "recovery": 0.2024,
+            "critico": 0.066,
+            "escala_forca": 0.2,
+            "escala_mana": 1.045,
+            "projeteis_por_ataque": 2,
+            "velocidade_projetil": 12.0,
+            "spread": 10.0,
+            "stagger": 0.34,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "sigilo_instavel",
+            "rastro": "mana",
+            "impacto": "surto_arcano",
+            "ornamento": "anel_runico",
+            "brilho": 0.55,
+            "cor_base": {
+                "r": 190,
+                "g": 35,
+                "b": 55
+            },
+            "acabamento": "Épico"
+        },
+        "magia": {
+            "usa_foco": true,
+            "afinidade": "SANGUE",
+            "habilidades": [
+                {
+                    "nome": "Avatar de Sangue",
+                    "custo": 24.0
+                },
+                {
+                    "nome": "Sanguessuga",
+                    "custo": 20.0
+                }
+            ],
+            "skill_primaria": "Avatar de Sangue",
+            "custo_primario": 24.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 400.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -446,49 +1041,120 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 190,
-        "g": 35,
-        "b": 55,
-        "estilo": "Tentáculos Sombrios",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Avatar de Sangue",
-                "custo": 24.0
-            },
-            {
-                "nome": "Sanguessuga",
-                "custo": 20.0
-            }
-        ],
-        "encantamentos": [
-            "Vampirismo",
-            "Trevas"
-        ],
-        "passiva": {
-            "nome": "Sanguinária",
-            "efeito": "lifesteal",
-            "valor": 12,
-            "descricao": "12% roubo de vida"
-        },
-        "critico": 7.5,
-        "velocidade_ataque": 1.02,
-        "afinidade_elemento": "SANGUE",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Avatar de Sangue",
-        "custo_mana": 24.0
+        "meta_legado": {
+            "raridade": "Épico",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "solsticio-quebrado",
         "nome": "Solstício Quebrado",
+        "familia": "hibrida",
+        "subtipo": "modular",
+        "categoria": "arma_hibrida",
         "tipo": "Transformável",
-        "dano": 8.8,
+        "tipo_legacy": "Transformável",
+        "estilo": "Arco→Lâminas",
+        "dano": 7.236000000000001,
         "peso": 3.9,
-        "raridade": "Mítico",
+        "critico": 0.066,
+        "velocidade_ataque": 0.9720000000000001,
+        "afinidade_elemento": "LUZ",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 255,
+        "g": 180,
+        "b": 90,
+        "raridade": "Mítico",
+        "habilidades": [
+            {
+                "nome": "Julgamento Celestial",
+                "custo": 32.0
+            },
+            {
+                "nome": "Tempestade Ascendente",
+                "custo": 26.0
+            }
+        ],
+        "habilidade": "Julgamento Celestial",
+        "custo_mana": 32.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 7.236000000000001,
+            "peso": 3.9,
+            "alcance": 2.1,
+            "alcance_minimo": 0.2,
+            "arco": 102.0,
+            "cadencia": 0.9720000000000001,
+            "startup": 0.117,
+            "ativo": 0.1,
+            "recovery": 0.18400000000000002,
+            "critico": 0.066,
+            "escala_forca": 0.8999999999999999,
+            "escala_mana": 0.22000000000000003,
+            "projeteis_por_ataque": 1,
+            "velocidade_projetil": 0.0,
+            "spread": 0.0,
+            "stagger": 0.52,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "dobradiça",
+            "rastro": "quebra_ritmo",
+            "impacto": "troca_forma",
+            "ornamento": "mecanismo",
+            "brilho": 0.32,
+            "cor_base": {
+                "r": 255,
+                "g": 180,
+                "b": 90
+            },
+            "acabamento": "Mítico"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "LUZ",
+            "habilidades": [
+                {
+                    "nome": "Julgamento Celestial",
+                    "custo": 32.0
+                },
+                {
+                    "nome": "Tempestade Ascendente",
+                    "custo": 26.0
+                }
+            ],
+            "skill_primaria": "Julgamento Celestial",
+            "custo_primario": 32.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 200.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -506,50 +1172,120 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 255,
-        "g": 180,
-        "b": 90,
-        "estilo": "Arco→Lâminas",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Julgamento Celestial",
-                "custo": 32.0
-            },
-            {
-                "nome": "Tempestade Ascendente",
-                "custo": 26.0
-            }
-        ],
-        "encantamentos": [
-            "Sagrado",
-            "Relâmpago",
-            "Crítico"
-        ],
-        "passiva": {
-            "nome": "Temporal",
-            "efeito": "cooldown",
-            "valor": 40,
-            "descricao": "-40% cooldown de habilidades"
-        },
-        "critico": 14.0,
-        "velocidade_ataque": 1.18,
-        "afinidade_elemento": "LUZ",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Julgamento Celestial",
-        "custo_mana": 32.0
+        "meta_legado": {
+            "raridade": "Mítico",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "mandibula-do-trovao",
         "nome": "Mandíbula do Trovão",
+        "familia": "arremesso",
+        "subtipo": "faca",
+        "categoria": "arma_fisica",
         "tipo": "Arremesso",
-        "dano": 8.0,
-        "peso": 3.6,
-        "raridade": "Épico",
+        "tipo_legacy": "Arremesso",
+        "estilo": "Chakram (Retorna)",
+        "dano": 6.048,
+        "peso": 1.9549999999999998,
+        "critico": 0.07700000000000001,
+        "velocidade_ataque": 0.9288000000000001,
+        "afinidade_elemento": "RAIO",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 240,
+        "g": 215,
+        "b": 80,
+        "raridade": "Épico",
+        "habilidades": [
+            {
+                "nome": "Mjolnir",
+                "custo": 24.0
+            },
+            {
+                "nome": "Tempestade",
+                "custo": 18.0
+            }
+        ],
+        "habilidade": "Mjolnir",
+        "custo_mana": 24.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.048,
+            "peso": 1.9549999999999998,
+            "alcance": 8.424,
+            "alcance_minimo": 1.2,
+            "arco": 26.0,
+            "cadencia": 0.9288000000000001,
+            "startup": 0.135,
+            "ativo": 0.05,
+            "recovery": 0.2208,
+            "critico": 0.07700000000000001,
+            "escala_forca": 0.8424,
+            "escala_mana": 0.0,
+            "projeteis_por_ataque": 3,
+            "velocidade_projetil": 16.0,
+            "spread": 18.0,
+            "stagger": 0.22,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "vetor_rotativo",
+            "rastro": "agulha_luminosa",
+            "impacto": "estalo_seco",
+            "ornamento": "giro",
+            "brilho": 0.18,
+            "cor_base": {
+                "r": 240,
+                "g": 215,
+                "b": 80
+            },
+            "acabamento": "Épico"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "RAIO",
+            "habilidades": [
+                {
+                    "nome": "Mjolnir",
+                    "custo": 24.0
+                },
+                {
+                    "nome": "Tempestade",
+                    "custo": 18.0
+                }
+            ],
+            "skill_primaria": "Mjolnir",
+            "custo_primario": 24.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 800.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -567,49 +1303,120 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 240,
-        "g": 215,
-        "b": 80,
-        "estilo": "Chakram (Retorna)",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Mjolnir",
-                "custo": 24.0
-            },
-            {
-                "nome": "Tempestade",
-                "custo": 18.0
-            }
-        ],
-        "encantamentos": [
-            "Relâmpago",
-            "Crítico"
-        ],
-        "passiva": {
-            "nome": "Brutal",
-            "efeito": "crit_damage",
-            "valor": 35,
-            "descricao": "+35% dano crítico"
-        },
-        "critico": 13.2,
-        "velocidade_ataque": 1.16,
-        "afinidade_elemento": "RAIO",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Mjolnir",
-        "custo_mana": 24.0
+        "meta_legado": {
+            "raridade": "Épico",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "pilares-do-santuario",
         "nome": "Pilares do Santuário",
+        "familia": "orbital",
+        "subtipo": "escudo",
+        "categoria": "arma_tatica",
         "tipo": "Orbital",
-        "dano": 6.9,
+        "tipo_legacy": "Orbital",
+        "estilo": "Defensivo (Escudo)",
+        "dano": 6.48,
         "peso": 4.2,
-        "raridade": "Raro",
+        "critico": 0.042,
+        "velocidade_ataque": 0.9072,
+        "afinidade_elemento": "LUZ",
         "quantidade": 1,
         "quantidade_orbitais": 2,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 220,
+        "g": 220,
+        "b": 255,
+        "raridade": "Raro",
+        "habilidades": [
+            {
+                "nome": "Aura Sagrada",
+                "custo": 25.0
+            },
+            {
+                "nome": "Aura Sagrada",
+                "custo": 18.0
+            }
+        ],
+        "habilidade": "Aura Sagrada",
+        "custo_mana": 25.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.48,
+            "peso": 4.2,
+            "alcance": 1.9999999999999998,
+            "alcance_minimo": 0.0085,
+            "arco": 360.0,
+            "cadencia": 0.9072,
+            "startup": 0.05,
+            "ativo": 0.12,
+            "recovery": 0.138,
+            "critico": 0.042,
+            "escala_forca": 0.7,
+            "escala_mana": 0.3,
+            "projeteis_por_ataque": 1,
+            "velocidade_projetil": 14.0,
+            "spread": 0.0,
+            "stagger": 0.36,
+            "qtd_orbitais": 2,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "anel_guardiao",
+            "rastro": "orbita",
+            "impacto": "pulso",
+            "ornamento": "sigilo_orbital",
+            "brilho": 0.42,
+            "cor_base": {
+                "r": 220,
+                "g": 220,
+                "b": 255
+            },
+            "acabamento": "Raro"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "LUZ",
+            "habilidades": [
+                {
+                    "nome": "Aura Sagrada",
+                    "custo": 25.0
+                },
+                {
+                    "nome": "Aura Sagrada",
+                    "custo": 18.0
+                }
+            ],
+            "skill_primaria": "Aura Sagrada",
+            "custo_primario": 25.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 90.0,
+            "distancia": 50.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 90.0,
@@ -627,49 +1434,120 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 220,
-        "g": 220,
-        "b": 255,
-        "estilo": "Defensivo (Escudo)",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Aura Sagrada",
-                "custo": 25.0
-            },
-            {
-                "nome": "Aura Sagrada",
-                "custo": 18.0
-            }
-        ],
-        "encantamentos": [
-            "Sagrado",
-            "Espelhamento"
-        ],
-        "passiva": {
-            "nome": "Imortal",
-            "efeito": "sobreviver",
-            "valor": 1,
-            "descricao": "Uma vez por luta, sobrevive com 1 HP"
-        },
-        "critico": 4.2,
-        "velocidade_ataque": 0.9699999999999999,
-        "afinidade_elemento": "LUZ",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Aura Sagrada",
-        "custo_mana": 25.0
+        "meta_legado": {
+            "raridade": "Raro",
+            "encantamentos": [],
+            "passiva": null
+        }
     },
     {
+        "schema_version": 2,
+        "id": "rosario-do-caos",
         "nome": "Rosário do Caos",
+        "familia": "foco",
+        "subtipo": "cetro",
+        "categoria": "foco_magico",
         "tipo": "Mágica",
-        "dano": 8.7,
-        "peso": 2.9,
-        "raridade": "Mítico",
+        "tipo_legacy": "Mágica",
+        "estilo": "Runas Flutuantes",
+        "dano": 6.588,
+        "peso": 2.76,
+        "critico": 0.066,
+        "velocidade_ataque": 0.8640000000000001,
+        "afinidade_elemento": "CAOS",
         "quantidade": 1,
         "quantidade_orbitais": 1,
         "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
         "forma_atual": 1,
+        "r": 180,
+        "g": 85,
+        "b": 240,
+        "raridade": "Mítico",
+        "habilidades": [
+            {
+                "nome": "Cometa",
+                "custo": 26.0
+            },
+            {
+                "nome": "Portal Arcano",
+                "custo": 24.0
+            }
+        ],
+        "habilidade": "Cometa",
+        "custo_mana": 26.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.588,
+            "peso": 2.76,
+            "alcance": 5.8,
+            "alcance_minimo": 0.0085,
+            "arco": 120.0,
+            "cadencia": 0.8640000000000001,
+            "startup": 0.14400000000000002,
+            "ativo": 0.1,
+            "recovery": 0.2024,
+            "critico": 0.066,
+            "escala_forca": 0.2,
+            "escala_mana": 1.045,
+            "projeteis_por_ataque": 2,
+            "velocidade_projetil": 12.0,
+            "spread": 10.0,
+            "stagger": 0.34,
+            "qtd_orbitais": 0,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "sigilo_instavel",
+            "rastro": "mana",
+            "impacto": "surto_arcano",
+            "ornamento": "anel_runico",
+            "brilho": 0.55,
+            "cor_base": {
+                "r": 180,
+                "g": 85,
+                "b": 240
+            },
+            "acabamento": "Mítico"
+        },
+        "magia": {
+            "usa_foco": true,
+            "afinidade": "CAOS",
+            "habilidades": [
+                {
+                    "nome": "Cometa",
+                    "custo": 26.0
+                },
+                {
+                    "nome": "Portal Arcano",
+                    "custo": 24.0
+                }
+            ],
+            "skill_primaria": "Cometa",
+            "custo_primario": 26.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 400.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 0.0,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
         "comp_cabo": 15.0,
         "comp_lamina": 50.0,
         "largura": 30.0,
@@ -687,38 +1565,10 @@
         "forma1_lamina": 0.0,
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
-        "r": 180,
-        "g": 85,
-        "b": 240,
-        "estilo": "Runas Flutuantes",
-        "cabo_dano": false,
-        "habilidades": [
-            {
-                "nome": "Cometa",
-                "custo": 26.0
-            },
-            {
-                "nome": "Portal Arcano",
-                "custo": 24.0
-            }
-        ],
-        "encantamentos": [
-            "Espelhamento",
-            "Crítico",
-            "Velocidade"
-        ],
-        "passiva": {
-            "nome": "Caótica",
-            "efeito": "random_element",
-            "valor": 100,
-            "descricao": "Cada ataque tem elemento aleatório"
-        },
-        "critico": 9.8,
-        "velocidade_ataque": 1.11,
-        "afinidade_elemento": "CAOS",
-        "durabilidade": 100.0,
-        "durabilidade_max": 100.0,
-        "habilidade": "Cometa",
-        "custo_mana": 26.0
+        "meta_legado": {
+            "raridade": "Mítico",
+            "encantamentos": [],
+            "passiva": null
+        }
     }
 ]

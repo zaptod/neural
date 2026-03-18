@@ -48,7 +48,7 @@ def salvar_json(arquivo, dados):
 
 def carregar_armas():
     raw = carregar_json(ARQUIVO_ARMAS)
-    return [Arma(**item) for item in raw]
+    return [Arma.from_dict(item) for item in raw]
 
 def carregar_personagens():
     raw_chars = carregar_json(ARQUIVO_CHARS)

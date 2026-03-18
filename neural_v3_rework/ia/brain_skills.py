@@ -53,10 +53,61 @@ except ImportError:
 
 from nucleo.skills import get_skill_data
 from ia._brain_mixin_base import _AIBrainMixinBase
+from ia.weapon_ai import resolver_familia_arma
 
 
 class SkillsMixin(_AIBrainMixinBase):
     """Mixin de uso inteligente de skills (estratÃ©gico + legado)."""
+
+    def _modular_chance_skill_por_arena(self, chance, sk, distancia):
+        """Ajusta a chance conforme perigo da arena e oportunidades ambientais."""
+        if sk is None:
+            return max(0.05, min(0.98, chance))
+
+        esp = getattr(self, "consciencia_espacial", {})
+        em_zona = bool(esp.get("zona_perigo_atual"))
+        inimigo_em_zona = bool(esp.get("zona_perigo_inimigo"))
+        inimigo_na_borda = bool(esp.get("oponente_contra_parede")) or bool(esp.get("oponente_perto_obstaculo"))
+        tipo = sk.tipo
+        data = sk.data or {}
+
+        skill_move = (
+            tipo in ("DASH", "TRANSFORM")
+            or data.get("teleporte")
+            or data.get("intangivel")
+            or data.get("invencivel")
+            or data.get("bonus_velocidade")
+        )
+        skill_controla = (
+            tipo in ("TRAP", "CONTROL", "AREA", "BEAM")
+            or data.get("bloqueia_movimento", False)
+            or data.get("puxa_continuo")
+            or data.get("puxa_para_centro")
+            or data.get("slow")
+            or data.get("stun")
+            or data.get("root")
+        )
+
+        if em_zona:
+            if skill_move:
+                chance *= 1.28
+            elif tipo == "BUFF" and (data.get("escudo") or data.get("cura") or data.get("bonus_resistencia")):
+                chance *= 1.14
+            elif skill_controla and distancia < 4.0:
+                chance *= 1.08
+            else:
+                chance *= 0.78
+
+        if inimigo_em_zona:
+            if skill_controla:
+                chance *= 1.22
+            elif tipo in ("PROJETIL", "BEAM", "AREA"):
+                chance *= 1.10
+
+        if inimigo_na_borda and (data.get("bloqueia_movimento", False) or data.get("puxa_para_centro")):
+            chance *= 1.18
+
+        return max(0.05, min(0.98, chance))
 
 
     # =========================================================================
@@ -153,6 +204,15 @@ class SkillsMixin(_AIBrainMixinBase):
         role            = strategy.role_principal.value
         plano           = strategy.plano
         skills          = strategy.skills
+        arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
+        familia_arma = resolver_familia_arma(arma)
+        orbes_orbitando = len([
+            o for o in getattr(p, 'buffer_orbes', [])
+            if getattr(o, 'ativo', False) and getattr(o, 'estado', '') == "orbitando"
+        ])
+        orbital_burst_pronto = getattr(p, 'orbital_burst_cd', 999.0) <= 0.0
+        forma_hibrida = int(getattr(p, 'transform_forma', getattr(arma, 'forma_atual', 0)) or 0)
+        bonus_hibrido = getattr(p, 'transform_bonus_timer', 0.0) > 0.0
 
         # â”€â”€ Estado do inimigo (BUG-A4 fix: chave de cache baseada em estado real,
         # nÃ£o em tempo â€” a chave anterior usava int(tempo_combate * 10) que
@@ -190,6 +250,8 @@ class SkillsMixin(_AIBrainMixinBase):
         inimigo_atk_iminente  = self.leitura_oponente.get("ataque_iminente", False)
         encurralado           = self.consciencia_espacial.get("encurralado", False)
         oponente_encurralado  = self.consciencia_espacial.get("oponente_contra_parede", False)
+        inimigo_em_zona       = self.consciencia_espacial.get("zona_perigo_inimigo")
+        eu_em_zona            = self.consciencia_espacial.get("zona_perigo_atual")
         inimigo_mana_baixa    = getattr(inimigo, 'mana', 999) < getattr(inimigo, 'mana_max', 999) * 0.2
         buffs_ativos          = len(getattr(p, 'buffs_ativos', []))
         tenho_summons         = self._contar_summons_ativos() > 0
@@ -263,6 +325,52 @@ class SkillsMixin(_AIBrainMixinBase):
             if not sk or sk.alcance_efetivo <= 0:
                 return True
             return distancia <= sk.alcance_efetivo * margem
+
+        def _chance_skill_contextual(base, skill_nome=None):
+            chance = base
+            sk = skills.get(skill_nome) if skill_nome else None
+            tipo_skill = sk.tipo if sk else ""
+
+            if "CALCULISTA" in self.tracos:
+                if tipo_skill in ("BUFF", "TRAP", "TRANSFORM", "CHANNEL"):
+                    chance *= 1.12
+                elif tipo_skill in ("PROJETIL", "BEAM", "AREA"):
+                    chance *= 0.88
+            if "PACIENTE" in self.tracos:
+                if tipo_skill in ("BUFF", "TRAP", "CONTROL", "CHANNEL"):
+                    chance *= 1.10
+                elif tempo_combate < 8.0 and tipo_skill in ("AREA", "BEAM"):
+                    chance *= 0.84
+            if "BERSERKER" in self.tracos or "FURIOSO" in self.tracos:
+                if tipo_skill in ("AREA", "BEAM", "TRANSFORM", "DASH"):
+                    chance *= 1.16
+                elif tipo_skill == "BUFF" and sk and (sk.data.get("cura") or sk.data.get("escudo")):
+                    chance *= 0.80
+            if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
+                if tipo_skill in ("DASH", "TRANSFORM", "PROJETIL", "AREA"):
+                    chance *= 1.12
+                elif tipo_skill == "CHANNEL":
+                    chance *= 0.78
+
+            if familia_arma == "foco":
+                if tipo_skill in ("PROJETIL", "BEAM", "BUFF") and orbes_orbitando >= 2:
+                    chance *= 1.12
+                if orbes_orbitando == 0 and distancia < 2.6 and tipo_skill in ("PROJETIL", "BEAM", "AREA"):
+                    chance *= 0.82
+            elif familia_arma == "orbital":
+                if orbital_burst_pronto and tipo_skill in ("CONTROL", "AREA", "BUFF", "TRANSFORM"):
+                    chance *= 1.10
+                elif not orbital_burst_pronto and tipo_skill == "BUFF":
+                    chance *= 0.92
+            elif familia_arma == "hibrida":
+                if tipo_skill == "TRANSFORM" and not bonus_hibrido:
+                    chance *= 1.18
+                if bonus_hibrido and tipo_skill in ("DASH", "PROJETIL", "BEAM", "AREA"):
+                    chance *= 1.15
+                if forma_hibrida == 1 and tipo_skill == "DASH":
+                    chance *= 0.84
+
+            return self._modular_chance_skill_por_arena(chance, sk, distancia)
 
         # ================================================================
         # v13.0 PRIORIDADE 0: TEAM SUPPORT SKILLS â€” cura/buff aliados
@@ -357,6 +465,15 @@ class SkillsMixin(_AIBrainMixinBase):
                     if alcance_ok(nome, 1.1) and tentar(nome, "emergencia_cc_defensivo"):
                         return True
 
+        if eu_em_zona:
+            for nome in list(plano.escapes) + list(plano.controls) + list(plano.sustains):
+                sk = skills.get(nome)
+                if not sk:
+                    continue
+                if self._modular_chance_skill_por_arena(0.92, sk, distancia) >= 0.88:
+                    if tentar(nome, "escape_zona_perigosa"):
+                        return True
+
         # ================================================================
         # PRIORIDADE 2: REAÃ‡ÃƒO A ATAQUE IMINENTE
         # ================================================================
@@ -392,6 +509,13 @@ class SkillsMixin(_AIBrainMixinBase):
                 if alcance_ok(nome, 1.15):
                     if tentar(nome, "janela_cc"):
                         return True
+
+        if inimigo_em_zona and mana_pct > 0.18:
+            for nome, sk in skills.items():
+                if sk.tipo in ("TRAP", "CONTROL", "AREA", "BEAM") or sk.data.get("bloqueia_movimento", False) or sk.data.get("puxa_para_centro"):
+                    if alcance_ok(nome, 1.2):
+                        if tentar(nome, "punir_zona_perigosa"):
+                            return True
 
         # ================================================================
         # PRIORIDADE 4: COMBO SINÃ‰RGICO â€” setup â†’ payload
@@ -465,6 +589,7 @@ class SkillsMixin(_AIBrainMixinBase):
                     # v14.0: Elemental combos get bonus chance
                     if "elemental_" in razao:
                         chance_combo = min(0.90, chance_combo + 0.20)
+                    chance_combo = _chance_skill_contextual(chance_combo, sk1)
                     if random.random() < chance_combo:
                         if alcance_ok(sk1, 1.15) and tentar(sk1, f"combo_setup_{razao}"):
                             self.combo_state["em_combo"] = True
@@ -615,8 +740,9 @@ class SkillsMixin(_AIBrainMixinBase):
                         reverse=True
                     )
                 for nome in poke_list:
-                    if alcance_ok(nome, 1.12) and tentar(nome, "poke"):
-                        return True
+                    if random.random() < _chance_skill_contextual(0.92, nome):
+                        if alcance_ok(nome, 1.12) and tentar(nome, "poke"):
+                            return True
                 # Traps como zoning â€” diferencia wall vs trigger
                 traps_ativos = self._contar_traps_ativos()
                 if traps_ativos < 3:
@@ -700,6 +826,7 @@ class SkillsMixin(_AIBrainMixinBase):
                 chance = 0.96
             if not alcance_ok(sk_profile.nome, 1.40):
                 chance *= 0.22
+            chance = _chance_skill_contextual(chance, sk_profile.nome)
             if random.random() < chance:
                 if self._executar_skill_por_nome(sk_profile.nome):
                     strategy.registrar_uso_skill(sk_profile.nome)
@@ -845,16 +972,28 @@ class SkillsMixin(_AIBrainMixinBase):
     def _pos_uso_skill_estrategica(self, skill_profile):
         """Define aÃ§Ã£o apÃ³s usar uma skill baseada na estratÃ©gia v3.1"""
         tipo = skill_profile.tipo
-        
+        p = self.parent
+        arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
+        familia_arma = resolver_familia_arma(arma)
+        orbes_orbitando = len([
+            o for o in getattr(p, 'buffer_orbes', [])
+            if getattr(o, 'ativo', False) and getattr(o, 'estado', '') == "orbitando"
+        ])
+        forma_hibrida = int(getattr(p, 'transform_forma', getattr(arma, 'forma_atual', 0)) or 0)
+
         if tipo == "DASH":
-            if skill_profile.data.get("dano_chegada", 0) > 0:
+            if familia_arma == "hibrida" and forma_hibrida == 1:
+                self.acao_atual = "POKE"
+            elif skill_profile.data.get("dano_chegada", 0) > 0:
                 self.acao_atual = "MATAR"
             else:
                 # Dash sem dano = reposicionamento, agir de acordo
                 self.acao_atual = "COMBATE"
         elif tipo == "SUMMON":
             # ApÃ³s invocar, recuar para deixar o summon lutar
-            if self.skill_strategy.preferencias.get("estilo_kite"):
+            if familia_arma == "orbital":
+                self.acao_atual = "COMBATE"
+            elif self.skill_strategy.preferencias.get("estilo_kite"):
                 self.acao_atual = "RECUAR"
             else:
                 self.acao_atual = "PRESSIONAR"
@@ -867,7 +1006,10 @@ class SkillsMixin(_AIBrainMixinBase):
                 self.acao_atual = "RECUAR"
         elif tipo == "TRANSFORM":
             # Transformado = agressivo
-            self.acao_atual = "MATAR"
+            if familia_arma == "hibrida" and ("CALCULISTA" in self.tracos or "PACIENTE" in self.tracos):
+                self.acao_atual = "COMBATE" if forma_hibrida == 0 else "POKE"
+            else:
+                self.acao_atual = "MATAR"
         elif tipo == "BUFF":
             if skill_profile.data.get("buff_velocidade"):
                 if self.medo > 0.4:
@@ -878,15 +1020,27 @@ class SkillsMixin(_AIBrainMixinBase):
                 # Curou: manter distÃ¢ncia segura enquanto cura faz efeito
                 self.acao_atual = "RECUAR"
             else:
-                self.acao_atual = "PRESSIONAR"
+                if familia_arma == "orbital":
+                    self.acao_atual = "COMBATE" if getattr(p, 'orbital_burst_cd', 999.0) <= 1.0 else "PRESSIONAR"
+                elif familia_arma == "foco" and ("CALCULISTA" in self.tracos or "PACIENTE" in self.tracos):
+                    self.acao_atual = "POKE"
+                else:
+                    self.acao_atual = "PRESSIONAR"
         elif tipo in ["PROJETIL", "BEAM"]:
-            if self.estilo_luta in ["KITE", "RANGED"]:
+            if familia_arma == "foco":
+                self.acao_atual = "COMBATE" if orbes_orbitando >= 1 else ("RECUAR" if "PACIENTE" in self.tracos else "CIRCULAR")
+            elif familia_arma == "hibrida":
+                self.acao_atual = "POKE" if forma_hibrida == 1 else "MATAR"
+            elif self.estilo_luta in ["KITE", "RANGED"]:
                 self.acao_atual = "RECUAR"
             else:
                 # Projetil lanÃ§ado: pressionar enquanto projÃ©til voa
                 self.acao_atual = "COMBATE"
         elif tipo == "AREA":
-            self.acao_atual = "MATAR"
+            if familia_arma == "orbital":
+                self.acao_atual = "COMBATE"
+            else:
+                self.acao_atual = "MATAR"
         elif tipo == "CHANNEL":
             # BUG-A1 fix: "COMBATE" causava movimento ativo que interrompia o canal.
             # "BLOQUEAR" gera strafe mÃ­nimo (mantÃ©m posiÃ§Ã£o aproximada) e Ã©
@@ -1154,6 +1308,8 @@ class SkillsMixin(_AIBrainMixinBase):
                 # Encurralado = wall para bloquear perseguiÃ§Ã£o
                 if self.consciencia_espacial.get("encurralado", False):
                     usar = True
+                elif self.consciencia_espacial.get("zona_perigo_atual"):
+                    usar = True
                 # Inimigo se aproximando agressivamente
                 elif self.leitura_oponente.get("ataque_iminente", False) and distancia < 4.0:
                     usar = True
@@ -1164,6 +1320,8 @@ class SkillsMixin(_AIBrainMixinBase):
                 # TRIGGER: colocar no caminho provÃ¡vel do inimigo
                 # Inimigo se aproximando = colocar na frente
                 if self.leitura_oponente.get("ataque_iminente", False) and distancia < 5.0:
+                    usar = True
+                elif self.consciencia_espacial.get("zona_perigo_inimigo"):
                     usar = True
                 # Controle de Ã¡rea geral
                 elif traps_ativos < 2 and distancia > 3.0:

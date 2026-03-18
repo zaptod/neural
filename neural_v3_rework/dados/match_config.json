@@ -1,6 +1,6 @@
 {
-    "p1_nome": "Asterion Valebrilho",
-    "p2_nome": "Eira Neblina",
+    "p1_nome": "Aeron Ferro da Brasa",
+    "p2_nome": "Lyra Ferro da Brasa",
     "cenario": "Campo de Batalha",
     "best_of": 1,
     "portrait_mode": false,
@@ -8,19 +8,19 @@
         {
             "team_id": 0,
             "members": [
-                "Asterion Valebrilho",
-                "Nyx Serracurta",
-                "Tamaris Voltagem",
-                "Mordren Vaziofrio"
+                "Aeron Ferro da Brasa",
+                "Kaelis Ferro da Brasa",
+                "Mira Ferro da Brasa",
+                "Darian Ferro da Brasa"
             ]
         },
         {
             "team_id": 1,
             "members": [
-                "Eira Neblina",
-                "Brakka Musgoferro",
-                "Ragan Cinzaforte",
-                "Selene Carmesim"
+                "Lyra Ferro da Brasa",
+                "Thorne Ferro da Brasa",
+                "Selka Ferro da Brasa",
+                "Valen Ferro da Brasa"
             ]
         }
     ]

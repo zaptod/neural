@@ -1,0 +1,105 @@
+{
+  "versao": "1.0",
+  "descricao": "Plano oficial de testes taticos para balanceamento por pacote.",
+  "modos": [
+    {
+      "id": "1v1",
+      "nome": "Duelo 1v1",
+      "objetivo": "Validar arma, personalidade, skill e leitura individual.",
+      "cenarios_minimos": [
+        "duelo_curto_sem_obstaculo",
+        "duelo_medio_com_obstaculo",
+        "duelo_longo_com_mapa_perigoso"
+      ],
+      "metricas": [
+        "win_rate_por_papel",
+        "win_rate_por_familia_arma",
+        "tempo_medio_luta",
+        "dano_total",
+        "dano_arma",
+        "dano_skill",
+        "hits_arma",
+        "hits_skill",
+        "mana_gasta",
+        "cura_total",
+        "escudo_total"
+      ],
+      "criterios_alerta": {
+        "tempo_medio_min_seg": 18,
+        "tempo_medio_max_seg": 95,
+        "win_rate_isolado_max": 0.62
+      }
+    },
+    {
+      "id": "grupo_vs_grupo",
+      "nome": "Grupo vs Grupo",
+      "objetivo": "Validar composicao, sinergia e valor dos papeis taticos.",
+      "cenarios_minimos": [
+        "2v2_balanceado",
+        "3v3_frontline_backline",
+        "4v4_com_controle_de_area"
+      ],
+      "metricas": [
+        "win_rate_por_composicao",
+        "sobrevivencia_por_papel",
+        "cura_efetiva",
+        "escudo_efetivo",
+        "tempo_de_pressao_centro",
+        "foco_de_alvo",
+        "interrupts_de_skill",
+        "overkill",
+        "kills_por_papel"
+      ],
+      "criterios_alerta": {
+        "win_rate_comp_max": 0.66,
+        "healer_obrigatorio": false,
+        "tempo_medio_max_seg": 180
+      }
+    },
+    {
+      "id": "grupo_vs_horda",
+      "nome": "Grupo vs Horda",
+      "objetivo": "Validar sustain, controle de corredor e consistencia em combate longo.",
+      "cenarios_minimos": [
+        "onda_curta_minions",
+        "onda_media_corredor",
+        "dungeon_com_mini_boss"
+      ],
+      "metricas": [
+        "tempo_ate_wipe",
+        "inimigos_abatidos",
+        "dano_recebido_por_papel",
+        "mana_gasta_por_onda",
+        "cura_por_onda",
+        "uptime_de_controle",
+        "alvos_simultaneos_controlados",
+        "integridade_da_backline"
+      ],
+      "criterios_alerta": {
+        "tempo_ate_wipe_min_seg": 45,
+        "limpador_de_horda_obrigatorio": false,
+        "defensor_recomendado": true
+      }
+    }
+  ],
+  "loop_de_iteracao": [
+    "definir_papel",
+    "montar_pacote",
+    "rodar_1v1",
+    "rodar_grupo_vs_grupo",
+    "rodar_grupo_vs_horda",
+    "coletar_metricas",
+    "ajustar_funcao_e_ritmo",
+    "ajustar_janelas_e_custos",
+    "ajustar_numeros_finais",
+    "repetir"
+  ],
+  "prioridade_de_ajuste": [
+    "funcao",
+    "ritmo",
+    "janela",
+    "espacamento",
+    "custo",
+    "numeros"
+  ]
+}

@@ -72,6 +72,22 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.assertTrue(e["crit"])
         self.assertEqual(e["elem"], "FOGO")
 
+    def test_record_hit_tracks_source_buckets(self):
+        self.stats.record_hit("Caleb", "Bjorn", 10, source_type="weapon", source_name="Espada")
+        self.stats.record_hit("Caleb", "Bjorn", 12, source_type="skill", source_name="Bola de Fogo")
+        self.stats.record_hit("Caleb", "Bjorn", 8, source_type="summon", source_name="Lobo")
+        self.stats.record_hit("Caleb", "Bjorn", 6, source_type="trap", source_name="Armadilha")
+        self.stats.record_hit("Caleb", "Bjorn", 4, source_type="status", source_name="Queimadura")
+
+        c = self.stats._fighters["Caleb"]
+        self.assertEqual(c["weapon_hits"], 1)
+        self.assertEqual(c["skill_hits"], 1)
+        self.assertEqual(c["summon_hits"], 1)
+        self.assertEqual(c["trap_hits"], 1)
+        self.assertEqual(c["status_hits"], 1)
+        self.assertEqual(c["hit_source_detail"]["Bola de Fogo"]["hits"], 1)
+        self.assertEqual(c["hit_source_detail"]["Queimadura"]["damage"], 4)
+
     # â”€â”€ Combo tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def test_combo_tracking(self):
@@ -112,6 +128,11 @@ class TestMatchStatsCollector(unittest.TestCase):
         self.assertEqual(events[0]["type"], "skill")
         self.assertEqual(events[0]["skill"], "Ice Blast")
         self.assertEqual(events[0]["cost"], 20.0)
+
+    def test_record_skill_offensive_increments_actions(self):
+        self.stats.record_skill("Caleb", "Raio", mana_cost=10, skill_type="BEAM")
+        self.assertEqual(self.stats._fighters["Caleb"]["attacks_attempted"], 1)
+        self.assertEqual(self.stats._fighters["Caleb"]["offensive_actions"], 1)
 
     # â”€â”€ record_block / record_dodge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -164,10 +185,9 @@ class TestMatchStatsCollector(unittest.TestCase):
         """flush_to_db should insert events into BattleDB without errors."""
         from dados.battle_db import BattleDB
         BattleDB._instance = None  # Reset singleton
-        tmp_dir = tempfile.mkdtemp()
         try:
             # Create DB as singleton so flush_to_db's BattleDB.get() finds it
-            db = BattleDB(os.path.join(tmp_dir, "test_stats.db"))
+            db = BattleDB(":memory:")
             BattleDB._instance = db
 
             # Need a match first (foreign key)
@@ -188,8 +208,6 @@ class TestMatchStatsCollector(unittest.TestCase):
             self.assertEqual(summary["total_events"], 2)
         finally:
             BattleDB._instance = None
-            import shutil
-            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 class TestMatchStatsEdgeCases(unittest.TestCase):

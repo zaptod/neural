@@ -268,6 +268,73 @@ def generate_all_platforms(
     }
 
 
+def generate_story_metadata(story: dict, vencedor: str | None = None, platform: str = "reels") -> dict:
+    """
+    Gera copy para o formato principal de comentario + roleta + versus.
+    """
+    p = _normalize_platform(platform)
+    rules = _COPY_RULES[p]
+    comment = _clean_text(story.get("comment"))
+    hero = _clean_text(story.get("hero_name") or story.get("fighter1", {}).get("nome"))
+    enemy = _clean_text(story.get("enemy_name") or story.get("fighter2", {}).get("nome"))
+    race = _clean_text(story.get("results", {}).get("raca", {}).get("nome"))
+    title = _clean_text(story.get("results", {}).get("titulo", {}).get("nome"))
+    powers = _clean_text(story.get("results", {}).get("poderes", {}).get("nome"))
+    winner = _clean_text(vencedor) if vencedor else None
+
+    title_templates = {
+        "reels": f'Respondi "{comment}" e saiu {hero} contra {enemy}',
+        "tiktok": f'Comentaram "{comment}" e a roleta montou {hero}',
+        "shorts": f'Roleta de status: {hero} vs {enemy}',
+    }
+    description = (
+        f'Comentario escolhido: "{comment}"\n'
+        f"Build final: {hero} | {race} | {title}\n"
+        f"Poderes: {powers}\n"
+        f"Oponente final: {enemy}\n\n"
+        "Comenta a proxima ideia que eu monto outra build e jogo na arena."
+    )
+    if winner:
+        description += f"\n\nVencedor: {winner}"
+
+    hashtags = [
+        "#RoletaDeStatus",
+        "#ComentandoBuilds",
+        "#NeuralFights",
+        "#LutaIA",
+        "#AIFight",
+        "#versus",
+        "#gaming",
+        "#gamedev",
+        "#anime",
+        "#isekai",
+    ]
+    platform_tags = _PLATFORM_HASHTAGS.get(p, [])
+    tags = []
+    seen = set()
+    for tag in platform_tags + hashtags:
+        key = tag.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        tags.append(tag)
+
+    return {
+        "title": _truncate_text(title_templates[p], rules["title_max"]),
+        "description": _truncate_text(description, rules["description_max"]),
+        "hashtags": tags[: rules["hashtags_max"]],
+        "tags_str": " ".join(tags[: rules["hashtags_max"]]),
+        "platform": p,
+        "fighter1": hero,
+        "fighter2": enemy,
+        "winner": winner,
+    }
+
+
+def generate_story_all_platforms(story: dict, vencedor: str | None = None) -> dict:
+    return {platform: generate_story_metadata(story, vencedor=vencedor, platform=platform) for platform in PLATFORMS}
+
+
 def _normalize_hashtags(meta: dict, platform: str) -> tuple[list[str], str]:
     rules = _COPY_RULES.get(platform, _COPY_RULES["reels"])
     tags = list(meta.get("hashtags", []))

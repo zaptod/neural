@@ -21,6 +21,7 @@ from ia.personalities import (
     PERSONALIDADES_PRESETS, INSTINTOS, RITMOS, RITMO_MODIFICADORES
 )
 from ia.behavior_profiles import get_behavior_profile, FALLBACK_PROFILE
+from ia.weapon_ai import obter_metricas_arma, resolver_familia_arma
 
 try:
     from nucleo.weapon_analysis import (
@@ -217,84 +218,65 @@ class PersonalityMixin(_AIBrainMixinBase):
 
         tipo = getattr(arma, 'tipo', '')
         peso = getattr(arma, 'peso', 5.0)
-        
-        # Importa perfis de hitbox para alcance preciso (QC-04: HITBOX_PROFILES jÃ¡ importado no mÃ³dulo)
-        try:
-            perfil = HITBOX_PROFILES.get(tipo, HITBOX_PROFILES.get("Reta", {}))
-            range_mult = perfil.get("range_mult", 2.0)
-        except (KeyError, AttributeError):
-            perfil = {}
-            range_mult = 2.0
-        
-        # Calcula alcance REAL em metros: raio do personagem * multiplicador da arma
-        raio = p.raio_fisico if hasattr(p, 'raio_fisico') else 0.4
-        alcance_max = raio * range_mult
-        
+        familia = resolver_familia_arma(arma)
+        metricas = obter_metricas_arma(arma, p)
+        alcance_max = metricas["alcance_max"]
+        alcance_min = metricas["alcance_min"]
+        alcance_tatico = metricas["alcance_tatico"]
+
         # Define arquÃ©tipo e alcance IDEAL (onde a IA quer ficar)
-        if "Orbital" in tipo:
+        if familia == "orbital":
             self.arquetipo = "SENTINELA"
-            # Orbitais: fica bem perto para os orbes acertarem
-            p.alcance_ideal = alcance_max * 0.8
-            
-        elif "Arco" in tipo:
+            p.alcance_ideal = max(1.2, alcance_tatico)
+
+        elif familia == "disparo":
             self.arquetipo = "ARQUEIRO"
-            # Arco tem range_mult = 20.0, entÃ£o alcance_max = raio * 20 = ~8.5m
-            # Arqueiro quer ficar BEM LONGE - usa 60% do alcance mÃ¡ximo
-            # Isso coloca ele a ~5m do inimigo, seguro mas efetivo
-            p.alcance_ideal = alcance_max * 0.6
-            p.alcance_efetivo = alcance_max  # Pode acertar em todo o alcance
-            
-        elif "MÃ¡gica" in tipo or "Cajado" in tipo:
+            p.alcance_ideal = max(alcance_min + 0.6, alcance_max * 0.62)
+            p.alcance_efetivo = alcance_max
+
+        elif familia == "foco" or "Cajado" in tipo:
             self.arquetipo = "MAGO"
-            # Mago: distÃ¢ncia mÃ©dia para skills
-            p.alcance_ideal = alcance_max * 0.7
-            
-        elif "Corrente" in tipo:
+            p.alcance_ideal = max(alcance_min + 0.4, alcance_tatico)
+
+        elif familia == "corrente":
             estilo_arma = getattr(arma, 'estilo', '')
-            min_range_ratio = perfil.get("min_range_ratio", 0.25)
-            zona_morta = alcance_max * min_range_ratio
-            
+            zona_morta = max(alcance_min, alcance_max * 0.30)
+
             if estilo_arma == "Mangual":
-                # v3.0 Mangual: zona morta 40%, spin zone 40-72% do alcance
-                # Zona morta grande, mas tem bÃ´nus quando acumula momentum
-                self.arquetipo = "BERSERKER"  # Mangual Ã© um Berserker de corrente
-                # Alcance ideal = ponto de spin mÃ¡ximo (55% do alcance mÃ¡ximo)
-                p.alcance_ideal = alcance_max * 0.55
-                p.zona_morta_mangual = zona_morta  # Salva para uso na IA
-                p.mangual_momentum = 0.0            # Estado de momentum acumulado
+                self.arquetipo = "BERSERKER"
+                p.alcance_ideal = max(zona_morta + 0.2, alcance_max * 0.55)
+                p.zona_morta_mangual = zona_morta
+                p.mangual_momentum = 0.0
             else:
                 self.arquetipo = "ACROBATA"
-                # Outras correntes: meio termo entre zona morta e mÃ¡ximo
-                p.alcance_ideal = (alcance_max + zona_morta) / 2
-            
-        elif "Arremesso" in tipo:
+                p.alcance_ideal = alcance_tatico
+
+        elif familia == "arremesso":
             self.arquetipo = "LANCEIRO"
-            # Arremesso: mantÃ©m distÃ¢ncia segura mas nÃ£o muito longe
-            p.alcance_ideal = alcance_max * 0.5
-            
-        elif "Dupla" in tipo:
+            p.alcance_ideal = max(alcance_min + 0.5, alcance_tatico)
+
+        elif familia == "dupla":
             self.arquetipo = "ASSASSINO"
             estilo_arma = getattr(arma, 'estilo', '')
             if estilo_arma == "Adagas GÃªmeas":
-                # v3.1: Adagas tÃªm lÃ¢minas longas â€” combate prÃ³ximo mas nÃ£o colado
-                # Range ideal Ã© 70% do alcance max: perto suficiente para o combo,
-                # longe suficiente para ter tempo de reagir/esquivar
                 p.alcance_ideal = alcance_max * 0.70
-                p.alcance_agressao = alcance_max * 0.85  # comeÃ§a a pressionar aqui
+                p.alcance_agressao = alcance_max * 0.85
             else:
-                # Outras armas duplas: perto mas nÃ£o tÃ£o colado
                 p.alcance_ideal = alcance_max * 0.70
-            
-        elif "TransformÃ¡vel" in tipo:
+
+        elif familia == "hibrida":
             self.arquetipo = "GUERREIRO"
-            # TransformÃ¡vel: distÃ¢ncia mÃ©dia (adapta-se)
-            p.alcance_ideal = alcance_max * 0.8
-            
-        elif "Reta" in tipo:
+            p.alcance_ideal = alcance_tatico
+
+        elif familia == "haste":
+            self.arquetipo = "GUERREIRO"
+            p.alcance_ideal = max(alcance_min + 0.2, alcance_max * 0.86)
+
+        elif familia == "lamina":
             # Define arquÃ©tipo pelo peso
             if peso > 10.0:
                 self.arquetipo = "COLOSSO"
-                p.alcance_ideal = alcance_max * 0.9  # Pesadas = mais perto
+                p.alcance_ideal = alcance_max * 0.9
             elif peso < 2.5:
                 self.arquetipo = "DUELISTA"
                 p.alcance_ideal = alcance_max * 0.75
@@ -314,7 +296,7 @@ class PersonalityMixin(_AIBrainMixinBase):
                 self.arquetipo = "GUERREIRO_PESADO"
             else:
                 self.arquetipo = "GUERREIRO"
-            p.alcance_ideal = alcance_max * 0.8
+            p.alcance_ideal = alcance_tatico
         
         # Garante alcance mÃ­nimo razoÃ¡vel
         p.alcance_ideal = max(0.8, p.alcance_ideal)
@@ -574,26 +556,23 @@ class PersonalityMixin(_AIBrainMixinBase):
             # Ajusta estratÃ©gia baseado na arma
             if hasattr(self.parent.dados, 'arma_obj') and self.parent.dados.arma_obj:
                 arma = self.parent.dados.arma_obj
-                alcance_arma = 2.0
+                alcance_arma = obter_metricas_arma(arma, self.parent)["alcance_tatico"]
                 if WEAPON_ANALYSIS_AVAILABLE:
                     try:
                         perfil = get_weapon_profile(arma)
                     except Exception:
                         perfil = None
                     if perfil:
-                        alcance_arma = max(2.0, getattr(perfil, 'alcance_maximo', 2.0))
-                if alcance_arma <= 2.0:
-                    alcance_por_tipo = {
-                        "Arco": 8.0,
-                        "Arremesso": 6.0,
-                        "MÃ¡gica": 7.0,
-                        "Magica": 7.0,
-                        "Orbital": 4.0,
-                        "Corrente": 3.5,
-                    }
-                    alcance_arma = alcance_por_tipo.get(getattr(arma, 'tipo', ''), 2.0)
+                        alcance_arma = max(
+                            alcance_arma,
+                            getattr(perfil, 'alcance_maximo', 2.0),
+                        )
                 vel_arma = getattr(arma, 'velocidade_ataque', 1.0)
                 self.skill_strategy.ajustar_para_arma(alcance_arma, vel_arma)
+                self._ajustar_skill_strategy_por_personalidade_e_arma(
+                    resolver_familia_arma(arma),
+                    alcance_arma,
+                )
                 
                 # Log do perfil estratÃ©gico
                 # QC-02: usa logger estruturado (nÃ­vel DEBUG, silencioso em produÃ§Ã£o)
@@ -606,4 +585,53 @@ class PersonalityMixin(_AIBrainMixinBase):
                 )
         else:
             self.skill_strategy = None
+
+    def _ajustar_skill_strategy_por_personalidade_e_arma(self, familia, alcance_arma):
+        """Afina o plano de skills conforme a família da arma e os traços ativos."""
+        strategy = self.skill_strategy
+        if strategy is None:
+            return
+
+        plano = strategy.plano
+
+        if familia == "foco":
+            plano.distancia_preferida = max(plano.distancia_preferida, alcance_arma * 0.90)
+            if "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos or "PRUDENTE" in self.tracos:
+                plano.estilo = "kite"
+                plano.foco_mana = "conserve"
+            elif "BERSERKER" in self.tracos or "FURIOSO" in self.tracos:
+                plano.estilo = "aggressive"
+                plano.foco_mana = "spam"
+            elif "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
+                plano.estilo = "balanced"
+                plano.foco_mana = "spam"
+            else:
+                plano.estilo = "kite" if plano.estilo == "balanced" else plano.estilo
+
+        elif familia == "orbital":
+            plano.distancia_preferida = max(2.2, min(alcance_arma, max(plano.distancia_preferida, alcance_arma * 0.96)))
+            if "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos:
+                plano.estilo = "balanced"
+                plano.foco_mana = "conserve"
+            elif "BERSERKER" in self.tracos or "AGRESSIVO" in self.tracos:
+                plano.estilo = "aggressive"
+                plano.foco_mana = "balanced"
+
+        elif familia == "hibrida":
+            plano.distancia_preferida = max(2.1, min(alcance_arma, max(plano.distancia_preferida, alcance_arma * 0.84)))
+            if "CALCULISTA" in self.tracos or "ADAPTAVEL" in self.tracos:
+                plano.estilo = "balanced"
+                plano.foco_mana = "balanced"
+            elif "BERSERKER" in self.tracos or "IMPRUDENTE" in self.tracos:
+                plano.estilo = "aggressive"
+                plano.foco_mana = "spam"
+
+        elif familia == "corrente":
+            if "ACROBATA" in self.tracos or "FLANQUEADOR" in self.tracos:
+                plano.estilo = "aggressive"
+            elif "PACIENTE" in self.tracos or "CALCULISTA" in self.tracos:
+                plano.estilo = "balanced"
+
+        strategy.preferencias["distancia_preferida"] = plano.distancia_preferida
+        strategy.preferencias["estilo_kite"] = plano.estilo == "kite"
 

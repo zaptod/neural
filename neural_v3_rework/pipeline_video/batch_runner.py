@@ -31,7 +31,9 @@ from pipeline_video.metadata_generator import (
     format_metadata_copy_text,
     format_metadata_plain_text,
     generate_all_platforms,
+    generate_story_all_platforms,
 )
+from pipeline_video.roulette_status import gerar_story_roleta_status, slugify_comment
 
 
 def run_batch(
@@ -39,6 +41,8 @@ def run_batch(
     cenarios: list[str] | None = None,
     generation_mode: str = "hybrid",
     coverage_rotation: bool = True,
+    video_format: str = "comment_roulette",
+    comment: str | None = None,
 ) -> list[dict]:
     """
     Gera um batch completo de videos, uma luta por plataforma.
@@ -68,7 +72,14 @@ def run_batch(
         _log.info("LUTA %d/%d -> %s", idx + 1, num_fights, platform.upper())
         _log.info("=" * 60)
 
-        c1, a1, c2, a2 = gerar_par_de_lutadores(generation_mode=generation_mode)
+        story = None
+        if video_format == "comment_roulette":
+            story = gerar_story_roleta_status(comment, fight_index=idx)
+            c1, a1 = story["fighter1"], story["weapon1"]
+            c2, a2 = story["fighter2"], story["weapon2"]
+        else:
+            c1, a1, c2, a2 = gerar_par_de_lutadores(generation_mode=generation_mode)
+
         nome1 = c1["nome"]
         nome2 = c2["nome"]
         classe1 = c1["classe"]
@@ -83,11 +94,23 @@ def run_batch(
         plat_dir.mkdir(exist_ok=True)
 
         try:
-            fight_name = f"{platform}_{nome1.split()[0]}_vs_{nome2.split()[0]}"
+            if story:
+                fight_name = f"{platform}_{slugify_comment(story['comment'])}_{nome1.split()[0]}_vs_{nome2.split()[0]}"
+            else:
+                fight_name = f"{platform}_{nome1.split()[0]}_vs_{nome2.split()[0]}"
             fight_name = "".join(ch if ch.isalnum() or ch in "_-" else "_" for ch in fight_name)
             video_path = str(plat_dir / f"{fight_name}.mp4")
 
-            recorder = FightRecorder(c1, a1, c2, a2, cenario=cenario, output_path=video_path)
+            recorder = FightRecorder(
+                c1,
+                a1,
+                c2,
+                a2,
+                cenario=cenario,
+                output_path=video_path,
+                story_mode="roleta_status" if story else "classic",
+                roulette_story=story,
+            )
             recorder.record()
         except Exception as exc:
             _log.error("  ERRO na gravacao: %s", exc)
@@ -108,7 +131,11 @@ def run_batch(
             recorder.duration,
         )
 
-        all_meta = generate_all_platforms(nome1, nome2, classe1, classe2, vencedor)
+        all_meta = (
+            generate_story_all_platforms(story, vencedor=vencedor)
+            if story
+            else generate_all_platforms(nome1, nome2, classe1, classe2, vencedor)
+        )
         meta = all_meta[platform]
         meta_file = plat_dir / f"{fight_name}_meta.json"
         with open(meta_file, "w", encoding="utf-8") as file:
@@ -126,6 +153,12 @@ def run_batch(
         with open(meta_all_platforms_file, "w", encoding="utf-8") as file:
             file.write(format_all_platform_copies(all_meta))
 
+        story_file = None
+        if story:
+            story_file = plat_dir / f"{fight_name}_story.json"
+            with open(story_file, "w", encoding="utf-8") as file:
+                json.dump(story, file, ensure_ascii=False, indent=2)
+
         fight_result = {
             "platform": platform,
             "fighter1": {"nome": nome1, "classe": classe1},
@@ -139,6 +172,7 @@ def run_batch(
             "metadata_copy": str(meta_copy_file),
             "metadata_copy_all_platforms": str(meta_all_platforms_file),
             "title": meta["title"],
+            "story": str(story_file) if story_file else None,
         }
         results.append(fight_result)
         _log.info("  [%s] %s", platform.upper(), meta["title"])

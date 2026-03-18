@@ -15,6 +15,23 @@ DEBUG_HITBOX = False  # Ativar/desativar prints de debug (MUITO VERBOSO)
 DEBUG_VISUAL = True  # Mostrar hitboxes visuais no jogo
 
 
+def _texto_normalizado(valor: str) -> str:
+    if not valor:
+        return ""
+    return (
+        valor.replace("Ã¡", "á")
+        .replace("Ã¢", "â")
+        .replace("Ã£", "ã")
+        .replace("Ã§", "ç")
+        .replace("Ã©", "é")
+        .replace("Ã­", "í")
+        .replace("Ã³", "ó")
+        .replace("Ãº", "ú")
+        .replace("Ã‰", "É")
+        .replace("Ã", "à")
+    )
+
+
 # === PERFIS DE HITBOX POR TIPO DE ARMA v2.0 ===
 # Define caracterÃ­sticas especÃ­ficas de hitbox para cada tipo
 HITBOX_PROFILES = {
@@ -332,32 +349,34 @@ class SistemaHitbox:
         fator = lutador.fator_escala
         
         tipo = arma.tipo
+        tipo_n = _texto_normalizado(tipo)
+        familia = getattr(arma, "familia", None)
         angulo = lutador.angulo_arma_visual
         rad = math.radians(angulo)
         
         debug_log(f"{lutador.dados.nome}: Calculando hitbox tipo={tipo} pos=({cx:.1f}, {cy:.1f}) ang={angulo:.1f}Â°", "CALC")
         
         # === ARMAS DE CORRENTE (colisÃ£o por arco/varredura) ===
-        if self._eh_arma_corrente(tipo):
+        if familia == "corrente" or self._eh_arma_corrente(tipo_n):
             return self._calcular_hitbox_corrente(lutador, arma, cx, cy, rad, fator, raio_char)
 
         # === ARMAS DE LÃ‚MINA (colisÃ£o por linha/arco de varredura) ===
-        elif self._eh_arma_lamina(tipo):
+        elif familia in {"lamina", "haste", "dupla", "hibrida"} or self._eh_arma_lamina(tipo_n):
             return self._calcular_hitbox_lamina(lutador, arma, cx, cy, rad, fator, raio_char)
 
         # === ARMAS DE ÃREA (MÃ¡gica) â€” DEVE vir antes de ranged ===
         # M-05 fix: MÃ¡gica Ã© capturada aqui PRIMEIRO (Ã¡rea), por isso foi removida de
         # _eh_arma_ranged. O dano real Ã© aplicado via orbes/projÃ©teis em entities.py;
         # esta hitbox Ã© visual/debug e apenas Ã© marcada ativa durante o ataque.
-        elif self._eh_arma_area(tipo):
+        elif familia == "foco" or self._eh_arma_area(tipo_n):
             return self._calcular_hitbox_area(lutador, arma, cx, cy, rad, fator, raio_char)
 
         # === ARMAS RANGED FÃSICAS (Arremesso/Arco) â€” Usam projÃ©teis, nÃ£o hitbox direta ===
-        elif self._eh_arma_ranged(tipo):
+        elif familia in {"arremesso", "disparo"} or self._eh_arma_ranged(tipo_n):
             return self._calcular_hitbox_ranged(lutador, arma, cx, cy, rad, fator, raio_char)
 
         # === ARMAS ORBITAIS (colisÃ£o especial) ===
-        elif "Orbital" in tipo:
+        elif familia == "orbital" or "Orbital" in tipo_n:
             return self._calcular_hitbox_orbital(lutador, arma, cx, cy, fator, raio_char)
 
         # === FALLBACK ===
@@ -371,7 +390,7 @@ class SistemaHitbox:
     
     def _eh_arma_lamina(self, tipo: str) -> bool:
         """Verifica se Ã© arma de lÃ¢mina (usa colisÃ£o de linha)"""
-        return any(t in tipo for t in ["Reta", "Dupla", "TransformÃ¡vel"])
+        return any(t in tipo for t in ["Reta", "Dupla", "Transformável", "Transformavel"])
     
     def _eh_arma_ranged(self, tipo: str) -> bool:
         """Verifica se Ã© arma ranged fÃ­sica (usa projÃ©teis de arma).
@@ -381,24 +400,37 @@ class SistemaHitbox:
     
     def _eh_arma_area(self, tipo: str) -> bool:
         """Verifica se Ã© arma de Ã¡rea (usa colisÃ£o de distÃ¢ncia) - Apenas MÃ¡gica"""
-        return "MÃ¡gica" in tipo
+        return any(t in tipo for t in ["Mágica", "Magica"])
     
     def _calcular_hitbox_lamina(self, lutador, arma, cx, cy, rad, fator, raio_char) -> HitboxInfo:
         """
         Calcula hitbox para armas de lÃ¢mina v2.0.
         Usa perfis de hitbox para caracterÃ­sticas precisas por tipo.
         """
-        tipo = arma.tipo
-        profile = get_hitbox_profile(tipo)
+        tipo = _texto_normalizado(arma.tipo)
+        familia = getattr(arma, "familia", None)
+        profile_tipo = "Transformável" if familia == "hibrida" else tipo
+        profile = get_hitbox_profile(profile_tipo)
         
-        # Alcance = raio do personagem Ã— multiplicador do perfil (geometria removida)
-        fator_arma = profile["range_mult"]
-        alcance_total = raio_char * fator_arma
+        # v2: usa alcance definido pela arma quando disponivel
+        alcance_personalizado = float(getattr(arma, "alcance_efetivo", 0.0) or 0.0)
+        alcance_total = alcance_personalizado * PPM if alcance_personalizado > 0 else raio_char * profile["range_mult"]
+        if familia == "hibrida":
+            forma = int(getattr(lutador, "transform_forma", 0))
+            if forma == 0:
+                alcance_total *= 0.78
+                profile = {**profile, "base_arc": max(85.0, profile["base_arc"] * 0.92)}
+            else:
+                alcance_total *= 1.18
+                profile = {**profile, "base_arc": min(135.0, profile["base_arc"] * 1.08)}
         cabo_px   = alcance_total * 0.30  # 30% = cabo
         lamina_px = alcance_total * 0.70  # 70% = lÃ¢mina
         
         # Calcula zona morta e sweet spot baseado no perfil
-        alcance_minimo = alcance_total * profile["min_range_ratio"]
+        alcance_minimo_custom = float(getattr(arma, "alcance_minimo", 0.0) or 0.0)
+        alcance_minimo = alcance_minimo_custom * PPM if alcance_minimo_custom > 0 else alcance_total * profile["min_range_ratio"]
+        if familia == "hibrida" and int(getattr(lutador, "transform_forma", 0)) == 1:
+            alcance_minimo = max(alcance_minimo, alcance_total * 0.18)
         sweet_spot_start = profile.get("sweet_spot_start", 0.6)
         sweet_spot_end = profile.get("sweet_spot_end", 1.0)
         
@@ -408,11 +440,16 @@ class SistemaHitbox:
             try:
                 from efeitos.weapon_animations import WEAPON_PROFILES
                 anim_profile = WEAPON_PROFILES.get(tipo, WEAPON_PROFILES.get("Reta"))
-                arco_total = abs(anim_profile.anticipation_angle) + abs(anim_profile.attack_angle)
+                arco_total = float(getattr(arma, "arco_ataque", 0.0) or 0.0) or (abs(anim_profile.anticipation_angle) + abs(anim_profile.attack_angle))
                 angulo_centro = lutador.angulo_olhar
             except ImportError:
-                arco_total = profile["base_arc"]
+                arco_total = float(getattr(arma, "arco_ataque", 0.0) or 0.0) or profile["base_arc"]
                 angulo_centro = math.degrees(rad)
+
+            if familia == "hibrida" and int(getattr(lutador, "transform_forma", 0)) == 0:
+                arco_total *= 0.92
+            elif familia == "hibrida":
+                arco_total *= 1.05
             
             # Largura angular: arco de ataque * multiplicador do perfil
             largura_angular = max(profile["base_arc"], arco_total * profile["attack_arc_mult"])
@@ -462,8 +499,8 @@ class SistemaHitbox:
         Calcula hitbox para armas de corrente v5.0.
         Usa perfil por ESTILO, nÃ£o genÃ©rico. Kusarigama tem dual-mode.
         """
-        tipo = arma.tipo
-        estilo = getattr(arma, 'estilo', '')
+        tipo = _texto_normalizado(arma.tipo)
+        estilo = _texto_normalizado(getattr(arma, 'estilo', ''))
         
         # v5.0: Kusarigama dual-mode â€” resolve o perfil baseado em chain_mode
         if estilo == "Kusarigama":
@@ -474,9 +511,10 @@ class SistemaHitbox:
             profile = get_hitbox_profile("Corrente", estilo)
         
         # Alcance = raio Ã— perfil
-        fator_arma = profile["range_mult"]
-        alcance_px = raio_char * fator_arma
-        alcance_minimo = alcance_px * profile["min_range_ratio"]
+        alcance_personalizado = float(getattr(arma, "alcance_efetivo", 0.0) or 0.0)
+        alcance_px = alcance_personalizado * PPM if alcance_personalizado > 0 else raio_char * profile["range_mult"]
+        alcance_minimo_custom = float(getattr(arma, "alcance_minimo", 0.0) or 0.0)
+        alcance_minimo = alcance_minimo_custom * PPM if alcance_minimo_custom > 0 else alcance_px * profile["min_range_ratio"]
         angulo_bola = math.degrees(rad)
         tamanho_bola = raio_char * 0.20
         largura_base = math.degrees(2 * math.atan2(tamanho_bola, alcance_px))
@@ -490,7 +528,7 @@ class SistemaHitbox:
             if is_spinning or profile.get("spin_area"):
                 largura_angular = 360.0  # Full circle
             else:
-                largura_angular = profile["base_arc"] * profile["attack_arc_mult"]
+                largura_angular = float(getattr(arma, "arco_ataque", 0.0) or 0.0) or (profile["base_arc"] * profile["attack_arc_mult"])
         else:
             largura_angular = max(largura_base + 30, 45)
         
@@ -516,7 +554,7 @@ class SistemaHitbox:
             angulo=angulo_bola,
             largura_angular=largura_angular,
             pontos=pontos_arco,
-            ativo=lutador.atacando,
+            ativo=(lutador.atacando or is_spinning),
             alcance_minimo=alcance_minimo,
             sweet_spot_min=profile.get("sweet_spot_start", 0.7),
             sweet_spot_max=profile.get("sweet_spot_end", 1.0),
@@ -530,30 +568,25 @@ class SistemaHitbox:
         Estas armas usam PROJÃ‰TEIS, entÃ£o a hitbox aqui Ã© apenas visual/informativa.
         O dano real Ã© feito pelos projÃ©teis.
         """
-        tipo = arma.tipo
-        
-        # Armas ranged tÃªm alcance maior (onde os projÃ©teis vÃ£o)
-        if "Arremesso" in tipo:
-            fator_arma = 5.0  # Facas voam longe
-            qtd = int(getattr(arma, 'quantidade', 3))
-        elif "Arco" in tipo:
-            fator_arma = 8.0  # Flechas vÃ£o mais longe ainda
-            qtd = 1
+        tipo = _texto_normalizado(arma.tipo)
+        familia = getattr(arma, "familia", None)
+
+        alcance_personalizado = float(getattr(arma, "alcance_efetivo", 0.0) or 0.0)
+        alcance_px = alcance_personalizado * PPM if alcance_personalizado > 0 else raio_char * (8.0 if "Arco" in tipo else 5.0)
+        spread_base = float(getattr(arma, "spread_base", 0.0) or 0.0)
+        qtd = int(getattr(arma, 'quantidade', getattr(arma, 'projeteis_por_ataque', 1 if "Arco" in tipo else 3)) or 1)
+        if familia == "disparo" or "Arco" in tipo:
+            charge = float(getattr(lutador, "bow_charge", 0.0) or 0.0)
+            largura_angular = max(6.0, 12.0 - min(charge, 1.2) * 4.0 + spread_base * 0.35)
         else:
-            fator_arma = 4.0
-            qtd = 1
-        
-        alcance_px = raio_char * fator_arma
-        
-        # Spread visual (para arremesso com mÃºltiplos projÃ©teis)
-        largura_angular = 30.0 if qtd > 1 else 10.0
+            largura_angular = max(12.0, spread_base if qtd > 1 else 10.0)
         
         debug_log(f"  Ranged: tipo={tipo} alcance_px={alcance_px:.1f} qtd={qtd}", "CALC")
         
         # Gera linhas de trajetÃ³ria para visualizaÃ§Ã£o
         pontos_traj = []
         if qtd > 1:
-            spread = 25  # graus
+            spread = max(8.0, largura_angular)
             for i in range(qtd):
                 offset = -spread/2 + (spread / (qtd-1)) * i
                 ang = math.radians(math.degrees(rad) + offset)
@@ -693,10 +726,12 @@ class SistemaHitbox:
         if not arma:
             return False, "sem arma"
         
-        # Armas de arremesso, arco e mÃ¡gicas causam dano APENAS atravÃ©s de projÃ©teis
-        # NÃ£o verificam colisÃ£o por hitbox convencional
-        if arma.tipo in ["Arremesso", "Arco", "MÃ¡gica"]:
-            return False, "arma ranged/mÃ¡gica - dano via projÃ©til"
+        tipo_arma = _texto_normalizado(getattr(arma, "tipo", ""))
+        familia = getattr(arma, "familia", None)
+
+        # Armas de arremesso, disparo e foco mÃ¡gico causam dano via projÃ©til/orbe.
+        if familia in {"arremesso", "disparo", "foco"} or tipo_arma in ["Arremesso", "Arco", "Mágica", "Magica"]:
+            return False, "arma ranged/magica - dano via projetil"
         
         # Verifica altura (Z)
         diff_z = abs(atacante.z - defensor.z)

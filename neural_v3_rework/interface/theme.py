@@ -6,15 +6,19 @@ Cores e estilos compartilhados entre todas as telas.
 # ============================================================================
 # CORES DO TEMA PRINCIPAL
 # ============================================================================
-COR_BG = "#1a1a2e"
-COR_BG_SECUNDARIO = "#16213e"
-COR_HEADER = "#0f3460"
-COR_ACCENT = "#e94560"
-COR_SUCCESS = "#00d9ff"
-COR_TEXTO = "#ffffff"
-COR_TEXTO_DIM = "#8892b0"
-COR_WARNING = "#f39c12"
-COR_DANGER = "#e74c3c"
+COR_BG = "#09111f"
+COR_BG_SECUNDARIO = "#12233f"
+COR_HEADER = "#173b69"
+COR_ACCENT = "#ff6b57"
+COR_SUCCESS = "#35d6ff"
+COR_TEXTO = "#f5f7fb"
+COR_TEXTO_DIM = "#9fb1c9"
+COR_WARNING = "#f5c451"
+COR_DANGER = "#ff5f5f"
+COR_BG_CARD = "#162b4b"
+COR_BG_CARD_SOFT = "#1b3155"
+COR_BORDA = "#284564"
+COR_TEXTO_SUB = "#c6d8f4"
 
 # ============================================================================
 # CORES DAS RARIDADES
@@ -55,8 +59,8 @@ CORES_CLASSE = {
 }
 
 # Cores específicas para a tela de luta
-COR_P1 = "#3498db"
-COR_P2 = "#e94560"
+COR_P1 = "#4aa8ff"
+COR_P2 = "#ff6d8a"
 
 # ============================================================================
 # CATEGORIAS DE CLASSES
@@ -71,5 +75,6 @@ CATEGORIAS_CLASSE = {
 __all__ = [
     'COR_BG', 'COR_BG_SECUNDARIO', 'COR_HEADER', 'COR_ACCENT',
     'COR_SUCCESS', 'COR_TEXTO', 'COR_TEXTO_DIM', 'COR_WARNING', 'COR_DANGER',
+    'COR_BG_CARD', 'COR_BG_CARD_SOFT', 'COR_BORDA', 'COR_TEXTO_SUB',
     'CORES_RARIDADE', 'CORES_CLASSE', 'COR_P1', 'COR_P2', 'CATEGORIAS_CLASSE',
 ]

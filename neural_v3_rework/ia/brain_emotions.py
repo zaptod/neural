@@ -61,6 +61,11 @@ class EmotionsMixin(_AIBrainMixinBase):
         """Atualiza hesitaÃ§Ã£o, impulso e outros estados humanos"""
         p = self.parent
         hp_pct = p.vida / p.vida_max if p.vida_max > 0 else 1.0  # FP-N01
+        memoria = getattr(self, "memoria_adaptativa", {})
+        vies_agressao = memoria.get("vies_agressao", 0.0)
+        vies_cautela = memoria.get("vies_cautela", 0.0)
+        vies_pressao = memoria.get("vies_pressao", 0.0)
+        vies_contra = memoria.get("vies_contra_ataque", 0.0)
         
         # === HESITAÃ‡ÃƒO ===
         # Aumenta quando: 
@@ -77,6 +82,9 @@ class EmotionsMixin(_AIBrainMixinBase):
             base_hesitacao += 0.2
         if self.pressao_recebida > AI_PRESSAO_ALTA:
             base_hesitacao += 0.15
+        base_hesitacao += max(0.0, vies_cautela) * 0.25
+        base_hesitacao -= max(0.0, vies_agressao) * 0.10
+        base_hesitacao -= max(0.0, vies_contra) * 0.06
         
         # Personalidade
         if "DETERMINADO" in self.tracos:
@@ -105,6 +113,10 @@ class EmotionsMixin(_AIBrainMixinBase):
             base_impulso += 0.2
         if self.excitacao > 0.7:
             base_impulso += 0.15
+        base_impulso += max(0.0, vies_agressao) * 0.22
+        base_impulso += max(0.0, vies_pressao) * 0.12
+        base_impulso += max(0.0, vies_contra) * 0.08
+        base_impulso -= max(0.0, vies_cautela) * 0.16
         
         # Personalidade
         if "IMPRUDENTE" in self.tracos:
@@ -223,6 +235,12 @@ class EmotionsMixin(_AIBrainMixinBase):
         self._dir_circular_cd = max(0, self._dir_circular_cd - dt)
         self.tempo_desde_dano += dt
         self.tempo_desde_hit += dt
+        if hasattr(self, "_decair_memoria_adaptativa"):
+            self._decair_memoria_adaptativa(dt)
+        if hasattr(self, "_decair_memoria_curta_oponentes"):
+            self._decair_memoria_curta_oponentes(dt)
+        if hasattr(self, "_decair_memoria_cena"):
+            self._decair_memoria_cena(dt)
         # BUG-AI-03 fix: incrementa contador de bloqueio para o trigger "bloqueio_sucesso"
         self.ultimo_bloqueio = min(999.0, self.ultimo_bloqueio + dt)
         # HIGH-04 fix: decai o timer do estilo temporÃ¡rio (style_switch instinto).
@@ -442,6 +460,9 @@ class EmotionsMixin(_AIBrainMixinBase):
             return
         
         novo_humor = self.humor
+        rivalidade = self._calcular_pressao_rivalidade(getattr(self, "_alvo_atual", None)) if hasattr(self, "_calcular_pressao_rivalidade") else {}
+        rival_dom = rivalidade.get("dominante")
+        rival_int = rivalidade.get("intensidade", 0.0)
         
         if self.raiva > 0.7:
             novo_humor = "FURIOSO"
@@ -465,6 +486,16 @@ class EmotionsMixin(_AIBrainMixinBase):
             novo_humor = "DESESPERADO"
         else:
             novo_humor = "FOCADO"
+
+        if rival_int >= 0.28:
+            if rival_dom == "respeito" and novo_humor not in {"FURIOSO", "DESESPERADO"}:
+                novo_humor = "FOCADO" if self.confianca >= self.medo else "CALMO"
+            elif rival_dom == "vinganca":
+                novo_humor = "DETERMINADO" if self.confianca > 0.35 else "FURIOSO"
+            elif rival_dom == "obsessao" and novo_humor not in {"DESESPERADO", "ASSUSTADO"}:
+                novo_humor = "ANIMADO" if self.excitacao > 0.45 else "FOCADO"
+            elif rival_dom == "caca" and novo_humor not in {"ASSUSTADO", "NERVOSO"}:
+                novo_humor = "CONFIANTE" if self.confianca > 0.45 else "DETERMINADO"
         
         if novo_humor != self.humor:
             self.humor = novo_humor

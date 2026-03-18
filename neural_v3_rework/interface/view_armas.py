@@ -18,7 +18,137 @@ from dados import carregar_armas, salvar_lista_armas, carregar_personagens
 from dados.app_state import AppState
 from nucleo import SKILL_DB
 from nucleo.skills import ClasseForcaMagia, ClasseUtilidadeMagia, get_skill_classification, listar_skills_filtradas
+from nucleo.armas import FAMILIAS_ARMA_V2, get_family_spec, legacy_type_from_family, inferir_familia
 from interface.theme import COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS, COR_TEXTO, COR_TEXTO_DIM, CORES_RARIDADE
+
+
+FAMILIAS_FORJA = list(FAMILIAS_ARMA_V2.keys())
+ACABAMENTOS_FORJA = list(CORES_RARIDADE.keys())
+PRESETS_FAMILIA_FORJA = {
+    "lamina": {"cores": {"r": 210, "g": 220, "b": 230}, "estilo_preview": {"espada": "Espada", "sabre": "Corte", "machado": "Corte", "martelo": "Contusão"}},
+    "haste": {"cores": {"r": 190, "g": 205, "b": 170}, "estilo_preview": {"lanca": "Lança", "alabarda": "Misto", "cajado": "Estocada"}},
+    "dupla": {"cores": {"r": 235, "g": 120, "b": 120}, "estilo_preview": {"adagas": "Adagas Gêmeas", "garras": "Garras", "tonfas": "Tonfas"}},
+    "corrente": {"cores": {"r": 145, "g": 145, "b": 165}, "estilo_preview": {"mangual": "Mangual", "kusarigama": "Kusarigama", "chicote": "Chicote"}},
+    "arremesso": {"cores": {"r": 110, "g": 210, "b": 210}, "estilo_preview": {"faca": "Faca", "shuriken": "Chakram", "chakram": "Chakram", "machado": "Machado"}},
+    "disparo": {"cores": {"r": 180, "g": 130, "b": 90}, "estilo_preview": {"arco": "Arco Curto", "besta": "Besta", "canhao_leve": "Besta de Repetição"}},
+    "orbital": {"cores": {"r": 120, "g": 210, "b": 255}, "estilo_preview": {"escudo": "Escudo", "drone": "Drone", "laminas": "Lâminas", "orbes": "Orbe"}},
+    "foco": {"cores": {"r": 180, "g": 110, "b": 255}, "estilo_preview": {"cetro": "Cristais Arcanos", "grimorio": "Runas Flutuantes", "orbe": "Espadas Espectrais", "runas": "Runas Flutuantes"}},
+    "hibrida": {"cores": {"r": 255, "g": 170, "b": 90}, "estilo_preview": {"modular": "Compacta", "mutavel": "Chicote↔Espada", "dupla_forma": "Espada↔Lança"}},
+}
+
+
+def _default_weapon_ui_state():
+    return _aplicar_preset_familia({
+        "nome": "",
+        "familia": "lamina",
+        "categoria": get_family_spec("lamina")["categoria"],
+        "subtipo": get_family_spec("lamina")["subtipos"][0],
+        "tipo": legacy_type_from_family("lamina"),
+        "raridade": "Comum",
+        "estilo": "",
+        "dano": 10,
+        "peso": 5,
+        "cores": {"r": 200, "g": 200, "b": 200},
+        "habilidades": [],
+        "encantamentos": [],
+        "cabo_dano": False,
+        "afinidade_elemento": None,
+        "quantidade": 1,
+        "quantidade_orbitais": 1,
+        "forca_arco": 0.0,
+        "geometria": {},
+    }, "lamina")
+
+
+def _sincronizar_dados_arma_v2(dados):
+    familia = dados.get("familia") or inferir_familia(dados.get("tipo", "Reta"), dados.get("estilo", ""))
+    spec = get_family_spec(familia)
+    dados["familia"] = familia
+    dados["categoria"] = spec["categoria"]
+    dados["tipo"] = legacy_type_from_family(familia)
+    subtipos = spec["subtipos"]
+    if dados.get("subtipo") not in subtipos:
+        dados["subtipo"] = subtipos[0]
+    if not dados.get("estilo"):
+        dados["estilo"] = _resolver_estilo_preview(familia, dados["subtipo"])
+    if not dados.get("raridade"):
+        dados["raridade"] = "Comum"
+    return dados
+
+
+def _limites_magia_por_familia(dados):
+    dados = _sincronizar_dados_arma_v2(dict(dados))
+    categoria = dados["categoria"]
+    familia = dados["familia"]
+
+    if categoria == "foco_magico":
+        return 4, 0
+    if categoria == "arma_hibrida" or familia in {"orbital", "hibrida"}:
+        return 3, 0
+    return 2, 0
+
+
+def _resolver_estilo_preview(familia, subtipo):
+    preset = PRESETS_FAMILIA_FORJA.get(familia, {})
+    estilos = preset.get("estilo_preview", {})
+    return estilos.get(subtipo, subtipo.replace("_", " ").title())
+
+
+def _aplicar_preset_familia(dados, familia, subtipo=None, preservar_cores=False):
+    dados = dict(dados)
+    spec = get_family_spec(familia)
+    mecanica = spec["mecanica"]
+    subtipos = list(spec["subtipos"])
+    subtipo = subtipo if subtipo in subtipos else subtipos[0]
+    preset = PRESETS_FAMILIA_FORJA.get(familia, {})
+
+    dados["familia"] = familia
+    dados["categoria"] = spec["categoria"]
+    dados["tipo"] = legacy_type_from_family(familia)
+    dados["subtipo"] = subtipo
+    dados["estilo"] = _resolver_estilo_preview(familia, subtipo)
+    dados["dano"] = float(mecanica.get("dano_base", dados.get("dano", 10)))
+    dados["peso"] = float(mecanica.get("peso", dados.get("peso", 5)))
+    dados["quantidade"] = int(mecanica.get("projeteis_por_ataque", dados.get("quantidade", 1)) or 1)
+    dados["quantidade_orbitais"] = int(mecanica.get("qtd_orbitais", dados.get("quantidade_orbitais", 1)) or 1)
+    dados["forca_arco"] = float(mecanica.get("forca_disparo", dados.get("forca_arco", 0.0)) or 0.0)
+    dados["geometria"] = {
+        **(dados.get("geometria", {}) or {}),
+        "distancia": float(mecanica.get("alcance", 1.5) * 100.0),
+        "largura": max(12.0, float(mecanica.get("arco", 90.0) * 0.32)),
+        "tamanho": max(8.0, float(mecanica.get("alcance", 1.5) * 8.0)),
+    }
+    if not preservar_cores and preset.get("cores"):
+        dados["cores"] = dict(preset["cores"])
+    return dados
+
+
+def _criar_arma_do_estado_ui(dados):
+    dados = _sincronizar_dados_arma_v2(dict(dados))
+    max_slots, _ = _limites_magia_por_familia(dados)
+    dados["habilidades"] = list(dados.get("habilidades", []))[:max_slots]
+    cores = dados["cores"]
+    return Arma(
+        nome=dados["nome"],
+        familia=dados["familia"],
+        categoria=dados["categoria"],
+        subtipo=dados["subtipo"],
+        tipo=dados["tipo"],
+        dano=dados["dano"],
+        peso=dados["peso"],
+        raridade=dados["raridade"],
+        estilo=dados.get("estilo", ""),
+        quantidade=dados.get("quantidade", 1),
+        quantidade_orbitais=dados.get("quantidade_orbitais", 1),
+        forca_arco=dados.get("forca_arco", 0.0),
+        r=cores["r"], g=cores["g"], b=cores["b"],
+        habilidades=dados["habilidades"],
+        encantamentos=[],
+        cabo_dano=dados["cabo_dano"],
+        afinidade_elemento=dados["afinidade_elemento"],
+        visual={"acabamento": dados["raridade"]},
+        geometria=dados.get("geometria", {}),
+    )
 
 class TelaArmas(tk.Frame):
     """Tela principal da Forja de Armas com sistema Wizard"""
@@ -31,22 +161,10 @@ class TelaArmas(tk.Frame):
         
         # Estado do Wizard
         self.passo_atual = 1
-        self.total_passos = 6
+        self.total_passos = 5
         
         # Dados da arma sendo criada
-        self.dados_arma = {
-            "nome": "",
-            "tipo": "Reta",
-            "raridade": "Comum",
-            "estilo": "",
-            "dano": 10,
-            "peso": 5,
-            "cores": {"r": 200, "g": 200, "b": 200},
-            "habilidades": [],
-            "encantamentos": [],
-            "cabo_dano": False,
-            "afinidade_elemento": None,
-        }
+        self.dados_arma = _default_weapon_ui_state()
         
         self.setup_ui()
 
@@ -61,28 +179,36 @@ class TelaArmas(tk.Frame):
         """Configura a interface principal"""
         # Header
         self.criar_header()
-        
-        # Container principal dividido em 3 partes — grid responsivo
-        main = tk.Frame(self, bg=COR_BG)
-        main.pack(fill="both", expand=True, padx=10, pady=5)
-        main.grid_columnconfigure(0, weight=3, minsize=300)  # wizard
-        main.grid_columnconfigure(1, weight=4, minsize=200)  # centro/preview
-        main.grid_columnconfigure(2, weight=2, minsize=220)  # lista
-        main.grid_rowconfigure(0, weight=1)
 
-        # Esquerda: Wizard Steps
-        self.frame_wizard = tk.Frame(main, bg=COR_BG_SECUNDARIO)
-        self.frame_wizard.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        main = tk.Frame(self, bg=COR_BG)
+        main.pack(fill="both", expand=True, padx=14, pady=10)
+
+        paned = tk.PanedWindow(
+            main,
+            orient="horizontal",
+            sashwidth=8,
+            sashrelief="flat",
+            showhandle=False,
+            bd=0,
+            relief="flat",
+            bg=COR_BG,
+        )
+        paned.pack(fill="both", expand=True)
+
+        self.frame_wizard = tk.Frame(main, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
         self.frame_wizard.grid_rowconfigure(1, weight=1)
         self.frame_wizard.grid_columnconfigure(0, weight=1)
 
-        # Centro: Preview e controles
         self.frame_centro = tk.Frame(main, bg=COR_BG)
-        self.frame_centro.grid(row=0, column=1, sticky="nsew", padx=5)
 
-        # Direita: Lista de armas
-        self.frame_lista = tk.Frame(main, bg=COR_BG_SECUNDARIO)
-        self.frame_lista.grid(row=0, column=2, sticky="nsew", padx=(5, 0))
+        self.frame_lista = tk.Frame(main, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+
+        paned.add(self.frame_wizard, minsize=320, stretch="always")
+        paned.add(self.frame_centro, minsize=360, stretch="always")
+        paned.add(self.frame_lista, minsize=240, stretch="never")
+
+        self.after(100, lambda: paned.sash_place(0, 420, 0))
+        self.after(140, lambda: paned.sash_place(1, 920, 0))
         
         # Configura cada seção
         self.setup_wizard()
@@ -94,37 +220,42 @@ class TelaArmas(tk.Frame):
 
     def criar_header(self):
         """Cria o header com navegação"""
-        header = tk.Frame(self, bg=COR_HEADER, height=60)
+        header = tk.Frame(self, bg=COR_HEADER, height=88)
         header.pack(fill="x", side="top")
         header.pack_propagate(False)
         
         # Botão voltar
         btn_voltar = tk.Button(
-            header, text="< VOLTAR", bg=COR_ACCENT, fg=COR_TEXTO,
-            font=("Arial", 10, "bold"), bd=0, padx=15,
+            header, text="Voltar", bg=COR_ACCENT, fg=COR_TEXTO,
+            font=("Segoe UI", 10, "bold"), bd=0, padx=16, pady=8, relief="flat",
             command=lambda: self.controller.show_frame("MenuPrincipal")
         )
-        btn_voltar.pack(side="left", padx=10, pady=15)
-        
-        # Título
+        btn_voltar.pack(side="left", padx=14, pady=20)
+
+        title_wrap = tk.Frame(header, bg=COR_HEADER)
+        title_wrap.pack(side="left", fill="both", expand=True, pady=12)
         tk.Label(
-            header, text="FORJA DE ARMAS", 
-            font=("Helvetica", 20, "bold"), bg=COR_HEADER, fg=COR_TEXTO
-        ).pack(side="left", padx=20)
+            title_wrap, text="FORJA DE ARMAS",
+            font=("Bahnschrift SemiBold", 24), bg=COR_HEADER, fg=COR_TEXTO, anchor="w"
+        ).pack(fill="x")
+        tk.Label(
+            title_wrap, text="Construa armas v2 com familia, perfil mecanico, visual e kit magico legivel.",
+            font=("Segoe UI", 10), bg=COR_HEADER, fg="#c6d8f4", anchor="w"
+        ).pack(fill="x", pady=(2, 0))
         
         # Indicador de progresso
         self.frame_progresso = tk.Frame(header, bg=COR_HEADER)
-        self.frame_progresso.pack(side="right", padx=20)
+        self.frame_progresso.pack(side="right", padx=18)
         
         self.labels_progresso = []
-        nomes_passos = ["Tipo", "Raridade", "Visual", "Habilidades", "Finalizar"]
+        nomes_passos = ["Base", "Acabamento", "Visual", "Magia", "Finalizar"]
         for i, nome in enumerate(nomes_passos, 1):
             cor = COR_SUCCESS if i == 1 else COR_TEXTO_DIM
             lbl = tk.Label(
                 self.frame_progresso, text=f"{i}.{nome}",
-                font=("Arial", 9), bg=COR_HEADER, fg=cor
+                font=("Segoe UI", 9, "bold"), bg=COR_HEADER, fg=cor, padx=4
             )
-            lbl.pack(side="left", padx=5)
+            lbl.pack(side="left", padx=4, pady=28)
             self.labels_progresso.append(lbl)
 
     def atualizar_progresso(self):
@@ -215,18 +346,24 @@ class TelaArmas(tk.Frame):
 
     def setup_preview(self):
         """Configura o preview da arma"""
-        # Título
+        top = tk.Frame(self.frame_centro, bg=COR_BG)
+        top.pack(fill="x", padx=10, pady=(8, 4))
+
         tk.Label(
-            self.frame_centro, text="PREVIEW", 
-            font=("Arial", 12, "bold"), bg=COR_BG, fg=COR_TEXTO
-        ).pack(pady=(10, 5))
+            top, text="PREVIEW DA ARMA",
+            font=("Bahnschrift SemiBold", 18), bg=COR_BG, fg=COR_TEXTO, anchor="w"
+        ).pack(fill="x")
+        tk.Label(
+            top, text="Acompanhe silhueta, raridade, familia e consistencia visual enquanto edita.",
+            font=("Segoe UI", 9), bg=COR_BG, fg=COR_TEXTO_DIM, anchor="w"
+        ).pack(fill="x", pady=(2, 0))
         
         # Canvas do preview — expande com a janela
         self.canvas_preview = tk.Canvas(
-            self.frame_centro, bg=COR_BG_SECUNDARIO, 
-            highlightthickness=2, highlightbackground=COR_ACCENT
+            self.frame_centro, bg=COR_BG_SECUNDARIO,
+            highlightthickness=1, highlightbackground=COR_ACCENT
         )
-        self.canvas_preview.pack(fill="both", expand=True, padx=10, pady=5)
+        self.canvas_preview.pack(fill="both", expand=True, padx=10, pady=6)
         
         # Info da validação de tamanho
         self.frame_validacao = tk.Frame(self.frame_centro, bg=COR_BG)
@@ -234,13 +371,13 @@ class TelaArmas(tk.Frame):
         
         self.lbl_validacao = tk.Label(
             self.frame_validacao, text="", 
-            font=("Arial", 10), bg=COR_BG, fg=COR_TEXTO_DIM
+            font=("Segoe UI", 10), bg=COR_BG, fg=COR_TEXTO_DIM
         )
         self.lbl_validacao.pack()
         
         # Resumo dos stats
-        self.frame_stats = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO)
-        self.frame_stats.pack(fill="x", padx=10, pady=5)
+        self.frame_stats = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_stats.pack(fill="x", padx=10, pady=(4, 8))
         
         self.criar_resumo_stats()
 
@@ -252,8 +389,8 @@ class TelaArmas(tk.Frame):
         # Grid de stats
         stats = [
             ("Nome", self.dados_arma["nome"] or "???"),
-            ("Tipo", self.dados_arma["tipo"]),
-            ("Raridade", self.dados_arma["raridade"]),
+            ("Familia", get_family_spec(self.dados_arma["familia"])["nome"]),
+            ("Acabamento", self.dados_arma["raridade"]),
             ("Dano", f"{self.dados_arma['dano']:.0f}"),
             ("Peso", f"{self.dados_arma['peso']:.1f} kg"),
             ("Skills", str(len(self.dados_arma["habilidades"]))),
@@ -271,7 +408,7 @@ class TelaArmas(tk.Frame):
                 font=("Arial", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM
             ).pack(side="left")
             
-            cor = CORES_RARIDADE.get(valor, COR_TEXTO) if nome == "Raridade" else COR_TEXTO
+            cor = CORES_RARIDADE.get(valor, COR_TEXTO) if nome == "Acabamento" else COR_TEXTO
             tk.Label(
                 frame, text=valor, 
                 font=("Arial", 9, "bold"), bg=COR_BG_SECUNDARIO, fg=cor
@@ -280,9 +417,13 @@ class TelaArmas(tk.Frame):
     def setup_lista(self):
         """Configura a lista de armas existentes"""
         tk.Label(
-            self.frame_lista, text="ARSENAL", 
-            font=("Arial", 12, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
-        ).pack(pady=(15, 10))
+            self.frame_lista, text="ARSENAL",
+            font=("Bahnschrift SemiBold", 18), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
+        ).pack(pady=(16, 4))
+        tk.Label(
+            self.frame_lista, text="Edite, duplique ou limpe armas do catalogo atual.",
+            font=("Segoe UI", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM
+        ).pack(pady=(0, 10))
         
         # Treeview com scroll
         frame_tree = tk.Frame(self.frame_lista, bg=COR_BG_SECUNDARIO)
@@ -291,7 +432,7 @@ class TelaArmas(tk.Frame):
         scroll = ttk.Scrollbar(frame_tree)
         scroll.pack(side="right", fill="y")
         
-        cols = ("Nome", "Tipo", "Raridade")
+        cols = ("Nome", "Família", "Acabamento")
         self.tree = ttk.Treeview(
             frame_tree, columns=cols, show="headings", height=15,
             yscrollcommand=scroll.set
@@ -311,19 +452,19 @@ class TelaArmas(tk.Frame):
         
         tk.Button(
             frame_btns, text="Deletar", bg="#cc3333", fg=COR_TEXTO,
-            font=("Arial", 9), bd=0, padx=10, pady=5,
+            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
             command=self.deletar_arma
         ).pack(side="left")
         
         tk.Button(
             frame_btns, text="Editar", bg=COR_SUCCESS, fg=COR_BG,
-            font=("Arial", 9, "bold"), bd=0, padx=10, pady=5,
+            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
             command=self.editar_arma
         ).pack(side="right")
         
         tk.Button(
             frame_btns, text="Nova", bg=COR_ACCENT, fg=COR_TEXTO,
-            font=("Arial", 9), bd=0, padx=10, pady=5,
+            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
             command=self.nova_arma
         ).pack(side="right", padx=5)
 
@@ -378,19 +519,18 @@ class TelaArmas(tk.Frame):
     # PASSO 1: TIPO DA ARMA
     # -------------------------------------------------------------------------
     def passo_tipo(self):
-        """Passo 1: Escolha do tipo de arma"""
-        self.lbl_passo_titulo.config(text="1. TIPO DE ARMA")
-        self.lbl_passo_desc.config(text="Escolha a categoria base da sua arma. Cada tipo tem comportamento unico em combate.")
-        
-        # Nome da arma
+        """Passo 1: Escolha da familia base da arma."""
+        self.lbl_passo_titulo.config(text="1. BASE DA ARMA")
+        self.lbl_passo_desc.config(text="Escolha a familia da arma. Ela define alcance, cadencia, silhueta e comportamento principal.")
+
         frame_nome = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
         frame_nome.pack(fill="x", pady=(0, 15))
-        
+
         tk.Label(
-            frame_nome, text="Nome da Arma:", 
+            frame_nome, text="Nome da Arma:",
             font=("Arial", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
         ).pack(anchor="w")
-        
+
         self.entry_nome = tk.Entry(
             frame_nome, font=("Arial", 12), bg=COR_BG, fg=COR_TEXTO,
             insertbackground=COR_TEXTO
@@ -398,47 +538,45 @@ class TelaArmas(tk.Frame):
         self.entry_nome.pack(fill="x", pady=5)
         self.entry_nome.insert(0, self.dados_arma["nome"])
         self.entry_nome.bind("<KeyRelease>", lambda e: self.atualizar_dado("nome", self.entry_nome.get()))
-        
-        # Grid de tipos
+
         tk.Label(
-            self.frame_conteudo_passo, text="Categoria:", 
+            self.frame_conteudo_passo, text="Familia:",
             font=("Arial", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
         ).pack(anchor="w", pady=(10, 5))
-        
+
         frame_tipos = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
         frame_tipos.pack(fill="x")
-        
-        self.var_tipo = tk.StringVar(value=self.dados_arma["tipo"])
-        
-        # Organiza em grid 2x4
-        for i, tipo in enumerate(LISTA_TIPOS_ARMA):
-            dados = TIPOS_ARMA[tipo]
+
+        self.var_tipo = tk.StringVar(value=self.dados_arma["familia"])
+
+        for i, familia in enumerate(FAMILIAS_FORJA):
+            dados = get_family_spec(familia)
             row = i // 2
             col = i % 2
-            
+
             frame = tk.Frame(frame_tipos, bg=COR_BG, bd=1, relief="solid")
             frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-            
+
             rb = tk.Radiobutton(
-                frame, text=tipo, variable=self.var_tipo, value=tipo,
+                frame, text=dados["nome"], variable=self.var_tipo, value=familia,
                 font=("Arial", 11, "bold"), bg=COR_BG, fg=COR_TEXTO,
                 selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
-                command=lambda t=tipo: self.selecionar_tipo(t)
+                command=lambda f=familia: self.selecionar_tipo(f)
             )
             rb.pack(anchor="w", padx=10, pady=(5, 0))
-            
+
+            resumo = f"{dados['categoria'].replace('_', ' ')} | {', '.join(dados['subtipos'][:3])}"
             tk.Label(
-                frame, text=dados["descricao"],
+                frame, text=resumo,
                 font=("Arial", 8), bg=COR_BG, fg=COR_TEXTO_DIM,
                 wraplength=160, justify="left"
             ).pack(anchor="w", padx=10, pady=(0, 5))
-        
+
         frame_tipos.columnconfigure(0, weight=1)
         frame_tipos.columnconfigure(1, weight=1)
 
-        # ── Seletor de Estilo (atualiza dinamicamente ao escolher o tipo) ──
         tk.Label(
-            self.frame_conteudo_passo, text="Estilo / Variante:",
+            self.frame_conteudo_passo, text="Subtipo / Variante:",
             font=("Arial", 10, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
         ).pack(anchor="w", pady=(14, 4))
 
@@ -448,35 +586,40 @@ class TelaArmas(tk.Frame):
         self.combo_estilo_t1 = ttk.Combobox(frame_estilo_t1, state="readonly", font=("Arial", 11))
         self.combo_estilo_t1.pack(fill="x", ipady=4)
 
-        def _atualizar_estilos_t1(tipo):
-            estilos = TIPOS_ARMA[tipo]["estilos"]
-            self.combo_estilo_t1["values"] = estilos
-            estilo_atual = self.dados_arma.get("estilo") or estilos[0]
-            self.combo_estilo_t1.set(estilo_atual if estilo_atual in estilos else estilos[0])
-            self.dados_arma["estilo"] = self.combo_estilo_t1.get()
+        def _atualizar_estilos_t1(familia):
+            spec = get_family_spec(familia)
+            subtipos = list(spec["subtipos"])
+            self.combo_estilo_t1["values"] = subtipos
+            subtipo_atual = self.dados_arma.get("subtipo") or subtipos[0]
+            self.combo_estilo_t1.set(subtipo_atual if subtipo_atual in subtipos else subtipos[0])
+            self.dados_arma = _aplicar_preset_familia(
+                self.dados_arma,
+                familia,
+                subtipo=self.combo_estilo_t1.get(),
+            )
             self.atualizar_preview()
             self.criar_resumo_stats()
 
         self.combo_estilo_t1.bind("<<ComboboxSelected>>", lambda e: (
-            self.dados_arma.update({"estilo": self.combo_estilo_t1.get()}),
+            setattr(self, "dados_arma", _aplicar_preset_familia(
+                self.dados_arma,
+                self.dados_arma["familia"],
+                subtipo=self.combo_estilo_t1.get(),
+                preservar_cores=True,
+            )),
             self.atualizar_preview(),
             self.criar_resumo_stats(),
         ))
 
-        # Popula com o tipo já selecionado
-        _atualizar_estilos_t1(self.dados_arma["tipo"])
-
-        # Guarda referência para que selecionar_tipo() possa atualizar o combo
+        _atualizar_estilos_t1(self.dados_arma["familia"])
         self._atualizar_estilos_t1 = _atualizar_estilos_t1
 
-    def selecionar_tipo(self, tipo):
-        """Atualiza o tipo selecionado"""
-        self.dados_arma["tipo"] = tipo
-        dados_tipo = TIPOS_ARMA[tipo]
-        self.dados_arma["estilo"] = dados_tipo["estilos"][0]
-        # Atualiza o combo de estilo do Passo 1 se ele existir
+    def selecionar_tipo(self, familia):
+        """Atualiza a familia selecionada."""
+        spec = get_family_spec(familia)
+        self.dados_arma = _aplicar_preset_familia(self.dados_arma, familia, subtipo=spec["subtipos"][0])
         if hasattr(self, "_atualizar_estilos_t1"):
-            self._atualizar_estilos_t1(tipo)
+            self._atualizar_estilos_t1(familia)
         self.atualizar_preview()
         self.criar_resumo_stats()
 
@@ -485,23 +628,31 @@ class TelaArmas(tk.Frame):
     # PASSO 2: RARIDADE
     # -------------------------------------------------------------------------
     def passo_raridade(self):
-        """Passo 2: Escolha da raridade"""
-        self.lbl_passo_titulo.config(text="2. RARIDADE")
-        self.lbl_passo_desc.config(text="A raridade define o poder base, slots de habilidade e efeitos visuais da arma.")
-        
+        """Passo 2: Escolha do acabamento visual."""
+        self.lbl_passo_titulo.config(text="2. ACABAMENTO")
+        self.lbl_passo_desc.config(text="O acabamento controla apenas a apresentacao da arma. O balanceamento mecanico agora vem da familia e do perfil v2.")
+
         self.var_raridade = tk.StringVar(value=self.dados_arma["raridade"])
-        
-        for raridade in LISTA_RARIDADES:
-            dados = RARIDADES[raridade]
+
+        descricoes_lista = [
+            "Visual limpo e funcional, sem enfeites extras.",
+            "Detalhes discretos, bom contraste e leitura rapida.",
+            "Acabamento refinado com brilho mais perceptivel.",
+            "Presenca forte, contornos chamativos e silhueta heroica.",
+            "Metal ornamentado e leitura de arma especial.",
+            "Assinatura visual maxima para armas de destaque.",
+        ]
+        descricoes = dict(zip(ACABAMENTOS_FORJA, descricoes_lista))
+
+        for raridade in ACABAMENTOS_FORJA:
             cor = CORES_RARIDADE[raridade]
-            
+
             frame = tk.Frame(self.frame_conteudo_passo, bg=COR_BG, bd=2, relief="ridge")
             frame.pack(fill="x", pady=3)
-            
-            # Header com nome e cor
+
             header = tk.Frame(frame, bg=COR_BG)
             header.pack(fill="x", padx=10, pady=5)
-            
+
             rb = tk.Radiobutton(
                 header, text=raridade, variable=self.var_raridade, value=raridade,
                 font=("Arial", 12, "bold"), bg=COR_BG, fg=cor,
@@ -509,26 +660,20 @@ class TelaArmas(tk.Frame):
                 command=lambda r=raridade: self.selecionar_raridade(r)
             )
             rb.pack(side="left")
-            
-            # Stats
-            stats_text = f"Dano:{dados['mod_dano']:.0%} Crit:{dados['mod_critico']:.0%} Vel:{dados['mod_velocidade_ataque']:.0%} Slots:{dados['slots_habilidade']}"
+
             tk.Label(
-                header, text=stats_text,
+                header, text=f"Brilho {cor} | Acabamento visual",
                 font=("Arial", 9), bg=COR_BG, fg=COR_TEXTO_DIM
             ).pack(side="right")
-            
-            # Descrição
+
             tk.Label(
-                frame, text=dados["descricao"],
+                frame, text=descricoes[raridade],
                 font=("Arial", 9), bg=COR_BG, fg=COR_TEXTO_DIM
             ).pack(anchor="w", padx=10, pady=(0, 5))
 
     def selecionar_raridade(self, raridade):
-        """Atualiza a raridade selecionada"""
+        """Atualiza apenas o acabamento visual da arma."""
         self.dados_arma["raridade"] = raridade
-        # Aplica modificadores
-        rar_data = RARIDADES[raridade]
-        self.dados_arma["dano"] = 10 * rar_data["mod_dano"]
         self.atualizar_preview()
         self.criar_resumo_stats()
 
@@ -537,7 +682,7 @@ class TelaArmas(tk.Frame):
     # -------------------------------------------------------------------------
     def passo_visual(self):
         """Passo 4: Cores e aparência"""
-        self.lbl_passo_titulo.config(text="4. VISUAL")
+        self.lbl_passo_titulo.config(text="3. VISUAL")
         self.lbl_passo_desc.config(text="Personalize as cores da sua arma.")
         
         # Sliders RGB
@@ -636,15 +781,13 @@ class TelaArmas(tk.Frame):
 
     def passo_habilidades(self):
         """Passo 5: Habilidades e encantamentos — versão visual"""
-        self.lbl_passo_titulo.config(text="5. HABILIDADES")
+        self.lbl_passo_titulo.config(text="4. HABILIDADES")
 
         raridade = self.dados_arma["raridade"]
-        rar_data = RARIDADES[raridade]
-        max_slots = rar_data["slots_habilidade"]
-        max_enc = rar_data["max_encantamentos"]
+        max_slots, max_enc = _limites_magia_por_familia(self.dados_arma)
 
         self.lbl_passo_desc.config(
-            text=f"Raridade {raridade}: {max_slots} slot(s) de habilidade, {max_enc} encantamento(s)"
+            text=f"Acabamento {raridade}: {max_slots} slot(s) de habilidade e foco mecanico definido pela familia."
         )
 
         # ── Container principal: esquerda (slots) | direita (detalhes) ──
@@ -1277,100 +1420,69 @@ class TelaArmas(tk.Frame):
 
     def toggle_encantamento(self, nome):
         """Toggle de encantamento"""
-        max_enc = RARIDADES[self.dados_arma["raridade"]]["max_encantamentos"]
-        
-        if self.vars_encantamento[nome].get():
-            if len(self.dados_arma["encantamentos"]) < max_enc:
-                if nome not in self.dados_arma["encantamentos"]:
-                    self.dados_arma["encantamentos"].append(nome)
-            else:
-                self.vars_encantamento[nome].set(False)
-                messagebox.showwarning("Limite", f"Maximo de {max_enc} encantamentos para esta raridade!")
-        else:
-            if nome in self.dados_arma["encantamentos"]:
-                self.dados_arma["encantamentos"].remove(nome)
+        if hasattr(self, "vars_encantamento") and nome in self.vars_encantamento:
+            self.vars_encantamento[nome].set(False)
+        self.dados_arma["encantamentos"] = []
 
     # -------------------------------------------------------------------------
     # PASSO 6: FINALIZAR
     # -------------------------------------------------------------------------
     def passo_finalizar(self):
-        """Passo 6: Resumo e confirmação"""
-        self.lbl_passo_titulo.config(text="6. FINALIZAR")
-        self.lbl_passo_desc.config(text="Revise sua arma antes de forjar!")
-        
-        # Resumo completo
-        dados = self.dados_arma
+        """Passo final: resumo e confirmacao."""
+        self.lbl_passo_titulo.config(text="5. FINALIZAR")
+        self.lbl_passo_desc.config(text="Revise a arma no schema novo antes de forjar.")
+
+        dados = _sincronizar_dados_arma_v2(dict(self.dados_arma))
         raridade = dados["raridade"]
-        cor_rar = CORES_RARIDADE[raridade]
-        
-        # Frame do resumo
+        cor_rar = CORES_RARIDADE.get(raridade, COR_TEXTO)
+        familia_nome = get_family_spec(dados["familia"])["nome"]
+
         frame_resumo = tk.Frame(self.frame_conteudo_passo, bg=COR_BG, bd=2, relief="ridge")
         frame_resumo.pack(fill="both", expand=True, pady=10)
-        
-        # Nome em destaque
+
         tk.Label(
             frame_resumo, text=dados["nome"] or "Arma Sem Nome",
             font=("Arial", 18, "bold"), bg=COR_BG, fg=cor_rar
         ).pack(pady=(15, 5))
-        
+
         tk.Label(
-            frame_resumo, text=f"{dados['tipo']} {raridade}",
+            frame_resumo, text=f"{familia_nome} | {dados['subtipo']} | {raridade}",
             font=("Arial", 12), bg=COR_BG, fg=COR_TEXTO_DIM
         ).pack()
-        
-        # Stats
+
         stats_frame = tk.Frame(frame_resumo, bg=COR_BG)
         stats_frame.pack(pady=15)
-        
-        rar_data = RARIDADES[raridade]
-        dano_final = dados["dano"] * rar_data["mod_dano"]
-        
+
+        max_slots, _ = _limites_magia_por_familia(dados)
         stats = [
-            ("Dano", f"{dano_final:.0f}"),
+            ("Dano Base", f"{dados['dano']:.0f}"),
             ("Peso", f"{dados['peso']:.1f}kg"),
-            ("Critico", f"+{rar_data['mod_critico']:.0%}"),
-            ("Vel.Ataque", f"{rar_data['mod_velocidade_ataque']:.0%}"),
+            ("Categoria", dados['categoria'].replace('_', ' ')),
+            ("Slots", f"{len(dados['habilidades'])}/{max_slots}"),
         ]
-        
+
         for i, (nome, valor) in enumerate(stats):
             tk.Label(
                 stats_frame, text=f"{nome}: {valor}",
                 font=("Arial", 11), bg=COR_BG, fg=COR_TEXTO
-            ).grid(row=i//2, column=i%2, padx=20, pady=3, sticky="w")
-        
-        # Habilidades
+            ).grid(row=i // 2, column=i % 2, padx=20, pady=3, sticky="w")
+
         if dados["habilidades"]:
             tk.Label(
                 frame_resumo, text="Habilidades:",
                 font=("Arial", 10, "bold"), bg=COR_BG, fg=COR_SUCCESS
             ).pack(anchor="w", padx=15)
-            
+
             for hab in dados["habilidades"]:
-                # Suporta tanto string quanto dict
                 if isinstance(hab, dict):
-                    nome = hab.get('nome', 'Desconhecida')
-                    custo = hab.get('custo', 0)
+                    nome = hab.get("nome", "Desconhecida")
+                    custo = hab.get("custo", 0)
                     texto = f"  - {nome} ({custo} mana)"
                 else:
                     texto = f"  - {hab}"
                 tk.Label(
                     frame_resumo, text=texto,
                     font=("Arial", 9), bg=COR_BG, fg=COR_TEXTO
-                ).pack(anchor="w", padx=15)
-        
-        # Encantamentos
-        if dados["encantamentos"]:
-            tk.Label(
-                frame_resumo, text="Encantamentos:",
-                font=("Arial", 10, "bold"), bg=COR_BG, fg="#FFD700"
-            ).pack(anchor="w", padx=15, pady=(10, 0))
-            
-            for enc in dados["encantamentos"]:
-                cor = ENCANTAMENTOS[enc]["cor"]
-                cor_hex = f"#{cor[0]:02x}{cor[1]:02x}{cor[2]:02x}"
-                tk.Label(
-                    frame_resumo, text=f"  - {enc}",
-                    font=("Arial", 9), bg=COR_BG, fg=cor_hex
                 ).pack(anchor="w", padx=15)
 
     # =========================================================================
@@ -2298,47 +2410,23 @@ class TelaArmas(tk.Frame):
         self.criar_resumo_stats()
 
     def salvar_arma(self):
-        """Salva a arma no banco de dados"""
-        dados = self.dados_arma
-        
+        """Salva a arma no banco de dados."""
+        dados = _sincronizar_dados_arma_v2(dict(self.dados_arma))
+
         if not dados["nome"]:
             messagebox.showerror("Erro", "A arma precisa de um nome!")
             return
 
-        # BUG-F1: Verificar duplicata de nome (salvar_personagem já faz isso, armas não tinham)
         _state_check = AppState.get()
         for i, a in enumerate(_state_check.weapons):
             if a.nome.lower() == dados["nome"].lower():
                 if self.indice_em_edicao is None or self.indice_em_edicao != i:
-                    messagebox.showerror("Erro", f"Já existe uma arma chamada '{dados['nome']}'!")
+                    messagebox.showerror("Erro", f"Ja existe uma arma chamada '{dados['nome']}'!")
                     return
 
-
-
-        cores = dados["cores"]
-        
         try:
-            nova = Arma(
-                nome=dados["nome"],
-                quantidade=dados.get("quantidade", 1),
-                quantidade_orbitais=dados.get("quantidade_orbitais", 1),
-                forca_arco=dados.get("forca_arco", 0),
-                tipo=dados["tipo"],
-                dano=dados["dano"],
-                peso=dados["peso"],
-                raridade=dados["raridade"],
-                estilo=dados.get("estilo", ""),
-                # Geometria basica
-                # Geometria extra
-                # Cores
-                r=cores["r"], g=cores["g"], b=cores["b"],
-                # Habilidades
-                habilidades=dados["habilidades"],
-                encantamentos=dados["encantamentos"],
-                cabo_dano=dados["cabo_dano"],
-                afinidade_elemento=dados["afinidade_elemento"],
-            )
-            
+            nova = _criar_arma_do_estado_ui(dados)
+
             _state = AppState.get()
             if self.indice_em_edicao is not None:
                 _state.update_weapon(self.indice_em_edicao, nova)
@@ -2347,25 +2435,27 @@ class TelaArmas(tk.Frame):
                 _state.add_weapon(nova)
             self.atualizar_lista()
             self.nova_arma()
-            
+
+            familia_nome = get_family_spec(nova.familia)["nome"]
             messagebox.showinfo(
-                "Arma Forjada!", 
+                "Arma Forjada!",
                 f"{nova.nome} foi forjada com sucesso!\n"
-                f"Raridade: {nova.raridade}\n"
-                f"Dano: {nova.dano:.0f}"
+                f"Familia: {familia_nome}\n"
+                f"Acabamento: {nova.raridade}"
             )
-            
+
         except Exception as e:
             messagebox.showerror("Erro ao Forjar", str(e))
 
     def atualizar_lista(self):
-        """Atualiza a lista de armas"""
+        """Atualiza a lista de armas."""
         for item in self.tree.get_children():
             self.tree.delete(item)
-        
+
         for arma in self.controller.lista_armas:
-            raridade = getattr(arma, 'raridade', 'Comum')
-            self.tree.insert("", "end", values=(arma.nome, arma.tipo, raridade))
+            familia = get_family_spec(getattr(arma, "familia", inferir_familia(arma.tipo, getattr(arma, "estilo", ""))))["nome"]
+            acabamento = getattr(arma, "raridade", "Comum")
+            self.tree.insert("", "end", values=(arma.nome, familia, acabamento))
 
     def _normalizar_habilidades(self, habilidades):
         """Converte lista de habilidades para formato padrão (lista de dicts)"""
@@ -2388,73 +2478,66 @@ class TelaArmas(tk.Frame):
         return resultado
 
     def selecionar_arma(self, event):
-        """Seleciona uma arma da lista"""
+        """Seleciona uma arma da lista."""
         sel = self.tree.selection()
         if not sel:
             return
-        
+
         idx = self.tree.index(sel[0])
         arma = self.controller.lista_armas[idx]
-        
-        # Preenche dados para edicao
-        self.dados_arma = {
+
+        self.dados_arma = _sincronizar_dados_arma_v2({
             "nome": arma.nome,
+            "familia": getattr(arma, "familia", inferir_familia(arma.tipo, getattr(arma, "estilo", ""))),
+            "categoria": getattr(arma, "categoria", None),
+            "subtipo": getattr(arma, "subtipo", ""),
             "tipo": arma.tipo,
-            "raridade": getattr(arma, 'raridade', 'Comum'),
-            "estilo": arma.estilo,
-            "dano": arma.dano_base if hasattr(arma, 'dano_base') else arma.dano,
-            "peso": arma.peso_base if hasattr(arma, 'peso_base') else arma.peso,
-            "geometria": {
-                "largura": getattr(arma, 'largura', 0),
-                "distancia": getattr(arma, 'distancia', 0),
-                "quantidade": getattr(arma, 'quantidade', 1),
-                "forca_arco": getattr(arma, 'forca_arco', 0),
-                "quantidade_orbitais": getattr(arma, 'quantidade_orbitais', 1),
-                "tamanho": getattr(arma, 'tamanho', 0),
+            "raridade": getattr(arma, "raridade", "Comum"),
+            "estilo": getattr(arma, "estilo", ""),
+            "dano": arma.dano_base if hasattr(arma, "dano_base") else arma.dano,
+            "peso": arma.peso_base if hasattr(arma, "peso_base") else arma.peso,
+            "geometria": getattr(arma, "geometria", {}) or {
+                "largura": getattr(arma, "largura", 0),
+                "distancia": getattr(arma, "distancia", 0),
+                "quantidade": getattr(arma, "quantidade", 1),
+                "forca_arco": getattr(arma, "forca_arco", 0),
+                "quantidade_orbitais": getattr(arma, "quantidade_orbitais", 1),
+                "tamanho": getattr(arma, "tamanho", 0),
             },
             "cores": {"r": arma.r, "g": arma.g, "b": arma.b},
-            "habilidades": self._normalizar_habilidades(getattr(arma, 'habilidades', [])),
-            "encantamentos": getattr(arma, 'encantamentos', []),
+            "habilidades": self._normalizar_habilidades(getattr(arma, "habilidades", [])),
+            "encantamentos": [],
             "cabo_dano": arma.cabo_dano,
-            "afinidade_elemento": getattr(arma, 'afinidade_elemento', None),
-        }
-        
+            "afinidade_elemento": getattr(arma, "afinidade_elemento", None),
+            "quantidade": getattr(arma, "quantidade", 1),
+            "quantidade_orbitais": getattr(arma, "quantidade_orbitais", 1),
+            "forca_arco": getattr(arma, "forca_arco", 0.0),
+        })
+
         self.indice_em_edicao = idx
         self.mostrar_passo(1)
 
     def editar_arma(self):
-        """Inicia edicao da arma selecionada"""
+        """Inicia edicao da arma selecionada."""
         self.selecionar_arma(None)
 
     def deletar_arma(self):
-        """Deleta a arma selecionada"""
+        """Deleta a arma selecionada."""
         sel = self.tree.selection()
         if not sel:
             return
-        
+
         idx = self.tree.index(sel[0])
         arma = self.controller.lista_armas[idx]
-        
+
         if messagebox.askyesno("Confirmar", f"Deletar '{arma.nome}'?"):
             AppState.get().delete_weapon(idx)
             self.atualizar_lista()
 
     def nova_arma(self):
-        """Inicia criacao de nova arma"""
+        """Inicia criacao de nova arma."""
         self.indice_em_edicao = None
-        self.dados_arma = {
-            "nome": "",
-            "tipo": "Reta",
-            "raridade": "Comum",
-            "estilo": "",
-            "dano": 10,
-            "peso": 5,
-            "cores": {"r": 200, "g": 200, "b": 200},
-            "habilidades": [],
-            "encantamentos": [],
-            "cabo_dano": False,
-            "afinidade_elemento": None,
-        }
+        self.dados_arma = _default_weapon_ui_state()
         self.mostrar_passo(1)
 
     def atualizar_dados(self):

@@ -1,0 +1,126 @@
+{
+  "versao": "1.0",
+  "descricao": "Papeis taticos oficiais para balanceamento por pacote.",
+  "papeis": [
+    {
+      "id": "defensor",
+      "nome": "Defensor",
+      "objetivo": "Segurar linha, proteger aliados e absorver pressao.",
+      "arquetipos_prioritarios": ["GUARDIAO", "PALADINO", "CAVALEIRO", "GUERREIRO_PESADO", "ESPARTANO"],
+      "tracos_prioritarios": ["PROTETOR", "TANQUE", "MURALHA", "PRUDENTE", "DETERMINADO", "COBERTURA_MESTRE"],
+      "familias_arma_preferidas": ["lamina", "haste", "orbital", "hibrida"],
+      "classes_magia_preferidas": ["PROTECAO", "CONTROLE", "ZONA", "AMPLIFICACAO"],
+      "forcas_magia_preferidas": ["SUPORTE", "PRESSAO"],
+      "forte_em": ["segurar_corredor", "peel", "frente_de_grupo", "tempo_de_luta_longo"],
+      "fraco_em": ["burst_puro", "perseguicao_longa", "flanco_sozinho"]
+    },
+    {
+      "id": "curandeiro",
+      "nome": "Curandeiro",
+      "objetivo": "Manter o grupo vivo e sustentar combates longos.",
+      "arquetipos_prioritarios": ["SACERDOTE", "MAGO_CONTROLE", "ARCANO", "INVOCADOR"],
+      "tracos_prioritarios": ["PACIENTE", "CALCULISTA", "SUPPORT", "CONSERVADOR", "FOCADO"],
+      "familias_arma_preferidas": ["foco", "orbital"],
+      "classes_magia_preferidas": ["CURA", "PROTECAO", "AMPLIFICACAO"],
+      "forcas_magia_preferidas": ["SUPORTE", "PRESSAO"],
+      "forte_em": ["sustain", "recuperacao_de_time", "batalha_longa", "dungeon"],
+      "fraco_em": ["burst_duelo", "frente_sozinho", "pressao_imediata"]
+    },
+    {
+      "id": "suporte_controle",
+      "nome": "Suporte De Controle",
+      "objetivo": "Criar janelas para o time com trava, slow, zona e setup.",
+      "arquetipos_prioritarios": ["CRIOMANTE", "MAGO_CONTROLE", "ARCANO", "ELETROMANTE"],
+      "tracos_prioritarios": ["ZONE_CONTROLLER", "SETUP_ARTIST", "LEITURA_PERFEITA", "ANALITICO", "CALCULISTA"],
+      "familias_arma_preferidas": ["foco", "orbital", "haste"],
+      "classes_magia_preferidas": ["CONTROLE", "ZONA", "DISRUPCAO", "PROTECAO"],
+      "forcas_magia_preferidas": ["PRESSAO", "SUPORTE", "PRECISAO"],
+      "forte_em": ["abrir_janelas", "negar_area", "combo_de_time", "anti_horda"],
+      "fraco_em": ["finalizacao_sozinho", "tankar_frente", "burst_continuo"]
+    },
+    {
+      "id": "atirador",
+      "nome": "Atirador",
+      "objetivo": "Aplicar dano consistente a distancia com boa leitura de alvo.",
+      "arquetipos_prioritarios": ["SNIPER", "MAGO", "MAGO_AGRESSIVO", "CONQUISTADOR"],
+      "tracos_prioritarios": ["SNIPER", "KITER", "ESPACAMENTO_MESTRE", "COOLDOWN_WATCHER", "PACIENTE"],
+      "familias_arma_preferidas": ["disparo", "arremesso", "foco"],
+      "classes_magia_preferidas": ["DANO", "PRECISAO", "ZONA"],
+      "forcas_magia_preferidas": ["PRECISAO", "PRESSAO", "IMPACTO"],
+      "forte_em": ["poke", "dps_constante", "punir_alvos_lentos", "backline"],
+      "fraco_em": ["colado_no_corpo", "cerco", "surpresa_de_assassino"]
+    },
+    {
+      "id": "assassino",
+      "nome": "Assassino",
+      "objetivo": "Explodir alvos vulneraveis e sair vivo da troca.",
+      "arquetipos_prioritarios": ["ASSASSINO", "NINJA", "SOMBRA", "SICARIO", "PHANTOM"],
+      "tracos_prioritarios": ["OPORTUNISTA", "FLANQUEADOR", "ACROBATA", "PREDADOR", "FINALIZADOR_NATO"],
+      "familias_arma_preferidas": ["dupla", "arremesso", "hibrida"],
+      "classes_magia_preferidas": ["MOBILIDADE", "DANO", "DISRUPCAO"],
+      "forcas_magia_preferidas": ["PRECISAO", "IMPACTO", "CATACLISMO"],
+      "forte_em": ["pickoff", "backline", "punish", "virada_rapida"],
+      "fraco_em": ["troca_longa", "linha_defensiva", "controle_de_area"]
+    },
+    {
+      "id": "duelista",
+      "nome": "Duelista",
+      "objetivo": "Vencer trocas tecnicas, spacing e janelas curtas de punish.",
+      "arquetipos_prioritarios": ["DUELISTA", "SAMURAI", "GUERREIRO", "GLADIADOR"],
+      "tracos_prioritarios": ["TIMING_PRECISO", "LEITURA_PERFEITA", "REATIVO", "ESPACAMENTO_MESTRE", "METODICO"],
+      "familias_arma_preferidas": ["lamina", "haste", "dupla"],
+      "classes_magia_preferidas": ["PRECISAO", "PROTECAO", "MOBILIDADE"],
+      "forcas_magia_preferidas": ["PRECISAO", "SUPORTE", "PRESSAO"],
+      "forte_em": ["1v1", "punish_limpo", "counterplay", "leitura"],
+      "fraco_em": ["horda", "caos_de_area", "pressao_de_multiplos_alvos"]
+    },
+    {
+      "id": "bruiser",
+      "nome": "Bruiser",
+      "objetivo": "Entrar forte, manter pressao e sobreviver no meio da confusao.",
+      "arquetipos_prioritarios": ["BERSERKER", "VIKING", "GLADIADOR", "CONQUISTADOR", "GUERREIRO"],
+      "tracos_prioritarios": ["AGRESSIVO", "PRESSAO_CONSTANTE", "INCANSAVEL", "MOMENTUM_RIDER", "BRUTAL"],
+      "familias_arma_preferidas": ["lamina", "corrente", "haste", "hibrida"],
+      "classes_magia_preferidas": ["DANO", "AMPLIFICACAO", "PROTECAO"],
+      "forcas_magia_preferidas": ["IMPACTO", "PRESSAO", "CATACLISMO"],
+      "forte_em": ["briga_longa", "quebrar_linha", "combate_meio_termo", "grupo_vs_grupo"],
+      "fraco_em": ["kiting", "controle_de_longa_distancia", "burst_muito_tecnico"]
+    },
+    {
+      "id": "invocador",
+      "nome": "Invocador",
+      "objetivo": "Gerar vantagem de espaco, distraindo e multiplicando presenca.",
+      "arquetipos_prioritarios": ["INVOCADOR", "NECROMANTE", "ARCANO", "MAGO_CONTROLE"],
+      "tracos_prioritarios": ["SETUP_ARTIST", "ZONE_CONTROLLER", "PACIENTE", "CALCULISTA", "AWARENESS_ALTO"],
+      "familias_arma_preferidas": ["foco", "orbital"],
+      "classes_magia_preferidas": ["INVOCACAO", "ZONA", "CONTROLE"],
+      "forcas_magia_preferidas": ["SUPORTE", "PRESSAO", "CATACLISMO"],
+      "forte_em": ["dungeon", "attrition", "controle_de_mapa", "horda"],
+      "fraco_em": ["burst_curto", "pickoff_rapido", "duelo_limpo"]
+    },
+    {
+      "id": "controlador_de_area",
+      "nome": "Controlador De Area",
+      "objetivo": "Mudar o fluxo da luta com zonas perigosas e terreno hostil.",
+      "arquetipos_prioritarios": ["CRIOMANTE", "PIROMANTE", "ARCANO", "MAGO_CONTROLE"],
+      "tracos_prioritarios": ["AREA_DENIAL", "ZONE_CONTROLLER", "CAUTELOSO", "ANALITICO", "TECNICO"],
+      "familias_arma_preferidas": ["foco", "orbital", "corrente"],
+      "classes_magia_preferidas": ["ZONA", "CONTROLE", "DISRUPCAO"],
+      "forcas_magia_preferidas": ["PRESSAO", "CATACLISMO", "SUPORTE"],
+      "forte_em": ["objetivo", "corredor", "lava_ou_parede", "grupo_vs_grupo"],
+      "fraco_em": ["duelo_movel", "alvo_muito_agil", "surpresa"]
+    },
+    {
+      "id": "limpador_de_horda",
+      "nome": "Limpador De Horda",
+      "objetivo": "Eliminar muitos alvos fracos com seguranca e consistencia.",
+      "arquetipos_prioritarios": ["PIROMANTE", "ELETROMANTE", "BERSERKER", "INVOCADOR"],
+      "tracos_prioritarios": ["AREA_DENIAL", "INCANSAVEL", "PRESSAO_CONSTANTE", "SETUP_ARTIST", "DESTRUIDOR"],
+      "familias_arma_preferidas": ["corrente", "foco", "orbital", "haste"],
+      "classes_magia_preferidas": ["ZONA", "INVOCACAO", "DANO", "CONTROLE"],
+      "forcas_magia_preferidas": ["CATACLISMO", "PRESSAO", "IMPACTO"],
+      "forte_em": ["ondas", "minions", "dungeon", "segurar_corredor"],
+      "fraco_em": ["pickoff_muito_rapido", "duelo_precisionado", "foco_de_assassino"]
+    }
+  ]
+}

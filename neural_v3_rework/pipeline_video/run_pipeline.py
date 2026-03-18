@@ -37,6 +37,19 @@ def main() -> None:
         help="Modo de geracao de pares: balanced, hybrid ou pure_random",
     )
     parser.add_argument(
+        "--video-format",
+        type=str,
+        default="comment_roulette",
+        choices=["comment_roulette", "classic"],
+        help="Formato principal do video: roleta por comentario ou luta classica",
+    )
+    parser.add_argument(
+        "--comment",
+        type=str,
+        default=None,
+        help="Comentario base para o gancho e a build da roleta",
+    )
+    parser.add_argument(
         "--no-coverage-rotation",
         action="store_true",
         help="Desativa rotacao de cobertura de atributos",
@@ -54,8 +67,9 @@ def main() -> None:
     log = logging.getLogger("pipeline")
     log.info("Neural Fights Video Pipeline")
     log.info(
-        "Generation mode: %s | Coverage rotation: %s",
+        "Generation mode: %s | Video format: %s | Coverage rotation: %s",
         args.generation_mode,
+        args.video_format,
         "off" if args.no_coverage_rotation else "on",
     )
 
@@ -65,6 +79,8 @@ def main() -> None:
         num_fights=args.fights,
         generation_mode=args.generation_mode,
         coverage_rotation=not args.no_coverage_rotation,
+        video_format=args.video_format,
+        comment=args.comment,
     )
 
     if results:

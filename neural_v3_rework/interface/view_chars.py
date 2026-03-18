@@ -78,25 +78,31 @@ class TelaPersonagens(tk.Frame):
         # Header
         self.criar_header()
         
-        # Container principal dividido em 3 partes — grid responsivo
         main = tk.Frame(self, bg=COR_BG)
-        main.pack(fill="both", expand=True, padx=10, pady=5)
-        main.grid_columnconfigure(0, weight=3, minsize=300)  # wizard
-        main.grid_columnconfigure(1, weight=4, minsize=200)  # centro/preview
-        main.grid_columnconfigure(2, weight=2, minsize=210)  # lista
-        main.grid_rowconfigure(0, weight=1)
+        main.pack(fill="both", expand=True, padx=14, pady=10)
 
-        # Esquerda: Wizard Steps
-        self.frame_wizard = tk.Frame(main, bg=COR_BG_SECUNDARIO)
-        self.frame_wizard.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+        paned = tk.PanedWindow(
+            main,
+            orient="horizontal",
+            sashwidth=8,
+            sashrelief="flat",
+            showhandle=False,
+            bd=0,
+            relief="flat",
+            bg=COR_BG,
+        )
+        paned.pack(fill="both", expand=True)
 
-        # Centro: Preview e controles
+        self.frame_wizard = tk.Frame(main, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
         self.frame_centro = tk.Frame(main, bg=COR_BG)
-        self.frame_centro.grid(row=0, column=1, sticky="nsew", padx=5)
+        self.frame_lista = tk.Frame(main, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
 
-        # Direita: Lista de personagens
-        self.frame_lista = tk.Frame(main, bg=COR_BG_SECUNDARIO)
-        self.frame_lista.grid(row=0, column=2, sticky="nsew", padx=(5, 0))
+        paned.add(self.frame_wizard, minsize=320, stretch="always")
+        paned.add(self.frame_centro, minsize=360, stretch="always")
+        paned.add(self.frame_lista, minsize=240, stretch="never")
+
+        self.after(100, lambda: paned.sash_place(0, 420, 0))
+        self.after(140, lambda: paned.sash_place(1, 930, 0))
         
         # Configura cada seção
         self.setup_wizard()
@@ -108,27 +114,32 @@ class TelaPersonagens(tk.Frame):
 
     def criar_header(self):
         """Cria o header com navegação e progresso"""
-        header = tk.Frame(self, bg=COR_HEADER, height=60)
+        header = tk.Frame(self, bg=COR_HEADER, height=88)
         header.pack(fill="x", side="top")
         header.pack_propagate(False)
         
         # Botão voltar
         btn_voltar = tk.Button(
-            header, text="< VOLTAR", bg=COR_ACCENT, fg=COR_TEXTO,
-            font=("Arial", 10, "bold"), bd=0, padx=15,
+            header, text="Voltar", bg=COR_ACCENT, fg=COR_TEXTO,
+            font=("Segoe UI", 10, "bold"), bd=0, padx=16, pady=8, relief="flat",
             command=lambda: self.controller.show_frame("MenuPrincipal")
         )
-        btn_voltar.pack(side="left", padx=10, pady=15)
-        
-        # Título
+        btn_voltar.pack(side="left", padx=14, pady=20)
+
+        title_wrap = tk.Frame(header, bg=COR_HEADER)
+        title_wrap.pack(side="left", fill="both", expand=True, pady=12)
         tk.Label(
-            header, text="CRIADOR DE CAMPEÕES", 
-            font=("Helvetica", 20, "bold"), bg=COR_HEADER, fg=COR_TEXTO
-        ).pack(side="left", padx=20)
+            title_wrap, text="CRIADOR DE CAMPEOES",
+            font=("Bahnschrift SemiBold", 24), bg=COR_HEADER, fg=COR_TEXTO, anchor="w"
+        ).pack(fill="x")
+        tk.Label(
+            title_wrap, text="Monte o roster com classe, personalidade, visual, equipamento e papel implicito de combate.",
+            font=("Segoe UI", 10), bg=COR_HEADER, fg="#c6d8f4", anchor="w"
+        ).pack(fill="x", pady=(2, 0))
         
         # Indicador de progresso
         self.frame_progresso = tk.Frame(header, bg=COR_HEADER)
-        self.frame_progresso.pack(side="right", padx=20)
+        self.frame_progresso.pack(side="right", padx=18)
         
         self.labels_progresso = []
         nomes_passos = ["Identidade", "Classe", "Personalidade", "Atributos", "Visual", "Equipamento", "Divindade"]  # [PHASE 3]
@@ -136,9 +147,9 @@ class TelaPersonagens(tk.Frame):
             cor = COR_SUCCESS if i == 1 else COR_TEXTO_DIM
             lbl = tk.Label(
                 self.frame_progresso, text=f"{i}.{nome}",
-                font=("Arial", 9), bg=COR_HEADER, fg=cor
+                font=("Segoe UI", 9, "bold"), bg=COR_HEADER, fg=cor, padx=4
             )
-            lbl.pack(side="left", padx=5)
+            lbl.pack(side="left", padx=4, pady=28)
             self.labels_progresso.append(lbl)
 
     def atualizar_progresso(self):
@@ -242,27 +253,33 @@ class TelaPersonagens(tk.Frame):
 
     def setup_preview(self):
         """Configura o preview do personagem"""
-        # Título
+        top = tk.Frame(self.frame_centro, bg=COR_BG)
+        top.pack(fill="x", padx=10, pady=(8, 4))
+
         tk.Label(
-            self.frame_centro, text="PREVIEW", 
-            font=("Arial", 12, "bold"), bg=COR_BG, fg=COR_TEXTO
-        ).pack(pady=(10, 5))
+            top, text="PREVIEW DO CAMPEAO",
+            font=("Bahnschrift SemiBold", 18), bg=COR_BG, fg=COR_TEXTO, anchor="w"
+        ).pack(fill="x")
+        tk.Label(
+            top, text="Acompanhe stats, classe, equipamento e leitura geral do kit enquanto monta o roster.",
+            font=("Segoe UI", 9), bg=COR_BG, fg=COR_TEXTO_DIM, anchor="w"
+        ).pack(fill="x", pady=(2, 0))
         
         # Canvas do preview — expande com a janela
         self.canvas_preview = tk.Canvas(
-            self.frame_centro, bg=COR_BG_SECUNDARIO, 
-            highlightthickness=2, highlightbackground=COR_ACCENT
+            self.frame_centro, bg=COR_BG_SECUNDARIO,
+            highlightthickness=1, highlightbackground=COR_ACCENT
         )
-        self.canvas_preview.pack(fill="both", expand=True, pady=10)
+        self.canvas_preview.pack(fill="both", expand=True, padx=10, pady=8)
         
         # Resumo dos stats
-        self.frame_stats = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO)
-        self.frame_stats.pack(fill="x", padx=10, pady=10)
+        self.frame_stats = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_stats.pack(fill="x", padx=10, pady=8)
         
         self.criar_resumo_stats()
         
         # Info da classe selecionada
-        self.frame_classe_info = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO)
+        self.frame_classe_info = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
         self.frame_classe_info.pack(fill="x", padx=10, pady=5)
         
         self.lbl_classe_passiva = tk.Label(
@@ -405,8 +422,12 @@ class TelaPersonagens(tk.Frame):
         """Configura a lista de personagens existentes"""
         tk.Label(
             self.frame_lista, text="CAMPEÕES", 
-            font=("Arial", 12, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
-        ).pack(pady=(15, 10))
+            font=("Bahnschrift SemiBold", 18), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
+        ).pack(pady=(16, 4))
+        tk.Label(
+            self.frame_lista, text="Edite, limpe ou expanda o roster atual com foco em variedade de pacote.",
+            font=("Segoe UI", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM
+        ).pack(pady=(0, 10))
         
         # Treeview com scroll
         frame_tree = tk.Frame(self.frame_lista, bg=COR_BG_SECUNDARIO)
@@ -440,19 +461,19 @@ class TelaPersonagens(tk.Frame):
         
         tk.Button(
             frame_btns, text="Deletar", bg=COR_DANGER, fg=COR_TEXTO,
-            font=("Arial", 9), bd=0, padx=10, pady=5,
+            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
             command=self.deletar_personagem
         ).pack(side="left")
         
         tk.Button(
             frame_btns, text="Editar", bg=COR_SUCCESS, fg=COR_BG,
-            font=("Arial", 9, "bold"), bd=0, padx=10, pady=5,
+            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
             command=self.editar_personagem
         ).pack(side="right")
         
         tk.Button(
             frame_btns, text="Novo", bg=COR_ACCENT, fg=COR_TEXTO,
-            font=("Arial", 9), bd=0, padx=10, pady=5,
+            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
             command=self.novo_personagem
         ).pack(side="right", padx=5)
 

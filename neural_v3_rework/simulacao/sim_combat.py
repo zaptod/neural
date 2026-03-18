@@ -81,7 +81,8 @@ class SimuladorCombat:
             mag = math.hypot(vx, vy) or 1
 
             # Usa o novo sistema de dano modificado
-            dano_base = arma.dano * (atacante.dados.forca / 2.0)
+            # Orçamento físico mais estável: dano não cresce tão explosivamente só pela força.
+            dano_base = arma.dano * (0.78 + atacante.dados.forca / 3.1)
             dano, is_critico = atacante.calcular_dano_ataque(dano_base) if hasattr(atacante, 'calcular_dano_ataque') else (dano_base, False)
 
             # CM-09 fix: desgasta durabilidade da arma a cada hit confirmado
@@ -310,6 +311,8 @@ class SimuladorCombat:
                         atacante.dados.nome, defensor.dados.nome, dano,
                         critico=is_critico,
                         elemento=getattr(arma, 'elemento', '') if arma else '',
+                        source_type="weapon",
+                        source_name=getattr(arma, 'nome', '') if arma else '',
                     )
                     self.stats_collector.record_death(defensor.dados.nome, killer=atacante.dados.nome)
                 # === PASSIVA em hit â€” processa lifesteal, execute, double_hit, etc (BUG-03) ===
@@ -347,6 +350,8 @@ class SimuladorCombat:
                         atacante.dados.nome, defensor.dados.nome, dano,
                         critico=is_critico,
                         elemento=getattr(arma, 'elemento', '') if arma else '',
+                        source_type="weapon",
+                        source_name=getattr(arma, 'nome', '') if arma else '',
                     )
                 # === ÃUDIO v10.0 - SOM DE IMPACTO ===
                 if self.audio:

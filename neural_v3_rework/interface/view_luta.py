@@ -1,262 +1,414 @@
 """
 ARENA DE COMBATE - NEURAL FIGHTS
-Tela de seleção de lutadores para batalha
+Tela de selecao de lutadores para batalha.
 """
-import tkinter as tk
-from tkinter import ttk, messagebox
-import json
-import sys
+
+import logging
 import os
+import sys
+import tkinter as tk
+from tkinter import messagebox, ttk
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from simulacao import simulacao
 from dados.app_state import AppState
 from interface.theme import (
-    COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS,
-    COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, CORES_CLASSE
+    CORES_CLASSE,
+    COR_ACCENT,
+    COR_BG,
+    COR_BG_SECUNDARIO,
+    COR_HEADER,
+    COR_P1,
+    COR_P2,
+    COR_TEXTO,
+    COR_TEXTO_DIM,
 )
+from simulacao import simulacao
+
+_log = logging.getLogger("interface.view_luta")
 
 
 class TelaLuta(tk.Frame):
-    """Tela de seleção de lutadores"""
-    
+    """Tela de selecao de lutadores."""
+
     def __init__(self, parent, controller):
-        super().__init__(parent)
+        super().__init__(parent, bg=COR_BG)
         self.controller = controller
-        self.configure(bg=COR_BG)
-        
         self.personagem_p1 = None
         self.personagem_p2 = None
-        
+        self._canvas_owner = {}
+
         self.setup_ui()
 
-        # Subscribe: refresh fighter list when chars or weapons change
         AppState.get().subscribe("characters_changed", self._on_data_changed)
-        AppState.get().subscribe("weapons_changed",    self._on_data_changed)
+        AppState.get().subscribe("weapons_changed", self._on_data_changed)
 
     def _on_data_changed(self, _data=None):
         if hasattr(self, "atualizar_dados"):
             self.atualizar_dados()
 
     def setup_ui(self):
-        """Configura a interface"""
-        # === HEADER ===
-        header = tk.Frame(self, bg=COR_HEADER, height=60)
+        header = tk.Frame(self, bg=COR_HEADER, height=92)
         header.pack(fill="x", side="top")
         header.pack_propagate(False)
-        
+
         tk.Button(
-            header, text="◄ VOLTAR", 
-            bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-            font=("Arial", 10, "bold"), bd=0, padx=15,
-            command=lambda: self.controller.show_frame("MenuPrincipal")
-        ).pack(side="left", padx=15, pady=15)
-        
+            header,
+            text="Voltar",
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO,
+            font=("Segoe UI", 10, "bold"),
+            bd=0,
+            relief="flat",
+            padx=16,
+            pady=8,
+            cursor="hand2",
+            command=lambda: self.controller.show_frame("MenuPrincipal"),
+        ).pack(side="left", padx=18, pady=20)
+
+        title_wrap = tk.Frame(header, bg=COR_HEADER)
+        title_wrap.pack(side="left", fill="both", expand=True, pady=14)
+
         tk.Label(
-            header, text="⚔️ ARENA DE COMBATE",
-            font=("Arial", 18, "bold"), bg=COR_HEADER, fg=COR_TEXTO
-        ).pack(side="left", padx=20)
+            title_wrap,
+            text="ARENA DE COMBATE",
+            font=("Bahnschrift SemiBold", 24),
+            bg=COR_HEADER,
+            fg=COR_TEXTO,
+            anchor="w",
+        ).pack(fill="x")
+        tk.Label(
+            title_wrap,
+            text="Monte o confronto, configure o mapa e dispare a simulacao principal.",
+            font=("Segoe UI", 10),
+            bg=COR_HEADER,
+            fg="#c6d8f4",
+            anchor="w",
+        ).pack(fill="x", pady=(2, 0))
 
-        # === FOOTER (botão iniciar) ===
-        footer = tk.Frame(self, bg=COR_BG)
-        footer.pack(fill="x", side="bottom", pady=15)
-        
+        self.lbl_matchup = tk.Label(
+            header,
+            text="Aguardando selecao",
+            font=("Segoe UI", 10, "bold"),
+            bg=COR_HEADER,
+            fg=COR_ACCENT,
+            justify="right",
+            anchor="e",
+        )
+        self.lbl_matchup.pack(side="right", padx=20)
+
+        footer = tk.Frame(self, bg=COR_BG, height=78)
+        footer.pack(fill="x", side="bottom", padx=20, pady=(0, 14))
+        footer.pack_propagate(False)
+
+        footer_info = tk.Frame(footer, bg=COR_BG)
+        footer_info.pack(side="left", fill="y")
+
+        self.lbl_status = tk.Label(
+            footer_info,
+            text="Selecione dois campeoes diferentes para habilitar a luta.",
+            font=("Segoe UI", 10),
+            bg=COR_BG,
+            fg=COR_TEXTO_DIM,
+            anchor="w",
+        )
+        self.lbl_status.pack(anchor="w", pady=(18, 4))
+
+        tk.Label(
+            footer_info,
+            text="Use rounds maiores e mapas tematicos para sentir melhor spacing, ritmo e leitura visual.",
+            font=("Segoe UI", 9),
+            bg=COR_BG,
+            fg=COR_TEXTO_DIM,
+            anchor="w",
+        ).pack(anchor="w")
+
         self.btn_iniciar = tk.Button(
-            footer, text="⚔️  INICIAR BATALHA  ⚔️",
-            font=("Arial", 16, "bold"), 
-            bg=COR_TEXTO_DIM, fg=COR_TEXTO,
-            bd=0, padx=40, pady=12,
+            footer,
+            text="INICIAR BATALHA",
+            font=("Bahnschrift SemiBold", 15),
+            bg=COR_TEXTO_DIM,
+            fg=COR_TEXTO,
+            bd=0,
+            relief="flat",
+            padx=30,
+            pady=13,
+            cursor="hand2",
             state="disabled",
-            command=self.iniciar_luta
+            command=self.iniciar_luta,
         )
-        self.btn_iniciar.pack()
+        self.btn_iniciar.pack(side="right", pady=14)
 
-        # === ÁREA PRINCIPAL ===
         main = tk.Frame(self, bg=COR_BG)
-        main.pack(fill="both", expand=True, padx=20, pady=10)
-        
-        # Configura 3 colunas com grid
-        main.grid_columnconfigure(0, weight=1)
-        main.grid_columnconfigure(1, weight=0)
-        main.grid_columnconfigure(2, weight=1)
-        main.grid_rowconfigure(0, weight=1)
+        main.pack(fill="both", expand=True, padx=20, pady=(16, 10))
 
-        # === PLAYER 1 ===
-        frame_p1 = tk.Frame(main, bg=COR_BG_SECUNDARIO, bd=2, relief="ridge")
-        frame_p1.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
-        
-        # Título P1
-        tk.Label(frame_p1, text="PLAYER 1", font=("Impact", 20), 
-                 bg=COR_P1, fg=COR_TEXTO).pack(fill="x", pady=5)
-        
-        # Preview P1 — tamanho mínimo fixo; cresce se a janela for maior
-        self.canvas_p1 = tk.Canvas(frame_p1, width=160, height=160, bg=COR_BG, highlightthickness=0)
-        self.canvas_p1.pack(pady=5, fill="x", padx=10)
-        
-        self.lbl_nome_p1 = tk.Label(frame_p1, text="—", font=("Arial", 12, "bold"),
-                                     bg=COR_BG_SECUNDARIO, fg=COR_TEXTO)
-        self.lbl_nome_p1.pack()
-        
-        self.lbl_stats_p1 = tk.Label(frame_p1, text="", font=("Arial", 9),
-                                      bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM, justify="center")
-        self.lbl_stats_p1.pack(pady=5)
-        
-        # Lista P1
-        tk.Label(frame_p1, text="Selecione:", font=("Arial", 9, "bold"),
-                 bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(anchor="w", padx=10)
-        
-        frame_lista_p1 = tk.Frame(frame_p1, bg=COR_BG_SECUNDARIO)
-        frame_lista_p1.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        
-        self.listbox_p1 = tk.Listbox(
-            frame_lista_p1, bg=COR_BG, fg=COR_TEXTO,
-            selectbackground=COR_P1, selectforeground=COR_TEXTO,
-            font=("Arial", 11), bd=0, highlightthickness=1,
-            highlightcolor=COR_P1, activestyle="none"
+        paned = tk.PanedWindow(
+            main,
+            orient="horizontal",
+            sashwidth=8,
+            sashrelief="flat",
+            showhandle=False,
+            bd=0,
+            relief="flat",
+            bg=COR_BG,
         )
-        scroll_p1 = ttk.Scrollbar(frame_lista_p1, orient="vertical", command=self.listbox_p1.yview)
-        self.listbox_p1.configure(yscrollcommand=scroll_p1.set)
-        
-        self.listbox_p1.pack(side="left", fill="both", expand=True)
-        scroll_p1.pack(side="right", fill="y")
-        
-        self.listbox_p1.bind("<<ListboxSelect>>", lambda e: self._on_select_p1())
+        paned.pack(fill="both", expand=True)
 
-        # === VS CENTRAL — sem width fixo, usa minsize pelo grid ===
-        frame_vs = tk.Frame(main, bg=COR_BG)
-        frame_vs.grid(row=0, column=1, sticky="ns", padx=5)
-        main.grid_columnconfigure(1, weight=0, minsize=160)
-        
-        tk.Label(frame_vs, text="", bg=COR_BG).pack(expand=True)  # Espaçador
-        tk.Label(frame_vs, text="VS", font=("Impact", 50), bg=COR_BG, fg=COR_ACCENT).pack()
-        
-        # Config rápida
-        frame_cfg = tk.Frame(frame_vs, bg=COR_BG_SECUNDARIO, padx=10, pady=10)
-        frame_cfg.pack(pady=10)
-        
-        tk.Label(frame_cfg, text="⚙️ CONFIGURAÇÃO", font=("Arial", 10, "bold"), 
-                 bg=COR_BG_SECUNDARIO, fg=COR_ACCENT).pack(pady=(0, 10))
-        
-        tk.Label(frame_cfg, text="Rounds:", font=("Arial", 9), 
-                 bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack()
+        frame_p1 = self._criar_coluna_jogador(main, "LUTADOR A", COR_P1, "p1")
+        frame_center = self._criar_coluna_central(main)
+        frame_p2 = self._criar_coluna_jogador(main, "LUTADOR B", COR_P2, "p2")
+
+        paned.add(frame_p1, minsize=300, stretch="always")
+        paned.add(frame_center, minsize=260, stretch="never")
+        paned.add(frame_p2, minsize=300, stretch="always")
+
+        self.after(100, lambda: paned.sash_place(0, 430, 0))
+        self.after(150, lambda: paned.sash_place(1, 860, 0))
+
+    def _criar_coluna_jogador(self, parent, titulo, accent, prefixo):
+        frame = tk.Frame(parent, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#27405f")
+
+        head = tk.Frame(frame, bg=COR_BG_SECUNDARIO)
+        head.pack(fill="x", padx=16, pady=(16, 10))
+        tk.Frame(head, bg=accent, width=54, height=6).pack(anchor="w")
+        tk.Label(
+            head,
+            text=titulo,
+            font=("Bahnschrift SemiBold", 18),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO,
+            anchor="w",
+        ).pack(fill="x", pady=(10, 2))
+        tk.Label(
+            head,
+            text="Preview em tempo real, estatisticas rapidas e roster disponivel.",
+            font=("Segoe UI", 9),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO_DIM,
+            anchor="w",
+        ).pack(fill="x")
+
+        canvas = tk.Canvas(
+            frame,
+            height=220,
+            bg=COR_BG,
+            highlightthickness=1,
+            highlightbackground="#34517a",
+        )
+        canvas.pack(fill="x", padx=16, pady=(0, 10))
+
+        lbl_nome = tk.Label(
+            frame,
+            text="-",
+            font=("Segoe UI", 14, "bold"),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO,
+        )
+        lbl_nome.pack()
+
+        lbl_stats = tk.Label(
+            frame,
+            text="",
+            font=("Consolas", 9),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO_DIM,
+            justify="center",
+        )
+        lbl_stats.pack(pady=(6, 10))
+
+        tk.Label(
+            frame,
+            text="Roster disponivel",
+            font=("Segoe UI", 9, "bold"),
+            bg=COR_BG_SECUNDARIO,
+            fg=accent,
+            anchor="w",
+        ).pack(fill="x", padx=16)
+
+        list_wrap = tk.Frame(frame, bg=COR_BG_SECUNDARIO)
+        list_wrap.pack(fill="both", expand=True, padx=16, pady=(8, 16))
+
+        listbox = tk.Listbox(
+            list_wrap,
+            bg=COR_BG,
+            fg=COR_TEXTO,
+            selectbackground=accent,
+            selectforeground=COR_TEXTO,
+            font=("Segoe UI", 10),
+            bd=0,
+            relief="flat",
+            highlightthickness=1,
+            highlightbackground="#2c4268",
+            highlightcolor=accent,
+            activestyle="none",
+        )
+        scrollbar = ttk.Scrollbar(list_wrap, orient="vertical", command=listbox.yview)
+        listbox.configure(yscrollcommand=scrollbar.set)
+        listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        if prefixo == "p1":
+            self.canvas_p1 = canvas
+            self.lbl_nome_p1 = lbl_nome
+            self.lbl_stats_p1 = lbl_stats
+            self.listbox_p1 = listbox
+            self.listbox_p1.bind("<<ListboxSelect>>", lambda _e: self._on_select_p1())
+        else:
+            self.canvas_p2 = canvas
+            self.lbl_nome_p2 = lbl_nome
+            self.lbl_stats_p2 = lbl_stats
+            self.listbox_p2 = listbox
+            self.listbox_p2.bind("<<ListboxSelect>>", lambda _e: self._on_select_p2())
+
+        self._canvas_owner[canvas] = prefixo
+        canvas.bind("<Configure>", self._redesenhar_preview_por_resize)
+        return frame
+
+    def _criar_coluna_central(self, parent):
+        frame = tk.Frame(parent, bg=COR_BG)
+
+        matchup = tk.Frame(frame, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#27405f")
+        matchup.pack(fill="x", pady=(0, 14))
+        tk.Label(
+            matchup,
+            text="MATCHUP",
+            font=("Segoe UI", 9, "bold"),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO_DIM,
+        ).pack(pady=(16, 4))
+        tk.Label(
+            matchup,
+            text="VS",
+            font=("Bahnschrift SemiBold", 40),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_ACCENT,
+        ).pack()
+        self.lbl_round_hint = tk.Label(
+            matchup,
+            text="Escolha os dois lados para montar o confronto.",
+            font=("Segoe UI", 9),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO_DIM,
+            wraplength=220,
+            justify="center",
+        )
+        self.lbl_round_hint.pack(pady=(2, 16))
+
+        cfg = tk.Frame(frame, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#27405f")
+        cfg.pack(fill="x")
+
+        tk.Label(
+            cfg,
+            text="CONFIGURACAO DA PARTIDA",
+            font=("Segoe UI", 10, "bold"),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_ACCENT,
+        ).pack(pady=(18, 14))
+
+        row_rounds = tk.Frame(cfg, bg=COR_BG_SECUNDARIO)
+        row_rounds.pack(fill="x", padx=16, pady=(0, 10))
+        tk.Label(row_rounds, text="Rounds", font=("Segoe UI", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(anchor="w")
         self.var_best_of = tk.StringVar(value="1")
-        ttk.Combobox(frame_cfg, textvariable=self.var_best_of,
-                     values=["1", "3", "5"], state="readonly", width=8).pack(pady=5)
-        
-        # === MODO RETRATO (9:16) ===
-        tk.Label(frame_cfg, text="", bg=COR_BG_SECUNDARIO).pack(pady=2)  # Espaçador
+        ttk.Combobox(
+            row_rounds,
+            textvariable=self.var_best_of,
+            values=["1", "3", "5"],
+            state="readonly",
+            width=10,
+        ).pack(anchor="w", pady=(6, 0))
+
+        row_portrait = tk.Frame(cfg, bg=COR_BG_SECUNDARIO)
+        row_portrait.pack(fill="x", padx=16, pady=(0, 12))
         self.var_portrait = tk.BooleanVar(value=False)
         self.chk_portrait = tk.Checkbutton(
-            frame_cfg, text="📱 Modo Retrato (9:16)",
+            row_portrait,
+            text="Modo retrato 9:16",
             variable=self.var_portrait,
-            font=("Arial", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-            selectcolor=COR_BG, activebackground=COR_BG_SECUNDARIO,
-            activeforeground=COR_ACCENT
+            font=("Segoe UI", 10),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO,
+            selectcolor=COR_BG,
+            activebackground=COR_BG_SECUNDARIO,
+            activeforeground=COR_ACCENT,
         )
-        self.chk_portrait.pack()
-        tk.Label(frame_cfg, text="Ideal para TikTok/Reels",
-                 font=("Arial", 7), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack()
-        
-        # === SELETOR DE MAPA ===
-        tk.Label(frame_cfg, text="", bg=COR_BG_SECUNDARIO).pack(pady=5)  # Espaçador
-        tk.Label(frame_cfg, text="🗺️ MAPA:", font=("Arial", 10, "bold"), 
-                 bg=COR_BG_SECUNDARIO, fg=COR_ACCENT).pack()
-        
-        self.var_cenario = tk.StringVar(value="Arena")
-        
-        # Botão de seleção de mapa
-        self.btn_mapa = tk.Button(
-            frame_cfg, text="🏟️ Arena Clássica",
-            font=("Arial", 9, "bold"), bg=COR_BG, fg=COR_TEXTO,
-            bd=1, relief="ridge", width=16, height=2,
-            command=self._abrir_seletor_mapa
-        )
-        self.btn_mapa.pack(pady=5)
-        
-        # Info do mapa selecionado
-        self.lbl_mapa_info = tk.Label(
-            frame_cfg, text="30x20m • Retangular\n0 obstáculos",
-            font=("Arial", 8), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM,
-            justify="center"
-        )
-        self.lbl_mapa_info.pack()
-        
-        tk.Label(frame_vs, text="", bg=COR_BG).pack(expand=True)  # Espaçador
+        self.chk_portrait.pack(anchor="w")
+        tk.Label(
+            row_portrait,
+            text="Bom para TikTok, Reels e captura vertical.",
+            font=("Segoe UI", 8),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO_DIM,
+        ).pack(anchor="w", pady=(2, 0))
 
-        # === PLAYER 2 ===
-        frame_p2 = tk.Frame(main, bg=COR_BG_SECUNDARIO, bd=2, relief="ridge")
-        frame_p2.grid(row=0, column=2, sticky="nsew", padx=5, pady=5)
-        
-        # Título P2
-        tk.Label(frame_p2, text="PLAYER 2", font=("Impact", 20), 
-                 bg=COR_P2, fg=COR_TEXTO).pack(fill="x", pady=5)
-        
-        # Preview P2 — tamanho mínimo fixo; cresce se a janela for maior
-        self.canvas_p2 = tk.Canvas(frame_p2, width=160, height=160, bg=COR_BG, highlightthickness=0)
-        self.canvas_p2.pack(pady=5, fill="x", padx=10)
-        
-        self.lbl_nome_p2 = tk.Label(frame_p2, text="—", font=("Arial", 12, "bold"),
-                                     bg=COR_BG_SECUNDARIO, fg=COR_TEXTO)
-        self.lbl_nome_p2.pack()
-        
-        self.lbl_stats_p2 = tk.Label(frame_p2, text="", font=("Arial", 9),
-                                      bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM, justify="center")
-        self.lbl_stats_p2.pack(pady=5)
-        
-        # Lista P2
-        tk.Label(frame_p2, text="Selecione:", font=("Arial", 9, "bold"),
-                 bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(anchor="w", padx=10)
-        
-        frame_lista_p2 = tk.Frame(frame_p2, bg=COR_BG_SECUNDARIO)
-        frame_lista_p2.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        
-        self.listbox_p2 = tk.Listbox(
-            frame_lista_p2, bg=COR_BG, fg=COR_TEXTO,
-            selectbackground=COR_P2, selectforeground=COR_TEXTO,
-            font=("Arial", 11), bd=0, highlightthickness=1,
-            highlightcolor=COR_P2, activestyle="none"
+        row_mapa = tk.Frame(cfg, bg=COR_BG_SECUNDARIO)
+        row_mapa.pack(fill="x", padx=16, pady=(0, 18))
+        tk.Label(row_mapa, text="Mapa", font=("Segoe UI", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(anchor="w")
+
+        self.var_cenario = tk.StringVar(value="Arena")
+        self.btn_mapa = tk.Button(
+            row_mapa,
+            text="Arena Classica",
+            font=("Segoe UI", 10, "bold"),
+            bg=COR_BG,
+            fg=COR_TEXTO,
+            bd=0,
+            relief="flat",
+            padx=14,
+            pady=10,
+            cursor="hand2",
+            command=self._abrir_seletor_mapa,
         )
-        scroll_p2 = ttk.Scrollbar(frame_lista_p2, orient="vertical", command=self.listbox_p2.yview)
-        self.listbox_p2.configure(yscrollcommand=scroll_p2.set)
-        
-        self.listbox_p2.pack(side="left", fill="both", expand=True)
-        scroll_p2.pack(side="right", fill="y")
-        
-        self.listbox_p2.bind("<<ListboxSelect>>", lambda e: self._on_select_p2())
+        self.btn_mapa.pack(fill="x", pady=(6, 8))
+
+        self.lbl_mapa_info = tk.Label(
+            row_mapa,
+            text="30x20m | retangular | 0 obstaculos",
+            font=("Segoe UI", 8),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO_DIM,
+            justify="left",
+            wraplength=220,
+        )
+        self.lbl_mapa_info.pack(anchor="w")
+
+        return frame
+
+    def _redesenhar_preview_por_resize(self, event):
+        dono = self._canvas_owner.get(event.widget)
+        if dono == "p1" and self.personagem_p1:
+            self._desenhar_preview(self.personagem_p1, self.canvas_p1, self.lbl_nome_p1, self.lbl_stats_p1, COR_P1)
+        elif dono == "p2" and self.personagem_p2:
+            self._desenhar_preview(self.personagem_p2, self.canvas_p2, self.lbl_nome_p2, self.lbl_stats_p2, COR_P2)
 
     def atualizar_dados(self):
-        """Atualiza listas de personagens"""
-        # Limpa
         self.listbox_p1.delete(0, tk.END)
         self.listbox_p2.delete(0, tk.END)
         self.personagem_p1 = None
         self.personagem_p2 = None
-        
+
         personagens = self.controller.lista_personagens
-        
         if not personagens:
             self.listbox_p1.insert(tk.END, "(Nenhum personagem)")
             self.listbox_p2.insert(tk.END, "(Nenhum personagem)")
             self._atualizar_botao()
             return
-        
-        # Popula listas
-        for p in personagens:
-            classe = getattr(p, 'classe', 'Guerreiro')
-            # v14.0 Fase 2: Show ELO in listbox if available
+
+        for personagem in personagens:
+            classe = getattr(personagem, "classe", "Guerreiro")
             elo_tag = ""
             try:
                 from dados.battle_db import BattleDB
-                cs = BattleDB.get().get_character_stats(p.nome)
+
+                cs = BattleDB.get().get_character_stats(personagem.nome)
                 if cs and cs.get("matches_played", 0) > 0:
                     elo_tag = f" [{cs['elo']:.0f}]"
-            except Exception as _e:  # E02 Sprint 12
-                _log.debug("ELO lookup listbox falhou (não-crítico): %s", _e)
-            texto = f"{p.nome} ({classe}){elo_tag}"
+            except Exception as exc:
+                _log.debug("ELO lookup listbox falhou (nao-critico): %s", exc)
+
+            texto = f"{personagem.nome} ({classe}){elo_tag}"
             self.listbox_p1.insert(tk.END, texto)
             self.listbox_p2.insert(tk.END, texto)
-        
-        # Auto-seleciona
+
         if len(personagens) >= 1:
             self.listbox_p1.selection_set(0)
             self._on_select_p1()
@@ -268,7 +420,6 @@ class TelaLuta(tk.Frame):
             self._on_select_p2()
 
     def _on_select_p1(self):
-        """Callback quando P1 seleciona"""
         sel = self.listbox_p1.curselection()
         if not sel:
             return
@@ -280,7 +431,6 @@ class TelaLuta(tk.Frame):
         self._atualizar_botao()
 
     def _on_select_p2(self):
-        """Callback quando P2 seleciona"""
         sel = self.listbox_p2.curselection()
         if not sel:
             return
@@ -291,48 +441,76 @@ class TelaLuta(tk.Frame):
             self._desenhar_preview(self.personagem_p2, self.canvas_p2, self.lbl_nome_p2, self.lbl_stats_p2, COR_P2)
         self._atualizar_botao()
 
-    def _desenhar_preview(self, p, canvas, lbl_nome, lbl_stats, cor_borda):
-        """Desenha preview do personagem"""
+    def _desenhar_preview(self, personagem, canvas, lbl_nome, lbl_stats, cor_borda):
         canvas.delete("all")
-        
-        if not p:
-            lbl_nome.config(text="—")
+
+        if not personagem:
+            lbl_nome.config(text="-")
             lbl_stats.config(text="")
             return
-        
-        lbl_nome.config(text=p.nome)
-        
-        cx, cy = 100, 100
-        cor = f"#{p.cor_r:02x}{p.cor_g:02x}{p.cor_b:02x}"
-        classe = getattr(p, 'classe', 'Guerreiro')
-        cor_classe = CORES_CLASSE.get(classe, "#808080")
-        
-        # Aura
-        canvas.create_oval(cx-60, cy-60, cx+60, cy+60, outline=cor_classe, width=2, dash=(4,2))
-        
-        # Personagem
-        raio = min(p.tamanho * 6, 40)
-        canvas.create_oval(cx-raio, cy-raio, cx+raio, cy+raio, fill=cor, outline=cor_borda, width=3)
-        
-        # Classe
-        canvas.create_text(cx, cy+70, text=classe, font=("Arial", 10, "bold"), fill=cor_classe)
-        
-        # Arma
-        if p.nome_arma:
-            arma = next((a for a in self.controller.lista_armas if a.nome == p.nome_arma), None)
+
+        lbl_nome.config(text=personagem.nome)
+
+        cw = max(canvas.winfo_width(), 240)
+        ch = max(canvas.winfo_height(), 220)
+        cx = cw / 2
+        cy = ch * 0.48
+
+        cor = f"#{personagem.cor_r:02x}{personagem.cor_g:02x}{personagem.cor_b:02x}"
+        classe = getattr(personagem, "classe", "Guerreiro")
+        cor_classe = CORES_CLASSE.get(classe, "#8092a8")
+
+        aura_raio = min(cw, ch) * 0.28
+        corpo_raio = min(max(personagem.tamanho * 8, 16), 48)
+
+        canvas.create_oval(
+            cx - aura_raio,
+            cy - aura_raio,
+            cx + aura_raio,
+            cy + aura_raio,
+            outline=cor_classe,
+            width=2,
+            dash=(4, 3),
+        )
+        canvas.create_oval(
+            cx - corpo_raio,
+            cy - corpo_raio,
+            cx + corpo_raio,
+            cy + corpo_raio,
+            fill=cor,
+            outline=cor_borda,
+            width=3,
+        )
+        canvas.create_text(
+            cx,
+            ch * 0.82,
+            text=classe,
+            font=("Segoe UI", 10, "bold"),
+            fill=cor_classe,
+        )
+
+        if personagem.nome_arma:
+            arma = next((a for a in self.controller.lista_armas if a.nome == personagem.nome_arma), None)
             if arma:
                 cor_arma = f"#{arma.r:02x}{arma.g:02x}{arma.b:02x}"
-                canvas.create_line(cx+raio, cy, cx+raio+40, cy, fill=cor_arma, width=4)
-        
-        # Stats
-        arma_txt = p.nome_arma if p.nome_arma else "Mãos Vazias"
-        stats = f"VEL: {p.velocidade:.1f} | RES: {p.resistencia:.1f}\n🗡️ {arma_txt}"
+                canvas.create_line(
+                    cx + corpo_raio,
+                    cy,
+                    cx + corpo_raio + 52,
+                    cy,
+                    fill=cor_arma,
+                    width=5,
+                    capstyle=tk.ROUND,
+                )
 
-        # ── v14.0 Fase 2: ELO / Tier / W-L from BattleDB ─────────────────
+        arma_txt = personagem.nome_arma if personagem.nome_arma else "Maos Vazias"
+        stats = f"VEL {personagem.velocidade:.1f} | RES {personagem.resistencia:.1f}\nARMA {arma_txt}"
+
         try:
             from dados.battle_db import BattleDB
+
             db = BattleDB.get()
-            char_stats = db.get_character_stats(p.nome)
+            char_stats = db.get_character_stats(personagem.nome)
             if char_stats and char_stats.get("matches_played", 0) > 0:
                 elo = char_stats["elo"]
                 tier = char_stats["tier"]
@@ -340,53 +518,50 @@ class TelaLuta(tk.Frame):
                 losses = char_stats["losses"]
                 mp = max(char_stats["matches_played"], 1)
                 wr = wins / mp * 100
-
-                TIER_EMOJI = {
-                    "MASTER": "👑", "DIAMOND": "💎", "PLATINUM": "🏆",
-                    "GOLD": "🥇", "SILVER": "🥈", "BRONZE": "🥉",
-                }
-                emoji = TIER_EMOJI.get(tier, "🥉")
-                stats += f"\n{emoji} {tier} — ELO {elo:.0f}"
-                stats += f"\n{wins}W — {losses}L ({wr:.0f}%)"
-        except Exception as _e:  # E02 Sprint 12
-            _log.debug("Stats block falhou (não-crítico): %s", _e)
-        # ──────────────────────────────────────────────────────────────────
+                stats += f"\n{tier} | ELO {elo:.0f}"
+                stats += f"\n{wins}W - {losses}L ({wr:.0f}%)"
+        except Exception as exc:
+            _log.debug("Stats block falhou (nao-critico): %s", exc)
 
         lbl_stats.config(text=stats)
 
     def _atualizar_botao(self):
-        """Atualiza estado do botão"""
         if self.personagem_p1 and self.personagem_p2:
-            self.btn_iniciar.config(state="normal", bg=COR_ACCENT)
+            if self.personagem_p1.nome == self.personagem_p2.nome:
+                self.btn_iniciar.config(state="disabled", bg=COR_TEXTO_DIM)
+                self.lbl_status.config(text="Escolha dois campeoes diferentes para evitar espelho.")
+                self.lbl_matchup.config(text=f"{self.personagem_p1.nome} x {self.personagem_p2.nome}")
+                self.lbl_round_hint.config(text="Espelho detectado. Troque um dos lados para continuar.")
+            else:
+                self.btn_iniciar.config(state="normal", bg=COR_ACCENT)
+                self.lbl_status.config(text="Confronto pronto. Revise rounds, mapa e modo retrato antes de iniciar.")
+                self.lbl_matchup.config(text=f"{self.personagem_p1.nome}  VS  {self.personagem_p2.nome}")
+                self.lbl_round_hint.config(text=f"Best of {self.var_best_of.get()} no mapa {self.var_cenario.get()}.")
         else:
             self.btn_iniciar.config(state="disabled", bg=COR_TEXTO_DIM)
+            self.lbl_status.config(text="Selecione dois campeoes diferentes para habilitar a luta.")
+            self.lbl_matchup.config(text="Aguardando selecao")
+            self.lbl_round_hint.config(text="Escolha os dois lados para montar o confronto.")
 
     def _abrir_seletor_mapa(self):
-        """Abre a janela de seleção de mapa"""
         SeletorMapa(self, self._on_mapa_selecionado)
-    
+
     def _on_mapa_selecionado(self, mapa_key: str, mapa_info: dict):
-        """Callback quando um mapa é selecionado"""
         self.var_cenario.set(mapa_key)
-        
-        # Atualiza botão
-        self.btn_mapa.config(text=f"{mapa_info['icone']} {mapa_info['nome']}")
-        
-        # Atualiza info
-        info_text = f"{mapa_info['tamanho']} • {mapa_info['formato']}\n{mapa_info['obstaculos']} obstáculos"
+        self.btn_mapa.config(text=mapa_info["nome"])
+        info_text = f"{mapa_info['tamanho']} | {mapa_info['formato']} | {mapa_info['obstaculos']} obstaculos"
         self.lbl_mapa_info.config(text=info_text)
+        self._atualizar_botao()
 
     def iniciar_luta(self):
-        """Inicia a simulação"""
         if not self.personagem_p1 or not self.personagem_p2:
-            messagebox.showwarning("Atenção", "Selecione dois campeões!")
+            messagebox.showwarning("Atencao", "Selecione dois campeoes.")
             return
 
-        # BUG-F4: Impede personagem de lutar contra si mesmo
         if self.personagem_p1.nome == self.personagem_p2.nome:
-            messagebox.showwarning("Atenção", "Selecione dois campeões diferentes!")
+            messagebox.showwarning("Atencao", "Selecione dois campeoes diferentes.")
             return
-        
+
         match_data = {
             "p1_nome": self.personagem_p1.nome,
             "p2_nome": self.personagem_p2.nome,
@@ -394,17 +569,18 @@ class TelaLuta(tk.Frame):
             "best_of": int(self.var_best_of.get()),
             "portrait_mode": self.var_portrait.get(),
         }
-        
+
         try:
             AppState.get().set_match_config(match_data)
-        except Exception as e:
-            messagebox.showerror("Erro", f"Falha ao salvar config: {e}")
+        except Exception as exc:
+            messagebox.showerror("Erro", f"Falha ao salvar configuracao:\n{exc}")
             return
-        
+
         self.controller.withdraw()
-        
+
         try:
             import time
+
             t_start = time.time()
             sim = simulacao.Simulador()
             sim.run()
@@ -412,21 +588,15 @@ class TelaLuta(tk.Frame):
 
             post_fight_result = None
 
-            # ── v14.0: Persiste resultado no BattleDB + ELO ─────────────────
             if sim.vencedor:
-                loser = (
-                    sim.p2.dados.nome
-                    if sim.vencedor == sim.p1.dados.nome
-                    else sim.p1.dados.nome
-                )
-                ko = any(f.morto for f in sim.fighters
-                         if f.dados.nome == loser)
+                loser = sim.p2.dados.nome if sim.vencedor == sim.p1.dados.nome else sim.p1.dados.nome
+                ko = any(f.morto for f in sim.fighters if f.dados.nome == loser)
 
-                # Capture ELO BEFORE the update
                 elo_before_w, elo_before_l = 1600.0, 1600.0
+                db = None
                 try:
                     from dados.battle_db import BattleDB
-                    from nucleo.elo_system import get_tier
+
                     db = BattleDB.get()
                     ws = db.get_character_stats(sim.vencedor)
                     ls = db.get_character_stats(loser)
@@ -434,45 +604,45 @@ class TelaLuta(tk.Frame):
                         elo_before_w = ws["elo"]
                     if ls:
                         elo_before_l = ls["elo"]
-                except Exception as _e:  # E02 Sprint 12
-                    import logging as _lg; _lg.getLogger('ui.view_luta').debug('ELO before: %s', _e)
+                except Exception as exc:
+                    _log.debug("ELO before falhou: %s", exc)
 
                 try:
                     match_id = AppState.get().record_fight_result(
-                        winner=sim.vencedor, loser=loser,
-                        duration=duration, ko=ko,
-                        arena=sim.cenario if hasattr(sim, 'cenario') else '',
+                        winner=sim.vencedor,
+                        loser=loser,
+                        duration=duration,
+                        ko=ko,
+                        arena=sim.cenario if hasattr(sim, "cenario") else "",
                     )
-                    if match_id and hasattr(sim, 'stats_collector'):
+                    if match_id and hasattr(sim, "stats_collector"):
                         sim.stats_collector.flush_to_db(match_id)
-                except Exception as e:
-                    print(f"[view_luta] BattleDB/ELO write failed (non-fatal): {e}")
-                    match_id = None
+                except Exception as exc:
+                    print(f"[view_luta] BattleDB/ELO write failed (non-fatal): {exc}")
 
-                # Capture ELO AFTER the update
                 elo_after_w, elo_after_l = elo_before_w, elo_before_l
                 tier_w, tier_l = "BRONZE", "BRONZE"
                 try:
-                    ws2 = db.get_character_stats(sim.vencedor)
-                    ls2 = db.get_character_stats(loser)
-                    if ws2:
-                        elo_after_w = ws2["elo"]
-                        tier_w = ws2["tier"]
-                    if ls2:
-                        elo_after_l = ls2["elo"]
-                        tier_l = ls2["tier"]
-                except Exception as _e:  # E02 Sprint 12
-                    _log.debug("ELO after read falhou: %s", _e)
+                    if db:
+                        ws2 = db.get_character_stats(sim.vencedor)
+                        ls2 = db.get_character_stats(loser)
+                        if ws2:
+                            elo_after_w = ws2["elo"]
+                            tier_w = ws2["tier"]
+                        if ls2:
+                            elo_after_l = ls2["elo"]
+                            tier_l = ls2["tier"]
+                except Exception as exc:
+                    _log.debug("ELO after read falhou: %s", exc)
 
-                # Build stats summary
                 w_stats, l_stats = {}, {}
-                if hasattr(sim, 'stats_collector'):
+                if hasattr(sim, "stats_collector"):
                     try:
                         summary = sim.stats_collector.get_summary()
                         w_stats = summary.get(sim.vencedor, {})
                         l_stats = summary.get(loser, {})
-                    except Exception as _e:  # E02 Sprint 12
-                        _log.debug("stats_collector summary falhou: %s", _e)
+                    except Exception as exc:
+                        _log.debug("stats_collector summary falhou: %s", exc)
 
                 post_fight_result = {
                     "winner": sim.vencedor,
@@ -489,279 +659,258 @@ class TelaLuta(tk.Frame):
                     "loser_stats": l_stats,
                 }
 
-            # ── WorldBridge: propaga resultado para o mapa ──────────────────
-            if sim.vencedor:
                 try:
                     from dados.world_bridge import WorldBridge
-                    import logging as _lb_log
-                    _wb_log = _lb_log.getLogger("view_luta")
-                    res = WorldBridge.get().on_fight_result(
-                        sim.vencedor, loser, duration, "KO"
-                    )
-                    # B04: BridgeResult permite distinguir sucesso de falha
+
+                    res = WorldBridge.get().on_fight_result(sim.vencedor, loser, duration, "KO")
                     if res.ok and res.zone_id:
                         zone_label = res.zone_id.replace("_", " ").title()
                         messagebox.showinfo(
-                            "Conquista de Território!",
-                            f"⚔  {sim.vencedor} venceu!\n\n"
-                            f"🏴  Seu deus conquistou:\n{zone_label}\n\n"
-                            f"Verifique o World Map para ver a mudança."
+                            "Conquista de Territorio",
+                            f"{sim.vencedor} venceu.\n\nSeu deus conquistou:\n{zone_label}",
                         )
                     elif not res.ok:
-                        _wb_log.warning("WorldBridge inativo: %s", res.reason)
-                except Exception as e:
-                    import logging as _lb_log
-                    _lb_log.getLogger("view_luta").exception("WorldBridge erro: %s", e)
-            # ────────────────────────────────────────────────────────────────
+                        _log.warning("WorldBridge inativo: %s", res.reason)
+                except Exception as exc:
+                    _log.exception("WorldBridge erro: %s", exc)
 
-        except Exception as e:
-            messagebox.showerror("Erro", f"Simulação falhou:\n{e}")
+        except Exception as exc:
+            messagebox.showerror("Erro", f"Simulacao falhou:\n{exc}")
             post_fight_result = None
-        
+
         self.controller.deiconify()
 
-        # ── v14.0 Fase 2: Post-Fight Results Screen ────────────────────────
         if post_fight_result:
             try:
                 from interface.view_resultado import show_post_fight
-                show_post_fight(self.controller, post_fight_result)
-            except Exception as e:
-                print(f"[view_luta] PostFight screen failed (non-fatal): {e}")
 
-    # Compatibilidade
+                show_post_fight(self.controller, post_fight_result)
+            except Exception as exc:
+                print(f"[view_luta] PostFight screen failed (non-fatal): {exc}")
+
     def atualizar_previews(self, event=None):
         pass
 
 
-# =============================================================================
-# SELETOR DE MAPA - JANELA POPUP
-# =============================================================================
-
 class SeletorMapa(tk.Toplevel):
-    """Janela de seleção de mapa com preview visual"""
-    
+    """Janela de selecao de mapa com preview visual."""
+
     def __init__(self, parent, callback):
         super().__init__(parent)
         self.callback = callback
-        
-        self.title("🗺️ Selecionar Mapa")
+
+        self.title("Selecionar mapa")
         self.geometry("900x650")
         self.minsize(640, 480)
         self.configure(bg=COR_BG)
         self.resizable(True, True)
-        
-        # Centraliza
         self.transient(parent)
         self.grab_set()
-        
-        # Importa dados dos mapas
+
         from nucleo.arena import ARENAS, LISTA_MAPAS, get_mapa_info
+
         self.ARENAS = ARENAS
         self.LISTA_MAPAS = LISTA_MAPAS
         self.get_mapa_info = get_mapa_info
-        
         self.mapa_selecionado = "Arena"
-        
+
         self._setup_ui()
         self._selecionar_mapa("Arena")
-    
+
     def _setup_ui(self):
-        """Configura a interface"""
-        # Header
-        header = tk.Frame(self, bg=COR_HEADER, height=50)
+        header = tk.Frame(self, bg=COR_HEADER, height=56)
         header.pack(fill="x")
         header.pack_propagate(False)
-        
+
         tk.Label(
-            header, text="🗺️ ESCOLHA O CAMPO DE BATALHA",
-            font=("Arial", 16, "bold"), bg=COR_HEADER, fg=COR_TEXTO
-        ).pack(pady=12)
-        
-        # Container principal — grid com pesos
+            header,
+            text="ESCOLHA O CAMPO DE BATALHA",
+            font=("Bahnschrift SemiBold", 18),
+            bg=COR_HEADER,
+            fg=COR_TEXTO,
+        ).pack(pady=14)
+
         main = tk.Frame(self, bg=COR_BG)
         main.pack(fill="both", expand=True, padx=15, pady=10)
         main.grid_columnconfigure(0, weight=1, minsize=220)
         main.grid_columnconfigure(1, weight=3)
         main.grid_rowconfigure(0, weight=1)
 
-        # === LISTA DE MAPAS (esquerda) ===
         frame_lista = tk.Frame(main, bg=COR_BG_SECUNDARIO)
         frame_lista.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        
+
         tk.Label(
-            frame_lista, text="MAPAS DISPONÍVEIS",
-            font=("Arial", 11, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_ACCENT
+            frame_lista,
+            text="Mapas disponiveis",
+            font=("Segoe UI", 11, "bold"),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_ACCENT,
         ).pack(pady=10)
-        
-        # Canvas com scroll para lista de mapas
+
         canvas_container = tk.Frame(frame_lista, bg=COR_BG_SECUNDARIO)
         canvas_container.pack(fill="both", expand=True, padx=5, pady=(0, 10))
-        
         canvas = tk.Canvas(canvas_container, bg=COR_BG, highlightthickness=0)
         scrollbar = ttk.Scrollbar(canvas_container, orient="vertical", command=canvas.yview)
-        
         self.frame_mapas = tk.Frame(canvas, bg=COR_BG)
-        
+
         canvas.create_window((0, 0), window=self.frame_mapas, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
-        
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
-        
-        # Popula lista de mapas
+
         self.botoes_mapa = {}
         for mapa_key in self.LISTA_MAPAS:
             info = self.get_mapa_info(mapa_key)
             if not info:
                 continue
-            
+
             btn = tk.Button(
                 self.frame_mapas,
-                text=f"{info['icone']}  {info['nome']}",
-                font=("Arial", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-                bd=1, relief="ridge", anchor="w", padx=10,
-                width=24, height=2,
-                command=lambda k=mapa_key: self._selecionar_mapa(k)
+                text=info["nome"],
+                font=("Segoe UI", 10),
+                bg=COR_BG_SECUNDARIO,
+                fg=COR_TEXTO,
+                bd=0,
+                relief="flat",
+                anchor="w",
+                padx=12,
+                pady=10,
+                cursor="hand2",
+                command=lambda k=mapa_key: self._selecionar_mapa(k),
             )
-            btn.pack(fill="x", pady=2, padx=5)
+            btn.pack(fill="x", pady=3, padx=6)
             self.botoes_mapa[mapa_key] = btn
-        
-        # Atualiza scroll region
+
         self.frame_mapas.update_idletasks()
         canvas.configure(scrollregion=canvas.bbox("all"))
-        
-        # === PREVIEW DO MAPA (direita) ===
+
         frame_preview = tk.Frame(main, bg=COR_BG_SECUNDARIO)
         frame_preview.grid(row=0, column=1, sticky="nsew")
-        frame_preview.grid_rowconfigure(2, weight=1)  # canvas row expands
-        frame_preview.grid_columnconfigure(0, weight=1)
-        
-        # Nome do mapa
+
         self.lbl_nome_mapa = tk.Label(
-            frame_preview, text="Arena Clássica",
-            font=("Impact", 24), bg=COR_BG_SECUNDARIO, fg=COR_ACCENT
+            frame_preview,
+            text="Arena Classica",
+            font=("Bahnschrift SemiBold", 24),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_ACCENT,
         )
         self.lbl_nome_mapa.pack(pady=(15, 5))
-        
-        # Canvas para preview visual — responsivo
+
         self.canvas_preview = tk.Canvas(
             frame_preview,
-            bg=COR_BG, highlightthickness=2, highlightcolor=COR_ACCENT
+            bg=COR_BG,
+            highlightthickness=1,
+            highlightbackground=COR_ACCENT,
         )
         self.canvas_preview.pack(fill="both", expand=True, padx=10, pady=5)
-        self.canvas_preview.bind("<Configure>", lambda e: self._redraw_map_preview())
-        
-        # Info do mapa
+        self.canvas_preview.bind("<Configure>", lambda _e: self._redraw_map_preview())
+
         self.lbl_descricao = tk.Label(
-            frame_preview, text="Arena padrão sem obstáculos",
-            font=("Arial", 11), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-            wraplength=350
+            frame_preview,
+            text="Arena padrao sem obstaculos",
+            font=("Segoe UI", 11),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO,
+            wraplength=350,
         )
         self.lbl_descricao.pack(pady=5)
-        
-        # Stats do mapa
-        frame_stats = tk.Frame(frame_preview, bg=COR_BG_SECUNDARIO)
-        frame_stats.pack(pady=10)
-        
+
         self.lbl_stats = tk.Label(
-            frame_stats, text="",
-            font=("Arial", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM,
-            justify="center"
+            frame_preview,
+            text="",
+            font=("Segoe UI", 10),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO_DIM,
+            justify="center",
         )
-        self.lbl_stats.pack()
-        
-        # === FOOTER ===
+        self.lbl_stats.pack(pady=10)
+
         footer = tk.Frame(self, bg=COR_BG)
         footer.pack(fill="x", pady=15)
-        
+
         tk.Button(
-            footer, text="Cancelar",
-            font=("Arial", 11), bg=COR_TEXTO_DIM, fg=COR_TEXTO,
-            bd=0, padx=20, pady=8,
-            command=self.destroy
+            footer,
+            text="Cancelar",
+            font=("Segoe UI", 10, "bold"),
+            bg=COR_TEXTO_DIM,
+            fg=COR_TEXTO,
+            bd=0,
+            relief="flat",
+            padx=18,
+            pady=9,
+            cursor="hand2",
+            command=self.destroy,
         ).pack(side="left", padx=20)
-        
-        self.btn_confirmar = tk.Button(
-            footer, text="✓ CONFIRMAR MAPA",
-            font=("Arial", 12, "bold"), bg=COR_ACCENT, fg=COR_TEXTO,
-            bd=0, padx=30, pady=10,
-            command=self._confirmar
-        )
-        self.btn_confirmar.pack(side="right", padx=20)
-    
+
+        tk.Button(
+            footer,
+            text="Confirmar mapa",
+            font=("Segoe UI", 11, "bold"),
+            bg=COR_ACCENT,
+            fg=COR_TEXTO,
+            bd=0,
+            relief="flat",
+            padx=22,
+            pady=10,
+            cursor="hand2",
+            command=self._confirmar,
+        ).pack(side="right", padx=20)
+
     def _selecionar_mapa(self, mapa_key: str):
-        """Seleciona um mapa e atualiza preview"""
         self.mapa_selecionado = mapa_key
         info = self.get_mapa_info(mapa_key)
         config = self.ARENAS.get(mapa_key)
-        
         if not info or not config:
             return
-        
-        # Atualiza destaque dos botões
+
         for key, btn in self.botoes_mapa.items():
             if key == mapa_key:
-                btn.config(bg=COR_ACCENT, fg="white")
+                btn.config(bg=COR_ACCENT, fg=COR_TEXTO)
             else:
                 btn.config(bg=COR_BG_SECUNDARIO, fg=COR_TEXTO)
-        
-        # Atualiza labels
-        self.lbl_nome_mapa.config(text=f"{info['icone']} {info['nome']}")
-        self.lbl_descricao.config(text=info['descricao'])
-        
-        stats_text = f"📏 Tamanho: {info['tamanho']}\n"
-        stats_text += f"🔷 Formato: {info['formato']}\n"
-        stats_text += f"🧱 Obstáculos: {info['obstaculos']}\n"
-        stats_text += f"🎨 Tema: {info['tema'].capitalize()}"
-        self.lbl_stats.config(text=stats_text)
-        
-        # Desenha preview
+
+        self.lbl_nome_mapa.config(text=info["nome"])
+        self.lbl_descricao.config(text=info["descricao"])
+        self.lbl_stats.config(
+            text=(
+                f"Tamanho: {info['tamanho']}\n"
+                f"Formato: {info['formato']}\n"
+                f"Obstaculos: {info['obstaculos']}\n"
+                f"Tema: {info['tema'].capitalize()}"
+            )
+        )
         self._desenhar_preview(config)
-    
+
     def _redraw_map_preview(self):
-        """Called on canvas resize — redraws with current mapa_selecionado."""
         config = self.ARENAS.get(self.mapa_selecionado)
         if config:
             self._desenhar_preview(config)
 
     def _desenhar_preview(self, config):
-        """Desenha preview visual do mapa"""
         canvas = self.canvas_preview
         canvas.delete("all")
-        
-        # Dimensões reais do canvas (responsivo)
+
         cw = canvas.winfo_width() or 400
         ch = canvas.winfo_height() or 300
         padding = 20
-        
-        # Escala para caber no canvas
+
         escala_x = (cw - padding * 2) / config.largura
         escala_y = (ch - padding * 2) / config.altura
         escala = min(escala_x, escala_y)
-        
-        # Offset para centralizar
         offset_x = (cw - config.largura * escala) / 2
         offset_y = (ch - config.altura * escala) / 2
-        
+
         def to_canvas(x, y):
             return offset_x + x * escala, offset_y + y * escala
-        
-        # Cor do chão
+
         cor_chao = f"#{config.cor_chao[0]:02x}{config.cor_chao[1]:02x}{config.cor_chao[2]:02x}"
         cor_borda = f"#{config.cor_borda[0]:02x}{config.cor_borda[1]:02x}{config.cor_borda[2]:02x}"
-        
-        # Desenha formato base
+
         if config.formato == "circular":
             cx, cy = to_canvas(config.largura / 2, config.altura / 2)
             raio = min(config.largura, config.altura) / 2 * escala * 0.9
-            canvas.create_oval(
-                cx - raio, cy - raio, cx + raio, cy + raio,
-                fill=cor_chao, outline=cor_borda, width=3
-            )
+            canvas.create_oval(cx - raio, cy - raio, cx + raio, cy + raio, fill=cor_chao, outline=cor_borda, width=3)
         elif config.formato == "octogono":
-            # Octógono
-            w, h = config.largura * escala, config.altura * escala
-            corte = min(w, h) * 0.2
             pontos = [
                 to_canvas(config.largura * 0.2, 0),
                 to_canvas(config.largura * 0.8, 0),
@@ -772,49 +921,39 @@ class SeletorMapa(tk.Toplevel):
                 to_canvas(0, config.altura * 0.8),
                 to_canvas(0, config.altura * 0.2),
             ]
-            flat_pontos = [coord for p in pontos for coord in p]
-            canvas.create_polygon(flat_pontos, fill=cor_chao, outline=cor_borda, width=3)
+            canvas.create_polygon([coord for p in pontos for coord in p], fill=cor_chao, outline=cor_borda, width=3)
         else:
-            # Retangular
             x1, y1 = to_canvas(0, 0)
             x2, y2 = to_canvas(config.largura, config.altura)
             canvas.create_rectangle(x1, y1, x2, y2, fill=cor_chao, outline=cor_borda, width=3)
-        
-        # Desenha grid
-        grid_cor = f"#{min(255, config.cor_chao[0]+15):02x}{min(255, config.cor_chao[1]+15):02x}{min(255, config.cor_chao[2]+15):02x}"
-        grid_size = 4.0  # Metros
-        
+
+        grid_cor = f"#{min(255, config.cor_chao[0] + 15):02x}{min(255, config.cor_chao[1] + 15):02x}{min(255, config.cor_chao[2] + 15):02x}"
+
         x = 0
         while x <= config.largura:
             p1 = to_canvas(x, 0)
             p2 = to_canvas(x, config.altura)
             canvas.create_line(p1[0], p1[1], p2[0], p2[1], fill=grid_cor, dash=(2, 4))
-            x += grid_size
-        
+            x += 4.0
+
         y = 0
         while y <= config.altura:
             p1 = to_canvas(0, y)
             p2 = to_canvas(config.largura, y)
             canvas.create_line(p1[0], p1[1], p2[0], p2[1], fill=grid_cor, dash=(2, 4))
-            y += grid_size
-        
-        # Desenha obstáculos
+            y += 4.0
+
         for obs in config.obstaculos:
             cx, cy = to_canvas(obs.x, obs.y)
             half_w = obs.largura * escala / 2
             half_h = obs.altura * escala / 2
-            
+
             cor = f"#{obs.cor[0]:02x}{obs.cor[1]:02x}{obs.cor[2]:02x}"
-            cor_escura = f"#{max(0,obs.cor[0]-40):02x}{max(0,obs.cor[1]-40):02x}{max(0,obs.cor[2]-40):02x}"
-            
+            cor_escura = f"#{max(0, obs.cor[0]-40):02x}{max(0, obs.cor[1]-40):02x}{max(0, obs.cor[2]-40):02x}"
+
             if obs.tipo in ["lava", "fogo"]:
-                # Vermelho/laranja brilhante
-                canvas.create_oval(
-                    cx - half_w, cy - half_h, cx + half_w, cy + half_h,
-                    fill="#FF4500", outline="#FFD700", width=2
-                )
+                canvas.create_oval(cx - half_w, cy - half_h, cx + half_w, cy + half_h, fill="#FF4500", outline="#FFD700", width=2)
             elif obs.tipo == "cristal":
-                # Hexágono brilhante
                 pontos = [
                     (cx, cy - half_h),
                     (cx + half_w * 0.8, cy - half_h * 0.5),
@@ -823,69 +962,30 @@ class SeletorMapa(tk.Toplevel):
                     (cx - half_w * 0.8, cy + half_h * 0.5),
                     (cx - half_w * 0.8, cy - half_h * 0.5),
                 ]
-                flat = [coord for p in pontos for coord in p]
-                canvas.create_polygon(flat, fill=cor, outline="white", width=1)
+                canvas.create_polygon([coord for p in pontos for coord in p], fill=cor, outline="white", width=1)
             elif obs.tipo in ["arvore", "palmeira"]:
-                # Círculo verde com tronco
-                canvas.create_rectangle(
-                    cx - half_w * 0.2, cy - half_h * 0.3,
-                    cx + half_w * 0.2, cy + half_h * 0.5,
-                    fill=cor, outline=""
-                )
-                canvas.create_oval(
-                    cx - half_w, cy - half_h, cx + half_w, cy,
-                    fill="#228B22", outline="#006400", width=1
-                )
+                canvas.create_rectangle(cx - half_w * 0.2, cy - half_h * 0.3, cx + half_w * 0.2, cy + half_h * 0.5, fill=cor, outline="")
+                canvas.create_oval(cx - half_w, cy - half_h, cx + half_w, cy, fill="#228B22", outline="#006400", width=1)
             elif obs.tipo in ["pilar", "pilar_quebrado"]:
-                # Círculo
-                canvas.create_oval(
-                    cx - half_w, cy - half_h, cx + half_w, cy + half_h,
-                    fill=cor, outline=cor_escura, width=2
-                )
+                canvas.create_oval(cx - half_w, cy - half_h, cx + half_w, cy + half_h, fill=cor, outline=cor_escura, width=2)
             elif obs.tipo == "gelo":
-                # Azul claro transparente
-                canvas.create_rectangle(
-                    cx - half_w, cy - half_h, cx + half_w, cy + half_h,
-                    fill="#ADD8E6", outline="#87CEEB", width=2
-                )
+                canvas.create_rectangle(cx - half_w, cy - half_h, cx + half_w, cy + half_h, fill="#ADD8E6", outline="#87CEEB", width=2)
             elif obs.tipo == "nucleo":
-                # Círculo brilhante
-                canvas.create_oval(
-                    cx - half_w * 1.3, cy - half_h * 1.3,
-                    cx + half_w * 1.3, cy + half_h * 1.3,
-                    fill="#1E3A5F", outline=""
-                )
-                canvas.create_oval(
-                    cx - half_w, cy - half_h, cx + half_w, cy + half_h,
-                    fill=cor, outline="white", width=2
-                )
+                canvas.create_oval(cx - half_w * 1.3, cy - half_h * 1.3, cx + half_w * 1.3, cy + half_h * 1.3, fill="#1E3A5F", outline="")
+                canvas.create_oval(cx - half_w, cy - half_h, cx + half_w, cy + half_h, fill=cor, outline="white", width=2)
             else:
-                # Retângulo genérico
-                canvas.create_rectangle(
-                    cx - half_w, cy - half_h, cx + half_w, cy + half_h,
-                    fill=cor, outline=cor_escura, width=1
-                )
-        
-        # Desenha pontos de spawn
-        spawn_cor_p1 = "#3498DB"
-        spawn_cor_p2 = "#E74C3C"
-        
+                canvas.create_rectangle(cx - half_w, cy - half_h, cx + half_w, cy + half_h, fill=cor, outline=cor_escura, width=1)
+
         p1_x, p1_y = to_canvas(config.largura * 0.2, config.altura / 2)
         p2_x, p2_y = to_canvas(config.largura * 0.8, config.altura / 2)
-        
-        # P1
-        canvas.create_oval(p1_x - 8, p1_y - 8, p1_x + 8, p1_y + 8, fill=spawn_cor_p1, outline="white", width=2)
+
+        canvas.create_oval(p1_x - 8, p1_y - 8, p1_x + 8, p1_y + 8, fill="#3498DB", outline="white", width=2)
         canvas.create_text(p1_x, p1_y, text="1", fill="white", font=("Arial", 8, "bold"))
-        
-        # P2
-        canvas.create_oval(p2_x - 8, p2_y - 8, p2_x + 8, p2_y + 8, fill=spawn_cor_p2, outline="white", width=2)
+        canvas.create_oval(p2_x - 8, p2_y - 8, p2_x + 8, p2_y + 8, fill="#E74C3C", outline="white", width=2)
         canvas.create_text(p2_x, p2_y, text="2", fill="white", font=("Arial", 8, "bold"))
-        
-        # Legenda de spawn
-        canvas.create_text(cw/2, ch - 10, text="● P1 Spawn   ● P2 Spawn", fill="#888888", font=("Arial", 8))
-    
+        canvas.create_text(cw / 2, ch - 10, text="P1 spawn   |   P2 spawn", fill="#8a93a5", font=("Segoe UI", 8))
+
     def _confirmar(self):
-        """Confirma a seleção do mapa"""
         info = self.get_mapa_info(self.mapa_selecionado)
         self.callback(self.mapa_selecionado, info)
         self.destroy()

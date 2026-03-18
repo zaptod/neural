@@ -25,6 +25,8 @@ from pipeline_video.config import (
     END_TEXT, END_TEXT_DURATION, FADE_OUT_DURATION,
     MIN_FIGHT_DURATION,
 )
+from pipeline_video.roulette_status import get_story_segment
+from utilitarios.estado_espectador import resolver_badges_estado, resolver_destaque_cinematico
 
 
 def _setup_headless():
@@ -62,6 +64,17 @@ def _inject_match_config(char1: dict, arma1: dict, char2: dict, arma2: dict,
             forca_arco=d.get("forca_arco", 0.0),
             quantidade_orbitais=d.get("quantidade_orbitais", 1),
         )
+        for attr in (
+            "familia",
+            "subtipo",
+            "elemento",
+            "foco_magico",
+            "perfil_mecanico",
+            "perfil_visual",
+            "tags",
+        ):
+            if attr in d:
+                setattr(arma, attr, d.get(attr))
         # Geometry attrs â€” Arma.__init__ uses **kwargs and discards them,
         # but the engine accesses them at runtime (e.g. arma.distancia)
         _geom = {
@@ -161,7 +174,9 @@ class FightRecorder:
     def __init__(self, char1: dict, arma1: dict, char2: dict, arma2: dict,
                  cenario: str = "Arena", max_duration: float = 130.0,
                  output_path: str = None,
-                 min_fight_duration: float = MIN_FIGHT_DURATION):
+                 min_fight_duration: float = MIN_FIGHT_DURATION,
+                 story_mode: str = "classic",
+                 roulette_story: dict | None = None):
         """
         Args:
             char1, arma1: Dicts do personagem/arma 1 (formato character_generator)
@@ -179,6 +194,8 @@ class FightRecorder:
         self.max_duration = max_duration
         self.output_path = output_path
         self.min_fight_duration = min_fight_duration
+        self.story_mode = (story_mode or "classic").strip().lower()
+        self.roulette_story = roulette_story if isinstance(roulette_story, dict) else None
 
         self.winner = None
         self.duration = 0.0
@@ -252,9 +269,11 @@ class FightRecorder:
 
             dt = 1.0 / VIDEO_FPS
             elapsed = 0.0
+            prelude_elapsed = 0.0
             min_fight_seconds = min(self.min_fight_duration, max(0.0, self.max_duration - 2.0))
             post_victory_max = int(END_TEXT_DURATION * VIDEO_FPS)  # frames apÃ³s vitÃ³ria
             fade_frames = int(FADE_OUT_DURATION * VIDEO_FPS)
+            intro_duration = self._get_intro_duration()
 
             p1_name = self.char1["nome"]
             p2_name = self.char2["nome"]
@@ -268,9 +287,21 @@ class FightRecorder:
             _log.info("Iniciando gravaÃ§Ã£o: %s vs %s â†’ %s",
                       self.char1["nome"], self.char2["nome"], self.output_path)
 
+            while prelude_elapsed < intro_duration:
+                audio_capture.update_time(prelude_elapsed)
+                self._write_frame(
+                    sim,
+                    render_surface,
+                    writer,
+                    None,
+                    None if self.story_mode == "roleta_status" else 1.0 - (prelude_elapsed / max(0.001, intro_duration)),
+                    story_time=prelude_elapsed if self.story_mode == "roleta_status" else None,
+                )
+                prelude_elapsed += dt
+
             while elapsed < self.max_duration:
                 # Atualiza timestamp do Ã¡udio
-                audio_capture.update_time(elapsed)
+                audio_capture.update_time(prelude_elapsed + elapsed)
 
                 # AvanÃ§a frame no mesmo modelo temporal do loop normal
                 dt_efetivo = self._compute_sim_dt(sim, dt)
@@ -281,7 +312,7 @@ class FightRecorder:
                     round_winner = sim.vencedor
 
                 intro_progress = None
-                if elapsed < INTRO_OVERLAY_DURATION:
+                if self.story_mode != "roleta_status" and elapsed < INTRO_OVERLAY_DURATION:
                     intro_progress = 1.0 - (elapsed / max(0.001, INTRO_OVERLAY_DURATION))
 
                 # PÃ³s-vitÃ³ria: mantÃ©m capturando por mais alguns segundos
@@ -371,7 +402,7 @@ class FightRecorder:
                     writer.write(bgr)
                     self.total_frames += 1
 
-            self.duration = elapsed
+            self.duration = prelude_elapsed + elapsed
             self.video_file = self.output_path
             _log.info("GravaÃ§Ã£o finalizada: %d frames (%.1fs), vencedor: %s",
                       self.total_frames, self.duration, self.winner)
@@ -433,6 +464,11 @@ class FightRecorder:
 
         return self
 
+    def _get_intro_duration(self) -> float:
+        if self.story_mode == "roleta_status" and self.roulette_story:
+            return max(0.0, float(self.roulette_story.get("timeline_duration", 0.0) or 0.0))
+        return INTRO_OVERLAY_DURATION
+
     def _compute_sim_dt(self, sim, raw_dt: float) -> float:
         """Replica o avanÃ§o temporal do Simulador.run sem processar input/display."""
         # MantÃ©m comportamento de slow-mo do loop normal.
@@ -461,7 +497,7 @@ class FightRecorder:
 
         return raw_dt * getattr(sim, "time_scale", 1.0)
 
-    def _render_frame(self, sim, render_surface, post_victory_progress, intro_progress=None) -> np.ndarray:
+    def _render_frame(self, sim, render_surface, post_victory_progress, intro_progress=None, story_time=None) -> np.ndarray:
         """Renderiza 1 frame â†’ numpy RGB (VIDEO_HEIGHT, VIDEO_WIDTH, 3)."""
         import pygame
         import cv2
@@ -475,9 +511,12 @@ class FightRecorder:
 
         # --- HUD persistente: barras de HP + CTA ---
         self._draw_persistent_hud(render_surface, sim)
+        self._draw_cinematic_overlay(render_surface, sim)
 
         # --- Overlays de vÃ­deo ---
-        if intro_progress is not None:
+        if story_time is not None and self.story_mode == "roleta_status" and self.roulette_story:
+            self._draw_story_intro_overlay(render_surface, story_time)
+        elif intro_progress is not None:
             self._draw_intro_overlay(render_surface, intro_progress)
         if post_victory_progress is not None:
             self._draw_victory_overlay(render_surface, sim.vencedor, post_victory_progress)
@@ -494,10 +533,10 @@ class FightRecorder:
 
         return frame
 
-    def _write_frame(self, sim, render_surface, writer, post_victory_progress, intro_progress=None):
+    def _write_frame(self, sim, render_surface, writer, post_victory_progress, intro_progress=None, story_time=None):
         """Renderiza + escreve 1 frame direto no VideoWriter."""
         import cv2
-        rgb = self._render_frame(sim, render_surface, post_victory_progress, intro_progress)
+        rgb = self._render_frame(sim, render_surface, post_victory_progress, intro_progress, story_time=story_time)
         bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
         writer.write(bgr)
         self.total_frames += 1
@@ -594,6 +633,293 @@ class FightRecorder:
                 return base, tuple(max(30, min(255, int(c * 0.38))) for c in base)
 
         return (255, 214, 102), (90, 52, 18)
+
+    def _draw_status_badges(self, surface, fighter, x, y, *, align_right=False, max_badges=2):
+        """Desenha pills curtas para expor o estado dramático/tático ao espectador."""
+        import pygame
+
+        badges = resolver_badges_estado(fighter, max_badges=max_badges)
+        if not badges:
+            return
+
+        font = self._get_ui_font(11, bold=True)
+        badge_h = 18
+        pad_x = 8
+        spacing = 5
+        total_w = 0
+        rendered = []
+        for badge in badges:
+            surf = font.render(str(badge.get("texto", "")), True, badge.get("fg", (248, 250, 252)))
+            rect_w = surf.get_width() + pad_x * 2
+            total_w += rect_w
+            rendered.append((badge, surf, rect_w))
+        total_w += spacing * max(0, len(rendered) - 1)
+
+        cursor_x = x - total_w if align_right else x
+        for badge, surf, rect_w in rendered:
+            rect = pygame.Rect(cursor_x, y, rect_w, badge_h)
+            fill = badge.get("bg", (18, 24, 36))
+            border = badge.get("borda", (220, 226, 234))
+            pygame.draw.rect(surface, fill, rect, border_radius=badge_h // 2)
+            pygame.draw.rect(surface, border, rect, 1, border_radius=badge_h // 2)
+            surface.blit(surf, (rect.x + pad_x, rect.y + (badge_h - surf.get_height()) // 2 - 1))
+            cursor_x += rect_w + spacing
+
+    def _draw_story_intro_overlay(self, surface, story_time):
+        """Desenha a sequencia principal de comentario + roleta + build + versus."""
+        import pygame
+
+        story = self.roulette_story or {}
+        segment = get_story_segment(story, story_time)
+        if not segment:
+            return
+
+        w, h = surface.get_size()
+        veil = pygame.Surface((w, h), pygame.SRCALPHA)
+        veil.fill((5, 8, 16, 188))
+        surface.blit(veil, (0, 0))
+
+        hero_accent, hero_dark = self._palette_from_fighter(None, fallback_name=story.get("hero_name"))
+        enemy_accent, enemy_dark = self._palette_from_fighter(None, fallback_name=story.get("enemy_name"))
+        self._draw_gradient_rect(surface, pygame.Rect(0, 0, w, int(h * 0.12)), hero_dark, enemy_dark, alpha=126)
+        self._draw_gradient_rect(surface, pygame.Rect(0, h - int(h * 0.12), w, int(h * 0.12)), enemy_dark, hero_dark, alpha=96)
+
+        kind = segment.get("kind")
+        payload = segment.get("payload", {})
+        local_progress = (story_time - segment["start"]) / max(0.001, segment["duration"])
+        local_progress = max(0.0, min(1.0, local_progress))
+
+        if kind == "hook":
+            self._draw_story_hook(surface, payload, local_progress, hero_accent)
+        elif kind == "roulette_spin":
+            self._draw_roulette_spin(surface, payload.get("roll", {}), local_progress, hero_accent, hero_dark)
+        elif kind == "roulette_result":
+            self._draw_roulette_result(surface, payload.get("roll", {}), local_progress, hero_accent)
+        elif kind == "roulette_reaction":
+            self._draw_roulette_reaction(surface, payload.get("roll", {}), local_progress, hero_accent)
+        elif kind == "build_summary":
+            self._draw_build_summary(surface, story, local_progress, hero_accent, enemy_accent)
+        elif kind == "versus_reveal":
+            self._draw_story_versus(surface, story, local_progress, hero_accent, enemy_accent)
+
+    def _draw_story_hook(self, surface, payload, progress, accent):
+        import pygame
+
+        w, h = surface.get_size()
+        card = pygame.Rect(int(w * 0.09), int(h * 0.17), int(w * 0.82), int(h * 0.26))
+        self._draw_panel_frame(surface, card, fill=(8, 12, 22, 232), border=(248, 250, 252), accent=accent)
+
+        tag_font = self._get_ui_font(max(13, int(w * 0.026)), bold=True)
+        title_font = self._get_ui_font(max(23, int(w * 0.05)), bold=True)
+        body_font = self._get_ui_font(max(15, int(w * 0.03)), bold=True)
+
+        tag = "RESPONDENDO AO COMENTARIO"
+        comment = str(payload.get("comment", "")).upper()
+        title = "ROLETA DE STATUS"
+        self._draw_text_with_shadow(surface, tag, tag_font, (255, 218, 134), (card.x + 22, card.y + 18))
+        self._draw_text_with_shadow(surface, title, title_font, (248, 250, 252), (card.x + 22, card.y + 50), shadow_offset=3)
+
+        wrap = self._wrap_text(comment, max_chars=22)
+        y = card.y + 104
+        for line in wrap[:3]:
+            surf = body_font.render(f'"{line}"', True, (218, 224, 232))
+            surface.blit(surf, (card.x + 22, y))
+            y += surf.get_height() + 6
+
+        pulse = 0.62 + 0.38 * math.sin(progress * math.pi)
+        glow = pygame.Surface((card.width + 36, card.height + 36), pygame.SRCALPHA)
+        pygame.draw.rect(glow, (*accent, int(44 * pulse)), glow.get_rect(), 4, border_radius=26)
+        surface.blit(glow, (card.x - 18, card.y - 18))
+
+    def _draw_roulette_spin(self, surface, roll, progress, accent, accent_dark):
+        import pygame
+
+        w, h = surface.get_size()
+        frame = pygame.Rect(int(w * 0.09), int(h * 0.14), int(w * 0.82), int(h * 0.46))
+        self._draw_panel_frame(surface, frame, fill=(8, 12, 22, 236), border=(242, 246, 250), accent=accent)
+
+        title_font = self._get_ui_font(max(18, int(w * 0.043)), bold=True)
+        item_font = self._get_ui_font(max(16, int(w * 0.036)), bold=True)
+        tag_font = self._get_ui_font(max(12, int(w * 0.024)), bold=True)
+
+        label = str(roll.get("label", "STATUS")).upper()
+        self._draw_text_with_shadow(surface, "ROLETA GIRANDO", tag_font, (255, 210, 124), (frame.x + 20, frame.y + 18))
+        self._draw_text_with_shadow(surface, label, title_font, (248, 250, 252), (frame.x + 20, frame.y + 44))
+
+        options = list(roll.get("visible_options", []))
+        if not options:
+            options = [str(roll.get("selected", "???"))]
+        center_idx = int(progress * max(1, len(options) * 3)) % len(options)
+        slot_h = int(h * 0.07)
+        base_y = frame.y + 116
+        for offset in range(-2, 3):
+            idx = (center_idx + offset) % len(options)
+            text = options[idx].upper()
+            slot = pygame.Rect(frame.x + 26, base_y + (offset + 2) * slot_h, frame.width - 52, slot_h - 8)
+            alpha = 218 if offset == 0 else 108
+            fill = (18, 24, 38, alpha)
+            border = accent if offset == 0 else accent_dark
+            pygame.draw.rect(surface, fill, slot, border_radius=14)
+            pygame.draw.rect(surface, border, slot, 2 if offset == 0 else 1, border_radius=14)
+            surf = item_font.render(text[:38], True, (248, 250, 252) if offset == 0 else (198, 206, 220))
+            surface.blit(surf, (slot.x + 18, slot.y + (slot.height - surf.get_height()) // 2 - 1))
+
+        marker = pygame.Rect(frame.x + 16, base_y + 2 * slot_h - 4, frame.width - 32, slot_h)
+        pygame.draw.rect(surface, (*accent, 28), marker, border_radius=18)
+
+    def _draw_roulette_result(self, surface, roll, progress, accent):
+        import pygame
+
+        w, h = surface.get_size()
+        card = pygame.Rect(int(w * 0.08), int(h * 0.23), int(w * 0.84), int(h * 0.20))
+        self._draw_panel_frame(surface, card, fill=(10, 16, 28, 238), border=(248, 250, 252), accent=accent)
+
+        label_font = self._get_ui_font(max(13, int(w * 0.027)), bold=True)
+        result_font = self._get_ui_font(max(24, int(w * 0.05)), bold=True)
+
+        label = str(roll.get("label", "STATUS")).upper()
+        result = str(roll.get("selected", "???")).upper()
+        self._draw_text_with_shadow(surface, "RESULTADO", label_font, (255, 220, 136), (card.x + 22, card.y + 18))
+        self._draw_text_with_shadow(surface, label, label_font, (214, 220, 228), (card.x + 22, card.y + 44))
+        self._draw_text_with_shadow(surface, result[:34], result_font, (248, 250, 252), (card.x + 22, card.y + 78), shadow_offset=3)
+
+        burst = pygame.Surface((w, h), pygame.SRCALPHA)
+        radius = int(140 + 70 * progress)
+        pygame.draw.circle(burst, (*accent, int(28 * (1.0 - progress * 0.5))), (w // 2, int(h * 0.33)), radius)
+        surface.blit(burst, (0, 0))
+
+    def _draw_roulette_reaction(self, surface, roll, progress, accent):
+        import pygame
+
+        w, h = surface.get_size()
+        card = pygame.Rect(int(w * 0.12), int(h * 0.22), int(w * 0.76), int(h * 0.24))
+        self._draw_panel_frame(surface, card, fill=(8, 12, 24, 236), border=(248, 250, 252), accent=accent)
+
+        react_font = self._get_ui_font(max(26, int(w * 0.06)), bold=True)
+        note_font = self._get_ui_font(max(14, int(w * 0.029)), bold=True)
+        mini_font = self._get_ui_font(max(12, int(w * 0.023)), bold=True)
+
+        react = str(roll.get("reaction_label", "PESADO")).upper()
+        note = str(roll.get("reaction_note", "A roleta decidiu o rumo da build.")).upper()
+        self._draw_text_with_shadow(surface, "REACT", mini_font, (255, 210, 128), (card.x + 20, card.y + 16))
+        self._draw_text_with_shadow(surface, react, react_font, (248, 250, 252), (card.x + 20, card.y + 48), shadow_offset=3)
+
+        wrap = self._wrap_text(note, max_chars=22)
+        y = card.y + 108
+        for line in wrap[:2]:
+            surf = note_font.render(line, True, (216, 222, 230))
+            surface.blit(surf, (card.x + 20, y))
+            y += surf.get_height() + 6
+
+        emoji_rect = pygame.Rect(card.right - 110, card.y + 44, 76, 76)
+        pygame.draw.circle(surface, (*accent, 52), emoji_rect.center, 40)
+        pygame.draw.circle(surface, accent, emoji_rect.center, 34, 3)
+        pygame.draw.circle(surface, (248, 250, 252), (emoji_rect.centerx - 10, emoji_rect.centery - 6), 5)
+        pygame.draw.circle(surface, (248, 250, 252), (emoji_rect.centerx + 10, emoji_rect.centery - 6), 5)
+        pygame.draw.arc(surface, (248, 250, 252), pygame.Rect(emoji_rect.x + 16, emoji_rect.y + 20, 40, 30), 3.4, 5.9, 4)
+
+    def _draw_build_summary(self, surface, story, progress, hero_accent, enemy_accent):
+        import pygame
+
+        w, h = surface.get_size()
+        card = pygame.Rect(int(w * 0.08), int(h * 0.12), int(w * 0.84), int(h * 0.55))
+        self._draw_panel_frame(surface, card, fill=(8, 12, 22, 236), border=(248, 250, 252), accent=hero_accent)
+        font_tag = self._get_ui_font(max(12, int(w * 0.024)), bold=True)
+        font_title = self._get_ui_font(max(22, int(w * 0.05)), bold=True)
+        font_line = self._get_ui_font(max(13, int(w * 0.026)), bold=True)
+
+        self._draw_text_with_shadow(surface, "BUILD FINAL", font_tag, (255, 216, 132), (card.x + 20, card.y + 18))
+        self._draw_text_with_shadow(surface, str(story.get("hero_name", "PROTAGONISTA")).upper(), font_title, (248, 250, 252), (card.x + 20, card.y + 44), shadow_offset=3)
+
+        lines = list(story.get("build_lines", []))
+        y = card.y + 108
+        for idx, line in enumerate(lines[:9]):
+            tone = hero_accent if idx % 2 == 0 else enemy_accent
+            bullet = pygame.Rect(card.x + 20, y + 6, 10, 10)
+            pygame.draw.circle(surface, tone, bullet.center, 5)
+            text = font_line.render(line[:52].upper(), True, (220, 226, 234))
+            surface.blit(text, (card.x + 38, y))
+            y += text.get_height() + 10
+
+    def _draw_story_versus(self, surface, story, progress, hero_accent, enemy_accent):
+        import pygame
+
+        w, h = surface.get_size()
+        left = pygame.Rect(int(w * 0.08), int(h * 0.22), int(w * 0.32), int(h * 0.18))
+        right = pygame.Rect(int(w * 0.60), int(h * 0.22), int(w * 0.32), int(h * 0.18))
+        center = pygame.Rect(int(w * 0.40), int(h * 0.25), int(w * 0.20), int(h * 0.10))
+        self._draw_panel_frame(surface, left, fill=(8, 12, 20, 228), border=(248, 250, 252), accent=hero_accent)
+        self._draw_panel_frame(surface, right, fill=(8, 12, 20, 228), border=(248, 250, 252), accent=enemy_accent, align_right=True)
+        self._draw_panel_frame(surface, center, fill=(12, 18, 28, 238), border=(255, 224, 142), accent=(255, 182, 84))
+
+        font_tag = self._get_ui_font(max(12, int(w * 0.024)), bold=True)
+        font_name = self._get_ui_font(max(18, int(w * 0.04)), bold=True)
+        font_vs = self._get_ui_font(max(28, int(w * 0.064)), bold=True)
+
+        self._draw_text_with_shadow(surface, "BUILD FECHADA", font_tag, (255, 210, 128), (left.x + 16, left.y + 14))
+        self._draw_text_with_shadow(surface, str(story.get("hero_name", "HEROI")).upper()[:20], font_name, (248, 250, 252), (left.x + 16, left.y + 46), shadow_offset=3)
+        self._draw_text_with_shadow(surface, "CHEFE FINAL", font_tag, (255, 210, 128), (right.x + 16, right.y + 14))
+        self._draw_text_with_shadow(surface, str(story.get("enemy_name", "RIVAL")).upper()[:20], font_name, (right.x + 16, right.y + 46), shadow_offset=3)
+        self._draw_text_with_shadow(surface, "VS", font_vs, (255, 236, 170), (center.x + center.width // 2 - 26, center.y + 12), shadow_offset=3)
+
+        footer_font = self._get_ui_font(max(14, int(w * 0.028)), bold=True)
+        footer = footer_font.render("CLIMAX: A BUILD VAI PARA A ARENA", True, (248, 250, 252))
+        surface.blit(footer, (w // 2 - footer.get_width() // 2, int(h * 0.71)))
+
+    def _wrap_text(self, text, *, max_chars=24):
+        palavras = str(text or "").split()
+        linhas = []
+        atual = []
+        for palavra in palavras:
+            teste = " ".join(atual + [palavra])
+            if len(teste) <= max_chars or not atual:
+                atual.append(palavra)
+            else:
+                linhas.append(" ".join(atual))
+                atual = [palavra]
+        if atual:
+            linhas.append(" ".join(atual))
+        return linhas
+
+    def _draw_cinematic_overlay(self, surface, sim):
+        """Adiciona pulso visual e rotulo curto para momentos dramáticos."""
+        import pygame
+
+        destaque = getattr(sim, "direcao_cinematica", None)
+        if not isinstance(destaque, dict) or not destaque.get("tipo"):
+            destaque = resolver_destaque_cinematico(getattr(sim, "fighters", []))
+        if not isinstance(destaque, dict):
+            return
+
+        intensidade = max(0.0, min(1.0, float(destaque.get("intensidade", 0.0) or 0.0)))
+        overlay_timer = max(0.0, float(destaque.get("overlay_timer", destaque.get("duracao_overlay", 0.0)) or 0.0))
+        if intensidade <= 0.08 and overlay_timer <= 0.0:
+            return
+
+        w, h = surface.get_size()
+        cor = tuple(int(c) for c in destaque.get("cor", (255, 220, 120)))
+        cor_sec = tuple(int(c) for c in destaque.get("cor_secundaria", (255, 244, 188)))
+        pulso = 0.78 + 0.22 * math.sin(time.time() * 7.5)
+        mix = max(intensidade * 0.75, min(1.0, overlay_timer / max(float(destaque.get("duracao_overlay", 0.25) or 0.25), 0.01)))
+        alpha = int((24 + 76 * float(destaque.get("overlay", 0.4) or 0.4)) * mix * pulso)
+
+        top = pygame.Rect(0, 0, w, int(h * 0.055))
+        bottom = pygame.Rect(0, h - int(h * 0.055), w, int(h * 0.055))
+        self._draw_gradient_rect(surface, top, cor, cor_sec, alpha=min(110, alpha))
+        self._draw_gradient_rect(surface, bottom, cor_sec, cor, alpha=min(88, alpha))
+
+        border = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(border, (*cor, min(96, alpha)), border.get_rect(), width=max(4, int(w * 0.008)), border_radius=24)
+        surface.blit(border, (0, 0))
+
+        label = str(destaque.get("rotulo", "")).upper()
+        if label:
+            font = self._get_ui_font(max(12, int(w * 0.026)), bold=True)
+            surf = font.render(label, True, cor_sec)
+            badge = pygame.Rect(w // 2 - (surf.get_width() + 24) // 2, int(h * 0.105), surf.get_width() + 24, surf.get_height() + 8)
+            pygame.draw.rect(surface, (10, 14, 22, 210), badge, border_radius=badge.height // 2)
+            pygame.draw.rect(surface, cor, badge, 2, border_radius=badge.height // 2)
+            surface.blit(surf, (badge.x + 12, badge.y + 3))
 
     def _draw_intro_overlay(self, surface, progress):
         """Card de abertura do duelo para os primeiros segundos do video."""
@@ -697,7 +1023,7 @@ class FightRecorder:
 
         pad        = max(10, int(w * 0.04))
         panel_w    = int(w * 0.34)
-        panel_h    = int(h * 0.105)
+        panel_h    = int(h * 0.132)
         bar_w      = int(panel_w * 0.72)
         bar_h      = max(10, int(h * 0.015))
         name_size  = max(16, int(w * 0.042))
@@ -734,6 +1060,10 @@ class FightRecorder:
             class_surf = font_meta.render(classe_txt, True, (214, 220, 228))
             class_x = panel_rect.right - class_surf.get_width() - 16 if align_right else panel_rect.x + 16
             surface.blit(class_surf, (class_x, panel_rect.y + 16 + title_surf.get_height()))
+
+            badge_y = panel_rect.y + 20 + title_surf.get_height() + class_surf.get_height()
+            badge_anchor_x = panel_rect.right - 16 if align_right else panel_rect.x + 16
+            self._draw_status_badges(surface, fighter, badge_anchor_x, badge_y, align_right=align_right, max_badges=2)
 
             label = font_hp.render("HP", True, (245, 247, 250))
             label_x = panel_rect.right - label.get_width() - 16 if align_right else panel_rect.x + 16

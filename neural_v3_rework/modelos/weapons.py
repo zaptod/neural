@@ -1,199 +1,275 @@
 """
-NEURAL FIGHTS - Sistema de Armas
-Classe Arma e funções de validação/sugestão
+NEURAL FIGHTS - Sistema de Armas v2
+Modelo simplificado com schema migrado, perfis mecanicos/visuais e
+camada de compatibilidade para o runtime atual.
 """
 
-import random
-from .constants import (
-    RARIDADES, TIPOS_ARMA, ENCANTAMENTOS, PASSIVAS_ARMA,
-    get_raridade_data, get_tipo_arma_data
-)
+from __future__ import annotations
+
+from copy import deepcopy
+
+from nucleo.armas import construir_schema_arma
 
 
-def gerar_passiva_arma(raridade):
-    """Gera uma passiva aleatória baseada na raridade"""
-    rar_data = get_raridade_data(raridade)
-    tipo_passiva = rar_data.get("passiva")
-    if tipo_passiva and tipo_passiva in PASSIVAS_ARMA:
-        return random.choice(PASSIVAS_ARMA[tipo_passiva])
+def gerar_passiva_arma(_raridade):
+    """Sistema legado desativado na v2 para simplificar balanceamento."""
     return None
+
+
+def calcular_tamanho_arma(arma) -> float:
+    """Estimativa de tamanho visual da arma em metros de jogo."""
+    if arma is None:
+        return 0.0
+
+    alcance = float(getattr(arma, "alcance_efetivo", 0.0) or 0.0)
+    geometria = getattr(arma, "geometria", {}) or {}
+    distancia = float(geometria.get("distancia", getattr(arma, "distancia", 0.0)) or 0.0)
+    comp_lamina = float(geometria.get("comp_lamina", getattr(arma, "comp_lamina", 0.0)) or 0.0)
+    comp_corrente = float(geometria.get("comp_corrente", getattr(arma, "comp_corrente", 0.0)) or 0.0)
+
+    estimativa = max(alcance, distancia / 100.0, (comp_lamina + comp_corrente) / 100.0)
+    return max(0.4, estimativa)
 
 
 class Arma:
     """
-    Classe de Arma expandida com sistema completo de:
-    - Raridade (Comum → Mítico)
-    - Múltiplos tipos (8 tipos)
-    - Múltiplas habilidades (baseado em raridade)
-    - Encantamentos empilháveis
-    - Passivas únicas
-    - Crítico e velocidade de ataque
-    - Afinidade elemental
+    Classe publica de arma.
+
+    Mantem atributos legados (`tipo`, `raridade`, `distancia`, etc.) para o
+    runtime atual, mas internamente usa o schema v2 com separacao entre:
+    - familia da arma
+    - perfil mecanico
+    - perfil visual
+    - perfil magico
     """
-    def __init__(self, nome, tipo, dano, peso,
-                 r=200, g=200, b=200,
-                 estilo="Padrao", cabo_dano=False,
-                 habilidade="Nenhuma", custo_mana=0,
-                 raridade="Comum",
-                 habilidades=None,
-                 encantamentos=None,
-                 passiva=None,
-                 critico=0.0,
-                 velocidade_ataque=1.0,
-                 afinidade_elemento=None,
-                 durabilidade=100.0,
-                 durabilidade_max=100.0,
-                 quantidade=1,
-                 quantidade_orbitais=1,
-                 forca_arco=0,
-                 **kwargs):
-        
-        self.nome = nome
-        self.tipo = tipo
-        self.raridade = raridade
-        self.dano_base = float(dano)
-        self.peso_base = float(peso)
-        
-        # Aplica modificadores de raridade
-        rar_data = get_raridade_data(raridade)
-        self.dano = self.dano_base * rar_data["mod_dano"]
-        self.peso = self.peso_base * rar_data["mod_peso"]
 
-        # Aplica modificadores de TIPO da arma (BUG-02: antes ignorado)
-        tipo_data = get_tipo_arma_data(tipo)
-        self.dano *= tipo_data.get("mod_dano", 1.0)
-        self.peso *= tipo_data.get("mod_peso", 1.0)
-        self.alcance_base = float(tipo_data.get("alcance_base", 1.5))
-        
-        # Gameplay
-        self.quantidade = int(quantidade)
-        self.quantidade_orbitais = int(quantidade_orbitais)
-        self.forca_arco = float(forca_arco)
-        # BUG-08 fix: restaura forma salva (padrão = 1)
-        self.forma_atual = int(kwargs.get('forma_atual', 1))
+    def __init__(
+        self,
+        nome,
+        tipo=None,
+        dano=8.0,
+        peso=4.0,
+        *,
+        estilo="",
+        raridade="Padrão",
+        habilidades=None,
+        encantamentos=None,
+        passiva=None,
+        critico=0.0,
+        velocidade_ataque=1.0,
+        afinidade_elemento=None,
+        durabilidade=100.0,
+        durabilidade_max=100.0,
+        quantidade=1,
+        quantidade_orbitais=1,
+        forca_arco=0.0,
+        schema_version=2,
+        familia=None,
+        categoria=None,
+        subtipo=None,
+        combate=None,
+        visual=None,
+        magia=None,
+        geometria=None,
+        forma_atual=1,
+        r=200,
+        g=200,
+        b=200,
+        habilidade="Nenhuma",
+        custo_mana=0.0,
+        **kwargs,
+    ):
+        payload = {
+            "schema_version": schema_version,
+            "nome": nome,
+            "tipo": tipo or kwargs.get("tipo_legacy", "Reta"),
+            "familia": familia,
+            "categoria": categoria,
+            "subtipo": subtipo,
+            "dano": dano,
+            "peso": peso,
+            "estilo": estilo,
+            "raridade": raridade,
+            "habilidades": deepcopy(habilidades if habilidades is not None else ([{"nome": habilidade, "custo": float(custo_mana)}] if habilidade != "Nenhuma" else [])),
+            "encantamentos": deepcopy(encantamentos or []),
+            "passiva": deepcopy(passiva),
+            "critico": critico,
+            "velocidade_ataque": velocidade_ataque,
+            "afinidade_elemento": afinidade_elemento,
+            "durabilidade": durabilidade,
+            "durabilidade_max": durabilidade_max,
+            "quantidade": quantidade,
+            "quantidade_orbitais": quantidade_orbitais,
+            "forca_arco": forca_arco,
+            "forma_atual": forma_atual,
+            "combate": deepcopy(combate or {}),
+            "visual": deepcopy(visual or {}),
+            "magia": deepcopy(magia or {}),
+            "geometria": deepcopy(geometria or {}),
+            "r": r,
+            "g": g,
+            "b": b,
+            "habilidade": habilidade,
+            "custo_mana": custo_mana,
+            **kwargs,
+        }
+        self._schema = construir_schema_arma(payload)
+        self._aplicar_schema(self._schema)
 
-        # Comportamento
-        self.estilo = estilo
-        self.cabo_dano = bool(cabo_dano)
+    @classmethod
+    def from_dict(cls, payload: dict) -> "Arma":
+        return cls(**payload)
 
-        # Compatibilidade legada: alguns caminhos antigos ainda consultam
-        # "distancia" (cm) e "largura" diretamente na arma.
-        largura_padrao = 90.0 if "Orbital" in tipo else 30.0
-        distancia_padrao = 50.0 if "Orbital" in tipo else self.alcance_base * 100.0
-        self.largura = float(kwargs.get("largura", largura_padrao))
-        self.distancia = float(kwargs.get("distancia", distancia_padrao))
-        self.comp_cabo = float(kwargs.get("comp_cabo", 15.0))
-        self.comp_lamina = float(kwargs.get("comp_lamina", 50.0))
-        self.comp_corrente = float(kwargs.get("comp_corrente", 0.0))
-        self.comp_ponta = float(kwargs.get("comp_ponta", 0.0))
-        self.largura_ponta = float(kwargs.get("largura_ponta", 0.0))
-        self.tamanho_projetil = float(kwargs.get("tamanho_projetil", 0.0))
-        self.tamanho_arco = float(kwargs.get("tamanho_arco", 0.0))
-        self.tamanho_flecha = float(kwargs.get("tamanho_flecha", 0.0))
-        self.tamanho = float(kwargs.get("tamanho", 8.0))
-        self.distancia_max = float(kwargs.get("distancia_max", 0.0))
-        self.separacao = float(kwargs.get("separacao", 0.0))
-        self.forma1_cabo = float(kwargs.get("forma1_cabo", 0.0))
-        self.forma1_lamina = float(kwargs.get("forma1_lamina", 0.0))
-        self.forma2_cabo = float(kwargs.get("forma2_cabo", 0.0))
-        self.forma2_lamina = float(kwargs.get("forma2_lamina", 0.0))
-        
-        # === SISTEMA DE HABILIDADES MÚLTIPLAS ===
-        if habilidades is None:
-            if habilidade != "Nenhuma":
-                self.habilidades = [{"nome": habilidade, "custo": float(custo_mana)}]
-            else:
-                self.habilidades = []
-        else:
-            self.habilidades = habilidades
-        
-        # Mantém compatibilidade com código antigo
+    def _aplicar_schema(self, schema: dict) -> None:
+        self.schema_version = int(schema.get("schema_version", 2))
+        self.id = schema["id"]
+        self.nome = schema["nome"]
+        self.familia = schema["familia"]
+        self.subtipo = schema.get("subtipo", "")
+        self.categoria = schema["categoria"]
+        self.tipo = schema["tipo_legacy"]
+        self.tipo_legacy = schema["tipo_legacy"]
+        self.estilo = schema.get("estilo", "")
+
+        self.perfil_mecanico = deepcopy(schema["combate"])
+        self.perfil_visual = deepcopy(schema["visual"])
+        self.perfil_magico = deepcopy(schema["magia"])
+        self.geometria = deepcopy(schema["geometria"])
+        self.meta_legado = deepcopy(schema.get("meta_legado", {}))
+
+        self.dano_base = float(self.perfil_mecanico["dano_base"])
+        self.peso_base = float(self.perfil_mecanico["peso"])
+        self.dano = self.dano_base
+        self.peso = self.peso_base
+        self.alcance_base = float(self.perfil_mecanico["alcance"])
+        self.alcance_efetivo = float(self.perfil_mecanico["alcance"])
+        self.alcance_minimo = float(self.perfil_mecanico["alcance_minimo"])
+        self.arco_ataque = float(self.perfil_mecanico["arco"])
+        self.startup = float(self.perfil_mecanico["startup"])
+        self.tempo_ativo = float(self.perfil_mecanico["ativo"])
+        self.recovery = float(self.perfil_mecanico["recovery"])
+        self.critico = float(self.perfil_mecanico["critico"])
+        self.velocidade_ataque = float(self.perfil_mecanico["cadencia"])
+        self.escala_forca = float(self.perfil_mecanico["escala_forca"])
+        self.escala_mana = float(self.perfil_mecanico["escala_mana"])
+        self.projeteis_por_ataque = int(self.perfil_mecanico["projeteis_por_ataque"])
+        self.velocidade_projetil = float(self.perfil_mecanico["velocidade_projetil"])
+        self.spread_base = float(self.perfil_mecanico["spread"])
+        self.stagger_base = float(self.perfil_mecanico["stagger"])
+
+        self.quantidade = int(schema.get("quantidade", self.projeteis_por_ataque))
+        self.quantidade_orbitais = int(schema.get("quantidade_orbitais", self.perfil_mecanico["qtd_orbitais"]))
+        self.forca_arco = float(schema.get("forca_arco", self.perfil_mecanico["forca_disparo"]))
+        self.forma_atual = int(schema.get("forma_atual", 1))
+        self.durabilidade_max = float(schema.get("durabilidade_max", self.perfil_mecanico["durabilidade_base"]))
+        self.durabilidade = min(float(schema.get("durabilidade", self.durabilidade_max)), self.durabilidade_max)
+
+        self.r = int(self.perfil_visual["cor_base"]["r"])
+        self.g = int(self.perfil_visual["cor_base"]["g"])
+        self.b = int(self.perfil_visual["cor_base"]["b"])
+        self.raridade = self.perfil_visual.get("acabamento", "Padrão")
+        self.cor_raridade = (self.r, self.g, self.b)
+        self.efeito_visual = self.perfil_visual.get("rastro")
+        self.afinidade_elemento = self.perfil_magico.get("afinidade")
+        self.usa_foco_magico = bool(self.perfil_magico.get("usa_foco"))
+
+        self.habilidades = deepcopy(self.perfil_magico.get("habilidades", []))
         if self.habilidades:
-            first_hab = self.habilidades[0]
-            if isinstance(first_hab, dict):
-                self.habilidade = first_hab.get("nome", "Nenhuma")
-                self.custo_mana = first_hab.get("custo", custo_mana)
+            primeira = self.habilidades[0]
+            if isinstance(primeira, dict):
+                self.habilidade = primeira.get("nome", "Nenhuma")
+                self.custo_mana = float(primeira.get("custo", self.perfil_magico.get("custo_primario", 0.0)))
             else:
-                self.habilidade = str(first_hab)
-                self.custo_mana = float(custo_mana)
+                self.habilidade = str(primeira)
+                self.custo_mana = float(self.perfil_magico.get("custo_primario", 0.0))
         else:
-            self.habilidade = "Nenhuma"
-            self.custo_mana = float(custo_mana)
-        
-        # === SISTEMA DE ENCANTAMENTOS ===
-        self.encantamentos = encantamentos or []
-        
-        # === PASSIVA ===
-        if passiva is None and rar_data.get("passiva"):
-            self.passiva = gerar_passiva_arma(raridade)
-        else:
-            self.passiva = passiva
-        
-        # === STATS EXTRAS ===
-        self.critico = float(critico) + rar_data["mod_critico"]
-        self.velocidade_ataque = float(velocidade_ataque) * rar_data["mod_velocidade_ataque"]
-        self.afinidade_elemento = afinidade_elemento
-        
-        # === DURABILIDADE ===
-        self.durabilidade_max = float(durabilidade_max) * rar_data["mod_durabilidade"]
-        self.durabilidade = min(float(durabilidade), self.durabilidade_max)
+            self.habilidade = self.perfil_magico.get("skill_primaria", "Nenhuma")
+            self.custo_mana = float(self.perfil_magico.get("custo_primario", 0.0))
 
-        # Cores
-        self.r = int(r); self.g = int(g); self.b = int(b)
-        
-        # Cor da raridade
-        self.cor_raridade = rar_data["cor"]
-        self.efeito_visual = rar_data.get("efeito_visual")
-        
+        # v2: raridade, encantamento e passiva deixam de afetar runtime.
+        self.encantamentos = []
+        self.passiva = None
 
+        # Campos de geometria legada ainda consumidos pelo runtime atual.
+        self.comp_cabo = float(self.geometria.get("comp_cabo", 15.0))
+        self.comp_lamina = float(self.geometria.get("comp_lamina", 50.0))
+        self.largura = float(self.geometria.get("largura", 30.0))
+        self.distancia = float(self.geometria.get("distancia", self.alcance_efetivo * 100.0))
+        self.comp_corrente = float(self.geometria.get("comp_corrente", 0.0))
+        self.comp_ponta = float(self.geometria.get("comp_ponta", 0.0))
+        self.largura_ponta = float(self.geometria.get("largura_ponta", 0.0))
+        self.tamanho_projetil = float(self.geometria.get("tamanho_projetil", 0.0))
+        self.tamanho_arco = float(self.geometria.get("tamanho_arco", 0.0))
+        self.tamanho_flecha = float(self.geometria.get("tamanho_flecha", 0.0))
+        self.tamanho = float(self.geometria.get("tamanho", 8.0))
+        self.distancia_max = float(self.geometria.get("distancia_max", self.alcance_efetivo))
+        self.separacao = float(self.geometria.get("separacao", 0.0))
+        self.forma1_cabo = float(self.geometria.get("forma1_cabo", 0.0))
+        self.forma1_lamina = float(self.geometria.get("forma1_lamina", 0.0))
+        self.forma2_cabo = float(self.geometria.get("forma2_cabo", 0.0))
+        self.forma2_lamina = float(self.geometria.get("forma2_lamina", 0.0))
 
     def get_dano_total(self):
-        """Calcula dano total incluindo encantamentos"""
-        dano = self.dano
-        for enc_nome in self.encantamentos:
-            if enc_nome in ENCANTAMENTOS:
-                dano += ENCANTAMENTOS[enc_nome].get("dano_bonus", 0)
-        return dano
-    
+        return self.dano
+
     def get_slots_disponiveis(self):
-        """Retorna quantos slots de habilidade ainda estão livres"""
-        max_slots = get_raridade_data(self.raridade)["slots_habilidade"]
+        max_slots = 3 if self.usa_foco_magico else 2
         return max_slots - len(self.habilidades)
-    
+
     def adicionar_habilidade(self, nome_skill, custo):
-        """Adiciona uma habilidade se houver slot"""
-        if self.get_slots_disponiveis() > 0:
-            self.habilidades.append({"nome": nome_skill, "custo": float(custo)})
-            if len(self.habilidades) == 1:
-                self.habilidade = nome_skill
-                self.custo_mana = float(custo)
-            return True
+        if self.get_slots_disponiveis() <= 0:
+            return False
+        self.habilidades.append({"nome": nome_skill, "custo": float(custo)})
+        if len(self.habilidades) == 1:
+            self.habilidade = nome_skill
+            self.custo_mana = float(custo)
+        self.perfil_magico["habilidades"] = deepcopy(self.habilidades)
+        self.perfil_magico["skill_primaria"] = self.habilidade
+        self.perfil_magico["custo_primario"] = self.custo_mana
+        return True
+
+    def adicionar_encantamento(self, _nome_enc):
         return False
-    
-    def adicionar_encantamento(self, nome_enc):
-        """Adiciona um encantamento se possível"""
-        max_enc = get_raridade_data(self.raridade)["max_encantamentos"]
-        if len(self.encantamentos) < max_enc and nome_enc in ENCANTAMENTOS:
-            self.encantamentos.append(nome_enc)
-            return True
-        return False
-    
+
     def trocar_forma(self):
-        """Troca a forma (apenas para armas Transformáveis)"""
-        if self.tipo == "Transformável":
+        if self.familia == "hibrida":
             self.forma_atual = 2 if self.forma_atual == 1 else 1
 
     def to_dict(self):
         return {
+            "schema_version": self.schema_version,
+            "id": self.id,
             "nome": self.nome,
+            "familia": self.familia,
+            "subtipo": self.subtipo,
+            "categoria": self.categoria,
             "tipo": self.tipo,
+            "tipo_legacy": self.tipo_legacy,
+            "estilo": self.estilo,
             "dano": self.dano_base,
             "peso": self.peso_base,
-            "raridade": self.raridade,
+            "critico": self.critico,
+            "velocidade_ataque": self.velocidade_ataque,
+            "afinidade_elemento": self.afinidade_elemento,
             "quantidade": self.quantidade,
             "quantidade_orbitais": self.quantidade_orbitais,
             "forca_arco": self.forca_arco,
-            "forma_atual": self.forma_atual,  # BUG-08 fix
+            "durabilidade": self.durabilidade,
+            "durabilidade_max": self.durabilidade_max,
+            "forma_atual": self.forma_atual,
+            "r": self.r,
+            "g": self.g,
+            "b": self.b,
+            "raridade": self.raridade,
+            "habilidades": deepcopy(self.habilidades),
+            "habilidade": self.habilidade,
+            "custo_mana": self.custo_mana,
+            "encantamentos": [],
+            "passiva": None,
+            "combate": deepcopy(self.perfil_mecanico),
+            "visual": deepcopy(self.perfil_visual),
+            "magia": deepcopy(self.perfil_magico),
+            "geometria": deepcopy(self.geometria),
             "comp_cabo": self.comp_cabo,
             "comp_lamina": self.comp_lamina,
             "largura": self.largura,
@@ -211,77 +287,56 @@ class Arma:
             "forma1_lamina": self.forma1_lamina,
             "forma2_cabo": self.forma2_cabo,
             "forma2_lamina": self.forma2_lamina,
-            "r": self.r, "g": self.g, "b": self.b,
-            "estilo": self.estilo,
-            "cabo_dano": self.cabo_dano,
-            "habilidades": self.habilidades,
-            "encantamentos": self.encantamentos,
-            "passiva": self.passiva,
-            "critico": self.critico - get_raridade_data(self.raridade)["mod_critico"],
-            "velocidade_ataque": self.velocidade_ataque / get_raridade_data(self.raridade)["mod_velocidade_ataque"],
-            "afinidade_elemento": self.afinidade_elemento,
-            "durabilidade": self.durabilidade,
-            "durabilidade_max": self.durabilidade_max / get_raridade_data(self.raridade)["mod_durabilidade"],
-            "habilidade": self.habilidade,
-            "custo_mana": self.custo_mana,
+            "meta_legado": deepcopy(self.meta_legado),
         }
 
 
 def validar_arma_personagem(arma, personagem):
-    """
-    Valida se a arma é apropriada para o tamanho do personagem.
-    """
+    """Valida se a arma e apropriada para o tamanho do personagem."""
     if arma is None or personagem is None:
         return {
             "valido": True,
             "mensagem": "Sem arma equipada",
             "sugestao": None,
-            "proporcao": 0
+            "proporcao": 0,
         }
-    
+
     tamanho_arma = calcular_tamanho_arma(arma)
     tamanho_char = personagem.tamanho / 10.0
-    
     if tamanho_char <= 0:
         tamanho_char = 1.0
-    
+
     proporcao = tamanho_arma / tamanho_char
-    
-    MIN_PROPORCAO = 0.2
-    MAX_PROPORCAO = 3.0
-    IDEAL_MIN = 0.4
-    IDEAL_MAX = 1.5
-    
     resultado = {
         "proporcao": proporcao,
         "tamanho_arma": tamanho_arma,
-        "tamanho_char": tamanho_char
+        "tamanho_char": tamanho_char,
     }
-    
-    if proporcao < MIN_PROPORCAO:
+
+    if proporcao < 0.2:
         resultado["valido"] = False
-        resultado["mensagem"] = f"⚠️ Arma MUITO PEQUENA ({proporcao:.1%} do personagem)"
-        resultado["sugestao"] = f"Aumente o tamanho da arma ou use personagem menor"
+        resultado["mensagem"] = f"Arma muito pequena ({proporcao:.1%} do personagem)"
+        resultado["sugestao"] = "Aumente o alcance ou o corpo visual da arma"
         resultado["nivel"] = "critico"
-    elif proporcao < IDEAL_MIN:
+    elif proporcao < 0.4:
         resultado["valido"] = True
-        resultado["mensagem"] = f"⚡ Arma pequena ({proporcao:.1%} do personagem)"
-        resultado["sugestao"] = "Arma funcional, mas pode parecer pequena visualmente"
+        resultado["mensagem"] = f"Arma pequena ({proporcao:.1%} do personagem)"
+        resultado["sugestao"] = "Funciona, mas pode parecer leve demais"
         resultado["nivel"] = "aviso"
-    elif proporcao > MAX_PROPORCAO:
+    elif proporcao > 3.0:
         resultado["valido"] = False
-        resultado["mensagem"] = f"⚠️ Arma MUITO GRANDE ({proporcao:.1%} do personagem)"
-        resultado["sugestao"] = f"Diminua o tamanho da arma ou use personagem maior"
+        resultado["mensagem"] = f"Arma muito grande ({proporcao:.1%} do personagem)"
+        resultado["sugestao"] = "Reduza o alcance ou o corpo visual da arma"
         resultado["nivel"] = "critico"
-    elif proporcao > IDEAL_MAX:
+    elif proporcao > 1.5:
         resultado["valido"] = True
-        resultado["mensagem"] = f"⚡ Arma grande ({proporcao:.1%} do personagem)"
-        resultado["sugestao"] = "Arma funcional, pode parecer exagerada"
+        resultado["mensagem"] = f"Arma grande ({proporcao:.1%} do personagem)"
+        resultado["sugestao"] = "Pode funcionar, mas tende ao exagero visual"
         resultado["nivel"] = "aviso"
     else:
         resultado["valido"] = True
-        resultado["mensagem"] = f"✓ Proporção ideal ({proporcao:.1%} do personagem)"
+        resultado["mensagem"] = f"Proporcao ideal ({proporcao:.1%} do personagem)"
         resultado["sugestao"] = None
         resultado["nivel"] = "ok"
-    
+
     return resultado

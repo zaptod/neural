@@ -52,6 +52,56 @@ from ia._brain_mixin_base import _AIBrainMixinBase
 class SpatialMixin(_AIBrainMixinBase):
     """Mixin de consciÃªncia espacial, paredes, obstÃ¡culos e tÃ¡ticas de posicionamento."""
 
+    def _distancia_borda_arena(self, arena, x, y):
+        """Retorna a distÃ¢ncia atÃ© a borda mais prÃ³xima respeitando o formato da arena."""
+        if getattr(getattr(arena, "config", None), "formato", "retangular") == "circular" and getattr(arena, "raio", None) is not None:
+            return max(0.0, float(arena.raio) - math.hypot(x - arena.centro_x, y - arena.centro_y))
+        return min(
+            x - arena.min_x,
+            arena.max_x - x,
+            y - arena.min_y,
+            arena.max_y - y,
+        )
+
+    def _parede_dominante_arena(self, arena, x, y):
+        """Estima qual lado da arena estÃ¡ pressionando mais o lutador."""
+        if getattr(getattr(arena, "config", None), "formato", "retangular") == "circular":
+            dx = x - arena.centro_x
+            dy = y - arena.centro_y
+            if abs(dx) >= abs(dy):
+                return "leste" if dx >= 0 else "oeste"
+            return "sul" if dy >= 0 else "norte"
+
+        paredes = [
+            ("norte", y - arena.min_y),
+            ("sul", arena.max_y - y),
+            ("oeste", x - arena.min_x),
+            ("leste", arena.max_x - x),
+        ]
+        return min(paredes, key=lambda item: item[1])[0]
+
+    def _caminho_esta_livre(self, arena, x, y, raio):
+        """Combina colisÃ£o de obstÃ¡culo com validade dentro da arena."""
+        if hasattr(arena, "esta_dentro") and not arena.esta_dentro(x, y, raio):
+            return False
+        return not arena.colide_obstaculo(x, y, raio)
+
+    def _analisar_zona_perigo(self, arena, x, y):
+        """Retorna (tipo_zona, distancia_aprox) para fogo/lava prÃ³ximos."""
+        tipo_atual = arena.esta_em_zona_perigo(x, y) if hasattr(arena, "esta_em_zona_perigo") else None
+        dist_min = 999.0
+        tipo_proximo = None
+        for obs in getattr(arena, "obstaculos", []) or []:
+            if getattr(obs, "tipo", None) not in {"lava", "fogo"}:
+                continue
+            dx = abs(x - obs.x) - obs.largura / 2
+            dy = abs(y - obs.y) - obs.altura / 2
+            dist = math.hypot(max(0.0, dx), max(0.0, dy))
+            if dist < dist_min:
+                dist_min = dist
+                tipo_proximo = obs.tipo
+        return tipo_atual, tipo_proximo, dist_min
+
     
     # =========================================================================
     # SISTEMA DE RECONHECIMENTO ESPACIAL v9.0
@@ -82,24 +132,9 @@ class SpatialMixin(_AIBrainMixinBase):
             return  # Se arena nÃ£o disponÃ­vel, ignora
         
         # === DETECÃ‡ÃƒO DE PAREDES ===
-        margem_detecao = AI_DIST_PAREDE_AVISO  # ComeÃ§a a detectar parede a 3m
-        
-        dist_norte = p.pos[1] - arena.min_y
-        dist_sul = arena.max_y - p.pos[1]
-        dist_oeste = p.pos[0] - arena.min_x
-        dist_leste = arena.max_x - p.pos[0]
-        
-        # Encontra parede mais prÃ³xima
-        paredes = [
-            ("norte", dist_norte),
-            ("sul", dist_sul),
-            ("oeste", dist_oeste),
-            ("leste", dist_leste),
-        ]
-        parede_mais_proxima = min(paredes, key=lambda x: x[1])
-        
-        esp["parede_proxima"] = parede_mais_proxima[0]
-        esp["distancia_parede"] = parede_mais_proxima[1]
+        esp["parede_proxima"] = self._parede_dominante_arena(arena, p.pos[0], p.pos[1])
+        esp["distancia_parede"] = self._distancia_borda_arena(arena, p.pos[0], p.pos[1])
+        esp["distancia_centro"] = math.hypot(p.pos[0] - arena.centro_x, p.pos[1] - arena.centro_y)
         
         # === DETECÃ‡ÃƒO DE OBSTÃCULOS ===
         obs_mais_proximo = None
@@ -120,6 +155,8 @@ class SpatialMixin(_AIBrainMixinBase):
         
         esp["obstaculo_proxima"] = obs_mais_proximo
         esp["distancia_obstaculo"] = dist_obs_min
+        esp["zona_perigo_atual"], esp["zona_perigo_proxima"], esp["distancia_zona_perigo"] = self._analisar_zona_perigo(arena, p.pos[0], p.pos[1])
+        esp["zona_perigo_inimigo"], _, _ = self._analisar_zona_perigo(arena, inimigo.pos[0], inimigo.pos[1])
         
         # === ANÃLISE DE CAMINHOS LIVRES ===
         # Verifica se hÃ¡ obstÃ¡culos bloqueando cada direÃ§Ã£o
@@ -129,32 +166,24 @@ class SpatialMixin(_AIBrainMixinBase):
         ang_inimigo = math.atan2(inimigo.pos[1] - p.pos[1], inimigo.pos[0] - p.pos[0])
         check_x_frente = p.pos[0] + math.cos(ang_inimigo) * check_dist
         check_y_frente = p.pos[1] + math.sin(ang_inimigo) * check_dist
-        esp["caminho_livre"]["frente"] = not arena.colide_obstaculo(
-            check_x_frente, check_y_frente, p.raio_fisico
-        )
+        esp["caminho_livre"]["frente"] = self._caminho_esta_livre(arena, check_x_frente, check_y_frente, p.raio_fisico)
         
         # TrÃ¡s (oposto ao inimigo)
         check_x_tras = p.pos[0] - math.cos(ang_inimigo) * check_dist
         check_y_tras = p.pos[1] - math.sin(ang_inimigo) * check_dist
-        esp["caminho_livre"]["tras"] = not arena.colide_obstaculo(
-            check_x_tras, check_y_tras, p.raio_fisico
-        )
+        esp["caminho_livre"]["tras"] = self._caminho_esta_livre(arena, check_x_tras, check_y_tras, p.raio_fisico)
         
         # Esquerda (perpendicular)
         ang_esq = ang_inimigo + math.pi / 2
         check_x_esq = p.pos[0] + math.cos(ang_esq) * check_dist
         check_y_esq = p.pos[1] + math.sin(ang_esq) * check_dist
-        esp["caminho_livre"]["esquerda"] = not arena.colide_obstaculo(
-            check_x_esq, check_y_esq, p.raio_fisico
-        )
+        esp["caminho_livre"]["esquerda"] = self._caminho_esta_livre(arena, check_x_esq, check_y_esq, p.raio_fisico)
         
         # Direita
         ang_dir = ang_inimigo - math.pi / 2
         check_x_dir = p.pos[0] + math.cos(ang_dir) * check_dist
         check_y_dir = p.pos[1] + math.sin(ang_dir) * check_dist
-        esp["caminho_livre"]["direita"] = not arena.colide_obstaculo(
-            check_x_dir, check_y_dir, p.raio_fisico
-        )
+        esp["caminho_livre"]["direita"] = self._caminho_esta_livre(arena, check_x_dir, check_y_dir, p.raio_fisico)
         
         # === AVALIAÃ‡ÃƒO DE POSIÃ‡ÃƒO TÃTICA ===
         # Encurralado = parede atrÃ¡s E sem caminhos laterais
@@ -177,13 +206,22 @@ class SpatialMixin(_AIBrainMixinBase):
         )
         
         # Oponente contra parede
-        dist_ini_parede = min(
-            inimigo.pos[1] - arena.min_y,
-            arena.max_y - inimigo.pos[1],
-            inimigo.pos[0] - arena.min_x,
-            arena.max_x - inimigo.pos[0]
-        )
+        dist_ini_parede = self._distancia_borda_arena(arena, inimigo.pos[0], inimigo.pos[1])
+        esp["distancia_parede_inimigo"] = dist_ini_parede
         esp["oponente_contra_parede"] = dist_ini_parede < 2.5
+        esp["dominando_centro"] = esp["distancia_centro"] + 1.0 < math.hypot(inimigo.pos[0] - arena.centro_x, inimigo.pos[1] - arena.centro_y)
+
+        dist_obs_inimigo = 999.0
+        if hasattr(arena, 'obstaculos'):
+            for obs in arena.obstaculos:
+                if not obs.solido:
+                    continue
+                dx_ini = inimigo.pos[0] - obs.x
+                dy_ini = inimigo.pos[1] - obs.y
+                dist_obs_inimigo = min(dist_obs_inimigo, math.hypot(dx_ini, dy_ini) - (obs.largura + obs.altura) / 4)
+        esp["oponente_perto_obstaculo"] = dist_obs_inimigo < 2.0
+        esp["inimigo_vulneravel_zona"] = esp["zona_perigo_inimigo"] is not None
+        esp["pressao_borda"] = max(0.0, min(1.0, (AI_DIST_PAREDE_AVISO - dist_ini_parede) / max(0.1, AI_DIST_PAREDE_AVISO)))
         
         # PosiÃ§Ã£o geral
         if esp["encurralado"]:
@@ -212,6 +250,9 @@ class SpatialMixin(_AIBrainMixinBase):
         # Reset tÃ¡ticas
         tatica["usando_cobertura"] = False
         tatica["forcar_canto"] = False
+        tatica["retomar_centro"] = False
+        tatica["escapar_zona_perigo"] = False
+        tatica["pressionar_em_zona"] = False
         tatica["recuar_para_obstaculo"] = False
         tatica["flanquear_obstaculo"] = False
         
@@ -262,6 +303,33 @@ class SpatialMixin(_AIBrainMixinBase):
                 self._agressividade_temp_mod = min(0.5, self._agressividade_temp_mod + 0.20)
             if "OPORTUNISTA" in self.tracos:
                 self._agressividade_temp_mod = min(0.5, self._agressividade_temp_mod + 0.15)
+
+        if esp.get("zona_perigo_inimigo"):
+            tatica["pressionar_em_zona"] = True
+            self.confianca = min(1.0, self.confianca + 0.10)
+            if "PREDADOR" in self.tracos or "OPORTUNISTA" in self.tracos:
+                self._agressividade_temp_mod = min(0.5, self._agressividade_temp_mod + 0.18)
+
+        if esp.get("zona_perigo_atual"):
+            tatica["escapar_zona_perigo"] = True
+            self.medo = min(1.0, self.medo + 0.08)
+            self.hesitacao = max(0.0, self.hesitacao - 0.08)
+
+        # === RETOMADA DE CENTRO ===
+        if (
+            esp["distancia_parede"] < AI_DIST_PAREDE_AVISO
+            and not oponente_vulneravel
+            and esp.get("distancia_centro", 0.0) > 2.5
+            and not tatica["usando_cobertura"]
+        ):
+            tatica["retomar_centro"] = True
+            if "CALCULISTA" in self.tracos or "TATICO" in self.tracos or "FOCADO" in self.tracos:
+                self.confianca = min(1.0, self.confianca + 0.08)
+                self.hesitacao = max(0.0, self.hesitacao - 0.05)
+            elif "COVARDE" in self.tracos or "MEDROSO" in self.tracos:
+                self.medo = min(1.0, self.medo + 0.05)
+            else:
+                self._agressividade_temp_mod = min(0.35, self._agressividade_temp_mod + 0.06)
         
         # === USO DE COBERTURA ===
         # BUG-AI-06 fix: padronizado para "obstaculo_proxima" (chave definida em __init__ e _atualizar_consciencia_espacial)
@@ -444,8 +512,26 @@ class SpatialMixin(_AIBrainMixinBase):
         
         # Se oponente contra parede
         if tatica["forcar_canto"]:
-            if random.random() < 0.35:
+            if random.random() < 0.35 + esp.get("pressao_borda", 0.0) * 0.25:
                 self.acao_atual = random.choice(["PRESSIONAR", "MATAR", "ESMAGAR"])
+
+        if tatica["pressionar_em_zona"]:
+            if self.acao_atual in ["NEUTRO", "RECUAR", "BLOQUEAR", "POKE"]:
+                self.acao_atual = random.choice(["PRESSIONAR", "COMBATE", "MATAR"])
+
+        if tatica["escapar_zona_perigo"]:
+            if self.acao_atual in ["RECUAR", "FUGIR", "BLOQUEAR", "NEUTRO", "POKE"]:
+                if esp["caminho_livre"]["esquerda"] or esp["caminho_livre"]["direita"]:
+                    self.acao_atual = "CIRCULAR"
+                else:
+                    self.acao_atual = "APROXIMAR"
+
+        # Se precisa retomar o centro da arena
+        if tatica["retomar_centro"]:
+            if self.acao_atual in ["RECUAR", "FUGIR", "NEUTRO", "BLOQUEAR", "POKE"]:
+                self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR", "APROXIMAR"])
+            elif self.acao_atual == "COMBATE" and distancia > 2.3:
+                self.acao_atual = random.choice(["CIRCULAR", "APROXIMAR"])
         
         # Se usando cobertura
         if tatica["usando_cobertura"]:

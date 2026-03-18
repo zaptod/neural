@@ -505,7 +505,10 @@ class AppState:
         try:
             with open(FILE_WEAPONS, "r", encoding="utf-8") as f:
                 raw = json.load(f)
-            return [Arma(**item) for item in raw]
+            armas = [Arma.from_dict(item) for item in raw]
+            if any(int(item.get("schema_version", 1)) < 2 for item in raw if isinstance(item, dict)):
+                self._write_json(FILE_WEAPONS, [arma.to_dict() for arma in armas])
+            return armas
         except Exception as e:
             _log.warning("Erro ao carregar weapons: %s", e)
             return []

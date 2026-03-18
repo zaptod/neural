@@ -21,6 +21,7 @@ from ia.personalities import (
     ARQUETIPO_DATA, ESTILOS_LUTA, QUIRKS, FILOSOFIAS, HUMORES,
     PERSONALIDADES_PRESETS, INSTINTOS, RITMOS, RITMO_MODIFICADORES
 )
+from ia.weapon_ai import arma_eh_ranged, obter_metricas_arma, resolver_familia_arma
 
 try:
     from nucleo.weapon_analysis import (
@@ -60,6 +61,34 @@ from ia._brain_mixin_base import _AIBrainMixinBase
 
 class PerceptionMixin(_AIBrainMixinBase):
     """Mixin de leitura de oponente e percepÃ§Ã£o de armas."""
+
+    def _registrar_padrao_oponente(self, oponente, padrao, peso=1.0):
+        """Registra um habito recorrente do oponente atual."""
+        if not padrao or oponente is None or not hasattr(self, "_garantir_memoria_curta_oponente"):
+            return
+        bucket = self._garantir_memoria_curta_oponente(oponente)
+        if bucket is None:
+            return
+
+        padroes = bucket.setdefault("padroes", {})
+        padroes[padrao] = padroes.get(padrao, 0.0) + max(0.1, peso)
+
+        dominante = max(padroes.items(), key=lambda item: item[1])
+        dominante_nome, dominante_score = dominante
+        segundo_score = max((v for k, v in padroes.items() if k != dominante_nome), default=0.0)
+
+        if dominante_score >= 0.55 and dominante_score >= segundo_score + 0.30:
+            self.memoria_oponente["padrao_dominante"] = dominante_nome
+            self.memoria_oponente["padrao_detectado"] = dominante_nome
+
+    def _obter_padrao_dominante_oponente(self, oponente):
+        if oponente is None or not hasattr(self, "_obter_vies_oponente"):
+            return self.memoria_oponente.get("padrao_dominante")
+        bucket = self._obter_vies_oponente(oponente)
+        padroes = bucket.get("padroes", {}) if isinstance(bucket, dict) else {}
+        if not padroes:
+            return self.memoria_oponente.get("padrao_dominante")
+        return max(padroes.items(), key=lambda item: item[1])[0]
 
 
     # =========================================================================
@@ -182,9 +211,6 @@ class PerceptionMixin(_AIBrainMixinBase):
         Atualiza percepÃ§Ã£o da arma inimiga e calcula estratÃ©gias.
         Chamado no processar() principal.
         """
-        if not WEAPON_ANALYSIS_AVAILABLE:
-            return
-        
         perc = self.percepcao_arma
         p = self.parent
         
@@ -196,23 +222,31 @@ class PerceptionMixin(_AIBrainMixinBase):
         
         # === ANÃLISE DA MINHA ARMA ===
         minha_arma = p.dados.arma_obj if hasattr(p.dados, 'arma_obj') else None
-        meu_perfil = get_weapon_profile(minha_arma)
+        minhas_metricas = obter_metricas_arma(minha_arma, p)
+        meu_perfil = get_weapon_profile(minha_arma) if WEAPON_ANALYSIS_AVAILABLE else None
         
         if meu_perfil:
             perc["minha_arma_perfil"] = meu_perfil
             perc["meu_alcance_efetivo"] = meu_perfil.alcance_maximo
             perc["minha_velocidade_ataque"] = meu_perfil.velocidade_rating
             perc["meu_arco_cobertura"] = meu_perfil.arco_ataque
+        else:
+            perc["minha_arma_perfil"] = None
+            perc["meu_alcance_efetivo"] = minhas_metricas["alcance_max"]
+            perc["minha_velocidade_ataque"] = minhas_metricas["cadencia"]
+            perc["meu_arco_cobertura"] = max(45.0, float(getattr(minha_arma, "arco_ataque", 90.0) or 90.0))
         
         # === ANÃLISE DA ARMA INIMIGA ===
         arma_inimigo = None
         if hasattr(inimigo, 'dados') and hasattr(inimigo.dados, 'arma_obj'):
             arma_inimigo = inimigo.dados.arma_obj
         
-        perfil_inimigo = get_weapon_profile(arma_inimigo)
+        metricas_inimigo = obter_metricas_arma(arma_inimigo, inimigo)
+        familia_inimigo = resolver_familia_arma(arma_inimigo)
+        perfil_inimigo = get_weapon_profile(arma_inimigo) if WEAPON_ANALYSIS_AVAILABLE else None
         
         # Verifica se arma do inimigo mudou
-        tipo_atual = arma_inimigo.tipo if arma_inimigo else None
+        tipo_atual = familia_inimigo if arma_inimigo else None
         if tipo_atual != perc["arma_inimigo_tipo"]:
             perc["enemy_weapon_changed"] = True
             perc["arma_inimigo_tipo"] = tipo_atual
@@ -232,6 +266,12 @@ class PerceptionMixin(_AIBrainMixinBase):
                     if arco_cego >= 90:
                         perc["ponto_cego_inimigo"] = 180  # AtrÃ¡s
                         break
+        else:
+            perc["arma_inimigo_perfil"] = None
+            perc["alcance_inimigo"] = metricas_inimigo["alcance_max"]
+            perc["zona_perigo_inimigo"] = metricas_inimigo["alcance_max"] * 1.2
+            perc["velocidade_inimigo"] = metricas_inimigo["cadencia"]
+            perc["ponto_cego_inimigo"] = 180 if familia_inimigo in {"corrente", "disparo", "foco"} else None
         
         # === ANÃLISE DE MATCHUP ===
         if meu_perfil and perfil_inimigo:
@@ -262,6 +302,17 @@ class PerceptionMixin(_AIBrainMixinBase):
                 perc["distancia_ataque"] = meu_perfil.alcance_ideal
             
             # Define estratÃ©gia recomendada
+            self._calcular_estrategia_armas(distancia, inimigo)
+        else:
+            perc["vantagem_alcance"] = minhas_metricas["alcance_max"] - metricas_inimigo["alcance_max"]
+            perc["vantagem_velocidade"] = minhas_metricas["cadencia"] - metricas_inimigo["cadencia"]
+            perc["vantagem_cobertura"] = 0.0
+            perc["matchup_favoravel"] = max(
+                -1.0,
+                min(1.0, perc["vantagem_alcance"] * 0.12 + perc["vantagem_velocidade"] * 0.18),
+            )
+            perc["distancia_segura"] = max(metricas_inimigo["alcance_min"] + 0.2, metricas_inimigo["alcance_tatico"] * 0.95)
+            perc["distancia_ataque"] = minhas_metricas["alcance_tatico"]
             self._calcular_estrategia_armas(distancia, inimigo)
 
     
@@ -323,15 +374,11 @@ class PerceptionMixin(_AIBrainMixinBase):
         Aplica modificadores de comportamento baseados na percepÃ§Ã£o de armas.
         Chamado em _decidir_movimento().
         """
-        if not WEAPON_ANALYSIS_AVAILABLE:
-            return
-        
         perc = self.percepcao_arma
         p = self.parent
-        minha_arma_tipo = ""
-        if hasattr(p, 'dados') and hasattr(p.dados, 'arma_obj') and p.dados.arma_obj:
-            minha_arma_tipo = getattr(p.dados.arma_obj, 'tipo', '')
-        sou_ranged = minha_arma_tipo in ("Arco", "Arremesso", "MÃ¡gica")
+        minha_arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
+        minha_familia = resolver_familia_arma(minha_arma)
+        sou_ranged = arma_eh_ranged(minha_arma)
         
         # VariÃ¡veis locais necessÃ¡rias para cÃ¡lculos baseados em arma
         alcance_efetivo = self._calcular_alcance_efetivo()
@@ -339,6 +386,7 @@ class PerceptionMixin(_AIBrainMixinBase):
         arma_inimigo = None
         if hasattr(inimigo, 'dados') and hasattr(inimigo.dados, 'arma_obj'):
             arma_inimigo = inimigo.dados.arma_obj
+        familia_inimigo = resolver_familia_arma(arma_inimigo)
         
         estrategia = perc.get("estrategia_recomendada", "neutro")
         matchup = perc.get("matchup_favoravel", 0.0)
@@ -346,7 +394,7 @@ class PerceptionMixin(_AIBrainMixinBase):
 
         # Melee vs Arco: recuar normalmente Ã© uma mÃ¡ escolha tÃ¡tica, porque o arqueiro
         # ganha tempo de kite e amplia vantagem de distÃ¢ncia. MantÃ©m recuo sÃ³ em HP crÃ­tico.
-        if tipo_ini == "Arco" and not sou_ranged:
+        if familia_inimigo == "disparo" and not sou_ranged:
             hp_pct = p.vida / max(p.vida_max, 1)
             if estrategia == "recuar" and hp_pct > 0.22:
                 estrategia = "aproximar"
@@ -398,14 +446,14 @@ class PerceptionMixin(_AIBrainMixinBase):
             arma_inimigo_estilo = arma_inimigo.estilo
         
         # Contra Adagas GÃªmeas: sÃ£o muito rÃ¡pidas, nÃ£o deixar entrar no combo
-        if tipo_ini == "Dupla" and arma_inimigo_estilo == "Adagas GÃªmeas":
+        if familia_inimigo == "dupla" and arma_inimigo_estilo == "Adagas GÃªmeas":
             # Adagas GÃªmeas sÃ£o letais de perto mas frÃ¡geis
             # Manter distÃ¢ncia e punir a aproximaÃ§Ã£o
             dist_segura = alcance_efetivo * 1.2  # Fica alÃ©m do alcance das adagas
             if distancia < dist_segura and roll < 0.45:
                 self.acao_atual = random.choice(["RECUAR", "FLANQUEAR", "RECUAR"])
         
-        if tipo_ini == "Corrente":
+        if familia_inimigo == "corrente":
             arma_ini_estilo = arma_inimigo.estilo if arma_inimigo and hasattr(arma_inimigo, 'estilo') else ''
             
             if arma_ini_estilo == "Mangual":
@@ -489,7 +537,7 @@ class PerceptionMixin(_AIBrainMixinBase):
                     if random.random() < 0.5:
                         self.acao_atual = random.choice(["APROXIMAR", "RECUAR"])
         
-        elif tipo_ini == "Arco":
+        elif familia_inimigo == "disparo":
             # Contra arcos: melee precisa colar e cortar linha de tiro.
             # Antes sÃ³ reagia bem quando distancia > 5.0, gerando passividade entre 2.5-5.0m.
             if not sou_ranged:
@@ -504,15 +552,56 @@ class PerceptionMixin(_AIBrainMixinBase):
                 if distancia > 5.0 and random.random() < 0.6:
                     self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR"])
         
-        elif tipo_ini == "MÃ¡gica":
-            # Contra mÃ¡gica: pressiona para nÃ£o deixar canalizar
-            if random.random() < 0.4:
-                self.acao_atual = random.choice(["PRESSIONAR", "APROXIMAR"])
-        
-        elif tipo_ini == "Orbital":
-            # Contra orbital: cuidado com o escudo
-            if random.random() < 0.4:
-                self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR"])
+        elif familia_inimigo == "foco":
+            # Contra foco: pressiona e corta espaço antes da trama de orbes crescer.
+            orbes_ativas = len([o for o in getattr(inimigo, "buffer_orbes", []) if getattr(o, "ativo", False)])
+            if not sou_ranged and distancia > max(2.1, alcance_efetivo * 0.75):
+                self.acao_atual = random.choice(["PRESSIONAR", "APROXIMAR", "FLANQUEAR"])
+            elif orbes_ativas >= 2 and roll < 0.65:
+                self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR", "RECUAR"])
+
+        elif familia_inimigo == "orbital":
+            burst_pronto = getattr(inimigo, "orbital_burst_cd", 0.0) <= 0.0
+            alcance_orbital = max(2.2, perc.get("alcance_inimigo", 2.0) + 0.4)
+            if burst_pronto and distancia < alcance_orbital * 1.1:
+                self.acao_atual = random.choice(["CIRCULAR", "FLANQUEAR", "RECUAR"])
+            elif distancia > alcance_orbital * 1.6 and roll < 0.5:
+                self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR"])
+
+        elif familia_inimigo == "hibrida":
+            forma_inimiga = int(getattr(inimigo, "transform_forma", getattr(arma_inimigo, "forma_atual", 0)) or 0)
+            if forma_inimiga == 1:
+                if distancia < perc.get("alcance_inimigo", 3.0) * 0.55 and roll < 0.55:
+                    self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "FLANQUEAR"])
+            else:
+                if distancia > alcance_efetivo * 1.05 and roll < 0.55:
+                    self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "FLANQUEAR"])
+
+        # Ajustes para o ritmo da minha própria família
+        if minha_familia == "foco":
+            orbes_orbitando = len([o for o in getattr(p, "buffer_orbes", []) if getattr(o, "ativo", False) and getattr(o, "estado", "") == "orbitando"])
+            if distancia < 2.4 and orbes_orbitando == 0:
+                self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "FLANQUEAR"])
+            elif orbes_orbitando >= 2 and distancia <= alcance_efetivo:
+                self.acao_atual = random.choice(["COMBATE", "POKE", "PRESSIONAR"])
+
+        elif minha_familia == "orbital":
+            burst_pronto = getattr(p, "orbital_burst_cd", 0.0) <= 0.0
+            if burst_pronto and distancia < max(3.2, alcance_efetivo * 1.15):
+                self.acao_atual = random.choice(["PRESSIONAR", "COMBATE", "MATAR"])
+            elif distancia > max(4.2, alcance_efetivo * 1.4):
+                self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR"])
+
+        elif minha_familia == "hibrida":
+            forma_atual = int(getattr(p, "transform_forma", getattr(minha_arma, "forma_atual", 0)) or 0)
+            if forma_atual == 0 and distancia > alcance_efetivo * 1.08:
+                self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR", "FLANQUEAR"])
+            elif forma_atual == 1 and distancia < max(1.5, alcance_efetivo * 0.58):
+                self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "POKE"])
+
+        elif minha_familia == "corrente":
+            if familia_inimigo in {"disparo", "foco"} and distancia > alcance_efetivo * 0.9 and roll < 0.55:
+                self.acao_atual = random.choice(["FLANQUEAR", "APROXIMAR", "PRESSIONAR"])
 
 
     # =========================================================================
@@ -526,8 +615,14 @@ class PerceptionMixin(_AIBrainMixinBase):
 
         ai_ini = inimigo.brain
         mem = self.memoria_oponente
+        if hasattr(self, "_garantir_memoria_curta_oponente"):
+            self._garantir_memoria_curta_oponente(inimigo)
         
         acao_oponente = ai_ini.acao_atual
+        acao_anterior = mem.get("ultima_acao")
+        familia_inimiga = ""
+        if hasattr(inimigo, "dados"):
+            familia_inimiga = resolver_familia_arma(getattr(inimigo.dados, "arma_obj", None))
         
         if acao_oponente != mem["ultima_acao"]:
             mem["ultima_acao"] = acao_oponente
@@ -540,6 +635,33 @@ class PerceptionMixin(_AIBrainMixinBase):
                 # perseguiÃ§Ã£o nunca abriam. Dispara apenas em transiÃ§Ãµes reais para fuga.
                 if hasattr(self, 'on_inimigo_fugiu'):
                     self.on_inimigo_fugiu()
+
+            if acao_anterior in ["APROXIMAR", "FLANQUEAR", "CIRCULAR"] and acao_oponente in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO", "CONTRA_ATAQUE"]:
+                self._registrar_padrao_oponente(inimigo, "entrada_agressiva", 0.6)
+            if acao_anterior in ["MATAR", "ESMAGAR", "ATAQUE_RAPIDO", "CONTRA_ATAQUE"] and acao_oponente in ["RECUAR", "FUGIR", "CIRCULAR", "BLOQUEAR"]:
+                self._registrar_padrao_oponente(inimigo, "recuo_pos_ataque", 0.6)
+            if acao_anterior in ["RECUAR", "CIRCULAR"] and acao_oponente == "BLOQUEAR":
+                self._registrar_padrao_oponente(inimigo, "guarda_reativa", 0.55)
+            if acao_oponente in ["FUGIR", "RECUAR"] and mem["vezes_fugiu"] >= 2:
+                self._registrar_padrao_oponente(inimigo, "fuga_sob_pressao", 0.45)
+
+        if familia_inimiga == "hibrida":
+            forma_atual = int(getattr(inimigo, "transform_forma", getattr(getattr(inimigo, "dados", None), "arma_obj", None) and getattr(inimigo.dados.arma_obj, "forma_atual", 0) or 0) or 0)
+            forma_anterior = mem.get("ultima_forma_hibrida")
+            bonus_troca = getattr(inimigo, "transform_bonus_timer", 0.0) > 0.0
+            if forma_anterior is not None and forma_atual != forma_anterior and bonus_troca:
+                self._registrar_padrao_oponente(inimigo, "troca_forma_burst", 0.8)
+            mem["ultima_forma_hibrida"] = forma_atual
+        else:
+            mem["ultima_forma_hibrida"] = None
+
+        if familia_inimiga == "orbital":
+            burst_pronto = getattr(inimigo, "orbital_burst_cd", 999.0) <= 0.0 and distancia <= max(3.4, getattr(inimigo, "alcance_ideal", 2.5) * 1.05)
+            if burst_pronto and not mem.get("ultimo_burst_orbital_pronto", False):
+                self._registrar_padrao_oponente(inimigo, "prepara_burst_orbital", 0.7)
+            mem["ultimo_burst_orbital_pronto"] = burst_pronto
+        else:
+            mem["ultimo_burst_orbital_pronto"] = False
         
         if mem["vezes_atacou"] > mem["vezes_fugiu"] * 2:
             mem["estilo_percebido"] = "AGRESSIVO"
@@ -556,8 +678,27 @@ class PerceptionMixin(_AIBrainMixinBase):
     def _gerar_reacao_inteligente(self, acao_oponente, distancia, inimigo):
         """Gera uma reaÃ§Ã£o inteligente ao oponente"""
         mem = self.memoria_oponente
+        padrao_dominante = self._obter_padrao_dominante_oponente(inimigo)
+
+        if padrao_dominante == "prepara_burst_orbital" and distancia < 4.0:
+            self.reacao_pendente = "ESQUIVAR" if self.cd_pulo <= 0 else "RECUAR"
+            return
+
+        if padrao_dominante == "troca_forma_burst" and distancia < 4.3:
+            if "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos:
+                self.reacao_pendente = "CIRCULAR"
+            else:
+                self.reacao_pendente = "RECUAR"
+            return
         
         if acao_oponente == "MATAR" and distancia < 4.0:
+            if padrao_dominante == "entrada_agressiva":
+                if "CALCULISTA" in self.tracos or "REATIVO" in self.tracos or "OPORTUNISTA" in self.tracos:
+                    self.reacao_pendente = "CONTRA_ATAQUE"
+                    return
+                if "COVARDE" in self.tracos or self.medo > 0.6:
+                    self.reacao_pendente = "RECUAR"
+                    return
             if "REATIVO" in self.tracos or "OPORTUNISTA" in self.tracos:
                 self.reacao_pendente = "CONTRA_ATAQUE"
             elif "COVARDE" in self.tracos or self.medo > 0.6:
@@ -568,6 +709,9 @@ class PerceptionMixin(_AIBrainMixinBase):
                 self.reacao_pendente = "ESQUIVAR"
         
         elif acao_oponente == "FUGIR":
+            if padrao_dominante == "recuo_pos_ataque":
+                self.reacao_pendente = "PERSEGUIR" if distancia < 5.5 else "PRESSIONAR"
+                return
             if "PERSEGUIDOR" in self.tracos or "PREDADOR" in self.tracos:
                 self.reacao_pendente = "PERSEGUIR"
                 self.confianca = min(1.0, self.confianca + 0.1)
@@ -583,6 +727,12 @@ class PerceptionMixin(_AIBrainMixinBase):
                 self.reacao_pendente = "INTERCEPTAR"
         
         elif acao_oponente == "BLOQUEAR":
+            if padrao_dominante == "guarda_reativa":
+                if "CALCULISTA" in self.tracos or "OPORTUNISTA" in self.tracos:
+                    self.reacao_pendente = "ESPERAR_ABERTURA"
+                else:
+                    self.reacao_pendente = "FLANQUEAR"
+                return
             if "CALCULISTA" in self.tracos:
                 self.reacao_pendente = "ESPERAR_ABERTURA"
             elif "IMPRUDENTE" in self.tracos or "AGRESSIVO" in self.tracos:
@@ -639,6 +789,25 @@ class PerceptionMixin(_AIBrainMixinBase):
         if fugas > 3 and "TEIMOSO" not in self.tracos:
             self.tracos.append("TEIMOSO")
 
+        bucket = self._garantir_memoria_curta_oponente(oponente) if hasattr(self, "_garantir_memoria_curta_oponente") else None
+        if bucket is not None:
+            bucket["vies_agressao"] = max(bucket.get("vies_agressao", 0.0), max(0.0, (taxa_vitoria - 0.5) * 0.6))
+            bucket["vies_cautela"] = max(bucket.get("vies_cautela", 0.0), max(0.0, (0.5 - taxa_vitoria) * 0.7))
+            respeito = min(1.0, avg_max_combo * 0.10 + avg_hits_sofridos * 0.03 + max(0.0, (0.45 - taxa_vitoria) * 0.9))
+            vinganca = min(1.0, max(0.0, 0.5 - taxa_vitoria) * 1.35)
+            obsessao = min(1.0, lutas * 0.12 + abs(taxa_vitoria - 0.5) * 0.20)
+            caca = min(1.0, max(0.0, taxa_vitoria - 0.52) * 1.10 + min(0.35, fugas * 0.06))
+            bucket["relacao_respeito"] = max(bucket.get("relacao_respeito", 0.0), respeito)
+            bucket["relacao_vinganca"] = max(bucket.get("relacao_vinganca", 0.0), vinganca)
+            bucket["relacao_obsessao"] = max(bucket.get("relacao_obsessao", 0.0), obsessao)
+            bucket["relacao_caca"] = max(bucket.get("relacao_caca", 0.0), caca)
+            if hasattr(self, "_atualizar_relacao_dominante_bucket"):
+                self._atualizar_relacao_dominante_bucket(bucket)
+            if avg_max_combo > 4:
+                self._registrar_padrao_oponente(oponente, "entrada_agressiva", min(2.0, avg_max_combo * 0.25))
+            if fugas > 3:
+                self._registrar_padrao_oponente(oponente, "fuga_sob_pressao", min(2.0, fugas * 0.25))
+
 
     def salvar_memoria_rival(self, oponente, venceu: bool) -> None:
         """
@@ -652,6 +821,7 @@ class PerceptionMixin(_AIBrainMixinBase):
             "hits_sofridos_total": 0,
             "max_combo_total": 0,
             "fugas_total": 0,
+            "rivalidade_total": 0.0,
         })
         hist["lutas"] += 1
         if venceu:
@@ -659,6 +829,15 @@ class PerceptionMixin(_AIBrainMixinBase):
         hist["hits_sofridos_total"] += self.hits_recebidos_total
         hist["max_combo_total"] += self.max_combo
         hist["fugas_total"] += self.vezes_que_fugiu
+        bucket = self._obter_vies_oponente(oponente) if hasattr(self, "_obter_vies_oponente") else {}
+        if isinstance(bucket, dict):
+            rivalidade = (
+                max(0.0, bucket.get("relacao_respeito", 0.0))
+                + max(0.0, bucket.get("relacao_vinganca", 0.0))
+                + max(0.0, bucket.get("relacao_obsessao", 0.0))
+                + max(0.0, bucket.get("relacao_caca", 0.0))
+            ) / 4.0
+            hist["rivalidade_total"] += rivalidade
 
         _log.debug(
             "[IA] %s: salvou memÃ³ria rival '%s' â€” %d luta(s) registradas",

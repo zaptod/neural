@@ -49,6 +49,7 @@ class MatchStatsCollector:
             "attacks_attempted": 0,
             "crits_landed": 0,
             "skills_cast": 0,
+            "offensive_actions": 0,
             "skills_detail": {},   # {skill_name: count}
             "mana_spent": 0.0,
             "blocks": 0,
@@ -57,6 +58,17 @@ class MatchStatsCollector:
             "kills": 0,
             "max_combo": 0,
             "current_combo": 0,
+            "weapon_hits": 0,
+            "skill_hits": 0,
+            "summon_hits": 0,
+            "trap_hits": 0,
+            "status_hits": 0,
+            "weapon_damage": 0.0,
+            "skill_damage": 0.0,
+            "summon_damage": 0.0,
+            "trap_damage": 0.0,
+            "status_damage": 0.0,
+            "hit_source_detail": {},
         }
 
     def set_frame(self, frame: int):
@@ -65,19 +77,41 @@ class MatchStatsCollector:
 
     # â”€â”€ Hot-path recorders (dict increments only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    def _normalizar_fonte_hit(self, source_type: str) -> str:
+        fonte = str(source_type or "weapon").strip().lower()
+        if fonte in {"weapon", "melee", "ranged", "arrow", "projectile_weapon", "orbital_weapon", "focus_weapon"}:
+            return "weapon"
+        if fonte in {"summon", "pet", "minion"}:
+            return "summon"
+        if fonte in {"trap", "wall", "armadilha"}:
+            return "trap"
+        if fonte in {"dot", "status", "aura", "channel_tick", "transform_tick"}:
+            return "status"
+        return "skill"
+
     def record_hit(self, attacker: str, defender: str, damage: float,
-                   critico: bool = False, elemento: str = ""):
+                   critico: bool = False, elemento: str = "",
+                   source_type: str = "weapon", source_name: str = ""):
         """Record a successful hit."""
         a = self._fighters.get(attacker)
         d = self._fighters.get(defender)
+        bucket = self._normalizar_fonte_hit(source_type)
+        source_name = str(source_name or "").strip()
         if a:
             a["damage_dealt"] += damage
             a["hits_landed"] += 1
+            a["offensive_actions"] = max(a["offensive_actions"], a["attacks_attempted"])
             if critico:
                 a["crits_landed"] += 1
             a["current_combo"] += 1
             if a["current_combo"] > a["max_combo"]:
                 a["max_combo"] = a["current_combo"]
+            a[f"{bucket}_hits"] += 1
+            a[f"{bucket}_damage"] += damage
+            if source_name:
+                detail = a["hit_source_detail"].setdefault(source_name, {"hits": 0, "damage": 0.0, "source_type": bucket})
+                detail["hits"] += 1
+                detail["damage"] += damage
         if d:
             d["damage_taken"] += damage
             d["hits_received"] += 1
@@ -87,6 +121,7 @@ class MatchStatsCollector:
             "frame": self._frame, "type": "hit",
             "attacker": attacker, "defender": defender,
             "damage": round(damage, 1), "crit": critico, "elem": elemento,
+            "source_type": bucket, "source_name": source_name,
         })
 
     def record_attack_attempt(self, attacker: str):
@@ -95,17 +130,21 @@ class MatchStatsCollector:
         if a:
             a["attacks_attempted"] += 1
 
-    def record_skill(self, caster: str, skill_name: str, mana_cost: float = 0.0):
+    def record_skill(self, caster: str, skill_name: str, mana_cost: float = 0.0, skill_type: str = ""):
         """Record a skill cast."""
         c = self._fighters.get(caster)
         if c:
             c["skills_cast"] += 1
             c["mana_spent"] += mana_cost
             c["skills_detail"][skill_name] = c["skills_detail"].get(skill_name, 0) + 1
+            if str(skill_type or "").upper() in {"PROJETIL", "AREA", "DASH", "BEAM", "SUMMON", "TRAP", "TRANSFORM", "CHANNEL"}:
+                c["offensive_actions"] += 1
+                c["attacks_attempted"] += 1
 
         self._events.append({
             "frame": self._frame, "type": "skill",
             "caster": caster, "skill": skill_name, "cost": round(mana_cost, 1),
+            "skill_type": str(skill_type or ""),
         })
 
     def record_block(self, blocker: str):
@@ -142,7 +181,8 @@ class MatchStatsCollector:
         elapsed = time.monotonic() - self._start_time
         result = {}
         for name, stats in self._fighters.items():
-            accuracy = (stats["hits_landed"] / max(stats["attacks_attempted"], 1))
+            accuracy_base = max(stats["attacks_attempted"], stats["offensive_actions"], 1)
+            accuracy = (stats["hits_landed"] / accuracy_base)
             dps = stats["damage_dealt"] / max(elapsed, 1.0)
             result[name] = {
                 **stats,

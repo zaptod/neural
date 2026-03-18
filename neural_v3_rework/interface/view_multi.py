@@ -15,7 +15,8 @@ from dados.app_state import AppState
 from nucleo.arena import ARENAS, MAPAS_MULTI
 from interface.theme import (
     COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS,
-    COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, CORES_CLASSE
+    COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, CORES_CLASSE,
+    COR_BG_CARD, COR_BORDA, COR_TEXTO_SUB
 )
 
 # Cores dos times
@@ -58,67 +59,73 @@ class TelaMultiBatalha(tk.Frame):
     def setup_ui(self):
         """Configura a interface completa."""
         # === HEADER ===
-        header = tk.Frame(self, bg=COR_HEADER, height=60)
+        header = tk.Frame(self, bg=COR_HEADER, height=88)
         header.pack(fill="x", side="top")
         header.pack_propagate(False)
         
         tk.Button(
-            header, text="◄ VOLTAR",
+            header, text="Voltar",
             bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-            font=("Arial", 10, "bold"), bd=0, padx=15,
+            font=("Segoe UI", 10, "bold"), bd=0, padx=16, pady=8, relief="flat",
             command=lambda: self.controller.show_frame("MenuPrincipal")
-        ).pack(side="left", padx=15, pady=15)
-        
+        ).pack(side="left", padx=18, pady=20)
+
+        title_wrap = tk.Frame(header, bg=COR_HEADER)
+        title_wrap.pack(side="left", fill="both", expand=True, pady=12)
         tk.Label(
-            header, text="⚔️ BATALHA MULTI-COMBATENTE",
-            font=("Arial", 18, "bold"), bg=COR_HEADER, fg=COR_TEXTO
-        ).pack(side="left", padx=20)
+            title_wrap, text="BATALHA MULTI-COMBATENTE",
+            font=("Bahnschrift SemiBold", 24), bg=COR_HEADER, fg=COR_TEXTO, anchor="w"
+        ).pack(fill="x")
+        tk.Label(
+            title_wrap, text="Monte esquadras, teste sinergia, pressao de mapa e coordenacao entre papeis.",
+            font=("Segoe UI", 10), bg=COR_HEADER, fg=COR_TEXTO_SUB, anchor="w"
+        ).pack(fill="x", pady=(2, 0))
         
         # === FOOTER ===
         footer = tk.Frame(self, bg=COR_BG)
         footer.pack(fill="x", side="bottom", pady=10)
         
         self.btn_iniciar = tk.Button(
-            footer, text="⚔️  INICIAR BATALHA EM EQUIPE  ⚔️",
-            font=("Arial", 14, "bold"),
+            footer, text="INICIAR BATALHA EM EQUIPE",
+            font=("Bahnschrift SemiBold", 14),
             bg=COR_ACCENT, fg=COR_TEXTO,
-            bd=0, padx=30, pady=10,
+            bd=0, padx=30, pady=12, relief="flat",
             command=self.iniciar_batalha
         )
         self.btn_iniciar.pack()
         
         # === CONFIG BAR ===
-        config_bar = tk.Frame(self, bg=COR_BG_SECUNDARIO, pady=8)
+        config_bar = tk.Frame(self, bg=COR_BG_SECUNDARIO, pady=10, highlightthickness=1, highlightbackground=COR_BORDA)
         config_bar.pack(fill="x", padx=20, pady=(10, 5))
         
         # Número de times
-        tk.Label(config_bar, text="Times:", font=("Arial", 11, "bold"),
+        tk.Label(config_bar, text="Times:", font=("Segoe UI", 11, "bold"),
                  bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(side="left", padx=(10, 5))
         self.var_num_times = tk.IntVar(value=2)
         for n in [2, 3, 4]:
             tk.Radiobutton(
                 config_bar, text=str(n), variable=self.var_num_times, value=n,
                 bg=COR_BG_SECUNDARIO, fg=COR_TEXTO, selectcolor=COR_ACCENT,
-                font=("Arial", 11), command=self._rebuild_teams
+                font=("Segoe UI", 11), command=self._rebuild_teams
             ).pack(side="left", padx=3)
         
         ttk.Separator(config_bar, orient="vertical").pack(side="left", fill="y", padx=10)
         
         # Membros por time
-        tk.Label(config_bar, text="Lutadores/Time:", font=("Arial", 11, "bold"),
+        tk.Label(config_bar, text="Lutadores/Time:", font=("Segoe UI", 11, "bold"),
                  bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(side="left", padx=(10, 5))
         self.var_membros = tk.IntVar(value=2)
         for n in [1, 2, 3, 4]:
             tk.Radiobutton(
                 config_bar, text=str(n), variable=self.var_membros, value=n,
                 bg=COR_BG_SECUNDARIO, fg=COR_TEXTO, selectcolor=COR_ACCENT,
-                font=("Arial", 11), command=self._rebuild_teams
+                font=("Segoe UI", 11), command=self._rebuild_teams
             ).pack(side="left", padx=3)
         
         ttk.Separator(config_bar, orient="vertical").pack(side="left", fill="y", padx=10)
         
         # Cenário
-        tk.Label(config_bar, text="Arena:", font=("Arial", 11, "bold"),
+        tk.Label(config_bar, text="Arena:", font=("Segoe UI", 11, "bold"),
                  bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).pack(side="left", padx=(10, 5))
         self.var_cenario = tk.StringVar(value="Campo de Batalha")
         arenas_disponiveis = list(ARENAS.keys())
@@ -130,7 +137,7 @@ class TelaMultiBatalha(tk.Frame):
         
         # Info bar
         self.lbl_info = tk.Label(
-            config_bar, text="", font=("Arial", 10),
+            config_bar, text="", font=("Segoe UI", 10),
             bg=COR_BG_SECUNDARIO, fg=COR_WARNING
         )
         self.lbl_info.pack(side="right", padx=10)
@@ -190,13 +197,13 @@ class TelaMultiBatalha(tk.Frame):
             cor_time = CORES_TIME[team_idx % len(CORES_TIME)]
             cor_bg = CORES_TIME_BG[team_idx % len(CORES_TIME_BG)]
             
-            team_frame = tk.Frame(self.teams_container, bg=cor_bg, bd=2, relief="groove")
+            team_frame = tk.Frame(self.teams_container, bg=cor_bg, highlightthickness=1, highlightbackground=COR_BORDA)
             team_frame.grid(row=0, column=team_idx, sticky="nsew", padx=5, pady=5)
             
             # Header do time
             tk.Label(
                 team_frame, text=f"⚔️ TIME {team_idx + 1}",
-                font=("Impact", 16), bg=cor_time, fg="white"
+                font=("Bahnschrift SemiBold", 16), bg=cor_time, fg="white"
             ).pack(fill="x", pady=(0, 5))
             
             for slot_idx in range(self.membros_por_time):
@@ -205,7 +212,7 @@ class TelaMultiBatalha(tk.Frame):
                 
                 tk.Label(
                     slot_frame, text=f"Slot {slot_idx + 1}:",
-                    font=("Arial", 10, "bold"), bg=cor_bg, fg=COR_TEXTO
+                    font=("Segoe UI", 10, "bold"), bg=cor_bg, fg=COR_TEXTO
                 ).pack(side="left", padx=(5, 8))
                 
                 var = tk.StringVar(value="")
@@ -225,7 +232,7 @@ class TelaMultiBatalha(tk.Frame):
                     var.set(nomes[auto_idx])
                 
                 # Info label para mostrar classe/arma
-                lbl = tk.Label(slot_frame, text="", font=("Arial", 8),
+                lbl = tk.Label(slot_frame, text="", font=("Segoe UI", 8),
                                bg=cor_bg, fg=COR_TEXTO_DIM)
                 lbl.pack(side="left", padx=5)
                 

@@ -28,6 +28,7 @@ from nucleo.hitbox import sistema_hitbox, verificar_hit, get_debug_visual, atual
 from nucleo.arena import Arena, ARENAS, get_arena, set_arena  # v9.0 Sistema de Arena
 from ia import CombatChoreographer  # Sistema de Coreografia v5.0
 from nucleo.game_feel import GameFeelManager, HitStopManager  # Sistema de Game Feel v8.0
+from utilitarios.estado_espectador import resolver_destaque_cinematico
 
 # â”€â”€ Mixin imports â”€â”€
 from simulacao.sim_renderer import SimuladorRenderer
@@ -142,6 +143,17 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         self.vencedor = None
         self.rastros = {} 
         self.vida_visual_p1 = 100; self.vida_visual_p2 = 100
+        self.direcao_cinematica = {
+            "tipo": None,
+            "rotulo": "",
+            "cor": (255, 220, 120),
+            "cor_secundaria": (255, 244, 188),
+            "intensidade": 0.0,
+            "overlay": 0.0,
+            "overlay_timer": 0.0,
+            "duracao_overlay": 0.3,
+            "evento_id": None,
+        }
         
         # v13.0: SISTEMA MULTI-COMBATENTE
         self.fighters = []  # Lista de TODOS os lutadores
@@ -152,6 +164,14 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         # DES-4: Timer de luta â€” previne lutas infinitas (vencedor por HP ao expirar)
         self.tempo_luta = 0.0
         self.TEMPO_MAX_LUTA = 120.0
+        self.pressao_ritmo = {
+            "ativa": False,
+            "intensidade": 0.0,
+            "tempo_sem_dano": 0.0,
+            "tempo_ativo": 0.0,
+            "ultimo_hp_total": 0.0,
+            "ultimo_evento": 0.0,
+        }
 
         # FP-1: cache por classe para saber se atualizar() aceita alvos â€” evita inspect no hot path
         self._atualizar_sig_cache = {}
@@ -170,6 +190,168 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         self.audio = None
         
         self.recarregar_tudo()
+
+    def _ativar_direcao_cinematica(self, perfil):
+        if not isinstance(perfil, dict):
+            return
+
+        intensidade = max(0.0, min(1.0, float(perfil.get("intensidade", 0.0) or 0.0)))
+        if intensidade <= 0.08:
+            return
+
+        evento_id = (
+            perfil.get("tipo"),
+            getattr(perfil.get("lutador"), "dados", None).nome if getattr(perfil.get("lutador"), "dados", None) else None,
+            round(intensidade, 2),
+        )
+        atual = getattr(self, "direcao_cinematica", {})
+        if atual.get("evento_id") == evento_id:
+            atual["intensidade"] = max(atual.get("intensidade", 0.0), intensidade)
+            atual["overlay_timer"] = max(atual.get("overlay_timer", 0.0), float(perfil.get("duracao_overlay", 0.25) or 0.25))
+            atual["overlay"] = max(atual.get("overlay", 0.0), float(perfil.get("overlay", 0.0) or 0.0))
+            return
+
+        self.direcao_cinematica = {
+            "tipo": perfil.get("tipo"),
+            "rotulo": perfil.get("rotulo", ""),
+            "cor": tuple(perfil.get("cor", (255, 220, 120))),
+            "cor_secundaria": tuple(perfil.get("cor_secundaria", (255, 244, 188))),
+            "intensidade": intensidade,
+            "overlay": float(perfil.get("overlay", 0.0) or 0.0),
+            "overlay_timer": float(perfil.get("duracao_overlay", 0.25) or 0.25),
+            "duracao_overlay": float(perfil.get("duracao_overlay", 0.25) or 0.25),
+            "evento_id": evento_id,
+        }
+
+        shake = float(perfil.get("shake", 0.0) or 0.0) * intensidade
+        zoom = float(perfil.get("zoom", 0.0) or 0.0) * max(0.5, intensidade)
+        if shake > 0.1:
+            self.cam.aplicar_shake(shake, 0.08 + intensidade * 0.08)
+        if zoom > 0.005:
+            self.cam.zoom_punch(zoom, 0.12 + intensidade * 0.08)
+
+        slow_scale = float(perfil.get("slow_scale", 1.0) or 1.0)
+        slow_duracao = float(perfil.get("slow_duracao", 0.0) or 0.0)
+        if slow_duracao > 0.0 and self.slow_mo_timer <= 0.12:
+            self.time_scale = min(self.time_scale, slow_scale)
+            self.slow_mo_timer = max(self.slow_mo_timer, slow_duracao)
+
+    def _atualizar_direcao_cinematica(self, dt):
+        destaque = resolver_destaque_cinematico(getattr(self, "fighters", []))
+        if destaque:
+            self._ativar_direcao_cinematica(destaque)
+
+        atual = getattr(self, "direcao_cinematica", None)
+        if not isinstance(atual, dict):
+            return
+
+        atual["overlay_timer"] = max(0.0, float(atual.get("overlay_timer", 0.0) or 0.0) - dt)
+        atual["intensidade"] = max(0.0, float(atual.get("intensidade", 0.0) or 0.0) - dt * 0.9)
+        atual["overlay"] = max(0.0, float(atual.get("overlay", 0.0) or 0.0) - dt * 0.75)
+
+        if atual["overlay_timer"] <= 0.0 and atual["intensidade"] <= 0.03:
+            atual.update({
+                "tipo": None,
+                "rotulo": "",
+                "intensidade": 0.0,
+                "overlay": 0.0,
+                "overlay_timer": 0.0,
+                "evento_id": None,
+            })
+
+    def _resetar_pressao_ritmo(self):
+        self.pressao_ritmo = {
+            "ativa": False,
+            "intensidade": 0.0,
+            "tempo_sem_dano": 0.0,
+            "tempo_ativo": 0.0,
+            "ultimo_hp_total": self._calcular_hp_total_ativo(),
+            "ultimo_evento": 0.0,
+        }
+        for f in getattr(self, "fighters", []) or []:
+            brain = getattr(f, "brain", None) or getattr(f, "ai", None)
+            if brain is not None:
+                brain.pressao_ritmo = 0.0
+
+    def _calcular_hp_total_ativo(self):
+        total = 0.0
+        for f in getattr(self, "fighters", []) or []:
+            if not getattr(f, "morto", False):
+                total += float(getattr(f, "vida", 0.0) or 0.0)
+        return total
+
+    def _aplicar_pressao_ritmo(self, dt):
+        estado = getattr(self, "pressao_ritmo", None)
+        if not isinstance(estado, dict):
+            return
+
+        hp_total = self._calcular_hp_total_ativo()
+        delta_hp = estado.get("ultimo_hp_total", hp_total) - hp_total
+        if delta_hp > 0.05:
+            estado["tempo_sem_dano"] = 0.0
+            estado["ultimo_evento"] = 0.0
+            if estado["ativa"]:
+                self.textos.append(FloatingText(
+                    self.screen_width // 2, self.screen_height // 2 - 40,
+                    "PRESSAO QUEBRADA!", (120, 240, 200), 24
+                ))
+            estado["ativa"] = False
+            estado["intensidade"] = 0.0
+            estado["tempo_ativo"] = 0.0
+        else:
+            estado["tempo_sem_dano"] += dt
+            estado["ultimo_evento"] += dt
+
+        estado["ultimo_hp_total"] = hp_total
+
+        ativar_em = 6.0
+        if estado["tempo_sem_dano"] >= ativar_em:
+            if not estado["ativa"]:
+                self.textos.append(FloatingText(
+                    self.screen_width // 2, self.screen_height // 2 - 40,
+                    "PRESSAO DA ARENA!", (255, 196, 92), 26
+                ))
+            estado["ativa"] = True
+            estado["tempo_ativo"] += dt
+            estado["intensidade"] = min(1.0, 0.22 + (estado["tempo_sem_dano"] - ativar_em) * 0.085)
+        else:
+            estado["ativa"] = False
+            estado["tempo_ativo"] = 0.0
+            estado["intensidade"] = max(0.0, estado["intensidade"] - dt * 1.2)
+
+        intensidade = float(estado.get("intensidade", 0.0) or 0.0)
+        if not estado["ativa"] or intensidade <= 0.01:
+            for f in getattr(self, "fighters", []) or []:
+                brain = getattr(f, "brain", None) or getattr(f, "ai", None)
+                if brain is not None:
+                    brain.pressao_ritmo = 0.0
+            return
+
+        centro_x = getattr(self.arena, "centro_x", 0.0) if getattr(self, "arena", None) else 0.0
+        centro_y = getattr(self.arena, "centro_y", 0.0) if getattr(self, "arena", None) else 0.0
+        if not self.arena and getattr(self, "fighters", None):
+            vivos = [f for f in self.fighters if not getattr(f, "morto", False)]
+            if vivos:
+                centro_x = sum(f.pos[0] for f in vivos) / len(vivos)
+                centro_y = sum(f.pos[1] for f in vivos) / len(vivos)
+
+        for f in getattr(self, "fighters", []) or []:
+            if getattr(f, "morto", False):
+                continue
+            brain = getattr(f, "brain", None) or getattr(f, "ai", None)
+            if brain is not None:
+                brain.pressao_ritmo = intensidade
+                brain.tedio = max(0.0, getattr(brain, "tedio", 0.0) - dt * (0.20 + intensidade * 0.25))
+                brain.excitacao = min(1.0, getattr(brain, "excitacao", 0.0) + dt * (0.05 + intensidade * 0.08))
+                brain._agressividade_temp_mod = min(0.45, getattr(brain, "_agressividade_temp_mod", 0.0) + dt * (0.03 + intensidade * 0.05))
+
+            dx = centro_x - f.pos[0]
+            dy = centro_y - f.pos[1]
+            dist = math.hypot(dx, dy) or 1.0
+            if dist > 1.2:
+                pull = (0.6 + intensidade * 1.4) * dt
+                f.vel[0] += (dx / dist) * pull
+                f.vel[1] += (dy / dist) * pull
 
 
     def processar_inputs(self):
@@ -233,6 +415,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             self.time_scale = 1.0; self.slow_mo_timer = 0.0; self.hit_stop_timer = 0.0
             self.vencedor = None; self.paused = False
             self.tempo_luta = 0.0  # DES-4: reseta timer de luta
+            self._resetar_pressao_ritmo()
             
             # v13.0: Garante fighters list e teams dict
             if not self.fighters:
@@ -325,6 +508,7 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             for f in self.fighters:
                 if f and hasattr(f, 'dados'):
                     self.stats_collector.register(f.dados.nome)
+                    f.stats_collector = self.stats_collector
 
             # === INICIALIZA MAGIC VFX v11.0 ===
             MagicVFXManager.reset()
@@ -765,6 +949,13 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     proj.ativo = False
                     self._remover_trail_projetil(proj)  # BUG-SIM-01 fix: remove trail no mesmo frame
                 
+                fonte_proj = "weapon" if proj.__class__.__name__ in {"ArmaProjetil", "FlechaProjetil", "OrbeMagico"} else "skill"
+                self._registrar_hit_stats(
+                    proj.dono, alvo, dano_final,
+                    elemento=tipo_efeito,
+                    source_type=fonte_proj,
+                    source_name=getattr(proj, 'nome', ''),
+                )
                 if alvo.tomar_dano(dano_final, dx/dist, dy/dist, tipo_efeito):
                     self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                     self._registrar_kill(alvo, proj.dono.dados.nome)
@@ -812,7 +1003,15 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     if getattr(alvo, 'congelado', False):
                         alvo.congelado = False
                         # Dano bonus por quebrar gelo
-                        alvo.tomar_dano(dano_final * 0.5, 0, 0, "GELO")
+                        dano_shatter = dano_final * 0.5
+                        self._registrar_hit_stats(
+                            proj.dono, alvo, dano_shatter,
+                            elemento="GELO",
+                            source_type="status",
+                            source_name=f"{getattr(proj, 'nome', 'Projetil')} (Shatter)",
+                        )
+                        if alvo.tomar_dano(dano_shatter, 0, 0, "GELO"):
+                            self._registrar_kill(alvo, proj.dono.dados.nome)
                         self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 60, "SHATTER!", (180, 220, 255), 24))
                 
                 # === v11.0: CHAIN LIGHTNING ===
@@ -882,6 +1081,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             # Aplica dano mÃ¡gico
                             dano_final = orbe.dono.get_dano_modificado(orbe.dano) if hasattr(orbe.dono, 'get_dano_modificado') else orbe.dano
                             
+                            self._registrar_hit_stats(
+                                orbe.dono, alvo, dano_final,
+                                elemento="NORMAL",
+                                source_type="weapon",
+                                source_name="Orbe Magico",
+                            )
                             if alvo.tomar_dano(dano_final, dx/dist, dy/dist, "NORMAL"):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                                 self._registrar_kill(alvo, orbe.dono.dados.nome)
@@ -958,6 +1163,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             alvo = res["alvo"]
                             dano_dot = res.get("dano", 5)
                             tipo_dot = res.get("tipo", "FOGO")
+                            self._registrar_hit_stats(
+                                area.dono, alvo, dano_dot,
+                                elemento=tipo_dot,
+                                source_type="status",
+                                source_name=f"{getattr(area, 'nome', 'Area')} (DoT)",
+                            )
                             if alvo.tomar_dano(dano_dot, 0, 0, tipo_dot):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                                 self._registrar_kill(alvo, area.dono.dados.nome)
@@ -983,6 +1194,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                                 self.audio.play_skill("AREA", skill_name, area.x, listener_x, phase="impact")
                             
                             dano = area.dono.get_dano_modificado(area.dano) if hasattr(area.dono, 'get_dano_modificado') else area.dano
+                            self._registrar_hit_stats(
+                                area.dono, alvo, dano,
+                                elemento=area.tipo_efeito,
+                                source_type="skill",
+                                source_name=getattr(area, 'nome', ''),
+                            )
                             if alvo.tomar_dano(dano, dx/(dist or 1), dy/(dist or 1), area.tipo_efeito):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                                 self._registrar_kill(alvo, area.dono.dados.nome)
@@ -1021,6 +1238,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                                 if getattr(buff, 'escudo_atual', 0) > 0:
                                     buff.escudo_atual = 0
 
+                        self._registrar_hit_stats(
+                            beam.dono, alvo, dano,
+                            elemento=beam.tipo_efeito,
+                            source_type="skill",
+                            source_name=getattr(beam, 'nome', ''),
+                        )
                         if alvo.tomar_dano(dano, dx/dist, dy/dist, beam.tipo_efeito):
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                             self._registrar_kill(alvo, beam.dono.dados.nome)
@@ -1044,6 +1267,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                         dx = alvo.pos[0] - summon.x
                         dy = alvo.pos[1] - summon.y
                         dist = math.hypot(dx, dy) or 1
+                        self._registrar_hit_stats(
+                            summon.dono, alvo, dano,
+                            elemento=efeito,
+                            source_type="summon",
+                            source_name=getattr(summon, 'nome', 'Summon'),
+                        )
                         if alvo.tomar_dano(dano, dx/dist, dy/dist, efeito):
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                             self._registrar_kill(alvo, summon.dono.dados.nome)
@@ -1055,7 +1284,14 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                         alvo = res["alvo"]
                         dano = res["dano"]
                         efeito = res.get("efeito", "NORMAL")
-                        alvo.tomar_dano(dano, 0, 0, efeito)
+                        self._registrar_hit_stats(
+                            summon.dono, alvo, dano,
+                            elemento=efeito,
+                            source_type="summon",
+                            source_name=f"{getattr(summon, 'nome', 'Summon')} (Aura)",
+                        )
+                        if alvo.tomar_dano(dano, 0, 0, efeito):
+                            self._registrar_kill(alvo, summon.dono.dados.nome)
                     
                     elif res.get("revive"):
                         # Fenix reviveu!
@@ -1127,10 +1363,15 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             dano_contato = trap.dano_wall_contato(dt)
                             if dano_contato > 0:
                                 efeito = trap.efeito if trap.efeito != "NORMAL" else "NORMAL"
+                                self._registrar_hit_stats(
+                                    trap.dono, lutador, dano_contato,
+                                    elemento=efeito,
+                                    source_type="trap",
+                                    source_name=f"{getattr(trap, 'nome', 'Trap')} (Wall)",
+                                )
                                 if lutador.tomar_dano(dano_contato, dx/dist, dy/dist, efeito):
                                     self.textos.append(FloatingText(lutador.pos[0]*PPM, lutador.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
-                                    self.ativar_slow_motion()
-                                    self.vencedor = self._determinar_vencedor_por_morte(lutador)
+                                    self._registrar_kill(lutador, trap.dono.dados.nome)
                     else:
                         # === TRIGGER MODE: Armadilhas ===
                         resultado = trap.tentar_trigger(lutador)
@@ -1144,6 +1385,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                             dy = alvo.pos[1] - trap.y
                             dist = math.hypot(dx, dy) or 1
                             
+                            self._registrar_hit_stats(
+                                trap.dono, alvo, dano,
+                                elemento=efeito,
+                                source_type="trap",
+                                source_name=getattr(trap, 'nome', 'Trap'),
+                            )
                             if alvo.tomar_dano(dano, dx/dist, dy/dist, efeito):
                                 self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                                 self._registrar_kill(alvo, trap.dono.dados.nome)
@@ -1203,7 +1450,14 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     if res.get("tipo") == "contato":
                         alvo = res["alvo"]
                         dano = res["dano"]
-                        alvo.tomar_dano(dano, 0, 0, "NORMAL")
+                        self._registrar_hit_stats(
+                            lutador, alvo, dano,
+                            elemento="NORMAL",
+                            source_type="status",
+                            source_name=getattr(transform, 'nome', 'Transform'),
+                        )
+                        if alvo.tomar_dano(dano, 0, 0, "NORMAL"):
+                            self._registrar_kill(alvo, lutador.dados.nome)
                     elif res.get("tipo") == "slow":
                         alvo = res["alvo"]
                         alvo.slow_timer = max(alvo.slow_timer, 0.1)
@@ -1229,6 +1483,12 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                         dano = res["dano"]
                         efeito = res.get("efeito", "NORMAL")
                         
+                        self._registrar_hit_stats(
+                            lutador, alvo, dano,
+                            elemento=efeito,
+                            source_type="status",
+                            source_name=getattr(channel, 'nome', 'Channel'),
+                        )
                         if alvo.tomar_dano(dano, 0, 0, efeito):
                             self.textos.append(FloatingText(alvo.pos[0]*PPM, alvo.pos[1]*PPM - 50, "FATAL!", VERMELHO_SANGUE, 40))
                             self._registrar_kill(alvo, lutador.dados.nome)
@@ -1289,6 +1549,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                         # PerseguiÃ§Ã£o: levemente mais lento para ampliar distÃ¢ncia visual
                         self.time_scale = 0.8
                         self.slow_mo_timer = 0.6
+
+            self._aplicar_pressao_ritmo(dt)
             
             # v13.0: Atualiza TeamCoordinator ANTES dos lutadores individuais
             if self.modo_multi:
@@ -1305,6 +1567,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     else:
                         # No enemy alive â€” skip AI processing to avoid self-targeting bugs
                         f.update(dt, None, todos_lutadores=self.fighters)
+
+            self._atualizar_direcao_cinematica(dt)
             
             # === ATUALIZA COOLDOWNS DE SOM DE PAREDE ===
             if hasattr(self, '_wall_sound_cooldown'):
@@ -1479,10 +1743,31 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         Evita que fights acabem 'do nada' quando um membro morre
         mas seu time ainda estÃ¡ vivo.
         """
+        if hasattr(self, 'stats_collector') and morto and hasattr(morto, 'dados'):
+            self.stats_collector.record_death(morto.dados.nome, killer=killer_nome_fallback or "")
         self.ativar_slow_motion()
         resultado = self._determinar_vencedor_por_morte(morto)
         if resultado:
             self.vencedor = resultado
+
+    def _registrar_hit_stats(self, atacante, defensor, dano, *, critico=False, elemento="", source_type="weapon", source_name=""):
+        """Helper central para contabilizar hits fora do combate melee."""
+        collector = getattr(self, 'stats_collector', None)
+        if not collector or atacante is None or defensor is None:
+            return
+        nome_atacante = getattr(getattr(atacante, 'dados', None), 'nome', '')
+        nome_defensor = getattr(getattr(defensor, 'dados', None), 'nome', '')
+        if not nome_atacante or not nome_defensor:
+            return
+        collector.record_hit(
+            nome_atacante,
+            nome_defensor,
+            dano,
+            critico=critico,
+            elemento=elemento,
+            source_type=source_type,
+            source_name=source_name,
+        )
     
     def _get_projetil_elemento(self, proj):
         """Retorna o elemento cacheado de um projÃ©til (perf: evita re-parse de strings por frame)."""
