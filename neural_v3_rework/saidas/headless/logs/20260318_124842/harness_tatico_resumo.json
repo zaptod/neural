@@ -1,0 +1,432 @@
+{
+  "template_id": "duelo_papeis_basicos",
+  "modo": "1v1",
+  "runs": 3,
+  "team_wins": {
+    "team_b": 3
+  },
+  "winner_counts": {
+    "Cassian Orion da Brasa": 3
+  },
+  "avg_frames": 1333.33,
+  "avg_tempo_simulado": 22.222,
+  "avg_tempo_real": 0.52,
+  "team_damage_avg": {
+    "team_a": 28.111,
+    "team_b": 336.208
+  },
+  "papeis": {
+    "bruiser": {
+      "presencas": 3,
+      "damage_dealt": 1008.626,
+      "kills": 3
+    },
+    "duelista": {
+      "presencas": 3,
+      "damage_dealt": 84.332,
+      "kills": 0
+    }
+  },
+  "template_meta": {
+    "id": "duelo_papeis_basicos",
+    "modo": "1v1",
+    "nome": "Duelo De Papeis Basicos",
+    "cenario": "Arena"
+  },
+  "team_a": [
+    {
+      "papel": "duelista",
+      "nome": "Talia Vesper da Brasa",
+      "arma": "Aurora Celeste",
+      "familia_arma": "lamina",
+      "score": 10.0
+    }
+  ],
+  "team_b": [
+    {
+      "papel": "bruiser",
+      "nome": "Cassian Orion da Brasa",
+      "arma": "Raiz do Pântano",
+      "familia_arma": "corrente",
+      "score": 13.0
+    }
+  ],
+  "lutas": [
+    {
+      "vencedor": "Cassian Orion da Brasa",
+      "frames": 844,
+      "tempo_simulado": 14.067,
+      "tempo_real": 0.359,
+      "fighters": {
+        "Talia Vesper da Brasa": {
+          "damage_dealt": 0.0,
+          "damage_taken": 336.0842384516128,
+          "hits_landed": 0,
+          "hits_received": 8,
+          "attacks_attempted": 2,
+          "crits_landed": 0,
+          "skills_cast": 3,
+          "offensive_actions": 1,
+          "skills_detail": {
+            "Barreira Divina": 1,
+            "Raio Sagrado": 1,
+            "Golpe do Executor": 1
+          },
+          "mana_spent": 70.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 0,
+          "weapon_hits": 0,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 0.0,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {},
+          "accuracy": 0.0,
+          "dps": 0.0,
+          "fight_duration": 0.4
+        },
+        "Cassian Orion da Brasa": {
+          "damage_dealt": 336.0842384516128,
+          "damage_taken": 0.0,
+          "hits_landed": 8,
+          "hits_received": 0,
+          "attacks_attempted": 10,
+          "crits_landed": 0,
+          "skills_cast": 3,
+          "offensive_actions": 10,
+          "skills_detail": {
+            "Golpe do Executor": 1,
+            "Dardo Venenoso": 2
+          },
+          "mana_spent": 52.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 0,
+          "kills": 1,
+          "max_combo": 8,
+          "weapon_hits": 8,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 336.0842384516128,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Raiz do Pântano": {
+              "hits": 8,
+              "damage": 336.0842384516128,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.8,
+          "dps": 336.1,
+          "fight_duration": 0.4
+        }
+      },
+      "team_stats": {
+        "team_a": {
+          "damage_dealt": 0.0,
+          "damage_taken": 336.084,
+          "kills": 0,
+          "deaths": 1,
+          "skills_cast": 3,
+          "mana_spent": 70.0
+        },
+        "team_b": {
+          "damage_dealt": 336.084,
+          "damage_taken": 0.0,
+          "kills": 1,
+          "deaths": 0,
+          "skills_cast": 3,
+          "mana_spent": 52.0
+        }
+      },
+      "team_status": {
+        "team_a": {
+          "vivos": 0,
+          "mortos": 1,
+          "names": [
+            "Talia Vesper da Brasa"
+          ]
+        },
+        "team_b": {
+          "vivos": 1,
+          "mortos": 0,
+          "names": [
+            "Cassian Orion da Brasa"
+          ]
+        }
+      },
+      "run_index": 0
+    },
+    {
+      "vencedor": "Cassian Orion da Brasa",
+      "frames": 2120,
+      "tempo_simulado": 35.333,
+      "tempo_real": 0.787,
+      "fighters": {
+        "Talia Vesper da Brasa": {
+          "damage_dealt": 63.415830451612905,
+          "damage_taken": 336.45749313509623,
+          "hits_landed": 3,
+          "hits_received": 10,
+          "attacks_attempted": 4,
+          "crits_landed": 0,
+          "skills_cast": 5,
+          "offensive_actions": 4,
+          "skills_detail": {
+            "Barreira Divina": 1,
+            "Raio Sagrado": 2,
+            "Golpe do Executor": 2
+          },
+          "mana_spent": 112.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 2,
+          "weapon_hits": 1,
+          "skill_hits": 2,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 20.915830451612905,
+          "skill_damage": 42.5,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Raio Sagrado": {
+              "hits": 2,
+              "damage": 42.5,
+              "source_type": "skill"
+            },
+            "Aurora Celeste": {
+              "hits": 1,
+              "damage": 20.915830451612905,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.75,
+          "dps": 63.4,
+          "fight_duration": 0.8
+        },
+        "Cassian Orion da Brasa": {
+          "damage_dealt": 336.45749313509623,
+          "damage_taken": 63.415830451612905,
+          "hits_landed": 10,
+          "hits_received": 3,
+          "attacks_attempted": 13,
+          "crits_landed": 1,
+          "skills_cast": 5,
+          "offensive_actions": 13,
+          "skills_detail": {
+            "Golpe do Executor": 1,
+            "Praga": 1,
+            "Dardo Venenoso": 3
+          },
+          "mana_spent": 90.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 0,
+          "kills": 1,
+          "max_combo": 7,
+          "weapon_hits": 8,
+          "skill_hits": 2,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 326.87645109677413,
+          "skill_damage": 9.581042038322096,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Raiz do Pântano": {
+              "hits": 8,
+              "damage": 326.87645109677413,
+              "source_type": "weapon"
+            },
+            "Dardo Venenoso": {
+              "hits": 2,
+              "damage": 9.581042038322096,
+              "source_type": "skill"
+            }
+          },
+          "accuracy": 0.769,
+          "dps": 336.5,
+          "fight_duration": 0.8
+        }
+      },
+      "team_stats": {
+        "team_a": {
+          "damage_dealt": 63.416,
+          "damage_taken": 336.457,
+          "kills": 0,
+          "deaths": 1,
+          "skills_cast": 5,
+          "mana_spent": 112.0
+        },
+        "team_b": {
+          "damage_dealt": 336.457,
+          "damage_taken": 63.416,
+          "kills": 1,
+          "deaths": 0,
+          "skills_cast": 5,
+          "mana_spent": 90.0
+        }
+      },
+      "team_status": {
+        "team_a": {
+          "vivos": 0,
+          "mortos": 1,
+          "names": [
+            "Talia Vesper da Brasa"
+          ]
+        },
+        "team_b": {
+          "vivos": 1,
+          "mortos": 0,
+          "names": [
+            "Cassian Orion da Brasa"
+          ]
+        }
+      },
+      "run_index": 1
+    },
+    {
+      "vencedor": "Cassian Orion da Brasa",
+      "frames": 1036,
+      "tempo_simulado": 17.267,
+      "tempo_real": 0.415,
+      "fighters": {
+        "Talia Vesper da Brasa": {
+          "damage_dealt": 20.915830451612905,
+          "damage_taken": 336.0842384516129,
+          "hits_landed": 1,
+          "hits_received": 7,
+          "attacks_attempted": 3,
+          "crits_landed": 0,
+          "skills_cast": 3,
+          "offensive_actions": 3,
+          "skills_detail": {
+            "Golpe do Executor": 1,
+            "Raio Sagrado": 2
+          },
+          "mana_spent": 64.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 1,
+          "weapon_hits": 1,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 20.915830451612905,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Aurora Celeste": {
+              "hits": 1,
+              "damage": 20.915830451612905,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.333,
+          "dps": 20.9,
+          "fight_duration": 0.4
+        },
+        "Cassian Orion da Brasa": {
+          "damage_dealt": 336.0842384516129,
+          "damage_taken": 20.915830451612905,
+          "hits_landed": 7,
+          "hits_received": 1,
+          "attacks_attempted": 10,
+          "crits_landed": 2,
+          "skills_cast": 4,
+          "offensive_actions": 10,
+          "skills_detail": {
+            "Golpe do Executor": 1,
+            "Dardo Venenoso": 3
+          },
+          "mana_spent": 68.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 0,
+          "kills": 1,
+          "max_combo": 5,
+          "weapon_hits": 7,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 336.0842384516129,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Raiz do Pântano": {
+              "hits": 7,
+              "damage": 336.0842384516129,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.7,
+          "dps": 336.1,
+          "fight_duration": 0.4
+        }
+      },
+      "team_stats": {
+        "team_a": {
+          "damage_dealt": 20.916,
+          "damage_taken": 336.084,
+          "kills": 0,
+          "deaths": 1,
+          "skills_cast": 3,
+          "mana_spent": 64.0
+        },
+        "team_b": {
+          "damage_dealt": 336.084,
+          "damage_taken": 20.916,
+          "kills": 1,
+          "deaths": 0,
+          "skills_cast": 4,
+          "mana_spent": 68.0
+        }
+      },
+      "team_status": {
+        "team_a": {
+          "vivos": 0,
+          "mortos": 1,
+          "names": [
+            "Talia Vesper da Brasa"
+          ]
+        },
+        "team_b": {
+          "vivos": 1,
+          "mortos": 0,
+          "names": [
+            "Cassian Orion da Brasa"
+          ]
+        }
+      },
+      "run_index": 2
+    }
+  ]
+}

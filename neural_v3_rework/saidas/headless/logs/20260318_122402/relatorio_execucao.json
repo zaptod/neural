@@ -1,0 +1,13 @@
+{
+  "generated_at": "2026-03-18T12:24:05",
+  "posto": "headless",
+  "args": [
+    "--mode",
+    "rapido"
+  ],
+  "returncode": 0,
+  "duracao_seg": 2.528,
+  "log_path": "saidas\\headless\\logs\\20260318_122402\\exec.log",
+  "resumo_headless_path": "saidas\\headless\\logs\\20260318_122402\\headless_resumo.json",
+  "status": "ok"
+}

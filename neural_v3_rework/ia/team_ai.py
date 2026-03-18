@@ -12,11 +12,14 @@ spatial, emotions, choreographer, personalities, classes.
 import math
 import random
 import logging
+from collections import Counter
 from enum import Enum, auto
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple, Optional, Any
 
 _log = logging.getLogger("team_ai")
+
+from ia.tactical_packages import inferir_papel_tatico, summarize_package_counts
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -153,11 +156,13 @@ class TeamCoordinator:
         # === ROLES ===
         self.roles: Dict[int, TeamRole] = {}  # id(lutador) → TeamRole
         self.role_confidence: Dict[int, float] = {}  # quão certo estamos do role
+        self.package_contexts: Dict[int, dict] = {}
 
         # === TÁTICAS ===
         self.tactic = TeamTactic.FOCUS_FIRE
         self.tactic_timer = 0.0
         self.tactic_reeval_cd = 3.0  # Reavalia a cada 3s
+        self.tactic_timer = self.tactic_reeval_cd
         self.target_priority = TargetPriority.LOWEST_HP
 
         # === FOCO ===
@@ -200,9 +205,17 @@ class TeamCoordinator:
             classe = getattr(m.dados, 'classe', '') if hasattr(m, 'dados') else ''
             arma = m.dados.arma_obj if hasattr(m, 'dados') and hasattr(m.dados, 'arma_obj') else None
             arma_tipo = arma.tipo if arma else ""
+            package = inferir_papel_tatico(m)
+            self.package_contexts[mid] = package
 
             # 1) Classe→Role mapping
             role = CLASS_ROLE_MAP.get(classe, None)
+            package_role = package.get("team_role")
+            if package_role and package.get("confidence", 0.0) >= 0.30:
+                try:
+                    role = TeamRole[package_role]
+                except KeyError:
+                    pass
 
             # 2) Override por tipo de arma se necessário
             if role is None:
@@ -235,8 +248,10 @@ class TeamCoordinator:
                     role = needed
 
             self.roles[mid] = role
+            self.role_confidence[mid] = max(0.7, float(package.get("confidence", 0.0)))
             self.role_confidence[mid] = 0.7  # confiança base
             role_counts[role] = role_counts.get(role, 0) + 1
+            self.role_confidence[mid] = max(0.7, float(package.get("confidence", 0.0)))
 
         # Identifica carry (maior dano potencial)
         best_dmg = 0
@@ -460,6 +475,9 @@ class TeamCoordinator:
         has_flanker = any(self.roles.get(id(m)) == TeamRole.FLANKER for m in allies)
         has_controller = any(self.roles.get(id(m)) == TeamRole.CONTROLLER for m in allies)
         has_vanguard = any(self.roles.get(id(m)) == TeamRole.VANGUARD for m in allies)
+        package_counts = summarize_package_counts(allies)
+        horde_mode = bool(enemies) and all(getattr(e, "is_monster", False) for e in enemies)
+        elite_present = any(getattr(e, "monster_tipo", "") in {"elite", "boss"} for e in enemies)
 
         # ── SCORING DE TÁTICAS ──
 
@@ -510,6 +528,23 @@ class TeamCoordinator:
         if has_controller and (has_flanker or has_vanguard):
             scores[TeamTactic.BAIT_AND_PUNISH] += 0.35
 
+        if horde_mode:
+            scores[TeamTactic.FULL_AGGRO] -= 0.25
+            if has_support and has_vanguard:
+                scores[TeamTactic.PROTECT_CARRY] += 1.0
+            scores[TeamTactic.PROTECT_CARRY] += package_counts.get("defensor", 0) * 0.35
+            scores[TeamTactic.PROTECT_CARRY] += package_counts.get("curandeiro", 0) * 0.45
+            scores[TeamTactic.KITE_AND_POKE] += package_counts.get("controlador_de_area", 0) * 0.30
+            scores[TeamTactic.KITE_AND_POKE] += package_counts.get("suporte_controle", 0) * 0.22
+            scores[TeamTactic.SPLIT_PUSH] += package_counts.get("limpador_de_horda", 0) * 0.35
+            scores[TeamTactic.SPLIT_PUSH] += package_counts.get("invocador", 0) * 0.18
+            if elite_present:
+                scores[TeamTactic.FOCUS_FIRE] += 1.25
+                scores[TeamTactic.PROTECT_CARRY] += 0.10
+            elif len(enemies) >= 4:
+                scores[TeamTactic.SPLIT_PUSH] += 0.18 + package_counts.get("limpador_de_horda", 0) * 0.25
+                scores[TeamTactic.KITE_AND_POKE] += 0.12
+
         # ── Modificadores de personalidade do time ──
         for m in allies:
             if hasattr(m, 'brain') and m.brain:
@@ -543,6 +578,14 @@ class TeamCoordinator:
         else:
             self.target_priority = TargetPriority.LOWEST_HP
 
+        if horde_mode:
+            self.target_priority = TargetPriority.HIGHEST_THREAT if elite_present else (
+                TargetPriority.HIGHEST_THREAT if self.tactic == TeamTactic.PROTECT_CARRY else TargetPriority.NEAREST
+            )
+
+        if horde_mode:
+            self.target_priority = TargetPriority.HIGHEST_THREAT if elite_present else TargetPriority.NEAREST
+
     # ─── FOCO DE ALVO ────────────────────────────────────────
     def _update_focus_targets(self, all_fighters):
         """Determina alvos de foco para o time."""
@@ -571,6 +614,8 @@ class TeamCoordinator:
         """Pontua um alvo inimigo."""
         score = 0.0
         hp_pct = enemy.vida / enemy.vida_max if enemy.vida_max > 0 else 1.0
+        is_monster = bool(getattr(enemy, "is_monster", False))
+        monster_tipo = getattr(enemy, "monster_tipo", "")
 
         # HP baixo
         if self.target_priority == TargetPriority.LOWEST_HP:
@@ -611,6 +656,14 @@ class TeamCoordinator:
             score += threat * 2.0
         else:
             score += threat * 0.5
+
+        if is_monster:
+            if monster_tipo == "boss":
+                score += 3.0
+            elif monster_tipo == "elite":
+                score += 1.8
+            else:
+                score += 0.25
 
         # HP crítico = priority de execução
         if hp_pct < 0.2:
@@ -660,6 +713,13 @@ class TeamCoordinator:
     def _get_target_reason(self, enemy) -> str:
         """Retorna razão legível do por que estamos focando esse alvo."""
         hp_pct = enemy.vida / enemy.vida_max if enemy.vida_max > 0 else 1
+        if getattr(enemy, 'is_monster', False):
+            monster_tipo = getattr(enemy, 'monster_tipo', '')
+            if monster_tipo == "boss":
+                return "BOSS_DA_ONDA"
+            if monster_tipo == "elite":
+                return "ELITE_PERIGOSO"
+            return "PRESSAO_DA_ONDA"
         if hp_pct < 0.2:
             return "EXECUTAR"
         classe = getattr(enemy.dados, 'classe', '') if hasattr(enemy, 'dados') else ''
@@ -793,6 +853,8 @@ class TeamCoordinator:
             orders = {
                 "role": self.roles.get(mid, TeamRole.STRIKER).name,
                 "tactic": self.tactic.name,
+                "package_role": self.package_contexts.get(mid, {}).get("papel_id", "bruiser"),
+                "package_confidence": self.package_contexts.get(mid, {}).get("confidence", 0.0),
                 "primary_target_id": id(self.primary_target) if self.primary_target else 0,
                 "em_desvantagem": self.em_desvantagem,
                 "team_hp_pct": self.team_hp_pct,
@@ -802,6 +864,8 @@ class TeamCoordinator:
                 "is_weakest": mid == self.weakest_id,
                 "team_center": self.center_of_mass,
                 "team_spread": self.spread,
+                "modo_horda": bool(self.primary_target and getattr(self.primary_target, "is_monster", False)),
+                "protect_target_id": self.carry_id if self.package_contexts.get(mid, {}).get("papel_id") in {"defensor", "curandeiro", "suporte_controle"} else 0,
                 "synergies": [s for s in self.synergies if mid in (s.fighter_a_id, s.fighter_b_id)],
                 "callouts": [c for c in self.callouts if c.get("from") != mid],
                 "ally_intents": {k: v for k, v in self.intents.items() if k != mid},

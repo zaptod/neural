@@ -268,6 +268,45 @@ def generate_all_platforms(
     }
 
 
+def generate_encounter_metadata(
+    side_a: str,
+    side_b: str,
+    *,
+    mode: str = "equipes",
+    winner: str | None = None,
+    platform: str = "reels",
+) -> dict:
+    mode_label = {
+        "equipes": "Batalha em Equipe",
+        "horda": "Modo Horda",
+    }.get(str(mode or "").lower(), "Combate Especial")
+    title = f"{side_a} vs {side_b}: {mode_label}"
+    description = (
+        f"{mode_label} em Neural Fights.\n"
+        f"{side_a} enfrenta {side_b} usando a simulacao principal.\n\n"
+        f"{'Vencedor: ' + _clean_text(winner) if winner else 'Resultado em aberto ate o fim.'}"
+    )
+    hashtags = _build_hashtags(mode_label, side_b, _normalize_platform(platform))
+    return {
+        "title": _truncate_text(_clean_text(title), _COPY_RULES[_normalize_platform(platform)]["title_max"]),
+        "description": _truncate_text(_clean_text(description), _COPY_RULES[_normalize_platform(platform)]["description_max"]),
+        "hashtags": hashtags,
+        "tags_str": " ".join(hashtags),
+        "platform": _normalize_platform(platform),
+        "fighter1": _clean_text(side_a),
+        "fighter2": _clean_text(side_b),
+        "winner": _clean_text(winner) if winner else None,
+        "mode": str(mode),
+    }
+
+
+def generate_encounter_all_platforms(side_a: str, side_b: str, *, mode: str, winner: str | None = None) -> dict:
+    return {
+        platform: generate_encounter_metadata(side_a, side_b, mode=mode, winner=winner, platform=platform)
+        for platform in PLATFORMS
+    }
+
+
 def generate_story_metadata(story: dict, vencedor: str | None = None, platform: str = "reels") -> dict:
     """
     Gera copy para o formato principal de comentario + roleta + versus.

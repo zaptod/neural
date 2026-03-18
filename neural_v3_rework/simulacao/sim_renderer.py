@@ -59,6 +59,8 @@ class SimuladorRenderer:
 
     @classmethod
     def _get_font(cls, name, size, bold=False):
+        if not pygame.font.get_init():
+            pygame.font.init()
         key = (name, size, bold)
         if key not in cls._font_cache:
             cls._font_cache[key] = pygame.font.SysFont(name, size, bold=bold)
@@ -1722,6 +1724,8 @@ class SimuladorRenderer:
                 font_timer = self._get_font("Impact", 28)
                 txt_timer = font_timer.render(f"{int(tempo_restante)}", True, cor_timer)
                 self.tela.blit(txt_timer, (self.screen_width // 2 - txt_timer.get_width() // 2, 24))
+                if getattr(self, "modo_partida", "duelo") == "horda":
+                    self._desenhar_overlay_horda()
                 if not self.portrait_mode:  # Esconde controles em portrait para mais espaÃ§o
                     self.desenhar_controles() 
             else: self.desenhar_vitoria()
@@ -1735,6 +1739,26 @@ class SimuladorRenderer:
         step = int(50 * self.cam.zoom)
         for x in range(start_x, self.screen_width, step): pygame.draw.line(self.tela, COR_GRID, (x, 0), (x, self.screen_height))
         for y in range(start_y, self.screen_height, step): pygame.draw.line(self.tela, COR_GRID, (0, y), (self.screen_width, y))
+
+    def _desenhar_overlay_horda(self):
+        manager = getattr(self, "horde_manager", None)
+        if manager is None:
+            return
+        painel = pygame.Surface((250, 78), pygame.SRCALPHA)
+        pygame.draw.rect(painel, (7, 16, 24, 210), (0, 0, 250, 78), border_radius=14)
+        pygame.draw.rect(painel, (120, 224, 166, 180), (0, 0, 250, 78), 2, border_radius=14)
+        wave = max(1, int(manager.current_wave_index + 1))
+        total = max(1, len(getattr(manager, "waves", []) or []))
+        ativos = len(manager._alive_monsters()) if hasattr(manager, "_alive_monsters") else 0
+        titulo = self._get_font("Impact", 24).render(f"HORDA {wave}/{total}", True, (240, 248, 252))
+        sub = self._get_font("Arial", 15).render(
+            f"Ativos {ativos}  |  Eliminados {int(getattr(manager, 'total_killed', 0) or 0)}",
+            True,
+            (198, 222, 235),
+        )
+        painel.blit(titulo, (14, 8))
+        painel.blit(sub, (14, 42))
+        self.tela.blit(painel, (self.screen_width - 270, 64))
 
 
     def desenhar_lutador(self, l):

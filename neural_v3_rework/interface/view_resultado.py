@@ -12,6 +12,7 @@ from interface.theme import (
     COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, COR_DANGER,
     COR_BG_CARD, COR_BORDA, COR_TEXTO_SUB,
 )
+from interface.ui_components import UICard, make_primary_button
 
 # Tier → (cor, emoji)
 TIER_VISUAL = {
@@ -123,7 +124,7 @@ class PostFightScreen(tk.Toplevel):
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # ── ELO Section ────────────────────────────────────────────────
-        elo_frame = tk.Frame(inner, bg=COR_BG_CARD, padx=15, pady=14, highlightthickness=1, highlightbackground=COR_BORDA)
+        elo_frame = UICard(inner, bg=COR_BG_CARD, border=COR_BORDA, padx=15, pady=14)
         elo_frame.pack(fill="x", padx=20, pady=(15, 5))
 
         tk.Label(
@@ -154,7 +155,7 @@ class PostFightScreen(tk.Toplevel):
         )
 
         # ── Stats Section (side-by-side) ───────────────────────────────
-        stats_frame = tk.Frame(inner, bg=COR_BG_CARD, padx=15, pady=14, highlightthickness=1, highlightbackground=COR_BORDA)
+        stats_frame = UICard(inner, bg=COR_BG_CARD, border=COR_BORDA, padx=15, pady=14)
         stats_frame.pack(fill="x", padx=20, pady=5)
 
         tk.Label(
@@ -237,12 +238,17 @@ class PostFightScreen(tk.Toplevel):
         btn_frame = tk.Frame(inner, bg=COR_BG)
         btn_frame.pack(fill="x", padx=20, pady=20)
 
-        tk.Button(
-            btn_frame, text="▶ CONTINUAR",
-            font=("Bahnschrift SemiBold", 14), bg=COR_ACCENT, fg=COR_TEXTO,
-            bd=0, padx=42, pady=12, relief="flat",
-            activebackground="#c73e55", activeforeground=COR_TEXTO,
-            command=self._close,
+        make_primary_button(
+            btn_frame,
+            "▶ CONTINUAR",
+            self._close,
+            bg=COR_ACCENT,
+            fg=COR_TEXTO,
+            font=("Bahnschrift SemiBold", 14),
+            padx=42,
+            pady=12,
+            activebackground="#c73e55",
+            activeforeground=COR_TEXTO,
         ).pack()
 
     # ── ELO Card Builder ──────────────────────────────────────────────────────
@@ -250,7 +256,7 @@ class PostFightScreen(tk.Toplevel):
     def _build_elo_card(self, parent, col: int, name: str,
                         elo_before: float, elo_after: float,
                         tier: str, is_winner: bool):
-        card = tk.Frame(parent, bg=COR_BG, padx=12, pady=10, highlightthickness=1, highlightbackground=COR_BORDA)
+        card = UICard(parent, bg=COR_BG, border=COR_BORDA, padx=12, pady=10)
         card.grid(row=0, column=col, sticky="nsew", padx=5)
 
         tier_cor, tier_emoji = TIER_VISUAL.get(tier, ("#cd7f32", "🥉"))

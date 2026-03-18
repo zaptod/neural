@@ -545,6 +545,8 @@ class FightRecorder:
         """Seleciona uma fonte de display legivel e consistente para overlays."""
         import pygame
 
+        if not pygame.font.get_init():
+            pygame.font.init()
         font_candidates = [
             "Bahnschrift",
             "Arial Black",

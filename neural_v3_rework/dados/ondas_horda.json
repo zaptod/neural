@@ -1,0 +1,66 @@
+{
+  "versao": "1.0",
+  "descricao": "Presets oficiais de ondas do modo horda.",
+  "presets": [
+    {
+      "id": "sobrevivencia_basica",
+      "nome": "Sobrevivencia Basica",
+      "label": "Horda Basica",
+      "cenario_padrao": "Campo de Batalha",
+      "inter_wave_delay": 2.5,
+      "spawn_interval": 0.45,
+      "waves": [
+        {
+          "label": "Wave 1",
+          "entries": [
+            { "monster_id": "zumbi_basico", "quantidade": 4 }
+          ]
+        },
+        {
+          "label": "Wave 2",
+          "entries": [
+            { "monster_id": "zumbi_basico", "quantidade": 5 },
+            { "monster_id": "corredor_putrido", "quantidade": 2 }
+          ]
+        },
+        {
+          "label": "Wave 3",
+          "entries": [
+            { "monster_id": "zumbi_basico", "quantidade": 6 },
+            { "monster_id": "bruto_putrido", "quantidade": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "corredor_infectado",
+      "nome": "Corredor Infectado",
+      "label": "Corredor Infectado",
+      "cenario_padrao": "Coliseu",
+      "inter_wave_delay": 2.1,
+      "spawn_interval": 0.38,
+      "waves": [
+        {
+          "label": "Entrada",
+          "entries": [
+            { "monster_id": "zumbi_basico", "quantidade": 5 }
+          ]
+        },
+        {
+          "label": "Pressao",
+          "entries": [
+            { "monster_id": "corredor_putrido", "quantidade": 4 },
+            { "monster_id": "zumbi_basico", "quantidade": 4 }
+          ]
+        },
+        {
+          "label": "Pico",
+          "entries": [
+            { "monster_id": "bruto_putrido", "quantidade": 2 },
+            { "monster_id": "corredor_putrido", "quantidade": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}

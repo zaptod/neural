@@ -1,0 +1,122 @@
+{
+  "versao": "1.1",
+  "descricao": "Templates oficiais de composicao para o harness tatico do posto headless.",
+  "templates": [
+    {
+      "id": "duelo_papeis_basicos",
+      "modo": "1v1",
+      "nome": "Duelo De Papeis Basicos",
+      "cenario": "Arena",
+      "duracao_max_seg": 75,
+      "runs_recomendados": 3,
+      "team_a": {
+        "label": "Pacote A",
+        "slots": [
+          { "papel": "duelista" }
+        ]
+      },
+      "team_b": {
+        "label": "Pacote B",
+        "slots": [
+          { "papel": "bruiser" }
+        ]
+      }
+    },
+    {
+      "id": "dupla_tatica_2v2",
+      "modo": "grupo_vs_grupo",
+      "nome": "Dupla Tatica 2v2",
+      "cenario": "Arena",
+      "duracao_max_seg": 90,
+      "runs_recomendados": 2,
+      "team_a": {
+        "label": "Linha Curta",
+        "slots": [
+          { "papel": "defensor" },
+          { "papel": "duelista" }
+        ]
+      },
+      "team_b": {
+        "label": "Pressao Risco",
+        "slots": [
+          { "papel": "bruiser" },
+          { "papel": "assassino" }
+        ]
+      }
+    },
+    {
+      "id": "esquadrao_balanceado_3v3",
+      "modo": "grupo_vs_grupo",
+      "nome": "Esquadrao Balanceado 3v3",
+      "cenario": "Arena",
+      "duracao_max_seg": 120,
+      "runs_recomendados": 2,
+      "team_a": {
+        "label": "Linha Estavel",
+        "slots": [
+          { "papel": "defensor" },
+          { "papel": "curandeiro" },
+          { "papel": "atirador" }
+        ]
+      },
+      "team_b": {
+        "label": "Pressao Tecnica",
+        "slots": [
+          { "papel": "bruiser" },
+          { "papel": "suporte_controle" },
+          { "papel": "assassino" }
+        ]
+      }
+    },
+    {
+      "id": "guerra_de_linha_4v4",
+      "modo": "grupo_vs_grupo",
+      "nome": "Guerra De Linha 4v4",
+      "cenario": "Coliseu",
+      "duracao_max_seg": 135,
+      "runs_recomendados": 2,
+      "team_a": {
+        "label": "Bastiao Vivo",
+        "slots": [
+          { "papel": "defensor" },
+          { "papel": "curandeiro" },
+          { "papel": "atirador" },
+          { "papel": "suporte_controle" }
+        ]
+      },
+      "team_b": {
+        "label": "Ruptura Total",
+        "slots": [
+          { "papel": "bruiser" },
+          { "papel": "assassino" },
+          { "papel": "invocador" },
+          { "papel": "controlador_de_area" }
+        ]
+      }
+    },
+    {
+      "id": "corredor_contra_horda",
+      "modo": "grupo_vs_horda",
+      "nome": "Corredor Contra Horda",
+      "cenario": "Coliseu",
+      "duracao_max_seg": 120,
+      "runs_recomendados": 2,
+      "team_a": {
+        "label": "Expedicao",
+        "slots": [
+          { "papel": "defensor" },
+          { "papel": "curandeiro" },
+          { "papel": "limpador_de_horda" }
+        ]
+      },
+      "team_b": {
+        "label": "Horda",
+        "slots": []
+      },
+      "horda": {
+        "preset_id": "corredor_infectado",
+        "duracao_max_seg": 120
+      }
+    }
+  ]
+}

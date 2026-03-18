@@ -18,6 +18,7 @@ from interface.theme import (
     COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, CORES_CLASSE,
     COR_BG_CARD, COR_BORDA, COR_TEXTO_SUB
 )
+from interface.ui_components import UICard, make_primary_button, make_secondary_button
 
 # Cores dos times
 CORES_TIME = [
@@ -63,11 +64,12 @@ class TelaMultiBatalha(tk.Frame):
         header.pack(fill="x", side="top")
         header.pack_propagate(False)
         
-        tk.Button(
-            header, text="Voltar",
-            bg=COR_BG_SECUNDARIO, fg=COR_TEXTO,
-            font=("Segoe UI", 10, "bold"), bd=0, padx=16, pady=8, relief="flat",
-            command=lambda: self.controller.show_frame("MenuPrincipal")
+        make_secondary_button(
+            header,
+            "Voltar",
+            lambda: self.controller.show_frame("MenuPrincipal"),
+            padx=16,
+            pady=8,
         ).pack(side="left", padx=18, pady=20)
 
         title_wrap = tk.Frame(header, bg=COR_HEADER)
@@ -85,17 +87,20 @@ class TelaMultiBatalha(tk.Frame):
         footer = tk.Frame(self, bg=COR_BG)
         footer.pack(fill="x", side="bottom", pady=10)
         
-        self.btn_iniciar = tk.Button(
-            footer, text="INICIAR BATALHA EM EQUIPE",
+        self.btn_iniciar = make_primary_button(
+            footer,
+            "INICIAR BATALHA EM EQUIPE",
+            self.iniciar_batalha,
             font=("Bahnschrift SemiBold", 14),
-            bg=COR_ACCENT, fg=COR_TEXTO,
-            bd=0, padx=30, pady=12, relief="flat",
-            command=self.iniciar_batalha
+            bg=COR_ACCENT,
+            fg=COR_TEXTO,
+            padx=30,
+            pady=12,
         )
         self.btn_iniciar.pack()
         
         # === CONFIG BAR ===
-        config_bar = tk.Frame(self, bg=COR_BG_SECUNDARIO, pady=10, highlightthickness=1, highlightbackground=COR_BORDA)
+        config_bar = UICard(self, bg=COR_BG_SECUNDARIO, border=COR_BORDA, pady=10)
         config_bar.pack(fill="x", padx=20, pady=(10, 5))
         
         # Número de times

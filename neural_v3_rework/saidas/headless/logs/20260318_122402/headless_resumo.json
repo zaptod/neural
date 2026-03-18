@@ -1,0 +1,20 @@
+{
+  "modo": "rapido",
+  "stress_count": 10,
+  "lutas": 1,
+  "success_count": 1,
+  "error_count": 0,
+  "avg_frames": 2000.0,
+  "avg_tempo_real": 1.4718,
+  "winner_counts": {
+    "Sett_637 (HP)": 1
+  },
+  "stats_totais": {
+    "projeteis_criados": 16.0,
+    "beams_criados": 0.0,
+    "areas_criadas": 1.0,
+    "summons_criados": 0.0,
+    "dano_causado_p1": 0.0,
+    "dano_causado_p2": 0.0
+  }
+}

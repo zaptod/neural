@@ -1,27 +1,30 @@
 {
-    "p1_nome": "Aeron Ferro da Brasa",
-    "p2_nome": "Lyra Ferro da Brasa",
-    "cenario": "Campo de Batalha",
-    "best_of": 1,
-    "portrait_mode": false,
-    "teams": [
-        {
-            "team_id": 0,
-            "members": [
-                "Aeron Ferro da Brasa",
-                "Kaelis Ferro da Brasa",
-                "Mira Ferro da Brasa",
-                "Darian Ferro da Brasa"
-            ]
-        },
-        {
-            "team_id": 1,
-            "members": [
-                "Lyra Ferro da Brasa",
-                "Thorne Ferro da Brasa",
-                "Selka Ferro da Brasa",
-                "Valen Ferro da Brasa"
-            ]
-        }
-    ]
+  "modo_partida": "equipes",
+  "p1_nome": "Aeron Ferro da Brasa",
+  "p2_nome": "Mira Ferro da Brasa",
+  "cenario": "Arena",
+  "best_of": 1,
+  "portrait_mode": false,
+  "teams": [
+    {
+      "team_id": 0,
+      "label": "Time 1",
+      "members": [
+        "Aeron Ferro da Brasa",
+        "Kaelis Ferro da Brasa"
+      ]
+    },
+    {
+      "team_id": 1,
+      "label": "Time 2",
+      "members": [
+        "Mira Ferro da Brasa",
+        "Darian Ferro da Brasa"
+      ]
+    }
+  ],
+  "horda_config": null,
+  "campaign_context": {},
+  "objective_config": {},
+  "metadata": {}
 }

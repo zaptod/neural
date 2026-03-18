@@ -27,6 +27,7 @@ Usage:
 """
 
 import json
+import hashlib
 import logging
 import os
 import sqlite3
@@ -39,6 +40,7 @@ _log = logging.getLogger("battle_db")
 # â”€â”€ Paths â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 _HERE = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(_HERE, "battle_log.db")
+DB_SHADOW_DIR = os.path.join(_HERE, "_db_shadow")
 
 # â”€â”€ Schema version â€” bump when tables change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 SCHEMA_VERSION = 1
@@ -67,6 +69,7 @@ class BattleDB:
 
     def __init__(self, db_path: str = DB_PATH):
         self._db_path = db_path
+        self._db_path_actual = db_path
         self._conn: Optional[sqlite3.Connection] = None
         self._ensure_connection()
         self._ensure_schema()
@@ -75,10 +78,40 @@ class BattleDB:
 
     def _ensure_connection(self):
         if self._conn is None:
-            self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+            self._conn = self._open_connection(self._db_path)
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
+
+    def _open_connection(self, requested_path: str) -> sqlite3.Connection:
+        if requested_path == ":memory:":
+            self._db_path_actual = requested_path
+            return sqlite3.connect(requested_path, check_same_thread=False)
+
+        target_path = os.path.abspath(requested_path)
+        parent = os.path.dirname(target_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+        try:
+            self._db_path_actual = target_path
+            return sqlite3.connect(target_path, check_same_thread=False)
+        except sqlite3.OperationalError:
+            shadow_path = self._shadow_db_path_for(target_path)
+            os.makedirs(os.path.dirname(shadow_path), exist_ok=True)
+            _log.warning(
+                "BattleDB fallback ativado para caminho sem permissao de escrita: %s -> %s",
+                target_path,
+                shadow_path,
+            )
+            self._db_path_actual = shadow_path
+            return sqlite3.connect(shadow_path, check_same_thread=False)
+
+    @staticmethod
+    def _shadow_db_path_for(original_path: str) -> str:
+        digest = hashlib.sha1(original_path.encode("utf-8", errors="ignore")).hexdigest()[:12]
+        basename = os.path.basename(original_path) or "battle_log.db"
+        return os.path.join(DB_SHADOW_DIR, f"{digest}_{basename}")
 
     @contextmanager
     def _cursor(self):

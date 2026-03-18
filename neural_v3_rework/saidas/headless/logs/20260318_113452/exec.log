@@ -1,0 +1,82 @@
+
+[95m======================================================================[0m
+[95m[1m  NEURAL FIGHTS - HEADLESS BATTLE TEST SUITE v1.0[0m
+[95m======================================================================[0m
+
+
+[95m======================================================================[0m
+[95m[1m  TESTE RÃPIDO - 1 BATALHA ALEATÃ“RIA[0m
+[95m======================================================================[0m
+
+pygame 2.6.1 (SDL 2.28.4, Python 3.12.10)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+
+[95m======================================================================[0m
+[95m[1m  INICIALIZANDO BATALHA HEADLESS[0m
+[95m======================================================================[0m
+
+[96m[INFO][0m Criando arma 1: Arco Flamejante #980 (Ã‰pico)
+[96m[INFO][0m Criando arma 2: Mangual do Caos #125 (Ã‰pico)
+[96m[INFO][0m Criando lutador 1: Gwen_242 (Guerreiro (Força Bruta))
+[96m[INFO][0m Criando lutador 2: Sylas_225 (Guerreiro (Força Bruta))
+[92m[OK][0m P1: Gwen_242 - HP=237, Mana=59
+[94m[DEBUG][0m    Classe: Guerreiro (Força Bruta)
+[94m[DEBUG][0m    Skills Arma: ['Armadilha IncendiÃ¡ria']
+[94m[DEBUG][0m    Skills Classe: ['Golpe do Executor']
+[92m[OK][0m P2: Sylas_225 - HP=302, Mana=53
+[94m[DEBUG][0m    Classe: Guerreiro (Força Bruta)
+[94m[DEBUG][0m    Skills Arma: ['Avatar de Sangue']
+[94m[DEBUG][0m    Skills Classe: ['Golpe do Executor']
+
+[95m======================================================================[0m
+[95m[1m  EXECUTANDO BATALHA[0m
+[95m======================================================================[0m
+
+[94m[DEBUG][0m [TRAP] Gwen_242 colocou Armadilha IncendiÃ¡ria
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-16.3 HP)
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-29.7 HP)
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-29.7 HP)
+[96m[INFO][0m Frame 500: P1=237HP P2=181HP | Proj=0 Sum=0
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-16.3 HP)
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-28.2 HP)
+[94m[DEBUG][0m [TRAP] Gwen_242 colocou Armadilha IncendiÃ¡ria
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-29.7 HP)
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-16.3 HP)
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-29.7 HP)
+[96m[INFO][0m Frame 1000: P1=237HP P2=61HP | Proj=0 Sum=0
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-29.7 HP)
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-16.3 HP)
+[94m[DEBUG][0m [PROJETIL] Gwen_242 criou Flecha
+[94m[DEBUG][0m [HIT] Flecha atingiu Sylas_225 (-16.3 HP)
+
+[95m======================================================================[0m
+[95m[1m  RESULTADO DA BATALHA[0m
+[95m======================================================================[0m
+
+[92m[OK][0m VENCEDOR: Gwen_242
+[96m[INFO][0m Frames: 1359 | Tempo Real: 0.82s
+[96m[INFO][0m P1 Final: Gwen_242 - 237/237 HP
+[96m[INFO][0m P2 Final: Sylas_225 - 0/302 HP
+[95m[1m[HEADER][0m 
+EstatÃ­sticas:
+[94m[DEBUG][0m   ProjÃ©teis criados: 11
+[94m[DEBUG][0m   Beams criados: 0
+[94m[DEBUG][0m   Ãreas criadas: 0
+[94m[DEBUG][0m   Summons criados: 0
+[94m[DEBUG][0m   Dano P1: 258
+[94m[DEBUG][0m   Dano P2: 0
+
+[95m======================================================================[0m
+[95m[1m  TESTES CONCLUÃDOS[0m
+[95m======================================================================[0m
+

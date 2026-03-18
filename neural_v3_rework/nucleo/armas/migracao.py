@@ -119,12 +119,29 @@ def construir_schema_arma(payload: dict) -> dict:
         base_mecanica["peso"],
         0.85, 1.15, base_mecanica["peso"],
     )
-    combate["alcance"] = limitar_variacao(combate.get("alcance", base_mecanica["alcance"]), base_mecanica["alcance"], 0.90, 1.08, base_mecanica["alcance"])
-    combate["alcance_minimo"] = limitar_variacao(
-        combate.get("alcance_minimo", base_mecanica["alcance_minimo"]),
-        max(base_mecanica["alcance_minimo"], 0.01),
-        0.85, 1.15, base_mecanica["alcance_minimo"],
-    )
+    if "alcance" in combate_raw:
+        combate["alcance"] = max(0.1, normalizar_float(combate_raw.get("alcance"), base_mecanica["alcance"]))
+    else:
+        combate["alcance"] = limitar_variacao(
+            combate.get("alcance", base_mecanica["alcance"]),
+            base_mecanica["alcance"],
+            0.90,
+            1.08,
+            base_mecanica["alcance"],
+        )
+    if "alcance_minimo" in combate_raw:
+        combate["alcance_minimo"] = max(
+            0.0,
+            normalizar_float(combate_raw.get("alcance_minimo"), base_mecanica["alcance_minimo"]),
+        )
+    else:
+        combate["alcance_minimo"] = limitar_variacao(
+            combate.get("alcance_minimo", base_mecanica["alcance_minimo"]),
+            max(base_mecanica["alcance_minimo"], 0.01),
+            0.85,
+            1.15,
+            base_mecanica["alcance_minimo"],
+        )
     combate["cadencia"] = max(
         0.15,
         limitar_variacao(
@@ -133,17 +150,46 @@ def construir_schema_arma(payload: dict) -> dict:
             0.88, 1.08, base_mecanica["cadencia"],
         ),
     )
-    combate["startup"] = limitar_variacao(combate.get("startup", base_mecanica["startup"]), base_mecanica["startup"], 0.90, 1.18, base_mecanica["startup"])
-    combate["ativo"] = limitar_variacao(combate.get("ativo", base_mecanica["ativo"]), base_mecanica["ativo"], 0.90, 1.12, base_mecanica["ativo"])
-    combate["recovery"] = limitar_variacao(combate.get("recovery", base_mecanica["recovery"]), base_mecanica["recovery"], 0.92, 1.22, base_mecanica["recovery"])
-    combate["critico"] = normalizar_percentual(
-        limitar_variacao(
-            bruto.get("critico", combate.get("critico", base_mecanica["critico"])),
-            max(base_mecanica["critico"], 0.01),
-            0.75, 1.10, base_mecanica["critico"],
-        ),
-        base_mecanica["critico"],
-    )
+    if "startup" in combate_raw:
+        combate["startup"] = max(0.01, normalizar_float(combate_raw.get("startup"), base_mecanica["startup"]))
+    else:
+        combate["startup"] = limitar_variacao(
+            combate.get("startup", base_mecanica["startup"]),
+            base_mecanica["startup"],
+            0.90,
+            1.18,
+            base_mecanica["startup"],
+        )
+    if "ativo" in combate_raw:
+        combate["ativo"] = max(0.01, normalizar_float(combate_raw.get("ativo"), base_mecanica["ativo"]))
+    else:
+        combate["ativo"] = limitar_variacao(
+            combate.get("ativo", base_mecanica["ativo"]),
+            base_mecanica["ativo"],
+            0.90,
+            1.12,
+            base_mecanica["ativo"],
+        )
+    if "recovery" in combate_raw:
+        combate["recovery"] = max(0.01, normalizar_float(combate_raw.get("recovery"), base_mecanica["recovery"]))
+    else:
+        combate["recovery"] = limitar_variacao(
+            combate.get("recovery", base_mecanica["recovery"]),
+            base_mecanica["recovery"],
+            0.92,
+            1.22,
+            base_mecanica["recovery"],
+        )
+    if "critico" in bruto or "critico" in combate_raw:
+        combate["critico"] = normalizar_percentual(
+            bruto.get("critico", combate_raw.get("critico", combate.get("critico", base_mecanica["critico"]))),
+            base_mecanica["critico"],
+        )
+    else:
+        combate["critico"] = normalizar_percentual(
+            combate.get("critico", base_mecanica["critico"]),
+            base_mecanica["critico"],
+        )
     combate["escala_forca"] = limitar_variacao(combate.get("escala_forca", base_mecanica["escala_forca"]), base_mecanica["escala_forca"], 0.88, 1.08, base_mecanica["escala_forca"])
     if base_mecanica["escala_mana"] > 0:
         combate["escala_mana"] = limitar_variacao(combate.get("escala_mana", base_mecanica["escala_mana"]), base_mecanica["escala_mana"], 0.88, 1.10, base_mecanica["escala_mana"])

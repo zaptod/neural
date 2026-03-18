@@ -3,6 +3,8 @@ NEURAL FIGHTS - Tema Visual UI
 Cores e estilos compartilhados entre todas as telas.
 """
 
+from tkinter import ttk
+
 # ============================================================================
 # CORES DO TEMA PRINCIPAL
 # ============================================================================
@@ -72,9 +74,90 @@ CATEGORIAS_CLASSE = {
     "⚡ Híbridos": ["Paladino (Sagrado)", "Druida (Natureza)", "Feiticeiro (Caos)", "Monge (Chi)"],
 }
 
+def apply_ttk_theme(master=None):
+    """Aplica um tema ttk coeso para a interface."""
+    style = ttk.Style(master)
+    try:
+        style.theme_use("clam")
+    except Exception:
+        pass
+
+    style.configure(
+        ".",
+        background=COR_BG_SECUNDARIO,
+        foreground=COR_TEXTO,
+        fieldbackground=COR_BG,
+        bordercolor=COR_BORDA,
+        lightcolor=COR_BG_SECUNDARIO,
+        darkcolor=COR_BG_SECUNDARIO,
+        troughcolor=COR_BG,
+    )
+    style.configure(
+        "TCombobox",
+        fieldbackground=COR_BG,
+        background=COR_BG_SECUNDARIO,
+        foreground=COR_TEXTO,
+        arrowcolor=COR_ACCENT,
+        bordercolor=COR_BORDA,
+        lightcolor=COR_BG_SECUNDARIO,
+        darkcolor=COR_BG_SECUNDARIO,
+        padding=6,
+    )
+    style.map(
+        "TCombobox",
+        fieldbackground=[("readonly", COR_BG), ("focus", COR_BG)],
+        selectbackground=[("readonly", COR_BG_CARD)],
+        selectforeground=[("readonly", COR_TEXTO)],
+        background=[("readonly", COR_BG_SECUNDARIO)],
+        foreground=[("disabled", COR_TEXTO_DIM), ("readonly", COR_TEXTO)],
+    )
+    style.configure(
+        "Treeview",
+        background=COR_BG,
+        fieldbackground=COR_BG,
+        foreground=COR_TEXTO,
+        bordercolor=COR_BORDA,
+        rowheight=28,
+        relief="flat",
+    )
+    style.map(
+        "Treeview",
+        background=[("selected", COR_ACCENT)],
+        foreground=[("selected", "#07131f")],
+    )
+    style.configure(
+        "Treeview.Heading",
+        background=COR_BG_SECUNDARIO,
+        foreground=COR_TEXTO,
+        relief="flat",
+        padding=8,
+        font=("Segoe UI", 9, "bold"),
+    )
+    style.map(
+        "Treeview.Heading",
+        background=[("active", COR_BG_CARD)],
+        foreground=[("active", COR_TEXTO)],
+    )
+    style.configure(
+        "Vertical.TScrollbar",
+        background=COR_BG_CARD,
+        troughcolor=COR_BG,
+        bordercolor=COR_BORDA,
+        arrowcolor=COR_TEXTO,
+        relief="flat",
+    )
+    style.configure(
+        "Horizontal.TScrollbar",
+        background=COR_BG_CARD,
+        troughcolor=COR_BG,
+        bordercolor=COR_BORDA,
+        arrowcolor=COR_TEXTO,
+        relief="flat",
+    )
+
 __all__ = [
     'COR_BG', 'COR_BG_SECUNDARIO', 'COR_HEADER', 'COR_ACCENT',
     'COR_SUCCESS', 'COR_TEXTO', 'COR_TEXTO_DIM', 'COR_WARNING', 'COR_DANGER',
     'COR_BG_CARD', 'COR_BG_CARD_SOFT', 'COR_BORDA', 'COR_TEXTO_SUB',
-    'CORES_RARIDADE', 'CORES_CLASSE', 'COR_P1', 'COR_P2', 'CATEGORIAS_CLASSE',
+    'CORES_RARIDADE', 'CORES_CLASSE', 'COR_P1', 'COR_P2', 'CATEGORIAS_CLASSE', 'apply_ttk_theme',
 ]

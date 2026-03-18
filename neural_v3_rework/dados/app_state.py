@@ -54,6 +54,7 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from modelos import Personagem, Arma
+from utilitarios.encounter_config import DEFAULT_ENCOUNTER_CONFIG, normalize_match_config
 
 # â”€â”€ File paths â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 DATA_DIR          = _HERE
@@ -64,12 +65,7 @@ FILE_TOURNAMENT   = os.path.join(DATA_DIR, "tournament_state.json")
 FILE_GODS         = os.path.join(DATA_DIR, "gods.json")
 
 # â”€â”€ Default values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-DEFAULT_MATCH_CONFIG = {
-    "p1_nome": "",
-    "p2_nome": "",
-    "cenario": "Arena",
-    "best_of": 1,
-}
+DEFAULT_MATCH_CONFIG = deepcopy(DEFAULT_ENCOUNTER_CONFIG)
 
 DEFAULT_TOURNAMENT_STATE = {
     "name": "Campeonato Neural Fights",
@@ -273,12 +269,12 @@ class AppState:
         Update one or more match config fields.
         e.g. state.update_match_config(p1_nome="Caleb", cenario="Forest")
         """
-        self._match.update(kwargs)
+        self._match = normalize_match_config({**self._match, **kwargs})
         self._save_match()
         self._notify("match_config_changed", self._match)
 
     def set_match_config(self, config: dict):
-        self._match = {**DEFAULT_MATCH_CONFIG, **config}
+        self._match = normalize_match_config({**DEFAULT_MATCH_CONFIG, **config})
         self._save_match()
         self._notify("match_config_changed", self._match)
 
@@ -478,7 +474,7 @@ class AppState:
         # Alterar esta ordem farÃ¡ com que todos os personagens tenham peso_arma = 0.
         self._weapons    = self._load_weapons()
         self._characters = self._load_characters()
-        self._match      = self._load_json(FILE_MATCH,      DEFAULT_MATCH_CONFIG)
+        self._match      = normalize_match_config(self._load_json(FILE_MATCH, DEFAULT_MATCH_CONFIG))
         self._tournament = self._load_json(FILE_TOURNAMENT, DEFAULT_TOURNAMENT_STATE)
         self._gods       = self._load_json(FILE_GODS,       DEFAULT_GODS_STATE)
 

@@ -29,6 +29,8 @@ from nucleo.arena import Arena, ARENAS, get_arena, set_arena  # v9.0 Sistema de 
 from ia import CombatChoreographer  # Sistema de Coreografia v5.0
 from nucleo.game_feel import GameFeelManager, HitStopManager  # Sistema de Game Feel v8.0
 from utilitarios.estado_espectador import resolver_destaque_cinematico
+from utilitarios.encounter_config import normalize_match_config
+from simulacao.horde_runtime import HordeWaveManager
 
 # â”€â”€ Mixin imports â”€â”€
 from simulacao.sim_renderer import SimuladorRenderer
@@ -37,6 +39,11 @@ from simulacao.sim_effects import SimuladorEffects
 
 
 class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
+
+
+    def executar(self):
+        """Alias legado para entrypoints que ainda chamam executar()."""
+        return self.run()
 
 
     def run(self):
@@ -160,6 +167,11 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         self.teams = {}     # {team_id: [lutadores]}
         self.vida_visual = {}  # {lutador: vida_visual} (generalizado)
         self.modo_multi = False  # True quando hÃ¡ mais de 2 lutadores
+        self.modo_partida = "duelo"
+        self.encounter_config = {}
+        self.horde_manager = None
+        self.campaign_context = {}
+        self.objective_config = {}
 
         # DES-4: Timer de luta â€” previne lutas infinitas (vencedor por HP ao expirar)
         self.tempo_luta = 0.0
@@ -509,6 +521,20 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 if f and hasattr(f, 'dados'):
                     self.stats_collector.register(f.dados.nome)
                     f.stats_collector = self.stats_collector
+                f.encounter_mode = self.modo_partida
+                f.objective_config = dict(self.objective_config or {})
+                f.campaign_context = dict(self.campaign_context or {})
+                brain = getattr(f, "brain", None)
+                if brain is not None:
+                    brain.encounter_mode = self.modo_partida
+                    brain.objective_config = dict(self.objective_config or {})
+                    brain.campaign_context = dict(self.campaign_context or {})
+
+            # === HORDA v1.0 ===
+            self.horde_manager = None
+            if self.modo_partida == "horda":
+                self.horde_manager = HordeWaveManager(self, self.encounter_config.get("horda_config") or {})
+                self.horde_manager.start()
 
             # === INICIALIZA MAGIC VFX v11.0 ===
             MagicVFXManager.reset()
@@ -526,9 +552,16 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         try:
             from dados.app_state import AppState
             state = AppState.get()
-            config = state.match_config
-            if not config.get("p1_nome") or not config.get("p2_nome"):
-                raise ValueError("match_config vazio â€” nenhum personagem selecionado")
+            config = normalize_match_config(state.match_config)
+            self.encounter_config = config
+            self.modo_partida = config.get("modo_partida", "duelo")
+            self.campaign_context = dict(config.get("campaign_context") or {})
+            self.objective_config = dict(config.get("objective_config") or {})
+            teams_config = config.get("teams") or []
+            has_duel = bool(config.get("p1_nome") and config.get("p2_nome"))
+            has_teams = bool(teams_config)
+            if not has_duel and not has_teams:
+                raise ValueError("match_config vazio â€” nenhum personagem ou equipe selecionada")
         except Exception as e:
             # B05: era _log.debug â€” agora visÃ­vel em produÃ§Ã£o
             _log.warning("[simulacao] Erro ao ler match_config via AppState: %s", e)
@@ -547,11 +580,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
         
         cenario = config.get("cenario", "Arena")
         portrait_mode = config.get("portrait_mode", False)
-        
-        # v13.0: Suporte a multi-fighter via match_config["teams"]
-        teams_config = config.get("teams", None)
+
         if teams_config and isinstance(teams_config, list):
-            # Formato: [{"team_id": 0, "members": ["Nome1", "Nome2"]}, {"team_id": 1, "members": ["Nome3"]}]
             all_fighters = []
             for team_cfg in teams_config:
                 tid = team_cfg.get("team_id", 0)
@@ -560,19 +590,23 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     if dados:
                         lutador = Lutador(dados, 0, 0, team_id=tid)
                         all_fighters.append(lutador)
-            
-            if len(all_fighters) >= 2:
+
+            if all_fighters:
                 self.fighters = all_fighters
-                self.modo_multi = len(all_fighters) > 2
-                # MantÃ©m p1/p2 como aliases do primeiro de cada time
+                teams_distintos = {f.team_id for f in all_fighters}
+                self.modo_multi = len(all_fighters) > 2 or len(teams_distintos) > 1
                 l1 = all_fighters[0]
-                l2 = next((f for f in all_fighters if f.team_id != l1.team_id), all_fighters[1])
+                l2 = next(
+                    (f for f in all_fighters if f.team_id != l1.team_id),
+                    all_fighters[1] if len(all_fighters) > 1 else all_fighters[0],
+                )
                 return l1, l2, cenario, portrait_mode
         
         # Modo legado: 2 lutadores
         l1 = Lutador(montar(config["p1_nome"]), 5.0, 8.0, team_id=0)
         l2 = Lutador(montar(config["p2_nome"]), 19.0, 8.0, team_id=1)
         self.fighters = [l1, l2]
+        self.modo_partida = "duelo"
         self.modo_multi = False
         # CRIT-02 fix: carregar_memoria_rival nunca era chamado em nenhum lugar do
         # cÃ³digo de produÃ§Ã£o, tornando o sistema de aprendizado entre lutas inoperante
@@ -1513,10 +1547,16 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     "TEMPO ESGOTADO!", (255, 200, 50), 36
                 ))
                 self.ativar_slow_motion()
-            
-            # v13.0: Verifica se algum time foi eliminado (last team standing)
+
+            if self.modo_partida == "horda" and self.horde_manager:
+                self.horde_manager.update(dt)
+
             if not self.vencedor:
-                self.vencedor = self._verificar_last_team_standing()
+                if self.modo_partida == "horda":
+                    self.vencedor = self._verificar_vitoria_horda()
+                else:
+                    # v13.0: Verifica se algum time foi eliminado (last team standing)
+                    self.vencedor = self._verificar_last_team_standing()
 
             # Atualiza Sistema de Coreografia v5.0
             if self.choreographer:
@@ -1567,6 +1607,8 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                     else:
                         # No enemy alive â€” skip AI processing to avoid self-targeting bugs
                         f.update(dt, None, todos_lutadores=self.fighters)
+
+            self._atualizar_aliases_principais()
 
             self._atualizar_direcao_cinematica(dt)
             
@@ -1664,6 +1706,43 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 _log.debug("Match stats enfileirados (match_id pendente)")
         except Exception as e:
             _log.warning("_flush_match_stats falhou (nÃ£o-fatal): %s", e)
+
+    def _atualizar_aliases_principais(self):
+        """Mantem p1/p2 coerentes para camera, HUD e sistemas legados."""
+        if not self.fighters:
+            return
+        aliados_principais = [f for f in self.fighters if f.team_id == 0]
+        if aliados_principais:
+            self.p1 = next((f for f in aliados_principais if not f.morto), aliados_principais[0])
+        else:
+            self.p1 = self.fighters[0]
+
+        if self.modo_partida == "horda":
+            inimigos = [f for f in self.fighters if f.team_id != getattr(self.p1, "team_id", 0) and not f.morto]
+            self.p2 = inimigos[0] if inimigos else (aliados_principais[1] if len(aliados_principais) > 1 else self.p1)
+            return
+
+        inimigo = next(
+            (f for f in self.fighters if f.team_id != getattr(self.p1, "team_id", 0)),
+            None,
+        )
+        self.p2 = inimigo or (self.fighters[1] if len(self.fighters) > 1 else self.p1)
+
+    def _verificar_vitoria_horda(self):
+        if not self.horde_manager:
+            return None
+        herois_vivos = [f for f in self.fighters if f.team_id != self.horde_manager.team_id and not f.morto]
+        monstros_vivos = [f for f in self.fighters if f.team_id == self.horde_manager.team_id and not f.morto]
+        if not herois_vivos:
+            return self.horde_manager.label
+        if self.horde_manager.completed and not monstros_vivos:
+            if len(herois_vivos) == 1:
+                return herois_vivos[0].dados.nome
+            nomes = ", ".join(f.dados.nome for f in herois_vivos)
+            return f"Expedicao ({nomes})"
+        if self.horde_manager.failed:
+            return self.horde_manager.label
+        return None
     
     def _processar_efeitos_arena(self, dt: float) -> None:
         """
@@ -1863,6 +1942,22 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
     
     def _determinar_vencedor_por_tempo(self):
         """Determina vencedor por HP% quando o tempo esgota."""
+        if self.modo_partida == "horda" and self.horde_manager:
+            herois = [f for f in self.fighters if f.team_id != self.horde_manager.team_id]
+            monstros = [f for f in self.fighters if f.team_id == self.horde_manager.team_id]
+            hp_herois = sum(max(0, f.vida) for f in herois)
+            hp_herois_max = sum(max(1, f.vida_max) for f in herois)
+            hp_monstros = sum(max(0, f.vida) for f in monstros)
+            hp_monstros_max = sum(max(1, f.vida_max) for f in monstros) or 1
+            pct_herois = hp_herois / max(hp_herois_max, 1)
+            pct_monstros = hp_monstros / hp_monstros_max
+            if pct_herois >= pct_monstros:
+                vivos = [f for f in herois if not f.morto]
+                if len(vivos) == 1:
+                    return vivos[0].dados.nome
+                nomes = ", ".join(f.dados.nome for f in vivos) if vivos else "Expedicao"
+                return f"Expedicao ({nomes})"
+            return self.horde_manager.label
         if not self.modo_multi:
             # Modo legado
             pct_p1 = self.p1.vida / max(self.p1.vida_max, 1)

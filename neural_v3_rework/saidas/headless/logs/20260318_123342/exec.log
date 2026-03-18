@@ -1,0 +1,16 @@
+pygame 2.6.1 (SDL 2.28.4, Python 3.12.10)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+Traceback (most recent call last):
+  File "c:\Users\birul\Desktop\new\neural\neural_v3_rework\ferramentas\harness_tatico.py", line 546, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "c:\Users\birul\Desktop\new\neural\neural_v3_rework\ferramentas\harness_tatico.py", line 527, in main
+    report = executar_template(template["id"], runs=runs, seed=args.seed + idx * 17)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\birul\Desktop\new\neural\neural_v3_rework\ferramentas\harness_tatico.py", line 478, in executar_template
+    report = agregar_relatorio(report_template, lutas)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\birul\Desktop\new\neural\neural_v3_rework\ferramentas\harness_tatico.py", line 395, in agregar_relatorio
+    papel_lookup[slot["personagem"].nome] = slot["papel"]
+                 ~~~~^^^^^^^^^^^^^^
+KeyError: 'personagem'

@@ -25,8 +25,10 @@ from pipeline_video.character_generator import (
     set_coverage_rotation,
 )
 from pipeline_video.config import OUTPUT_DIR, PLATFORMS
+from pipeline_video.encounter_recorder import EncounterRecorder
 from pipeline_video.fight_recorder import FightRecorder
 from pipeline_video.metadata_generator import (
+    generate_encounter_all_platforms,
     format_all_platform_copies,
     format_metadata_copy_text,
     format_metadata_plain_text,
@@ -34,6 +36,8 @@ from pipeline_video.metadata_generator import (
     generate_story_all_platforms,
 )
 from pipeline_video.roulette_status import gerar_story_roleta_status, slugify_comment
+from ferramentas.harness_tatico import montar_template_selecionado
+from utilitarios.encounter_config import build_horde_match_config, build_team_match_config
 
 
 def run_batch(
@@ -43,6 +47,8 @@ def run_batch(
     coverage_rotation: bool = True,
     video_format: str = "comment_roulette",
     comment: str | None = None,
+    encounter_mode: str = "duelo",
+    template_id: str | None = None,
 ) -> list[dict]:
     """
     Gera um batch completo de videos, uma luta por plataforma.
@@ -73,22 +79,34 @@ def run_batch(
         _log.info("=" * 60)
 
         story = None
-        if video_format == "comment_roulette":
+        if encounter_mode == "duelo" and video_format == "comment_roulette":
             story = gerar_story_roleta_status(comment, fight_index=idx)
             c1, a1 = story["fighter1"], story["weapon1"]
             c2, a2 = story["fighter2"], story["weapon2"]
-        else:
+        elif encounter_mode == "duelo":
             c1, a1, c2, a2 = gerar_par_de_lutadores(generation_mode=generation_mode)
+        else:
+            selecao = montar_template_selecionado(template_id or ("esquadrao_balanceado_3v3" if encounter_mode == "equipes" else "corredor_contra_horda"))
+            c1 = a1 = c2 = a2 = None
 
-        nome1 = c1["nome"]
-        nome2 = c2["nome"]
-        classe1 = c1["classe"]
-        classe2 = c2["classe"]
-        gap_abs, gap_rel = _gap_poder(c1, a1, c2, a2)
         cenario = random.choice(cenarios)
+        if encounter_mode == "duelo":
+            nome1 = c1["nome"]
+            nome2 = c2["nome"]
+            classe1 = c1["classe"]
+            classe2 = c2["classe"]
+            gap_abs, gap_rel = _gap_poder(c1, a1, c2, a2)
+        else:
+            nome1 = selecao["template"].get("team_a", {}).get("label", "Time 1")
+            nome2 = selecao["template"].get("team_b", {}).get("label", "Time 2") if encounter_mode == "equipes" else str((selecao.get("horda_config") or {}).get("label", "Horda"))
+            classe1 = "Equipe"
+            classe2 = "Equipe" if encounter_mode == "equipes" else "Horda"
+            gap_abs = 0.0
+            gap_rel = 0.0
 
         _log.info("  %s (%s) vs %s (%s) - %s", nome1, classe1, nome2, classe2, cenario)
-        _log.info("  Balanceamento: gap_poder=%.2f (%.1f%%)", gap_abs, gap_rel * 100.0)
+        if encounter_mode == "duelo":
+            _log.info("  Balanceamento: gap_poder=%.2f (%.1f%%)", gap_abs, gap_rel * 100.0)
 
         plat_dir = batch_dir / platform
         plat_dir.mkdir(exist_ok=True)
@@ -97,20 +115,73 @@ def run_batch(
             if story:
                 fight_name = f"{platform}_{slugify_comment(story['comment'])}_{nome1.split()[0]}_vs_{nome2.split()[0]}"
             else:
-                fight_name = f"{platform}_{nome1.split()[0]}_vs_{nome2.split()[0]}"
+                fight_name = f"{platform}_{encounter_mode}_{nome1.split()[0]}_vs_{nome2.split()[0]}"
             fight_name = "".join(ch if ch.isalnum() or ch in "_-" else "_" for ch in fight_name)
             video_path = str(plat_dir / f"{fight_name}.mp4")
 
-            recorder = FightRecorder(
-                c1,
-                a1,
-                c2,
-                a2,
-                cenario=cenario,
-                output_path=video_path,
-                story_mode="roleta_status" if story else "classic",
-                roulette_story=story,
-            )
+            if encounter_mode == "duelo":
+                recorder = FightRecorder(
+                    c1,
+                    a1,
+                    c2,
+                    a2,
+                    cenario=cenario,
+                    output_path=video_path,
+                    story_mode="roleta_status" if story else "classic",
+                    roulette_story=story,
+                )
+            else:
+                if encounter_mode == "equipes":
+                    encounter_config = build_team_match_config(
+                        [
+                            {
+                                "team_id": 0,
+                                "label": selecao["template"].get("team_a", {}).get("label", "Time 1"),
+                                "members": [slot["personagem"].nome for slot in selecao["team_a"]],
+                            },
+                            {
+                                "team_id": 1,
+                                "label": selecao["template"].get("team_b", {}).get("label", "Time 2"),
+                                "members": [slot["personagem"].nome for slot in selecao["team_b"]],
+                            },
+                        ],
+                        cenario=selecao["template"].get("cenario", cenario),
+                        extra={"portrait_mode": True},
+                    )
+                    extra_slots = selecao["team_a"] + selecao["team_b"]
+                else:
+                    encounter_config = build_horde_match_config(
+                        [
+                            {
+                                "team_id": 0,
+                                "label": selecao["template"].get("team_a", {}).get("label", "Expedicao"),
+                                "members": [slot["personagem"].nome for slot in selecao["team_a"]],
+                            }
+                        ],
+                        selecao.get("horda_config") or {},
+                        cenario=selecao["template"].get("cenario", cenario),
+                        extra={"portrait_mode": True},
+                    )
+                    extra_slots = selecao["team_a"]
+                extra_chars = []
+                extra_weapons = []
+                char_names = set()
+                weapon_names = set()
+                for slot in extra_slots:
+                    personagem = slot["personagem"]
+                    arma = slot["arma"]
+                    if personagem.nome not in char_names:
+                        char_names.add(personagem.nome)
+                        extra_chars.append(personagem)
+                    if arma.nome not in weapon_names:
+                        weapon_names.add(arma.nome)
+                        extra_weapons.append(arma)
+                recorder = EncounterRecorder(
+                    encounter_config,
+                    extra_characters=extra_chars,
+                    extra_weapons=extra_weapons,
+                    output_path=video_path,
+                )
             recorder.record()
         except Exception as exc:
             _log.error("  ERRO na gravacao: %s", exc)
@@ -134,7 +205,11 @@ def run_batch(
         all_meta = (
             generate_story_all_platforms(story, vencedor=vencedor)
             if story
-            else generate_all_platforms(nome1, nome2, classe1, classe2, vencedor)
+            else (
+                generate_all_platforms(nome1, nome2, classe1, classe2, vencedor)
+                if encounter_mode == "duelo"
+                else generate_encounter_all_platforms(nome1, nome2, mode=encounter_mode, winner=vencedor)
+            )
         )
         meta = all_meta[platform]
         meta_file = plat_dir / f"{fight_name}_meta.json"
@@ -163,6 +238,7 @@ def run_batch(
             "platform": platform,
             "fighter1": {"nome": nome1, "classe": classe1},
             "fighter2": {"nome": nome2, "classe": classe2},
+            "encounter_mode": encounter_mode,
             "winner": vencedor,
             "duration": recorder.duration,
             "frames": recorder.total_frames,

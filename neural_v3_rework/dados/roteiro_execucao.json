@@ -1,0 +1,43 @@
+{
+  "fases": [
+    {
+      "id": "infra_postos",
+      "nome": "Infra dos Postos",
+      "objetivo": "Garantir 3 postos funcionais com saída padronizada.",
+      "testes": [
+        "headless_rapido",
+        "simulacao_launcher",
+        "pipeline_batch_curto"
+      ]
+    },
+    {
+      "id": "pacotes_taticos",
+      "nome": "Pacotes Táticos",
+      "objetivo": "Organizar papéis, armas, personalidades e skills em blocos reutilizáveis.",
+      "testes": [
+        "1v1",
+        "grupo_vs_grupo",
+        "grupo_vs_horda"
+      ]
+    },
+    {
+      "id": "harness_metricas",
+      "nome": "Harness de Métricas",
+      "objetivo": "Medir win rate, pacing, dano, cura, sobrevivência e pressão.",
+      "testes": [
+        "relatorio_headless",
+        "comparacao_runs"
+      ]
+    },
+    {
+      "id": "balanceamento_estrutural",
+      "nome": "Balanceamento Estrutural",
+      "objetivo": "Balancear por pacote, não por personagem isolado.",
+      "testes": [
+        "antes_depois_headless",
+        "amostra_visual",
+        "validacao_pipeline"
+      ]
+    }
+  ]
+}

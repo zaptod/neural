@@ -1,0 +1,55 @@
+{
+  "versao": "1.0",
+  "descricao": "Fundacao data-first dos mapas de campanha.",
+  "mapas": [
+    {
+      "id": "ruinas_setentrionais",
+      "nome": "Ruinas Setentrionais",
+      "arena_ref": "Coliseu",
+      "bounds": { "largura": 42, "altura": 26 },
+      "spawn_points": {
+        "jogadores": [[6, 13], [8, 11], [8, 15]],
+        "inimigos": [[35, 13], [33, 11], [33, 15]]
+      },
+      "nav": {
+        "cell_size": 1.0,
+        "blocos": [
+          { "x": 18, "y": 7, "w": 2, "h": 5 },
+          { "x": 22, "y": 14, "w": 3, "h": 4 }
+        ],
+        "zonas": [
+          { "id": "entrada", "x": 3, "y": 8, "w": 8, "h": 10 },
+          { "id": "altar", "x": 27, "y": 9, "w": 8, "h": 8 }
+        ]
+      },
+      "objetivos": [
+        { "id": "altar_norte", "tipo": "interacao", "x": 31, "y": 13 }
+      ]
+    },
+    {
+      "id": "vale_fendido",
+      "nome": "Vale Fendido",
+      "arena_ref": "Campo de Batalha",
+      "bounds": { "largura": 54, "altura": 30 },
+      "spawn_points": {
+        "jogadores": [[7, 15], [9, 12], [9, 18]],
+        "inimigos": [[46, 15], [44, 12], [44, 18]]
+      },
+      "nav": {
+        "cell_size": 1.0,
+        "blocos": [
+          { "x": 20, "y": 0, "w": 2, "h": 12 },
+          { "x": 20, "y": 18, "w": 2, "h": 12 },
+          { "x": 31, "y": 6, "w": 3, "h": 6 }
+        ],
+        "zonas": [
+          { "id": "garganta", "x": 19, "y": 12, "w": 4, "h": 6 },
+          { "id": "ponte", "x": 26, "y": 12, "w": 6, "h": 6 }
+        ]
+      },
+      "objetivos": [
+        { "id": "farol", "tipo": "defesa", "x": 28, "y": 15 }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "versao": "1.0",
+  "descricao": "Missoes base da campanha para a fundacao do sistema.",
+  "missoes": [
+    {
+      "id": "acender_o_altar",
+      "nome": "Acender o Altar",
+      "mapa_id": "ruinas_setentrionais",
+      "tipo": "objetivo_interativo",
+      "objetivos": [
+        { "id": "alcancar_altar_norte", "tipo": "interagir", "target_id": "altar_norte" }
+      ],
+      "gatilhos": [
+        { "tipo": "spawn", "preset_horda": "sobrevivencia_basica", "ao_entrar_zona": "altar" }
+      ]
+    },
+    {
+      "id": "segurar_a_ponte",
+      "nome": "Segurar a Ponte",
+      "mapa_id": "vale_fendido",
+      "tipo": "defesa_objetivo",
+      "objetivos": [
+        { "id": "proteger_farol", "tipo": "defender", "target_id": "farol", "duracao_seg": 90 }
+      ],
+      "gatilhos": [
+        { "tipo": "ondas", "preset_horda": "corredor_infectado", "ao_iniciar": true }
+      ]
+    }
+  ]
+}

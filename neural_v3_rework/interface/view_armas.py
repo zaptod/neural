@@ -20,6 +20,18 @@ from nucleo import SKILL_DB
 from nucleo.skills import ClasseForcaMagia, ClasseUtilidadeMagia, get_skill_classification, listar_skills_filtradas
 from nucleo.armas import FAMILIAS_ARMA_V2, get_family_spec, legacy_type_from_family, inferir_familia
 from interface.theme import COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS, COR_TEXTO, COR_TEXTO_DIM, CORES_RARIDADE
+from interface.ui_components import (
+    build_labeled_combobox,
+    build_labeled_entry,
+    InlineFeedbackBar,
+    UICard,
+    build_page_header,
+    build_radio_option_card,
+    build_section_header,
+    make_primary_button,
+    make_secondary_button,
+    render_stat_grid,
+)
 
 
 FAMILIAS_FORJA = list(FAMILIAS_ARMA_V2.keys())
@@ -182,6 +194,7 @@ class TelaArmas(tk.Frame):
 
         main = tk.Frame(self, bg=COR_BG)
         main.pack(fill="both", expand=True, padx=14, pady=10)
+        self._main_area = main
 
         paned = tk.PanedWindow(
             main,
@@ -194,14 +207,15 @@ class TelaArmas(tk.Frame):
             bg=COR_BG,
         )
         paned.pack(fill="both", expand=True)
+        self._paned_main = paned
 
-        self.frame_wizard = tk.Frame(main, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_wizard = UICard(main, bg=COR_BG_SECUNDARIO, border="#284564")
         self.frame_wizard.grid_rowconfigure(1, weight=1)
         self.frame_wizard.grid_columnconfigure(0, weight=1)
 
         self.frame_centro = tk.Frame(main, bg=COR_BG)
 
-        self.frame_lista = tk.Frame(main, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_lista = UICard(main, bg=COR_BG_SECUNDARIO, border="#284564")
 
         paned.add(self.frame_wizard, minsize=320, stretch="always")
         paned.add(self.frame_centro, minsize=360, stretch="always")
@@ -209,6 +223,7 @@ class TelaArmas(tk.Frame):
 
         self.after(100, lambda: paned.sash_place(0, 420, 0))
         self.after(140, lambda: paned.sash_place(1, 920, 0))
+        main.bind("<Configure>", self._on_main_resize)
         
         # Configura cada seção
         self.setup_wizard()
@@ -218,7 +233,75 @@ class TelaArmas(tk.Frame):
         # Inicia no passo 1
         self.mostrar_passo(1)
 
+    def _on_main_resize(self, event=None):
+        """Rebalanceia colunas do layout e largura da tabela em resize."""
+        width = event.width if event else self._main_area.winfo_width()
+        if width < 720 or not hasattr(self, "_paned_main"):
+            return
+
+        left = max(300, min(int(width * 0.35), 460))
+        right_sidebar = max(220, min(int(width * 0.24), 320))
+        right = max(left + 280, width - right_sidebar)
+        right = min(right, width - 180)
+
+        try:
+            self._paned_main.sash_place(0, left, 0)
+            self._paned_main.sash_place(1, right, 0)
+        except Exception:
+            pass
+
+        self._ajustar_colunas_tree()
+
+    def _ajustar_colunas_tree(self):
+        if not hasattr(self, "tree"):
+            return
+        width = self.tree.winfo_width()
+        if width < 180:
+            return
+
+        cols = getattr(self, "_tree_cols", None)
+        if cols:
+            nome_col, familia_col, acabamento_col = cols
+            nome_w = max(110, int(width * 0.42))
+            familia_w = max(90, int(width * 0.28))
+            acabamento_w = max(90, width - nome_w - familia_w - 8)
+            self.tree.column(nome_col, width=nome_w)
+            self.tree.column(familia_col, width=familia_w)
+            self.tree.column(acabamento_col, width=acabamento_w)
+            return
+
+        nome_w = max(110, int(width * 0.42))
+        familia_w = max(90, int(width * 0.28))
+        acabamento_w = max(90, width - nome_w - familia_w - 8)
+
+        self.tree.column("Nome", width=nome_w)
+        self.tree.column("FamÃ­lia", width=familia_w)
+        self.tree.column("Acabamento", width=acabamento_w)
+
     def criar_header(self):
+        _header, _title_wrap, right_slot = build_page_header(
+            self,
+            "FORJA DE ARMAS",
+            "Construa armas v2 com familia, perfil mecanico, visual e kit magico legivel.",
+            lambda: self.controller.show_frame("MenuPrincipal"),
+            button_bg=COR_ACCENT,
+            button_fg=COR_TEXTO,
+        )
+
+        self.frame_progresso = tk.Frame(right_slot, bg=COR_HEADER)
+        self.frame_progresso.pack(anchor="e", pady=10)
+
+        self.labels_progresso = []
+        nomes_passos = ["Base", "Acabamento", "Visual", "Magia", "Finalizar"]
+        for i, nome in enumerate(nomes_passos, 1):
+            cor = COR_SUCCESS if i == 1 else COR_TEXTO_DIM
+            lbl = tk.Label(
+                self.frame_progresso, text=f"{i}.{nome}",
+                font=("Segoe UI", 9, "bold"), bg=COR_HEADER, fg=cor, padx=4
+            )
+            lbl.pack(side="left", padx=4, pady=28)
+            self.labels_progresso.append(lbl)
+        return
         """Cria o header com navegação"""
         header = tk.Frame(self, bg=COR_HEADER, height=88)
         header.pack(fill="x", side="top")
@@ -324,17 +407,15 @@ class TelaArmas(tk.Frame):
         frame_nav.grid_columnconfigure(0, weight=1)
         frame_nav.grid_columnconfigure(1, weight=1)
         
-        self.btn_anterior = tk.Button(
-            frame_nav, text="< Anterior", bg=COR_BG, fg=COR_TEXTO,
-            font=("Arial", 10), bd=0, padx=20, pady=8,
-            command=self.passo_anterior
+        self.btn_anterior = make_secondary_button(
+            frame_nav, "< Anterior", self.passo_anterior,
+            bg=COR_BG, fg=COR_TEXTO, font=("Arial", 10), padx=20, pady=8
         )
         self.btn_anterior.grid(row=0, column=0, sticky="w")
         
-        self.btn_proximo = tk.Button(
-            frame_nav, text="Proximo >", bg=COR_ACCENT, fg=COR_TEXTO,
-            font=("Arial", 10, "bold"), bd=0, padx=20, pady=8,
-            command=self.passo_proximo
+        self.btn_proximo = make_primary_button(
+            frame_nav, "Proximo >", self.passo_proximo,
+            bg=COR_ACCENT, fg=COR_TEXTO, font=("Arial", 10, "bold"), padx=20, pady=8
         )
         self.btn_proximo.grid(row=0, column=1, sticky="e")
 
@@ -346,17 +427,11 @@ class TelaArmas(tk.Frame):
 
     def setup_preview(self):
         """Configura o preview da arma"""
-        top = tk.Frame(self.frame_centro, bg=COR_BG)
-        top.pack(fill="x", padx=10, pady=(8, 4))
-
-        tk.Label(
-            top, text="PREVIEW DA ARMA",
-            font=("Bahnschrift SemiBold", 18), bg=COR_BG, fg=COR_TEXTO, anchor="w"
-        ).pack(fill="x")
-        tk.Label(
-            top, text="Acompanhe silhueta, raridade, familia e consistencia visual enquanto edita.",
-            font=("Segoe UI", 9), bg=COR_BG, fg=COR_TEXTO_DIM, anchor="w"
-        ).pack(fill="x", pady=(2, 0))
+        build_section_header(
+            self.frame_centro,
+            "PREVIEW DA ARMA",
+            "Acompanhe silhueta, raridade, familia e consistencia visual enquanto edita.",
+        )
         
         # Canvas do preview — expande com a janela
         self.canvas_preview = tk.Canvas(
@@ -376,7 +451,7 @@ class TelaArmas(tk.Frame):
         self.lbl_validacao.pack()
         
         # Resumo dos stats
-        self.frame_stats = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_stats = UICard(self.frame_centro, bg=COR_BG_SECUNDARIO, border="#284564")
         self.frame_stats.pack(fill="x", padx=10, pady=(4, 8))
         
         self.criar_resumo_stats()
@@ -396,34 +471,26 @@ class TelaArmas(tk.Frame):
             ("Skills", str(len(self.dados_arma["habilidades"]))),
         ]
         
-        for i, (nome, valor) in enumerate(stats):
-            row = i // 3
-            col = i % 3
-            
-            frame = tk.Frame(self.frame_stats, bg=COR_BG_SECUNDARIO)
-            frame.grid(row=row, column=col, padx=10, pady=5, sticky="w")
-            
-            tk.Label(
-                frame, text=f"{nome}:", 
-                font=("Arial", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM
-            ).pack(side="left")
-            
-            cor = CORES_RARIDADE.get(valor, COR_TEXTO) if nome == "Acabamento" else COR_TEXTO
-            tk.Label(
-                frame, text=valor, 
-                font=("Arial", 9, "bold"), bg=COR_BG_SECUNDARIO, fg=cor
-            ).pack(side="left", padx=5)
+        render_stat_grid(
+            self.frame_stats,
+            stats,
+            columns=3,
+            bg=COR_BG_SECUNDARIO,
+            value_color_resolver=lambda nome, valor: CORES_RARIDADE.get(valor, COR_TEXTO) if nome == "Acabamento" else COR_TEXTO,
+        )
 
     def setup_lista(self):
         """Configura a lista de armas existentes"""
-        tk.Label(
-            self.frame_lista, text="ARSENAL",
-            font=("Bahnschrift SemiBold", 18), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
-        ).pack(pady=(16, 4))
-        tk.Label(
-            self.frame_lista, text="Edite, duplique ou limpe armas do catalogo atual.",
-            font=("Segoe UI", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM
-        ).pack(pady=(0, 10))
+        build_section_header(
+            self.frame_lista,
+            "ARSENAL",
+            "Edite, duplique ou limpe armas do catalogo atual.",
+            bg=COR_BG_SECUNDARIO,
+        )
+
+        self.feedback_lista = InlineFeedbackBar(self.frame_lista, bg=COR_BG, border="#35567f")
+        self.feedback_lista.pack(fill="x", padx=10, pady=(2, 8))
+        self.feedback_lista.set_message("Pronto para forjar uma nova arma ou editar uma já existente.", tone="info")
         
         # Treeview com scroll
         frame_tree = tk.Frame(self.frame_lista, bg=COR_BG_SECUNDARIO)
@@ -433,6 +500,7 @@ class TelaArmas(tk.Frame):
         scroll.pack(side="right", fill="y")
         
         cols = ("Nome", "Família", "Acabamento")
+        self._tree_cols = cols
         self.tree = ttk.Treeview(
             frame_tree, columns=cols, show="headings", height=15,
             yscrollcommand=scroll.set
@@ -445,27 +513,25 @@ class TelaArmas(tk.Frame):
         
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.selecionar_arma)
+        self.tree.bind("<Configure>", lambda _e: self._ajustar_colunas_tree())
         
         # Botões
         frame_btns = tk.Frame(self.frame_lista, bg=COR_BG_SECUNDARIO)
         frame_btns.pack(fill="x", padx=10, pady=10)
         
-        tk.Button(
-            frame_btns, text="Deletar", bg="#cc3333", fg=COR_TEXTO,
-            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
-            command=self.deletar_arma
+        make_primary_button(
+            frame_btns, "Deletar", self.deletar_arma,
+            bg="#cc3333", fg=COR_TEXTO, font=("Segoe UI", 9, "bold"), padx=10, pady=6
         ).pack(side="left")
-        
-        tk.Button(
-            frame_btns, text="Editar", bg=COR_SUCCESS, fg=COR_BG,
-            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
-            command=self.editar_arma
+
+        make_primary_button(
+            frame_btns, "Editar", self.editar_arma,
+            bg=COR_SUCCESS, fg=COR_BG, font=("Segoe UI", 9, "bold"), padx=10, pady=6
         ).pack(side="right")
-        
-        tk.Button(
-            frame_btns, text="Nova", bg=COR_ACCENT, fg=COR_TEXTO,
-            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
-            command=self.nova_arma
+
+        make_primary_button(
+            frame_btns, "Nova", self.nova_arma,
+            bg=COR_ACCENT, fg=COR_TEXTO, font=("Segoe UI", 9, "bold"), padx=10, pady=6
         ).pack(side="right", padx=5)
 
     # =========================================================================
@@ -523,20 +589,16 @@ class TelaArmas(tk.Frame):
         self.lbl_passo_titulo.config(text="1. BASE DA ARMA")
         self.lbl_passo_desc.config(text="Escolha a familia da arma. Ela define alcance, cadencia, silhueta e comportamento principal.")
 
-        frame_nome = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
-        frame_nome.pack(fill="x", pady=(0, 15))
-
-        tk.Label(
-            frame_nome, text="Nome da Arma:",
-            font=("Arial", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
-        ).pack(anchor="w")
-
-        self.entry_nome = tk.Entry(
-            frame_nome, font=("Arial", 12), bg=COR_BG, fg=COR_TEXTO,
-            insertbackground=COR_TEXTO
+        _frame_nome, self.entry_nome = build_labeled_entry(
+            self.frame_conteudo_passo,
+            "Nome da Arma:",
+            value=self.dados_arma["nome"],
+            bg=COR_BG_SECUNDARIO,
+            entry_bg=COR_BG,
+            entry_fg=COR_TEXTO,
+            font=("Arial", 12),
+            label_font=("Arial", 10),
         )
-        self.entry_nome.pack(fill="x", pady=5)
-        self.entry_nome.insert(0, self.dados_arma["nome"])
         self.entry_nome.bind("<KeyRelease>", lambda e: self.atualizar_dado("nome", self.entry_nome.get()))
 
         tk.Label(
@@ -554,23 +616,20 @@ class TelaArmas(tk.Frame):
             row = i // 2
             col = i % 2
 
-            frame = tk.Frame(frame_tipos, bg=COR_BG, bd=1, relief="solid")
-            frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-
-            rb = tk.Radiobutton(
-                frame, text=dados["nome"], variable=self.var_tipo, value=familia,
-                font=("Arial", 11, "bold"), bg=COR_BG, fg=COR_TEXTO,
-                selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
-                command=lambda f=familia: self.selecionar_tipo(f)
-            )
-            rb.pack(anchor="w", padx=10, pady=(5, 0))
-
             resumo = f"{dados['categoria'].replace('_', ' ')} | {', '.join(dados['subtipos'][:3])}"
-            tk.Label(
-                frame, text=resumo,
-                font=("Arial", 8), bg=COR_BG, fg=COR_TEXTO_DIM,
-                wraplength=160, justify="left"
-            ).pack(anchor="w", padx=10, pady=(0, 5))
+            frame, _rb = build_radio_option_card(
+                frame_tipos,
+                text=dados["nome"],
+                value=familia,
+                variable=self.var_tipo,
+                description=resumo,
+                command=lambda f=familia: self.selecionar_tipo(f),
+                accent_fg=COR_TEXTO,
+                bg=COR_BG,
+                select_bg=COR_BG_SECUNDARIO,
+                wraplength=160,
+            )
+            frame.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
         frame_tipos.columnconfigure(0, weight=1)
         frame_tipos.columnconfigure(1, weight=1)
@@ -580,11 +639,13 @@ class TelaArmas(tk.Frame):
             font=("Arial", 10, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
         ).pack(anchor="w", pady=(14, 4))
 
-        frame_estilo_t1 = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
-        frame_estilo_t1.pack(fill="x")
-
-        self.combo_estilo_t1 = ttk.Combobox(frame_estilo_t1, state="readonly", font=("Arial", 11))
-        self.combo_estilo_t1.pack(fill="x", ipady=4)
+        _frame_estilo_t1, self.combo_estilo_t1 = build_labeled_combobox(
+            self.frame_conteudo_passo,
+            "",
+            values=[],
+            bg=COR_BG_SECUNDARIO,
+            combo_font=("Arial", 11),
+        )
 
         def _atualizar_estilos_t1(familia):
             spec = get_family_spec(familia)
@@ -646,30 +707,22 @@ class TelaArmas(tk.Frame):
 
         for raridade in ACABAMENTOS_FORJA:
             cor = CORES_RARIDADE[raridade]
-
-            frame = tk.Frame(self.frame_conteudo_passo, bg=COR_BG, bd=2, relief="ridge")
-            frame.pack(fill="x", pady=3)
-
-            header = tk.Frame(frame, bg=COR_BG)
-            header.pack(fill="x", padx=10, pady=5)
-
-            rb = tk.Radiobutton(
-                header, text=raridade, variable=self.var_raridade, value=raridade,
-                font=("Arial", 12, "bold"), bg=COR_BG, fg=cor,
-                selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
-                command=lambda r=raridade: self.selecionar_raridade(r)
+            frame, _rb = build_radio_option_card(
+                self.frame_conteudo_passo,
+                text=raridade,
+                value=raridade,
+                variable=self.var_raridade,
+                description=descricoes[raridade],
+                command=lambda r=raridade: self.selecionar_raridade(r),
+                accent_fg=cor,
+                bg=COR_BG,
+                select_bg=COR_BG_SECUNDARIO,
+                meta_text=f"Brilho {cor} | Acabamento visual",
+                wraplength=320,
+                relief="ridge",
+                borderwidth=2,
             )
-            rb.pack(side="left")
-
-            tk.Label(
-                header, text=f"Brilho {cor} | Acabamento visual",
-                font=("Arial", 9), bg=COR_BG, fg=COR_TEXTO_DIM
-            ).pack(side="right")
-
-            tk.Label(
-                frame, text=descricoes[raridade],
-                font=("Arial", 9), bg=COR_BG, fg=COR_TEXTO_DIM
-            ).pack(anchor="w", padx=10, pady=(0, 5))
+            frame.pack(fill="x", pady=3)
 
     def selecionar_raridade(self, raridade):
         """Atualiza apenas o acabamento visual da arma."""
@@ -809,30 +862,30 @@ class TelaArmas(tk.Frame):
         # Filtros por leitura humana da magia
         filt_f = tk.Frame(left, bg=COR_BG_SECUNDARIO)
         filt_f.pack(fill="x", pady=(0, 6))
-        tk.Label(filt_f, text="Filtro:", bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM,
-                 font=("Arial", 9)).pack(side="left")
         elementos = ["Todos"] + sorted({v.get("elemento", "") for v in SKILL_DB.values() if v.get("elemento")})
-        self._filtro_elemento = ttk.Combobox(filt_f, values=elementos, state="readonly", width=14)
-        self._filtro_elemento.set("Todos")
-        self._filtro_elemento.pack(side="left", padx=4)
+        _filtro_wrap_elemento, self._filtro_elemento = build_labeled_combobox(
+            filt_f, "Elemento:", values=elementos, current="Todos", bg=COR_BG_SECUNDARIO, combo_font=("Arial", 9)
+        )
+        _filtro_wrap_elemento.pack(side="left", padx=4)
 
         tipos = ["Todos"] + sorted({v.get("tipo", "") for v in SKILL_DB.values() if v.get("tipo") and v["tipo"] != "NADA"})
-        self._filtro_tipo = ttk.Combobox(filt_f, values=tipos, state="readonly", width=12)
-        self._filtro_tipo.set("Todos")
-        self._filtro_tipo.pack(side="left", padx=2)
+        _filtro_wrap_tipo, self._filtro_tipo = build_labeled_combobox(
+            filt_f, "Tipo:", values=tipos, current="Todos", bg=COR_BG_SECUNDARIO, combo_font=("Arial", 9)
+        )
+        _filtro_wrap_tipo.pack(side="left", padx=2)
 
         filt_f2 = tk.Frame(left, bg=COR_BG_SECUNDARIO)
         filt_f2.pack(fill="x", pady=(0, 8))
-        tk.Label(filt_f2, text="Classe:", bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM,
-                 font=("Arial", 9)).pack(side="left")
         forcas = ["Todos"] + [c.value for c in ClasseForcaMagia]
         utilidades = ["Todos"] + [c.value for c in ClasseUtilidadeMagia]
-        self._filtro_forca = ttk.Combobox(filt_f2, values=forcas, state="readonly", width=14)
-        self._filtro_forca.set("Todos")
-        self._filtro_forca.pack(side="left", padx=4)
-        self._filtro_utilidade = ttk.Combobox(filt_f2, values=utilidades, state="readonly", width=15)
-        self._filtro_utilidade.set("Todos")
-        self._filtro_utilidade.pack(side="left", padx=2)
+        _filtro_wrap_forca, self._filtro_forca = build_labeled_combobox(
+            filt_f2, "Forca:", values=forcas, current="Todos", bg=COR_BG_SECUNDARIO, combo_font=("Arial", 9)
+        )
+        _filtro_wrap_forca.pack(side="left", padx=4)
+        _filtro_wrap_utilidade, self._filtro_utilidade = build_labeled_combobox(
+            filt_f2, "Funcao:", values=utilidades, current="Todos", bg=COR_BG_SECUNDARIO, combo_font=("Arial", 9)
+        )
+        _filtro_wrap_utilidade.pack(side="left", padx=2)
 
         self._filtro_elemento.bind("<<ComboboxSelected>>", lambda e: self._aplicar_filtro_skills())
         self._filtro_tipo.bind("<<ComboboxSelected>>", lambda e: self._aplicar_filtro_skills())
@@ -2414,6 +2467,7 @@ class TelaArmas(tk.Frame):
         dados = _sincronizar_dados_arma_v2(dict(self.dados_arma))
 
         if not dados["nome"]:
+            self.feedback_lista.set_message("Defina um nome antes de forjar a arma.", tone="error")
             messagebox.showerror("Erro", "A arma precisa de um nome!")
             return
 
@@ -2421,6 +2475,7 @@ class TelaArmas(tk.Frame):
         for i, a in enumerate(_state_check.weapons):
             if a.nome.lower() == dados["nome"].lower():
                 if self.indice_em_edicao is None or self.indice_em_edicao != i:
+                    self.feedback_lista.set_message(f"Já existe uma arma chamada '{dados['nome']}'.", tone="error")
                     messagebox.showerror("Erro", f"Ja existe uma arma chamada '{dados['nome']}'!")
                     return
 
@@ -2437,6 +2492,10 @@ class TelaArmas(tk.Frame):
             self.nova_arma()
 
             familia_nome = get_family_spec(nova.familia)["nome"]
+            self.feedback_lista.set_message(
+                f"{nova.nome} salva em {familia_nome} com acabamento {nova.raridade}.",
+                tone="success",
+            )
             messagebox.showinfo(
                 "Arma Forjada!",
                 f"{nova.nome} foi forjada com sucesso!\n"
@@ -2445,6 +2504,7 @@ class TelaArmas(tk.Frame):
             )
 
         except Exception as e:
+            self.feedback_lista.set_message(f"Falha ao forjar arma: {e}", tone="error")
             messagebox.showerror("Erro ao Forjar", str(e))
 
     def atualizar_lista(self):
@@ -2456,6 +2516,13 @@ class TelaArmas(tk.Frame):
             familia = get_family_spec(getattr(arma, "familia", inferir_familia(arma.tipo, getattr(arma, "estilo", ""))))["nome"]
             acabamento = getattr(arma, "raridade", "Comum")
             self.tree.insert("", "end", values=(arma.nome, familia, acabamento))
+
+        if hasattr(self, "feedback_lista"):
+            total = len(self.controller.lista_armas)
+            if total == 0:
+                self.feedback_lista.set_message("Nenhuma arma cadastrada ainda. Comece criando a primeira.", tone="warning")
+            else:
+                self.feedback_lista.set_message(f"{total} armas prontas no arsenal.", tone="info")
 
     def _normalizar_habilidades(self, habilidades):
         """Converte lista de habilidades para formato padrão (lista de dicts)"""
@@ -2516,6 +2583,7 @@ class TelaArmas(tk.Frame):
 
         self.indice_em_edicao = idx
         self.mostrar_passo(1)
+        self.feedback_lista.set_message(f"Editando {arma.nome}. Revise família, visual e kit mágico.", tone="info")
 
     def editar_arma(self):
         """Inicia edicao da arma selecionada."""
@@ -2533,12 +2601,15 @@ class TelaArmas(tk.Frame):
         if messagebox.askyesno("Confirmar", f"Deletar '{arma.nome}'?"):
             AppState.get().delete_weapon(idx)
             self.atualizar_lista()
+            self.feedback_lista.set_message(f"{arma.nome} removida do arsenal.", tone="warning")
 
     def nova_arma(self):
         """Inicia criacao de nova arma."""
         self.indice_em_edicao = None
         self.dados_arma = _default_weapon_ui_state()
         self.mostrar_passo(1)
+        if hasattr(self, "feedback_lista"):
+            self.feedback_lista.set_message("Modo criação ativo. Preencha a base da nova arma.", tone="info")
 
     def atualizar_dados(self):
         """Chamado quando a tela e exibida"""

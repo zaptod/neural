@@ -1,0 +1,570 @@
+{
+  "template_id": "corredor_contra_horda",
+  "modo": "grupo_vs_horda",
+  "runs": 1,
+  "team_wins": {
+    "team_a": 1
+  },
+  "winner_counts": {
+    "Time 1 (Zarya Solar da Brasa, Elda Tempra da Brasa, Thorne Vesper da Brasa)": 1
+  },
+  "avg_frames": 4513.0,
+  "avg_tempo_simulado": 75.217,
+  "avg_tempo_real": 10.032,
+  "team_damage_avg": {
+    "team_a": 1452.683,
+    "team_b": 96.274
+  },
+  "papeis": {
+    "curandeiro": {
+      "presencas": 1,
+      "damage_dealt": 274.415,
+      "kills": 0
+    },
+    "defensor": {
+      "presencas": 1,
+      "damage_dealt": 391.602,
+      "kills": 2
+    },
+    "horda": {
+      "presencas": 6,
+      "damage_dealt": 96.274,
+      "kills": 0
+    },
+    "limpador_de_horda": {
+      "presencas": 1,
+      "damage_dealt": 786.665,
+      "kills": 4
+    }
+  },
+  "template_meta": {
+    "id": "corredor_contra_horda",
+    "modo": "grupo_vs_horda",
+    "nome": "Corredor Contra Horda",
+    "cenario": "Arena"
+  },
+  "team_a": [
+    {
+      "papel": "defensor",
+      "nome": "Zarya Solar da Brasa",
+      "arma": "Solstício Quebrado",
+      "familia_arma": "hibrida",
+      "score": 9.667
+    },
+    {
+      "papel": "curandeiro",
+      "nome": "Elda Tempra da Brasa",
+      "arma": "Lira Boreal",
+      "familia_arma": "orbital",
+      "score": 8.371
+    },
+    {
+      "papel": "limpador_de_horda",
+      "nome": "Thorne Vesper da Brasa",
+      "arma": "Raiz do Pântano",
+      "familia_arma": "corrente",
+      "score": 8.0
+    }
+  ],
+  "team_b": [
+    {
+      "papel": "horda",
+      "nome": "Zumbi_01",
+      "arma": "Horda Lixo 1",
+      "familia_arma": "lamina",
+      "score": 0.0
+    },
+    {
+      "papel": "horda",
+      "nome": "Zumbi_02",
+      "arma": "Horda Lixo 2",
+      "familia_arma": "lamina",
+      "score": 0.0
+    },
+    {
+      "papel": "horda",
+      "nome": "Zumbi_03",
+      "arma": "Horda Lixo 3",
+      "familia_arma": "lamina",
+      "score": 0.0
+    },
+    {
+      "papel": "horda",
+      "nome": "Zumbi_04",
+      "arma": "Horda Lixo 4",
+      "familia_arma": "lamina",
+      "score": 0.0
+    },
+    {
+      "papel": "horda",
+      "nome": "Zumbi_05",
+      "arma": "Horda Lixo 5",
+      "familia_arma": "lamina",
+      "score": 0.0
+    },
+    {
+      "papel": "horda",
+      "nome": "Zumbi_06",
+      "arma": "Horda Lixo 6",
+      "familia_arma": "lamina",
+      "score": 0.0
+    }
+  ],
+  "lutas": [
+    {
+      "vencedor": "Time 1 (Zarya Solar da Brasa, Elda Tempra da Brasa, Thorne Vesper da Brasa)",
+      "frames": 4513,
+      "tempo_simulado": 75.217,
+      "tempo_real": 10.032,
+      "fighters": {
+        "Zarya Solar da Brasa": {
+          "damage_dealt": 391.60204954838724,
+          "damage_taken": 73.00952967741935,
+          "hits_landed": 25,
+          "hits_received": 8,
+          "attacks_attempted": 3201,
+          "crits_landed": 2,
+          "skills_cast": 13,
+          "offensive_actions": 3123,
+          "skills_detail": {
+            "Cura Menor": 3,
+            "Tempestade Ascendente": 3,
+            "Julgamento Celestial": 3,
+            "Escudo Arcano": 4
+          },
+          "mana_spent": 329.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 0,
+          "kills": 2,
+          "max_combo": 10,
+          "weapon_hits": 25,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 391.60204954838724,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Solstício Quebrado": {
+              "hits": 25,
+              "damage": 391.60204954838724,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.008,
+          "dps": 39.0,
+          "fight_duration": 10.0
+        },
+        "Elda Tempra da Brasa": {
+          "damage_dealt": 274.4153333333333,
+          "damage_taken": 109.75819809677418,
+          "hits_landed": 44,
+          "hits_received": 7,
+          "attacks_attempted": 419,
+          "crits_landed": 0,
+          "skills_cast": 45,
+          "offensive_actions": 419,
+          "skills_detail": {
+            "Muralha de Gelo": 6,
+            "Disparo de Mana": 17,
+            "Bola de Fogo": 11,
+            "Escudo Arcano": 6,
+            "Nevasca": 5
+          },
+          "mana_spent": 683.1999999999999,
+          "blocks": 1,
+          "dodges": 0,
+          "deaths": 0,
+          "kills": 0,
+          "max_combo": 12,
+          "weapon_hits": 11,
+          "skill_hits": 28,
+          "summon_hits": 0,
+          "trap_hits": 5,
+          "status_hits": 0,
+          "weapon_damage": 34.99866666666667,
+          "skill_damage": 238.75,
+          "summon_damage": 0.0,
+          "trap_damage": 0.6666666666666666,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Nevasca": {
+              "hits": 10,
+              "damage": 60.0,
+              "source_type": "skill"
+            },
+            "Disparo de Mana": {
+              "hits": 12,
+              "damage": 65.0,
+              "source_type": "skill"
+            },
+            "Bola de Fogo": {
+              "hits": 6,
+              "damage": 113.75,
+              "source_type": "skill"
+            },
+            "Muralha de Gelo (Wall)": {
+              "hits": 5,
+              "damage": 0.6666666666666666,
+              "source_type": "trap"
+            },
+            "Orbe": {
+              "hits": 8,
+              "damage": 17.81466666666667,
+              "source_type": "weapon"
+            },
+            "Lira Boreal": {
+              "hits": 3,
+              "damage": 17.184,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.105,
+          "dps": 27.4,
+          "fight_duration": 10.0
+        },
+        "Thorne Vesper da Brasa": {
+          "damage_dealt": 786.6654996129032,
+          "damage_taken": 31.254764838709676,
+          "hits_landed": 48,
+          "hits_received": 4,
+          "attacks_attempted": 2772,
+          "crits_landed": 0,
+          "skills_cast": 28,
+          "offensive_actions": 2772,
+          "skills_detail": {
+            "Praga": 4,
+            "Meteoro": 4,
+            "Dardo Venenoso": 13,
+            "Bola de Fogo": 7
+          },
+          "mana_spent": 631.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 0,
+          "kills": 4,
+          "max_combo": 36,
+          "weapon_hits": 27,
+          "skill_hits": 21,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 561.6164996129035,
+          "skill_damage": 225.049,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Dardo Venenoso": {
+              "hits": 9,
+              "damage": 24.75,
+              "source_type": "skill"
+            },
+            "Praga": {
+              "hits": 3,
+              "damage": 16.5,
+              "source_type": "skill"
+            },
+            "Bola de Fogo": {
+              "hits": 4,
+              "damage": 82.775,
+              "source_type": "skill"
+            },
+            "Meteoro": {
+              "hits": 2,
+              "damage": 64.06400000000001,
+              "source_type": "skill"
+            },
+            "Meteoro ExplosÃ£o": {
+              "hits": 3,
+              "damage": 36.96,
+              "source_type": "skill"
+            },
+            "Raiz do Pântano": {
+              "hits": 27,
+              "damage": 561.6164996129035,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.017,
+          "dps": 78.4,
+          "fight_duration": 10.0
+        },
+        "Zumbi_01": {
+          "damage_dealt": 38.50952967741935,
+          "damage_taken": 229.54426326881716,
+          "hits_landed": 4,
+          "hits_received": 26,
+          "attacks_attempted": 255,
+          "crits_landed": 0,
+          "skills_cast": 5,
+          "offensive_actions": 184,
+          "skills_detail": {
+            "Golpe do Executor": 5
+          },
+          "mana_spent": 100.0,
+          "blocks": 1,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 1,
+          "weapon_hits": 4,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 38.50952967741935,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Horda Lixo 1": {
+              "hits": 4,
+              "damage": 38.50952967741935,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.016,
+          "dps": 3.8,
+          "fight_duration": 10.0
+        },
+        "Zumbi_02": {
+          "damage_dealt": 19.254764838709676,
+          "damage_taken": 230.87409772043011,
+          "hits_landed": 2,
+          "hits_received": 22,
+          "attacks_attempted": 99,
+          "crits_landed": 0,
+          "skills_cast": 5,
+          "offensive_actions": 51,
+          "skills_detail": {
+            "Golpe do Executor": 5
+          },
+          "mana_spent": 100.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 1,
+          "weapon_hits": 2,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 19.254764838709676,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Horda Lixo 2": {
+              "hits": 2,
+              "damage": 19.254764838709676,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.02,
+          "dps": 1.9,
+          "fight_duration": 10.0
+        },
+        "Zumbi_03": {
+          "damage_dealt": 19.254764838709676,
+          "damage_taken": 235.95899565591398,
+          "hits_landed": 2,
+          "hits_received": 18,
+          "attacks_attempted": 185,
+          "crits_landed": 0,
+          "skills_cast": 3,
+          "offensive_actions": 172,
+          "skills_detail": {
+            "Golpe do Executor": 3
+          },
+          "mana_spent": 60.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 1,
+          "weapon_hits": 2,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 19.254764838709676,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Horda Lixo 3": {
+              "hits": 2,
+              "damage": 19.254764838709676,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.011,
+          "dps": 1.9,
+          "fight_duration": 10.0
+        },
+        "Zumbi_04": {
+          "damage_dealt": 9.627382419354838,
+          "damage_taken": 218.50719174193546,
+          "hits_landed": 1,
+          "hits_received": 15,
+          "attacks_attempted": 169,
+          "crits_landed": 0,
+          "skills_cast": 3,
+          "offensive_actions": 1,
+          "skills_detail": {
+            "Golpe do Executor": 3
+          },
+          "mana_spent": 60.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 1,
+          "weapon_hits": 1,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 9.627382419354838,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Horda Lixo 4": {
+              "hits": 1,
+              "damage": 9.627382419354838,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.006,
+          "dps": 1.0,
+          "fight_duration": 10.0
+        },
+        "Zumbi_05": {
+          "damage_dealt": 0.0,
+          "damage_taken": 226.97942710752685,
+          "hits_landed": 0,
+          "hits_received": 16,
+          "attacks_attempted": 0,
+          "crits_landed": 0,
+          "skills_cast": 2,
+          "offensive_actions": 0,
+          "skills_detail": {
+            "Golpe do Executor": 2
+          },
+          "mana_spent": 40.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 0,
+          "weapon_hits": 0,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 0.0,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {},
+          "accuracy": 0.0,
+          "dps": 0.0,
+          "fight_duration": 10.0
+        },
+        "Zumbi_06": {
+          "damage_dealt": 9.627382419354838,
+          "damage_taken": 193.07023858064517,
+          "hits_landed": 1,
+          "hits_received": 11,
+          "attacks_attempted": 8,
+          "crits_landed": 0,
+          "skills_cast": 2,
+          "offensive_actions": 2,
+          "skills_detail": {
+            "Golpe do Executor": 2
+          },
+          "mana_spent": 40.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 1,
+          "weapon_hits": 1,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 9.627382419354838,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Horda Lixo 6": {
+              "hits": 1,
+              "damage": 9.627382419354838,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.125,
+          "dps": 1.0,
+          "fight_duration": 10.0
+        }
+      },
+      "team_stats": {
+        "team_a": {
+          "damage_dealt": 1452.683,
+          "damage_taken": 214.022,
+          "kills": 6,
+          "deaths": 0,
+          "skills_cast": 86,
+          "mana_spent": 1643.2
+        },
+        "team_b": {
+          "damage_dealt": 96.274,
+          "damage_taken": 1334.934,
+          "kills": 0,
+          "deaths": 6,
+          "skills_cast": 20,
+          "mana_spent": 400.0
+        }
+      },
+      "team_status": {
+        "team_a": {
+          "vivos": 3,
+          "mortos": 0,
+          "names": [
+            "Zarya Solar da Brasa",
+            "Elda Tempra da Brasa",
+            "Thorne Vesper da Brasa"
+          ]
+        },
+        "team_b": {
+          "vivos": 0,
+          "mortos": 6,
+          "names": [
+            "Zumbi_01",
+            "Zumbi_02",
+            "Zumbi_03",
+            "Zumbi_04",
+            "Zumbi_05",
+            "Zumbi_06"
+          ]
+        }
+      },
+      "run_index": 0
+    }
+  ]
+}

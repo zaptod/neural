@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-03-18T12:48:46",
+  "posto": "headless",
+  "args": [
+    "--tatico",
+    "--modo",
+    "1v1",
+    "--template",
+    "duelo_papeis_basicos",
+    "--runs",
+    "3"
+  ],
+  "tipo_execucao": "harness_tatico",
+  "returncode": 0,
+  "duracao_seg": 3.101,
+  "log_path": "saidas\\headless\\logs\\20260318_124842\\exec.log",
+  "resumo_headless_path": "saidas\\headless\\logs\\20260318_124842\\harness_tatico_resumo.json",
+  "status": "ok"
+}

@@ -23,6 +23,7 @@ import os
 import random
 import traceback
 import time
+import json
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -870,6 +871,73 @@ def executar_teste_stress(num_batalhas: int = 10):
 # MAIN
 # =============================================================================
 
+def _coletar_resultados_brutos(resultados):
+    if resultados is None:
+        return []
+    if isinstance(resultados, dict):
+        return [resultados]
+
+    brutos = []
+    for item in resultados:
+        if isinstance(item, dict) and "resultado" in item:
+            bruto = dict(item["resultado"])
+            if "classe" in item:
+                bruto["contexto"] = {"classe": item["classe"]}
+            if "raridade" in item:
+                bruto["contexto"] = {"raridade": item["raridade"]}
+            brutos.append(bruto)
+        else:
+            brutos.append(item)
+    return brutos
+
+
+def _resumir_execucao_headless(modo: str, resultados, stress_count: int) -> dict:
+    brutos = _coletar_resultados_brutos(resultados)
+    winner_counts = {}
+    stats_totais = {
+        "projeteis_criados": 0,
+        "beams_criados": 0,
+        "areas_criadas": 0,
+        "summons_criados": 0,
+        "dano_causado_p1": 0.0,
+        "dano_causado_p2": 0.0,
+    }
+
+    total_frames = 0
+    total_tempo = 0.0
+    total_erros = 0
+    success_count = 0
+
+    for resultado in brutos:
+        if not isinstance(resultado, dict):
+            continue
+        if resultado.get("success"):
+            success_count += 1
+        total_frames += int(resultado.get("frames", 0) or 0)
+        total_tempo += float(resultado.get("tempo_real", 0.0) or 0.0)
+        total_erros += len(resultado.get("erros", []) or [])
+
+        vencedor = str(resultado.get("vencedor", "DESCONHECIDO"))
+        winner_counts[vencedor] = winner_counts.get(vencedor, 0) + 1
+
+        stats = resultado.get("stats", {}) or {}
+        for chave in stats_totais:
+            stats_totais[chave] += float(stats.get(chave, 0.0) or 0.0)
+
+    lutas = max(len(brutos), 1)
+    return {
+        "modo": modo,
+        "stress_count": stress_count,
+        "lutas": len(brutos),
+        "success_count": success_count,
+        "error_count": total_erros,
+        "avg_frames": round(total_frames / lutas, 2),
+        "avg_tempo_real": round(total_tempo / lutas, 4),
+        "winner_counts": winner_counts,
+        "stats_totais": {k: round(v, 3) for k, v in stats_totais.items()},
+    }
+
+
 def main():
     import argparse
     
@@ -880,6 +948,8 @@ def main():
                        help="NÃºmero de batalhas no teste de stress")
     parser.add_argument("--verbose", action="store_true", default=True,
                        help="Modo verboso")
+    parser.add_argument("--json-out", type=str, default=None,
+                       help="Caminho opcional para salvar resumo consolidado em JSON")
     
     args = parser.parse_args()
     
@@ -888,29 +958,48 @@ def main():
     
     log_header("NEURAL FIGHTS - HEADLESS BATTLE TEST SUITE v1.0")
     
+    resultados = None
     try:
         if args.mode == "rapido":
-            executar_teste_rapido()
+            resultados = executar_teste_rapido()
         
         elif args.mode == "classes":
-            executar_teste_todas_classes()
+            resultados = executar_teste_todas_classes()
         
         elif args.mode == "raridades":
-            executar_teste_todas_raridades()
+            resultados = executar_teste_todas_raridades()
         
         elif args.mode == "stress":
-            executar_teste_stress(args.stress_count)
+            resultados = executar_teste_stress(args.stress_count)
         
         elif args.mode == "all":
-            executar_teste_rapido()
-            executar_teste_todas_classes()
-            executar_teste_todas_raridades()
-            executar_teste_stress(args.stress_count)
+            resultados = {
+                "rapido": executar_teste_rapido(),
+                "classes": executar_teste_todas_classes(),
+                "raridades": executar_teste_todas_raridades(),
+                "stress": executar_teste_stress(args.stress_count),
+            }
     
     except Exception as e:
         log(f"ERRO FATAL: {e}", "ERROR")
         traceback.print_exc()
         return 1
+
+    if args.json_out:
+        try:
+            if args.mode == "all":
+                resumo = {
+                    modo: _resumir_execucao_headless(modo, res, args.stress_count)
+                    for modo, res in resultados.items()
+                }
+            else:
+                resumo = _resumir_execucao_headless(args.mode, resultados, args.stress_count)
+
+            with open(args.json_out, "w", encoding="utf-8") as fh:
+                json.dump(resumo, fh, ensure_ascii=False, indent=2)
+            log(f"Resumo consolidado salvo em: {args.json_out}", "OK")
+        except Exception as e:
+            log(f"Falha ao salvar resumo consolidado: {e}", "ERROR")
     
     log_header("TESTES CONCLUÃDOS")
     return 0

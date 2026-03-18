@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import subprocess
 import sys
 import tkinter as tk
 from tkinter import messagebox
@@ -11,6 +12,27 @@ _log = logging.getLogger("interface.main")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dados.app_state import AppState
+from interface.theme import (
+    apply_ttk_theme,
+    COR_ACCENT,
+    COR_BG,
+    COR_BG_CARD,
+    COR_BG_SECUNDARIO,
+    COR_BORDA,
+    COR_HEADER,
+    COR_SUCCESS as COR_ACCENT_ALT,
+    COR_TEXTO as COR_TEXT,
+    COR_TEXTO_DIM as COR_TEXT_DIM,
+    COR_WARNING,
+)
+from interface.ui_components import (
+    ResponsiveCardSection,
+    StatCard,
+    UICard,
+    build_page_header,
+    make_primary_button,
+    make_secondary_button,
+)
 
 # World map root
 _WM_ROOT = os.path.join(
@@ -23,22 +45,19 @@ _WM_RUNNER = os.path.join(
 )
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RUN_POSTOS_PATH = os.path.join(ROOT_DIR, "run_postos.py")
+SAIDAS_DIR = os.path.join(ROOT_DIR, "saidas")
+SAIDAS_HEADLESS_DIR = os.path.join(SAIDAS_DIR, "headless")
+SAIDAS_PIPELINE_DIR = os.path.join(SAIDAS_DIR, "pipeline")
 PAPEIS_TATICOS_PATH = os.path.join(ROOT_DIR, "dados", "papeis_taticos.json")
 PLANO_TESTES_PATH = os.path.join(ROOT_DIR, "dados", "plano_testes_taticos.json")
 PLANO_TATICO_MD_PATH = os.path.join(ROOT_DIR, "documentacao", "plano_balanceamento_tatico.md")
 
-COR_BG = "#09111f"
-COR_BG_ALT = "#0f1b31"
-COR_CARD = "#12233f"
-COR_CARD_SOFT = "#162b4b"
-COR_BORDER = "#274b75"
-COR_HERO = "#173b69"
-COR_ACCENT = "#ff6b57"
-COR_ACCENT_ALT = "#35d6ff"
+COR_BG_ALT = COR_BG_SECUNDARIO
+COR_CARD = COR_BG_SECUNDARIO
+COR_BORDER = COR_BORDA
+COR_HERO = COR_HEADER
 COR_SUCCESS = "#7fffd4"
-COR_WARNING = "#f5c451"
-COR_TEXT = "#f5f7fb"
-COR_TEXT_DIM = "#9fb1c9"
 
 
 def _setup_worldmap_hook():
@@ -56,6 +75,7 @@ from interface.view_armas import TelaArmas
 from interface.view_chars import TelaPersonagens
 from interface.view_luta import TelaLuta
 from interface.view_multi import TelaMultiBatalha
+from interface.view_horda import TelaHorda
 from interface.view_ranking import TelaLeaderboard
 from interface.view_sons import TelaSons
 from interface.view_worldmap import TelaWorldMap
@@ -71,165 +91,6 @@ def _load_json_count(path, key):
         return 0
 
 
-class DashboardCard(tk.Frame):
-    def __init__(self, parent, accent, title, description, pills, primary_text, primary_command, secondary=None):
-        super().__init__(
-            parent,
-            bg=COR_CARD,
-            highlightthickness=1,
-            highlightbackground=COR_BORDER,
-            highlightcolor=COR_BORDER,
-            bd=0,
-        )
-        self.grid_propagate(False)
-        self.configure(height=226)
-
-        top = tk.Frame(self, bg=COR_CARD)
-        top.pack(fill="x", padx=18, pady=(16, 10))
-
-        tk.Frame(top, bg=accent, width=44, height=6).pack(anchor="w")
-        tk.Label(
-            top,
-            text=title,
-            font=("Bahnschrift SemiBold", 16),
-            bg=COR_CARD,
-            fg=COR_TEXT,
-            anchor="w",
-        ).pack(fill="x", pady=(10, 6))
-        tk.Label(
-            top,
-            text=description,
-            font=("Segoe UI", 10),
-            bg=COR_CARD,
-            fg=COR_TEXT_DIM,
-            justify="left",
-            anchor="w",
-            wraplength=320,
-        ).pack(fill="x")
-
-        pills_wrap = tk.Frame(self, bg=COR_CARD)
-        pills_wrap.pack(fill="x", padx=18, pady=(2, 10))
-        for pill in pills[:3]:
-            chip = tk.Label(
-                pills_wrap,
-                text=pill,
-                font=("Segoe UI", 9, "bold"),
-                bg=COR_CARD_SOFT,
-                fg=accent,
-                padx=10,
-                pady=4,
-            )
-            chip.pack(side="left", padx=(0, 8), pady=2)
-
-        spacer = tk.Frame(self, bg=COR_CARD)
-        spacer.pack(fill="both", expand=True)
-
-        footer = tk.Frame(self, bg=COR_CARD)
-        footer.pack(fill="x", padx=18, pady=(0, 16))
-
-        primary = tk.Button(
-            footer,
-            text=primary_text,
-            command=primary_command,
-            font=("Segoe UI", 10, "bold"),
-            bg=accent,
-            fg="#07131f",
-            activebackground=accent,
-            activeforeground="#07131f",
-            relief="flat",
-            bd=0,
-            padx=14,
-            pady=9,
-            cursor="hand2",
-        )
-        primary.pack(side="left")
-
-        if secondary:
-            sec_text, sec_cmd = secondary
-            tk.Button(
-                footer,
-                text=sec_text,
-                command=sec_cmd,
-                font=("Segoe UI", 10, "bold"),
-                bg=COR_BG_ALT,
-                fg=COR_TEXT,
-                activebackground=COR_BG_ALT,
-                activeforeground=COR_TEXT,
-                relief="flat",
-                bd=0,
-                padx=14,
-                pady=9,
-                cursor="hand2",
-            ).pack(side="left", padx=(10, 0))
-
-
-class ResponsiveCardSection(tk.Frame):
-    def __init__(self, parent, title, subtitle, cards):
-        super().__init__(parent, bg=COR_BG)
-        self.cards = cards
-        self.card_widgets = []
-        self.current_columns = None
-
-        header = tk.Frame(self, bg=COR_BG)
-        header.pack(fill="x", pady=(0, 10))
-
-        tk.Label(
-            header,
-            text=title,
-            font=("Bahnschrift SemiBold", 20),
-            bg=COR_BG,
-            fg=COR_TEXT,
-            anchor="w",
-        ).pack(fill="x")
-        tk.Label(
-            header,
-            text=subtitle,
-            font=("Segoe UI", 10),
-            bg=COR_BG,
-            fg=COR_TEXT_DIM,
-            anchor="w",
-            justify="left",
-        ).pack(fill="x", pady=(4, 0))
-
-        self.grid_host = tk.Frame(self, bg=COR_BG)
-        self.grid_host.pack(fill="x")
-
-        for card_data in self.cards:
-            card = DashboardCard(self.grid_host, **card_data)
-            self.card_widgets.append(card)
-
-        self.bind("<Configure>", self._on_resize)
-        self.after(50, self._relayout)
-
-    def _compute_columns(self):
-        width = max(self.winfo_width(), self.grid_host.winfo_width(), 1)
-        if width < 760:
-            return 1
-        if width < 1180:
-            return 2
-        return 3
-
-    def _on_resize(self, _event=None):
-        self._relayout()
-
-    def _relayout(self):
-        columns = self._compute_columns()
-        if columns == self.current_columns:
-            return
-        self.current_columns = columns
-
-        for widget in self.card_widgets:
-            widget.grid_forget()
-
-        for idx in range(columns):
-            self.grid_host.grid_columnconfigure(idx, weight=1, uniform=f"cards_{id(self)}")
-
-        for idx, card in enumerate(self.card_widgets):
-            row = idx // columns
-            col = idx % columns
-            card.grid(row=row, column=col, sticky="nsew", padx=8, pady=8)
-
-
 class SistemaApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -238,6 +99,7 @@ class SistemaApp(tk.Tk):
         self.minsize(980, 700)
         self.resizable(True, True)
         self.configure(bg=COR_BG)
+        apply_ttk_theme(self)
 
         self._state = AppState.get()
 
@@ -253,6 +115,7 @@ class SistemaApp(tk.Tk):
             TelaPersonagens,
             TelaLuta,
             TelaMultiBatalha,
+            TelaHorda,
             TelaInteracoes,
             TelaSons,
             TelaWorldMap,
@@ -362,23 +225,18 @@ class MenuPrincipal(tk.Frame):
         quick_actions = [
             ("Abrir Arena", lambda: self.controller.show_frame("TelaLuta"), COR_ACCENT),
             ("Equipe", lambda: self.controller.show_frame("TelaMultiBatalha"), COR_ACCENT_ALT),
+            ("Horda", lambda: self.controller.show_frame("TelaHorda"), COR_SUCCESS),
             ("Forja", lambda: self.controller.show_frame("TelaArmas"), COR_WARNING),
         ]
         for text, cmd, color in quick_actions:
-            tk.Button(
+            make_primary_button(
                 right,
-                text=text,
-                command=cmd,
-                font=("Segoe UI", 10, "bold"),
+                text,
+                cmd,
                 bg=color,
                 fg="#06101a",
-                activebackground=color,
-                activeforeground="#06101a",
-                relief="flat",
-                bd=0,
                 padx=16,
                 pady=10,
-                cursor="hand2",
             ).pack(fill="x", pady=4)
 
         stats_bar = tk.Frame(hero, bg=COR_HERO)
@@ -390,12 +248,9 @@ class MenuPrincipal(tk.Frame):
             ("papeis", "Papeis"),
             ("modos", "Modos"),
         ):
-            box = tk.Frame(stats_bar, bg="#0d2c4d", padx=16, pady=12)
-            box.pack(side="left", padx=(0, 12), pady=4)
-            value = tk.Label(box, text="0", font=("Bahnschrift SemiBold", 22), bg="#0d2c4d", fg=COR_SUCCESS)
-            value.pack(anchor="w")
-            tk.Label(box, text=label, font=("Segoe UI", 9, "bold"), bg="#0d2c4d", fg="#bed6f7").pack(anchor="w")
-            self._stats_labels[key] = value
+            card = StatCard(stats_bar, label, "0", bg="#0d2c4d", value_fg=COR_SUCCESS, label_fg="#bed6f7")
+            card.pack(side="left", padx=(0, 12), pady=4)
+            self._stats_labels[key] = card
 
         sections_wrap = tk.Frame(self.inner, bg=COR_BG)
         sections_wrap.pack(fill="both", expand=True, padx=24, pady=(0, 24))
@@ -437,6 +292,14 @@ class MenuPrincipal(tk.Frame):
                     "primary_text": "Batalha em Equipe",
                     "primary_command": lambda: self.controller.show_frame("TelaMultiBatalha"),
                     "secondary": ("Torneio", lambda: self.abrir_torneio(self.controller)),
+                },
+                {
+                    "accent": COR_ACCENT_ALT,
+                    "title": "Modo Horda",
+                    "description": "Enfrente ondas no motor principal com solo ou expedicao e presets de monstros.",
+                    "pills": ["ondas", "survival", "motor unico"],
+                    "primary_text": "Abrir Horda",
+                    "primary_command": lambda: self.controller.show_frame("TelaHorda"),
                 },
             ],
         )
@@ -482,6 +345,59 @@ class MenuPrincipal(tk.Frame):
             ],
         )
         sec_tatico.pack(fill="x", pady=(0, 18))
+
+        sec_postos = ResponsiveCardSection(
+            sections_wrap,
+            "Postos Operacionais",
+            "Execute os tres postos principais direto do hub: coleta headless, simulacao completa e pipeline de video.",
+            [
+                {
+                    "accent": COR_ACCENT,
+                    "title": "Posto Headless",
+                    "description": "Suite rapida para smoke, erros e coleta consolidada sem abrir janela.",
+                    "pills": ["headless", "rapido", "logs"],
+                    "primary_text": "Rodar Rapido",
+                    "primary_command": lambda: self._executar_posto("Headless Rapido", ["headless", "--mode", "rapido"]),
+                    "secondary": ("Abrir Saidas", lambda: self._abrir_arquivo(SAIDAS_HEADLESS_DIR, "Saidas Headless")),
+                },
+                {
+                    "accent": COR_WARNING,
+                    "title": "Harness Tatico",
+                    "description": "Roda 1v1, esquadra e horda usando templates reais por papel tatico.",
+                    "pills": ["tatico", "1v1", "squad", "horda"],
+                    "primary_text": "Rodar Template",
+                    "primary_command": lambda: self._executar_posto(
+                        "Harness Tatico",
+                        [
+                            "headless", "--tatico",
+                            "--modo", "1v1",
+                            "--template", "duelo_papeis_basicos",
+                            "--runs", "3",
+                        ],
+                    ),
+                    "secondary": ("Abrir Testes", lambda: self._abrir_arquivo(PLANO_TESTES_PATH, "Plano de testes")),
+                },
+                {
+                    "accent": COR_ACCENT_ALT,
+                    "title": "Simulacao Completa",
+                    "description": "Abre a simulacao do posto visual para assistir, rir e pegar bugs que o headless nao mostra.",
+                    "pills": ["visual", "arena", "vfx"],
+                    "primary_text": "Abrir Simulacao",
+                    "primary_command": lambda: self._executar_posto("Simulacao Completa", ["simulacao", "--modo", "sim"]),
+                    "secondary": ("Launcher", lambda: self._executar_posto("Launcher", ["simulacao", "--modo", "launcher"])),
+                },
+                {
+                    "accent": COR_SUCCESS,
+                    "title": "Pipeline de Video",
+                    "description": "Dispara um batch curto do pipeline para postagem e validacao rapida.",
+                    "pills": ["pipeline", "video", "postagem"],
+                    "primary_text": "Rodar Pipeline",
+                    "primary_command": lambda: self._executar_posto("Pipeline", ["pipeline", "--fights", "1"]),
+                    "secondary": ("Abrir Saidas", lambda: self._abrir_arquivo(SAIDAS_PIPELINE_DIR, "Saidas Pipeline")),
+                },
+            ],
+        )
+        sec_postos.pack(fill="x", pady=(0, 18))
 
         sec_sistema = ResponsiveCardSection(
             sections_wrap,
@@ -538,7 +454,7 @@ class MenuPrincipal(tk.Frame):
         }
         for key, value in stats.items():
             if key in self._stats_labels:
-                self._stats_labels[key].configure(text=str(value))
+                self._stats_labels[key].set_value(value)
 
     def _abrir_arquivo(self, path, titulo):
         if not os.path.exists(path):
@@ -548,6 +464,23 @@ class MenuPrincipal(tk.Frame):
             os.startfile(path)
         except Exception as exc:
             messagebox.showerror(titulo, f"Nao foi possivel abrir o arquivo.\n\n{exc}")
+
+    def _executar_posto(self, titulo, args):
+        if not os.path.exists(RUN_POSTOS_PATH):
+            messagebox.showerror(titulo, f"run_postos.py nao encontrado:\n{RUN_POSTOS_PATH}")
+            return
+        try:
+            subprocess.Popen(
+                [sys.executable, RUN_POSTOS_PATH, *args],
+                cwd=ROOT_DIR,
+            )
+            messagebox.showinfo(
+                titulo,
+                "Execucao iniciada em segundo plano.\n\n"
+                "Acompanhe as saidas na pasta `saidas/` ou pelo terminal.",
+            )
+        except Exception as exc:
+            messagebox.showerror(titulo, f"Nao foi possivel iniciar o posto.\n\n{exc}")
 
     def abrir_torneio(self, controller):
         try:
@@ -577,7 +510,16 @@ class MenuPrincipal(tk.Frame):
 class TelaInteracoes(tk.Frame):
     def __init__(self, parent, controller):
         super().__init__(parent, bg=COR_BG)
-        panel = tk.Frame(self, bg=COR_CARD, highlightthickness=1, highlightbackground=COR_BORDER)
+        build_page_header(
+            self,
+            "INTERACOES E PIPELINE",
+            "Comentarios, memes, roteiro de video e sinais de contexto para o formato principal.",
+            lambda: controller.show_frame("MenuPrincipal"),
+            button_bg=COR_ACCENT,
+            button_fg="#07131f",
+        )
+
+        panel = UICard(self, bg=COR_CARD, border=COR_BORDER)
         panel.pack(fill="both", expand=True, padx=48, pady=48)
 
         tk.Label(
@@ -615,35 +557,15 @@ class TelaInteracoes(tk.Frame):
 
         actions = tk.Frame(panel, bg=COR_CARD)
         actions.pack()
-        tk.Button(
+        make_primary_button(
             actions,
-            text="Voltar ao Hub",
-            command=lambda: controller.show_frame("MenuPrincipal"),
-            font=("Segoe UI", 10, "bold"),
-            bg=COR_ACCENT,
-            fg="#07131f",
-            activebackground=COR_ACCENT,
-            activeforeground="#07131f",
-            relief="flat",
-            bd=0,
-            padx=18,
-            pady=10,
-            cursor="hand2",
+            "Voltar ao Hub",
+            lambda: controller.show_frame("MenuPrincipal"),
         ).pack(side="left", padx=8)
-        tk.Button(
+        make_secondary_button(
             actions,
-            text="Abrir Plano Tatico",
-            command=lambda: os.startfile(PLANO_TATICO_MD_PATH) if os.path.exists(PLANO_TATICO_MD_PATH) else None,
-            font=("Segoe UI", 10, "bold"),
-            bg=COR_BG_ALT,
-            fg=COR_TEXT,
-            activebackground=COR_BG_ALT,
-            activeforeground=COR_TEXT,
-            relief="flat",
-            bd=0,
-            padx=18,
-            pady=10,
-            cursor="hand2",
+            "Abrir Plano Tatico",
+            lambda: os.startfile(PLANO_TATICO_MD_PATH) if os.path.exists(PLANO_TATICO_MD_PATH) else None,
         ).pack(side="left", padx=8)
 
 

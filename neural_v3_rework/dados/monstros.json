@@ -1,0 +1,96 @@
+{
+  "versao": "1.0",
+  "descricao": "Catalogo data-first de monstros para o modo horda.",
+  "monstros": [
+    {
+      "id": "zumbi_basico",
+      "nome": "Zumbi Basico",
+      "tipo": "minion",
+      "ai_mode": "contato_basico",
+      "classe": "Guerreiro (Força Bruta)",
+      "personalidade": "Agressivo",
+      "stats": {
+        "tamanho": 1.72,
+        "forca": 3.8,
+        "mana": 0.8
+      },
+      "visual": {
+        "cor_r": 118,
+        "cor_g": 156,
+        "cor_b": 112
+      },
+      "arma": {
+        "nome": "Garras Podres",
+        "familia": "lamina",
+        "subtipo": "garra",
+        "tipo": "Reta",
+        "dano": 3.0,
+        "peso": 1.8,
+        "velocidade_ataque": 0.92,
+        "critico": 0.01,
+        "habilidades": []
+      },
+      "tags": ["morto_vivo", "melee", "minion"]
+    },
+    {
+      "id": "corredor_putrido",
+      "nome": "Corredor Putrido",
+      "tipo": "minion",
+      "ai_mode": "contato_basico",
+      "classe": "Assassino (Crítico)",
+      "personalidade": "Implacavel",
+      "stats": {
+        "tamanho": 1.64,
+        "forca": 4.2,
+        "mana": 0.5
+      },
+      "visual": {
+        "cor_r": 146,
+        "cor_g": 170,
+        "cor_b": 102
+      },
+      "arma": {
+        "nome": "Unhas Freneticas",
+        "familia": "dupla",
+        "subtipo": "garras",
+        "tipo": "Dupla",
+        "dano": 2.7,
+        "peso": 1.5,
+        "velocidade_ataque": 1.14,
+        "critico": 0.02,
+        "habilidades": []
+      },
+      "tags": ["morto_vivo", "melee", "rush"]
+    },
+    {
+      "id": "bruto_putrido",
+      "nome": "Bruto Putrido",
+      "tipo": "elite",
+      "ai_mode": "contato_basico",
+      "classe": "Bruiser (Impacto)",
+      "personalidade": "Agressivo",
+      "stats": {
+        "tamanho": 2.08,
+        "forca": 6.4,
+        "mana": 0.4
+      },
+      "visual": {
+        "cor_r": 138,
+        "cor_g": 118,
+        "cor_b": 82
+      },
+      "arma": {
+        "nome": "Massa Ossuda",
+        "familia": "haste",
+        "subtipo": "mangual",
+        "tipo": "Reta",
+        "dano": 5.1,
+        "peso": 4.8,
+        "velocidade_ataque": 0.72,
+        "critico": 0.0,
+        "habilidades": []
+      },
+      "tags": ["morto_vivo", "melee", "elite", "tanque"]
+    }
+  ]
+}

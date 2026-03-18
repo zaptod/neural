@@ -21,6 +21,20 @@ from interface.theme import (
     COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS, 
     COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_DANGER, CORES_CLASSE, CATEGORIAS_CLASSE
 )
+from interface.ui_components import (
+    EmptyState,
+    InlineFeedbackBar,
+    UICard,
+    build_labeled_combobox,
+    build_radio_option_card,
+    build_labeled_entry,
+    build_page_header,
+    build_section_header,
+    build_slider_field,
+    make_primary_button,
+    make_secondary_button,
+    render_stat_grid,
+)
 
 
 class TelaPersonagens(tk.Frame):
@@ -80,6 +94,7 @@ class TelaPersonagens(tk.Frame):
         
         main = tk.Frame(self, bg=COR_BG)
         main.pack(fill="both", expand=True, padx=14, pady=10)
+        self._main_area = main
 
         paned = tk.PanedWindow(
             main,
@@ -92,10 +107,11 @@ class TelaPersonagens(tk.Frame):
             bg=COR_BG,
         )
         paned.pack(fill="both", expand=True)
+        self._paned_main = paned
 
-        self.frame_wizard = tk.Frame(main, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_wizard = UICard(main, bg=COR_BG_SECUNDARIO, border="#284564")
         self.frame_centro = tk.Frame(main, bg=COR_BG)
-        self.frame_lista = tk.Frame(main, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_lista = UICard(main, bg=COR_BG_SECUNDARIO, border="#284564")
 
         paned.add(self.frame_wizard, minsize=320, stretch="always")
         paned.add(self.frame_centro, minsize=360, stretch="always")
@@ -103,6 +119,7 @@ class TelaPersonagens(tk.Frame):
 
         self.after(100, lambda: paned.sash_place(0, 420, 0))
         self.after(140, lambda: paned.sash_place(1, 930, 0))
+        main.bind("<Configure>", self._on_main_resize)
         
         # Configura cada seção
         self.setup_wizard()
@@ -112,7 +129,72 @@ class TelaPersonagens(tk.Frame):
         # Inicia no passo 1
         self.mostrar_passo(1)
 
+    def _on_main_resize(self, event=None):
+        """Rebalanceia colunas principais e tabela em janelas menores."""
+        width = event.width if event else self._main_area.winfo_width()
+        if width < 720 or not hasattr(self, "_paned_main"):
+            return
+
+        left = max(300, min(int(width * 0.35), 460))
+        right_sidebar = max(220, min(int(width * 0.24), 320))
+        right = max(left + 280, width - right_sidebar)
+        right = min(right, width - 180)
+
+        try:
+            self._paned_main.sash_place(0, left, 0)
+            self._paned_main.sash_place(1, right, 0)
+        except Exception:
+            pass
+
+        self._ajustar_colunas_tree()
+        self._ajustar_wraps_preview()
+
+    def _ajustar_colunas_tree(self):
+        if not hasattr(self, "tree"):
+            return
+        width = self.tree.winfo_width()
+        if width < 180:
+            return
+
+        elo_w = max(58, int(width * 0.12))
+        nome_w = max(90, int(width * 0.26))
+        arma_w = max(90, int(width * 0.22))
+        classe_w = max(120, width - nome_w - arma_w - elo_w - 8)
+
+        self.tree.column("Nome", width=nome_w)
+        self.tree.column("Classe", width=classe_w)
+        self.tree.column("Arma", width=arma_w)
+        self.tree.column("ELO", width=elo_w, anchor="center")
+
+    def _ajustar_wraps_preview(self):
+        if hasattr(self, "lbl_classe_passiva"):
+            width = max(self.frame_classe_info.winfo_width() - 28, 180)
+            self.lbl_classe_passiva.config(wraplength=width)
+
     def criar_header(self):
+        _header, _title_wrap, right_slot = build_page_header(
+            self,
+            "CRIADOR DE CAMPEOES",
+            "Monte o roster com classe, personalidade, visual, equipamento e papel implicito de combate.",
+            lambda: self.controller.show_frame("MenuPrincipal"),
+            button_bg=COR_ACCENT,
+            button_fg=COR_TEXTO,
+        )
+
+        self.frame_progresso = tk.Frame(right_slot, bg=COR_HEADER)
+        self.frame_progresso.pack(anchor="e", pady=10)
+
+        self.labels_progresso = []
+        nomes_passos = ["Identidade", "Classe", "Personalidade", "Atributos", "Visual", "Equipamento", "Divindade"]
+        for i, nome in enumerate(nomes_passos, 1):
+            cor = COR_SUCCESS if i == 1 else COR_TEXTO_DIM
+            lbl = tk.Label(
+                self.frame_progresso, text=f"{i}.{nome}",
+                font=("Segoe UI", 9, "bold"), bg=COR_HEADER, fg=cor, padx=4
+            )
+            lbl.pack(side="left", padx=4, pady=28)
+            self.labels_progresso.append(lbl)
+        return
         """Cria o header com navegação e progresso"""
         header = tk.Frame(self, bg=COR_HEADER, height=88)
         header.pack(fill="x", side="top")
@@ -231,17 +313,15 @@ class TelaPersonagens(tk.Frame):
         frame_nav = tk.Frame(self.frame_wizard, bg=COR_BG_SECUNDARIO)
         frame_nav.pack(side="bottom", fill="x", pady=15, padx=15)
         
-        self.btn_anterior = tk.Button(
-            frame_nav, text="< Anterior", bg=COR_BG, fg=COR_TEXTO,
-            font=("Arial", 10), bd=0, padx=20, pady=8,
-            command=self.passo_anterior
+        self.btn_anterior = make_secondary_button(
+            frame_nav, "< Anterior", self.passo_anterior,
+            bg=COR_BG, fg=COR_TEXTO, font=("Arial", 10), padx=20, pady=8
         )
         self.btn_anterior.pack(side="left")
         
-        self.btn_proximo = tk.Button(
-            frame_nav, text="Próximo >", bg=COR_ACCENT, fg=COR_TEXTO,
-            font=("Arial", 10, "bold"), bd=0, padx=20, pady=8,
-            command=self.passo_proximo
+        self.btn_proximo = make_primary_button(
+            frame_nav, "Próximo >", self.passo_proximo,
+            bg=COR_ACCENT, fg=COR_TEXTO, font=("Arial", 10, "bold"), padx=20, pady=8
         )
         self.btn_proximo.pack(side="right")
 
@@ -253,17 +333,11 @@ class TelaPersonagens(tk.Frame):
 
     def setup_preview(self):
         """Configura o preview do personagem"""
-        top = tk.Frame(self.frame_centro, bg=COR_BG)
-        top.pack(fill="x", padx=10, pady=(8, 4))
-
-        tk.Label(
-            top, text="PREVIEW DO CAMPEAO",
-            font=("Bahnschrift SemiBold", 18), bg=COR_BG, fg=COR_TEXTO, anchor="w"
-        ).pack(fill="x")
-        tk.Label(
-            top, text="Acompanhe stats, classe, equipamento e leitura geral do kit enquanto monta o roster.",
-            font=("Segoe UI", 9), bg=COR_BG, fg=COR_TEXTO_DIM, anchor="w"
-        ).pack(fill="x", pady=(2, 0))
+        build_section_header(
+            self.frame_centro,
+            "PREVIEW DO CAMPEAO",
+            "Acompanhe stats, classe, equipamento e leitura geral do kit enquanto monta o roster.",
+        )
         
         # Canvas do preview — expande com a janela
         self.canvas_preview = tk.Canvas(
@@ -273,13 +347,13 @@ class TelaPersonagens(tk.Frame):
         self.canvas_preview.pack(fill="both", expand=True, padx=10, pady=8)
         
         # Resumo dos stats
-        self.frame_stats = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_stats = UICard(self.frame_centro, bg=COR_BG_SECUNDARIO, border="#284564")
         self.frame_stats.pack(fill="x", padx=10, pady=8)
         
         self.criar_resumo_stats()
         
         # Info da classe selecionada
-        self.frame_classe_info = tk.Frame(self.frame_centro, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#284564")
+        self.frame_classe_info = UICard(self.frame_centro, bg=COR_BG_SECUNDARIO, border="#284564")
         self.frame_classe_info.pack(fill="x", padx=10, pady=5)
         
         self.lbl_classe_passiva = tk.Label(
@@ -320,23 +394,14 @@ class TelaPersonagens(tk.Frame):
             ("Arma", self.dados_char["arma"] or "Nenhuma"),
         ]
         
-        for i, (nome, valor) in enumerate(stats):
-            row = i // 2
-            col = i % 2
-            
-            frame = tk.Frame(self.frame_stats, bg=COR_BG_SECUNDARIO)
-            frame.grid(row=row, column=col, padx=10, pady=3, sticky="w")
-            
-            tk.Label(
-                frame, text=f"{nome}:", 
-                font=("Arial", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM
-            ).pack(side="left")
-            
-            cor = CORES_CLASSE.get(self.dados_char["classe"], COR_TEXTO) if nome == "Classe" else COR_TEXTO
-            tk.Label(
-                frame, text=valor, 
-                font=("Arial", 9, "bold"), bg=COR_BG_SECUNDARIO, fg=cor
-            ).pack(side="left", padx=5)
+        render_stat_grid(
+            self.frame_stats,
+            stats,
+            columns=2,
+            bg=COR_BG_SECUNDARIO,
+            value_color_resolver=lambda nome, _valor: CORES_CLASSE.get(self.dados_char["classe"], COR_TEXTO) if nome == "Classe" else COR_TEXTO,
+            pady=3,
+        )
 
         self._criar_resumo_kit_magico(len(stats))
 
@@ -420,14 +485,16 @@ class TelaPersonagens(tk.Frame):
 
     def setup_lista(self):
         """Configura a lista de personagens existentes"""
-        tk.Label(
-            self.frame_lista, text="CAMPEÕES", 
-            font=("Bahnschrift SemiBold", 18), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO
-        ).pack(pady=(16, 4))
-        tk.Label(
-            self.frame_lista, text="Edite, limpe ou expanda o roster atual com foco em variedade de pacote.",
-            font=("Segoe UI", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM
-        ).pack(pady=(0, 10))
+        build_section_header(
+            self.frame_lista,
+            "CAMPEOES",
+            "Edite, limpe ou expanda o roster atual com foco em variedade de pacote.",
+            bg=COR_BG_SECUNDARIO,
+        )
+
+        self.feedback_lista = InlineFeedbackBar(self.frame_lista, bg=COR_BG, border="#35567f")
+        self.feedback_lista.pack(fill="x", padx=10, pady=(2, 8))
+        self.feedback_lista.set_message("Pronto para criar, revisar e evoluir o roster atual.", tone="info")
         
         # Treeview com scroll
         frame_tree = tk.Frame(self.frame_lista, bg=COR_BG_SECUNDARIO)
@@ -454,27 +521,25 @@ class TelaPersonagens(tk.Frame):
         
         self.tree.pack(fill="both", expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.selecionar_personagem)
+        self.tree.bind("<Configure>", lambda _e: self._ajustar_colunas_tree())
         
         # Botões
         frame_btns = tk.Frame(self.frame_lista, bg=COR_BG_SECUNDARIO)
         frame_btns.pack(fill="x", padx=10, pady=10)
         
-        tk.Button(
-            frame_btns, text="Deletar", bg=COR_DANGER, fg=COR_TEXTO,
-            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
-            command=self.deletar_personagem
+        make_primary_button(
+            frame_btns, "Deletar", self.deletar_personagem,
+            bg=COR_DANGER, fg=COR_TEXTO, font=("Segoe UI", 9, "bold"), padx=10, pady=6
         ).pack(side="left")
-        
-        tk.Button(
-            frame_btns, text="Editar", bg=COR_SUCCESS, fg=COR_BG,
-            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
-            command=self.editar_personagem
+
+        make_primary_button(
+            frame_btns, "Editar", self.editar_personagem,
+            bg=COR_SUCCESS, fg=COR_BG, font=("Segoe UI", 9, "bold"), padx=10, pady=6
         ).pack(side="right")
-        
-        tk.Button(
-            frame_btns, text="Novo", bg=COR_ACCENT, fg=COR_TEXTO,
-            font=("Segoe UI", 9, "bold"), bd=0, padx=10, pady=6, relief="flat",
-            command=self.novo_personagem
+
+        make_primary_button(
+            frame_btns, "Novo", self.novo_personagem,
+            bg=COR_ACCENT, fg=COR_TEXTO, font=("Segoe UI", 9, "bold"), padx=10, pady=6
         ).pack(side="right", padx=5)
 
     # =========================================================================
@@ -502,7 +567,7 @@ class TelaPersonagens(tk.Frame):
         elif passo == 2:
             self.passo_classe()
         elif passo == 3:
-            self.passo_personalidade()
+            self.passo_personalidade_v2()
         elif passo == 4:
             self.passo_atributos()
         elif passo == 5:
@@ -567,12 +632,18 @@ class TelaPersonagens(tk.Frame):
             font=("Arial", 9), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM
         ).pack(anchor="w", pady=(0, 5))
         
-        self.entry_nome = tk.Entry(
-            frame_nome, font=("Arial", 14), bg=COR_BG, fg=COR_TEXTO,
-            insertbackground=COR_TEXTO, width=30
+        _entry_wrap, self.entry_nome = build_labeled_entry(
+            frame_nome,
+            "",
+            value=self.dados_char["nome"],
+            bg=COR_BG_SECUNDARIO,
+            entry_bg=COR_BG,
+            entry_fg=COR_TEXTO,
+            font=("Arial", 14),
+            entry_kwargs={"width": 30},
         )
-        self.entry_nome.pack(fill="x", pady=5, ipady=5)
-        self.entry_nome.insert(0, self.dados_char["nome"])
+        _entry_wrap.pack_configure(pady=0)
+        self.entry_nome.pack_configure(ipady=5)
         self.entry_nome.bind("<KeyRelease>", self._on_nome_change)
         
         # Sugestões de nomes (placeholder para futuro)
@@ -640,33 +711,21 @@ class TelaPersonagens(tk.Frame):
                 dados = get_class_data(classe)
                 cor = CORES_CLASSE.get(classe, COR_TEXTO)
                 
-                frame = tk.Frame(self.frame_conteudo_passo, bg=COR_BG, bd=1, relief="solid")
-                frame.pack(fill="x", pady=2, padx=5)
-                
-                # Header com nome
-                header = tk.Frame(frame, bg=COR_BG)
-                header.pack(fill="x", padx=8, pady=3)
-                
-                rb = tk.Radiobutton(
-                    header, text=classe, variable=self.var_classe, value=classe,
-                    font=("Arial", 10, "bold"), bg=COR_BG, fg=cor,
-                    selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
-                    command=lambda c=classe: self._selecionar_classe(c)
-                )
-                rb.pack(side="left")
-                
-                # Mods resumidos
                 mods = f"For:{dados.get('mod_forca', 1.0):.0%} HP:{dados.get('mod_vida', 1.0):.0%} Vel:{dados.get('mod_velocidade', 1.0):.0%}"
-                tk.Label(
-                    header, text=mods,
-                    font=("Arial", 8), bg=COR_BG, fg=COR_TEXTO_DIM
-                ).pack(side="right")
-                
-                # Passiva
-                tk.Label(
-                    frame, text=f">> {dados.get('passiva', '')}",
-                    font=("Arial", 8), bg=COR_BG, fg=COR_SUCCESS, wraplength=370
-                ).pack(anchor="w", padx=8, pady=(0, 3))
+                frame, _rb = build_radio_option_card(
+                    self.frame_conteudo_passo,
+                    text=classe,
+                    value=classe,
+                    variable=self.var_classe,
+                    description=f">> {dados.get('passiva', '')}",
+                    command=lambda c=classe: self._selecionar_classe(c),
+                    accent_fg=cor,
+                    bg=COR_BG,
+                    select_bg=COR_BG_SECUNDARIO,
+                    meta_text=mods,
+                    wraplength=370,
+                )
+                frame.pack(fill="x", pady=2, padx=5)
 
     def _selecionar_classe(self, classe):
         """Atualiza a classe selecionada"""
@@ -756,7 +815,73 @@ class TelaPersonagens(tk.Frame):
         
         # Atualiza info inicial
         self._atualizar_info_personalidade()
-    
+
+    def passo_personalidade_v2(self):
+        """Passo 3: seleção de personalidade com cards reutilizáveis."""
+        from ia.personalities import PERSONALIDADES_PRESETS, LISTA_PERSONALIDADES
+
+        self.lbl_passo_titulo.config(text="3. PERSONALIDADE")
+        self.lbl_passo_desc.config(text="Defina como seu campeão luta. A personalidade determina o comportamento da IA em combate.")
+
+        frame_lista = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
+        frame_lista.pack(fill="both", expand=True, pady=10)
+
+        self.var_personalidade = tk.StringVar(value=self.dados_char["personalidade"])
+
+        row = 0
+        col = 0
+        for nome_pers in LISTA_PERSONALIDADES:
+            preset = PERSONALIDADES_PRESETS[nome_pers]
+            cor = preset["cor"]
+            cor_hex = f"#{cor[0]:02x}{cor[1]:02x}{cor[2]:02x}"
+
+            frame_item, _rb = build_radio_option_card(
+                frame_lista,
+                text=f"{preset['icone']} {nome_pers}",
+                value=nome_pers,
+                variable=self.var_personalidade,
+                description=preset["descricao"],
+                command=self._on_personalidade_change,
+                accent_fg=cor_hex,
+                bg=COR_BG,
+                select_bg=COR_BG_SECUNDARIO,
+                wraplength=170,
+                relief="ridge",
+            )
+            frame_item.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
+
+        frame_lista.grid_columnconfigure(0, weight=1)
+        frame_lista.grid_columnconfigure(1, weight=1)
+
+        frame_info = UICard(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO, border="#284564")
+        frame_info.pack(fill="x", pady=10, padx=5)
+
+        tk.Label(
+            frame_info,
+            text="COMPORTAMENTO EM COMBATE:",
+            font=("Arial", 9, "bold"),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_ACCENT,
+        ).pack(anchor="w", padx=10, pady=(8, 0))
+
+        self.lbl_pers_detalhes = tk.Label(
+            frame_info,
+            text="",
+            font=("Arial", 9),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_TEXTO,
+            wraplength=380,
+            justify="left",
+        )
+        self.lbl_pers_detalhes.pack(anchor="w", padx=10, pady=8)
+
+        self._atualizar_info_personalidade()
+
     def _on_personalidade_change(self):
         """Callback quando personalidade muda"""
         self.dados_char["personalidade"] = self.var_personalidade.get()
@@ -809,28 +934,24 @@ class TelaPersonagens(tk.Frame):
         ).pack(anchor="w", pady=(0, 5))
         
         self.var_tamanho = tk.DoubleVar(value=self.dados_char["tamanho"])
-        
-        frame_slider_tam = tk.Frame(frame_tam, bg=COR_BG_SECUNDARIO)
-        frame_slider_tam.pack(fill="x")
-        
-        tk.Label(frame_slider_tam, text="0.8m", font=("Arial", 8), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack(side="left")
-        
-        self.slider_tamanho = tk.Scale(
-            frame_slider_tam, from_=0.8, to=2.5, resolution=0.01,
-            orient="horizontal", variable=self.var_tamanho,
-            bg=COR_BG_SECUNDARIO, fg=COR_TEXTO, highlightthickness=0,
-            troughcolor=COR_BG, activebackground=COR_ACCENT,
-            command=self._on_atributo_change
+        for child in list(frame_tam.winfo_children())[2:]:
+            child.destroy()
+        _tmp_frame, self.slider_tamanho, self.lbl_tamanho_valor = build_slider_field(
+            frame_tam,
+            "",
+            "",
+            from_=0.8,
+            to=2.5,
+            resolution=0.01,
+            variable=self.var_tamanho,
+            command=self._on_atributo_change,
+            min_text="0.8m",
+            max_text="2.5m",
+            value_text=f"{self.dados_char['tamanho']:.2f}m",
+            value_fg=COR_SUCCESS,
+            bg=COR_BG_SECUNDARIO,
         )
-        self.slider_tamanho.pack(side="left", fill="x", expand=True, padx=5)
-        
-        tk.Label(frame_slider_tam, text="2.5m", font=("Arial", 8), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack(side="left")
-        
-        self.lbl_tamanho_valor = tk.Label(
-            frame_tam, text=f"{self.dados_char['tamanho']:.2f}m", 
-            font=("Arial", 12, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_SUCCESS
-        )
-        self.lbl_tamanho_valor.pack(pady=5)
+        _tmp_frame.pack_configure(pady=0)
         
         # Força
         frame_forca = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
@@ -847,28 +968,24 @@ class TelaPersonagens(tk.Frame):
         ).pack(anchor="w", pady=(0, 5))
         
         self.var_forca = tk.DoubleVar(value=self.dados_char["forca"])
-        
-        frame_slider_forca = tk.Frame(frame_forca, bg=COR_BG_SECUNDARIO)
-        frame_slider_forca.pack(fill="x")
-        
-        tk.Label(frame_slider_forca, text="1", font=("Arial", 8), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack(side="left")
-        
-        self.slider_forca = tk.Scale(
-            frame_slider_forca, from_=1, to=10, resolution=0.5,
-            orient="horizontal", variable=self.var_forca,
-            bg=COR_BG_SECUNDARIO, fg=COR_TEXTO, highlightthickness=0,
-            troughcolor=COR_BG, activebackground=COR_ACCENT,
-            command=self._on_atributo_change
+        for child in list(frame_forca.winfo_children())[2:]:
+            child.destroy()
+        _tmp_frame, self.slider_forca, self.lbl_forca_valor = build_slider_field(
+            frame_forca,
+            "",
+            "",
+            from_=1,
+            to=10,
+            resolution=0.5,
+            variable=self.var_forca,
+            command=self._on_atributo_change,
+            min_text="1",
+            max_text="10",
+            value_text=f"{self.dados_char['forca']:.1f}",
+            value_fg="#ff6b6b",
+            bg=COR_BG_SECUNDARIO,
         )
-        self.slider_forca.pack(side="left", fill="x", expand=True, padx=5)
-        
-        tk.Label(frame_slider_forca, text="10", font=("Arial", 8), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack(side="left")
-        
-        self.lbl_forca_valor = tk.Label(
-            frame_forca, text=f"{self.dados_char['forca']:.1f}", 
-            font=("Arial", 12, "bold"), bg=COR_BG_SECUNDARIO, fg="#ff6b6b"
-        )
-        self.lbl_forca_valor.pack(pady=5)
+        _tmp_frame.pack_configure(pady=0)
         
         # Mana/Magia
         frame_mana = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
@@ -885,28 +1002,24 @@ class TelaPersonagens(tk.Frame):
         ).pack(anchor="w", pady=(0, 5))
         
         self.var_mana = tk.DoubleVar(value=self.dados_char["mana"])
-        
-        frame_slider_mana = tk.Frame(frame_mana, bg=COR_BG_SECUNDARIO)
-        frame_slider_mana.pack(fill="x")
-        
-        tk.Label(frame_slider_mana, text="1", font=("Arial", 8), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack(side="left")
-        
-        self.slider_mana = tk.Scale(
-            frame_slider_mana, from_=1, to=10, resolution=0.5,
-            orient="horizontal", variable=self.var_mana,
-            bg=COR_BG_SECUNDARIO, fg=COR_TEXTO, highlightthickness=0,
-            troughcolor=COR_BG, activebackground=COR_ACCENT,
-            command=self._on_atributo_change
+        for child in list(frame_mana.winfo_children())[2:]:
+            child.destroy()
+        _tmp_frame, self.slider_mana, self.lbl_mana_valor = build_slider_field(
+            frame_mana,
+            "",
+            "",
+            from_=1,
+            to=10,
+            resolution=0.5,
+            variable=self.var_mana,
+            command=self._on_atributo_change,
+            min_text="1",
+            max_text="10",
+            value_text=f"{self.dados_char['mana']:.1f}",
+            value_fg="#74b9ff",
+            bg=COR_BG_SECUNDARIO,
         )
-        self.slider_mana.pack(side="left", fill="x", expand=True, padx=5)
-        
-        tk.Label(frame_slider_mana, text="10", font=("Arial", 8), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack(side="left")
-        
-        self.lbl_mana_valor = tk.Label(
-            frame_mana, text=f"{self.dados_char['mana']:.1f}", 
-            font=("Arial", 12, "bold"), bg=COR_BG_SECUNDARIO, fg="#74b9ff"
-        )
-        self.lbl_mana_valor.pack(pady=5)
+        _tmp_frame.pack_configure(pady=0)
         
         # Presets rápidos
         frame_presets = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
@@ -1114,17 +1227,19 @@ class TelaPersonagens(tk.Frame):
         # Opção: Sem arma
         self.var_arma = tk.StringVar(value=self.dados_char["arma"] or "Nenhuma")
         
-        frame_nenhuma = tk.Frame(frame_arma, bg=COR_BG, bd=1, relief="solid")
-        frame_nenhuma.pack(fill="x", pady=2)
-        
-        rb_nenhuma = tk.Radiobutton(
-            frame_nenhuma, text="Mãos Vazias (Monge Style)", 
-            variable=self.var_arma, value="Nenhuma",
-            font=("Arial", 10), bg=COR_BG, fg=COR_TEXTO,
-            selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
-            command=lambda: self._selecionar_arma("Nenhuma")
+        frame_nenhuma, rb_nenhuma = build_radio_option_card(
+            frame_arma,
+            text="Mãos Vazias (Monge Style)",
+            value="Nenhuma",
+            variable=self.var_arma,
+            description="Sem arma equipada. Bom para estilos de monge, chi ou builds sem foco em equipamento.",
+            command=lambda: self._selecionar_arma("Nenhuma"),
+            accent_fg=COR_TEXTO,
+            bg=COR_BG,
+            select_bg=COR_BG_SECUNDARIO,
+            wraplength=320,
         )
-        rb_nenhuma.pack(anchor="w", padx=10, pady=5)
+        frame_nenhuma.pack(fill="x", pady=2)
         
         # Lista de armas
         frame_lista_armas = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
@@ -1163,40 +1278,32 @@ class TelaPersonagens(tk.Frame):
                 cor_arma = f"#{arma.r:02x}{arma.g:02x}{arma.b:02x}"
                 raridade = getattr(arma, 'raridade', 'Comum')
                 
-                frame_a = tk.Frame(frame_armas_inner, bg=COR_BG, bd=1, relief="solid")
+                info = f"{arma.tipo} | Dano: {arma.dano:.0f} | {raridade}"
+                frame_a, rb = build_radio_option_card(
+                    frame_armas_inner,
+                    text=arma.nome,
+                    value=arma.nome,
+                    variable=self.var_arma,
+                    description="",
+                    command=lambda n=arma.nome: self._selecionar_arma(n),
+                    accent_fg=cor_arma,
+                    bg=COR_BG,
+                    select_bg=COR_BG_SECUNDARIO,
+                    meta_text=info,
+                    wraplength=320,
+                )
                 frame_a.pack(fill="x", pady=2, padx=2)
                 
                 # Bind scroll nos frames de cada arma
                 frame_a.bind("<MouseWheel>", _scroll_armas)
-                
-                header = tk.Frame(frame_a, bg=COR_BG)
-                header.pack(fill="x", padx=5, pady=3)
-                header.bind("<MouseWheel>", _scroll_armas)
-                
-                rb = tk.Radiobutton(
-                    header, text=arma.nome, 
-                    variable=self.var_arma, value=arma.nome,
-                    font=("Arial", 10, "bold"), bg=COR_BG, fg=cor_arma,
-                    selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
-                    command=lambda n=arma.nome: self._selecionar_arma(n)
-                )
                 rb.bind("<MouseWheel>", _scroll_armas)
-                rb.pack(side="left")
-                
-                # Info da arma
-                info = f"{arma.tipo} | Dano: {arma.dano:.0f} | {raridade}"
-                lbl_info = tk.Label(
-                    header, text=info,
-                    font=("Arial", 8), bg=COR_BG, fg=COR_TEXTO_DIM
-                )
-                lbl_info.bind("<MouseWheel>", _scroll_armas)
-                lbl_info.pack(side="right")
         else:
-            tk.Label(
-                frame_armas_inner, 
-                text="Nenhuma arma criada ainda.\nVisite a Forja de Armas para criar!",
-                font=("Arial", 10), bg=COR_BG_SECUNDARIO, fg=COR_WARNING
-            ).pack(pady=20)
+            EmptyState(
+                frame_armas_inner,
+                "Nenhuma arma criada ainda",
+                "Visite a Forja de Armas para criar uma arma e depois volte para equipar este campeao.",
+                accent=COR_WARNING,
+            ).pack(fill="x", padx=6, pady=20)
 
 
     # ── [PHASE 3] PASSO 7: ALIANÇA DIVINA ──────────────────────────────────────
@@ -1217,6 +1324,8 @@ class TelaPersonagens(tk.Frame):
         sync = WorldBridge.get() if WORLDMAP_AVAILABLE else None  # D01 Sprint 10
 
         frame = self.frame_conteudo_passo
+        self._render_novo_deus_v2(frame, sync)
+        return
 
         # ── Painel: World Map não ativo ────────────────────────────────────────
         if sync is None:
@@ -1277,17 +1386,19 @@ class TelaPersonagens(tk.Frame):
         # ── Opção: Mortal Livre ───────────────────────────────────────────────
         self.var_god = tk.StringVar(value=self.dados_char.get("god_id") or "__NONE__")
 
-        frame_nenhum = tk.Frame(frame, bg=COR_BG, bd=1, relief="solid")
-        frame_nenhum.pack(fill="x", pady=2, padx=5)
-
-        rb_nenhum = tk.Radiobutton(
-            frame_nenhum, text="🔓  Mortal Livre  (sem deus)",
-            variable=self.var_god, value="__NONE__",
-            font=("Arial", 10), bg=COR_BG, fg=COR_TEXTO_DIM,
-            selectcolor=COR_BG_SECUNDARIO, activebackground=COR_BG,
-            command=lambda: self._selecionar_deus(None)
+        frame_nenhum, _rb_nenhum = build_radio_option_card(
+            frame,
+            text="🔓  Mortal Livre  (sem deus)",
+            value="__NONE__",
+            variable=self.var_god,
+            description="Permanece sem vínculo divino e segue como agente livre no World Map.",
+            command=lambda: self._selecionar_deus(None),
+            accent_fg=COR_TEXTO_DIM,
+            bg=COR_BG,
+            select_bg=COR_BG_SECUNDARIO,
+            wraplength=360,
         )
-        rb_nenhum.pack(anchor="w", padx=12, pady=6)
+        frame_nenhum.pack(fill="x", pady=2, padx=5)
 
         # ── Lista de Deuses ───────────────────────────────────────────────────
         if gods:
@@ -1296,16 +1407,14 @@ class TelaPersonagens(tk.Frame):
                      fg=COR_TEXTO_DIM).pack(anchor="w", padx=8, pady=(8, 2))
 
             for god in sorted(gods, key=lambda g: -g.follower_count):
-                self._criar_card_deus(frame, god)
+                self._criar_card_deus_v2(frame, god)
         else:
-            tk.Label(
+            EmptyState(
                 frame,
-                text="Nenhum Deus registrado ainda.\n"
-                     "Use o World Map ([G]) para criar deuses\n"
-                     "ou adicione-os no gods.json.",
-                font=("Arial", 10), bg=COR_BG_SECUNDARIO,
-                fg=COR_WARNING, justify="center"
-            ).pack(pady=20)
+                "Nenhum Deus registrado ainda",
+                "Use o World Map ([G]) para criar deuses ou adicione-os no gods.json.",
+                accent=COR_WARNING,
+            ).pack(fill="x", padx=5, pady=20)
 
         # ── Criar Novo Deus ───────────────────────────────────────────────────
         sep = tk.Frame(frame, bg=COR_HEADER, height=1)
@@ -1390,6 +1499,81 @@ class TelaPersonagens(tk.Frame):
             tk.Label(body, text=f'  "{lore_short}"',
                      font=("Arial", 8, "italic"), bg=body["bg"],
                      fg=COR_TEXTO_DIM, wraplength=360, justify="left").pack(anchor="w")
+
+    def _criar_card_deus_v2(self, parent, god):
+        """Cria um card de seleção de deus alinhado ao kit visual novo."""
+        is_selected = (self.dados_char.get("god_id") == god.god_id)
+
+        try:
+            cp_hex = god.color_primary
+            r = int(cp_hex.lstrip("#")[0:2], 16)
+            g = int(cp_hex.lstrip("#")[2:4], 16)
+            b = int(cp_hex.lstrip("#")[4:6], 16)
+            card_bg = f"#{r//4 + 20:02x}{g//4 + 20:02x}{b//4 + 20:02x}"
+        except Exception:
+            cp_hex = "#8892b0"
+            card_bg = COR_BG
+
+        body_bg = card_bg if is_selected else COR_BG
+        card = UICard(parent, bg=body_bg, border=cp_hex if is_selected else COR_BORDA)
+        card.pack(fill="x", pady=3, padx=5)
+
+        tk.Frame(card, bg=cp_hex, width=5).pack(side="left", fill="y")
+
+        body = tk.Frame(card, bg=body_bg)
+        body.pack(side="left", fill="both", expand=True, padx=8, pady=6)
+
+        top = tk.Frame(body, bg=body_bg)
+        top.pack(fill="x")
+
+        rb = tk.Radiobutton(
+            top,
+            text=f"âš¡  {god.god_name}",
+            variable=self.var_god,
+            value=god.god_id,
+            font=("Arial", 11, "bold"),
+            bg=body_bg,
+            fg=cp_hex,
+            selectcolor=COR_BG_SECUNDARIO,
+            activebackground=body_bg,
+            activeforeground=cp_hex,
+            command=lambda gid=god.god_id: self._selecionar_deus(gid),
+        )
+        rb.pack(side="left")
+
+        tk.Label(
+            top,
+            text=f"[{god.nature}]",
+            font=("Consolas", 9),
+            bg=body_bg,
+            fg=cp_hex,
+        ).pack(side="left", padx=4)
+
+        n_zonas = len(god.owned_zones)
+        stats_text = (
+            f"  Seguidores: {god.follower_count:,}   |   "
+            f"Zonas: {n_zonas}   |   "
+            f"Fonte: {god.source}"
+        )
+        tk.Label(
+            body,
+            text=stats_text,
+            font=("Consolas", 8),
+            bg=body_bg,
+            fg=COR_TEXTO_DIM,
+        ).pack(anchor="w")
+
+        if god.lore_description:
+            lore_short = god.lore_description[:80] + ("..." if len(god.lore_description) > 80 else "")
+            tk.Label(
+                body,
+                text=f'  "{lore_short}"',
+                font=("Arial", 8, "italic"),
+                bg=body_bg,
+                fg=COR_TEXTO_DIM,
+                wraplength=360,
+                justify="left",
+            ).pack(anchor="w")
 
     def _selecionar_deus(self, god_id):
         """Callback: atualiza o god_id nos dados do personagem."""
@@ -1509,6 +1693,133 @@ class TelaPersonagens(tk.Frame):
         btn_cancel.pack()
 
     # ── FIM PHASE 3 ─────────────────────────────────────────────────────────
+
+    def _render_novo_deus_v2(self, frame, sync):
+        """Renderiza o mini wizard moderno de criação de deus."""
+        build_section_header(
+            frame,
+            "Novo Deus",
+            "Registre um novo deus rapidamente e volte para a seleção com ele já disponível.",
+            bg=COR_BG_SECUNDARIO,
+            accent=COR_SUCCESS,
+        )
+
+        form_card = UICard(frame, bg=COR_BG, border="#2b527e", padx=12, pady=12)
+        form_card.pack(fill="x", padx=8, pady=(4, 10))
+
+        nome_wrap, entry_nome = build_labeled_entry(
+            form_card,
+            "Nome do Deus",
+            bg=COR_BG,
+            entry_bg=COR_BG_SECUNDARIO,
+            help_text="Use um nome marcante e fácil de reconhecer no roster e no mapa.",
+            font=("Consolas", 11),
+            entry_kwargs={"relief": "flat", "bd": 6},
+        )
+        nome_wrap.pack(fill="x", pady=(0, 8))
+
+        nature_options = [
+            "balanced", "fire", "ice", "darkness", "nature",
+            "chaos", "void", "greed", "fear", "arcane", "blood", "time", "gravity"
+        ]
+        var_nature = tk.StringVar(value="balanced")
+        nature_wrap, combo_nature = build_labeled_combobox(
+            form_card,
+            "Natureza",
+            values=nature_options,
+            current="balanced",
+            bg=COR_BG,
+        )
+        nature_wrap.pack(fill="x", pady=(0, 8))
+        combo_nature.configure(textvariable=var_nature, font=("Consolas", 10))
+
+        seg_wrap, entry_seg = build_labeled_entry(
+            form_card,
+            "Seguidores Iniciais",
+            bg=COR_BG,
+            entry_bg=COR_BG_SECUNDARIO,
+            help_text="Valor inicial usado para presença do deus no World Map.",
+            value="0",
+            font=("Consolas", 11),
+            entry_kwargs={"relief": "flat", "bd": 6},
+        )
+        seg_wrap.pack(fill="x", pady=(0, 8))
+
+        lore_wrap, entry_lore = build_labeled_entry(
+            form_card,
+            "Lore / Descrição (Opcional)",
+            bg=COR_BG,
+            entry_bg=COR_BG_SECUNDARIO,
+            help_text="Uma frase curta para dar identidade ao deus e enriquecer a seleção.",
+            font=("Consolas", 10),
+            entry_kwargs={"relief": "flat", "bd": 6},
+        )
+        lore_wrap.pack(fill="x")
+
+        msg_var = tk.StringVar()
+        msg_label = tk.Label(
+            frame,
+            textvariable=msg_var,
+            font=("Arial", 9),
+            bg=COR_BG_SECUNDARIO,
+            fg=COR_SUCCESS,
+            wraplength=420,
+            justify="left",
+        )
+        msg_label.pack(fill="x", padx=12, pady=(0, 8))
+
+        def _criar_deus_v2():
+            nome = entry_nome.get().strip()
+            if not nome:
+                msg_var.set("Digite um nome para o deus.")
+                msg_label.config(fg=COR_DANGER)
+                return
+
+            nature_el = var_nature.get()
+            try:
+                followers = int(entry_seg.get() or "0")
+            except ValueError:
+                followers = 0
+            lore = entry_lore.get().strip()
+
+            god = sync.create_god(
+                god_name=nome,
+                nature=nature_el.capitalize(),
+                nature_element=nature_el,
+                source="manual",
+            )
+            god.follower_count = followers
+            if lore:
+                god.lore_description = lore
+            sync.update_god(god)
+
+            self._selecionar_deus(god.god_id)
+            msg_var.set(f"{god.god_name} registrado com sucesso.")
+            msg_label.config(fg=COR_SUCCESS)
+            frame.after(900, lambda: self.mostrar_passo(7))
+
+        actions = tk.Frame(frame, bg=COR_BG_SECUNDARIO)
+        actions.pack(fill="x", padx=8, pady=(2, 0))
+
+        make_primary_button(
+            actions,
+            "Registrar Deus",
+            _criar_deus_v2,
+            bg=COR_SUCCESS,
+            fg="#000000",
+            padx=20,
+            pady=8,
+        ).pack(side="left")
+
+        make_secondary_button(
+            actions,
+            "Cancelar",
+            lambda: self.mostrar_passo(7),
+            bg=COR_BG,
+            fg=COR_TEXTO_DIM,
+            padx=12,
+            pady=6,
+        ).pack(side="left", padx=(8, 0))
 
     def _selecionar_arma(self, nome):
         """Seleciona uma arma"""
@@ -1676,6 +1987,7 @@ class TelaPersonagens(tk.Frame):
         try:
             nome = self.dados_char["nome"].strip()
             if not nome:
+                self.feedback_lista.set_message("Digite um nome antes de salvar o campeão.", tone="error")
                 messagebox.showerror("Erro", "Digite um nome para o personagem!")
                 return
             
@@ -1687,6 +1999,12 @@ class TelaPersonagens(tk.Frame):
                         return
             
             # Busca arma
+            # Mantem feedback inline em caso de duplicata sem depender so do popup.
+            for i, p in enumerate(self.controller.lista_personagens):
+                if p.nome.lower() == nome.lower():
+                    if self.indice_em_edicao is None or self.indice_em_edicao != i:
+                        self.feedback_lista.set_message(f"Já existe um campeão chamado '{nome}'.", tone="error")
+                        break
             nome_arma = self.dados_char["arma"]
             arma_obj = next((a for a in self.controller.lista_armas if a.nome == nome_arma), None)
             peso_arma = arma_obj.peso if arma_obj else 0
@@ -1717,9 +2035,11 @@ class TelaPersonagens(tk.Frame):
                 msg = f"Campeão '{nome}' atualizado!"
             self.atualizar_dados()
             self.novo_personagem()
+            self.feedback_lista.set_message(msg.replace("Campeão", "Campeão"), tone="success")
             messagebox.showinfo("Sucesso", msg)
             
         except ValueError as e:
+            self.feedback_lista.set_message(f"Valores inválidos ao salvar: {e}", tone="error")
             messagebox.showerror("Erro", f"Valores inválidos: {e}")
 
     def deletar_personagem(self):
@@ -1771,6 +2091,8 @@ class TelaPersonagens(tk.Frame):
         
         # Atualiza UI — mostrar_passo definirá o texto do botão via self.total_passos
         self.mostrar_passo(self.passo_atual)
+        if hasattr(self, "feedback_lista"):
+            self.feedback_lista.set_message(f"Editando {p.nome}. Ajuste classe, personalidade e equipamento.", tone="info")
 
     def editar_personagem(self):
         """Inicia edição do personagem selecionado"""
@@ -1781,6 +2103,8 @@ class TelaPersonagens(tk.Frame):
         
         self.selecionar_personagem()
         self.mostrar_passo(1)
+        if hasattr(self, "feedback_lista"):
+            self.feedback_lista.set_message("Modo criação ativo. Monte um novo campeão do zero.", tone="info")
 
     def novo_personagem(self):
         """Reseta para criar novo personagem"""

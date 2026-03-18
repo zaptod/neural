@@ -22,6 +22,12 @@ python run.py
 
 # Modo torneio headless
 python run_tournament.py
+
+# Hub dos postos operacionais
+python run_postos.py headless --mode rapido
+python run_postos.py headless --tatico --modo 1v1 --template duelo_papeis_basicos --runs 3
+python run_postos.py simulacao --modo launcher
+python run_postos.py pipeline --fights 1
 ```
 
 ## Testes

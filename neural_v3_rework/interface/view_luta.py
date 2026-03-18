@@ -23,6 +23,7 @@ from interface.theme import (
     COR_TEXTO,
     COR_TEXTO_DIM,
 )
+from interface.ui_components import UICard, build_page_header, make_primary_button
 from simulacao import simulacao
 
 _log = logging.getLogger("interface.view_luta")
@@ -48,46 +49,18 @@ class TelaLuta(tk.Frame):
             self.atualizar_dados()
 
     def setup_ui(self):
-        header = tk.Frame(self, bg=COR_HEADER, height=92)
-        header.pack(fill="x", side="top")
-        header.pack_propagate(False)
-
-        tk.Button(
-            header,
-            text="Voltar",
-            bg=COR_BG_SECUNDARIO,
-            fg=COR_TEXTO,
-            font=("Segoe UI", 10, "bold"),
-            bd=0,
-            relief="flat",
-            padx=16,
-            pady=8,
-            cursor="hand2",
-            command=lambda: self.controller.show_frame("MenuPrincipal"),
-        ).pack(side="left", padx=18, pady=20)
-
-        title_wrap = tk.Frame(header, bg=COR_HEADER)
-        title_wrap.pack(side="left", fill="both", expand=True, pady=14)
-
-        tk.Label(
-            title_wrap,
-            text="ARENA DE COMBATE",
-            font=("Bahnschrift SemiBold", 24),
-            bg=COR_HEADER,
-            fg=COR_TEXTO,
-            anchor="w",
-        ).pack(fill="x")
-        tk.Label(
-            title_wrap,
-            text="Monte o confronto, configure o mapa e dispare a simulacao principal.",
-            font=("Segoe UI", 10),
-            bg=COR_HEADER,
-            fg="#c6d8f4",
-            anchor="w",
-        ).pack(fill="x", pady=(2, 0))
+        header, _title_wrap, right_slot = build_page_header(
+            self,
+            "ARENA DE COMBATE",
+            "Monte o confronto, configure o mapa e dispare a simulacao principal.",
+            lambda: self.controller.show_frame("MenuPrincipal"),
+            button_bg=COR_BG_SECUNDARIO,
+            button_fg=COR_TEXTO,
+            height=92,
+        )
 
         self.lbl_matchup = tk.Label(
-            header,
+            right_slot,
             text="Aguardando selecao",
             font=("Segoe UI", 10, "bold"),
             bg=COR_HEADER,
@@ -95,7 +68,7 @@ class TelaLuta(tk.Frame):
             justify="right",
             anchor="e",
         )
-        self.lbl_matchup.pack(side="right", padx=20)
+        self.lbl_matchup.pack(anchor="e", pady=16)
 
         footer = tk.Frame(self, bg=COR_BG, height=78)
         footer.pack(fill="x", side="bottom", padx=20, pady=(0, 14))
@@ -123,24 +96,22 @@ class TelaLuta(tk.Frame):
             anchor="w",
         ).pack(anchor="w")
 
-        self.btn_iniciar = tk.Button(
+        self.btn_iniciar = make_primary_button(
             footer,
-            text="INICIAR BATALHA",
+            "INICIAR BATALHA",
+            self.iniciar_luta,
             font=("Bahnschrift SemiBold", 15),
             bg=COR_TEXTO_DIM,
             fg=COR_TEXTO,
-            bd=0,
-            relief="flat",
             padx=30,
             pady=13,
-            cursor="hand2",
             state="disabled",
-            command=self.iniciar_luta,
         )
         self.btn_iniciar.pack(side="right", pady=14)
 
         main = tk.Frame(self, bg=COR_BG)
         main.pack(fill="both", expand=True, padx=20, pady=(16, 10))
+        self._main_area = main
 
         paned = tk.PanedWindow(
             main,
@@ -153,10 +124,12 @@ class TelaLuta(tk.Frame):
             bg=COR_BG,
         )
         paned.pack(fill="both", expand=True)
+        self._paned_main = paned
 
         frame_p1 = self._criar_coluna_jogador(main, "LUTADOR A", COR_P1, "p1")
         frame_center = self._criar_coluna_central(main)
         frame_p2 = self._criar_coluna_jogador(main, "LUTADOR B", COR_P2, "p2")
+        self._frame_center = frame_center
 
         paned.add(frame_p1, minsize=300, stretch="always")
         paned.add(frame_center, minsize=260, stretch="never")
@@ -164,9 +137,29 @@ class TelaLuta(tk.Frame):
 
         self.after(100, lambda: paned.sash_place(0, 430, 0))
         self.after(150, lambda: paned.sash_place(1, 860, 0))
+        main.bind("<Configure>", self._on_main_resize)
+
+    def _on_main_resize(self, event=None):
+        """Rebalanceia o layout da arena em janelas menores."""
+        width = event.width if event else self._main_area.winfo_width()
+        if width < 760 or not hasattr(self, "_paned_main"):
+            return
+
+        center_w = max(240, min(int(width * 0.25), 320))
+        left = max(260, min(int((width - center_w) / 2), 460))
+        right = min(width - max(260, left), left + center_w)
+        right = max(left + center_w, width - max(260, int(width * 0.32)))
+
+        try:
+            self._paned_main.sash_place(0, left, 0)
+            self._paned_main.sash_place(1, right, 0)
+        except Exception:
+            pass
+
+        self._ajustar_wraps_centro()
 
     def _criar_coluna_jogador(self, parent, titulo, accent, prefixo):
-        frame = tk.Frame(parent, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#27405f")
+        frame = UICard(parent, bg=COR_BG_SECUNDARIO, border="#27405f")
 
         head = tk.Frame(frame, bg=COR_BG_SECUNDARIO)
         head.pack(fill="x", padx=16, pady=(16, 10))
@@ -267,7 +260,7 @@ class TelaLuta(tk.Frame):
     def _criar_coluna_central(self, parent):
         frame = tk.Frame(parent, bg=COR_BG)
 
-        matchup = tk.Frame(frame, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#27405f")
+        matchup = UICard(frame, bg=COR_BG_SECUNDARIO, border="#27405f")
         matchup.pack(fill="x", pady=(0, 14))
         tk.Label(
             matchup,
@@ -294,7 +287,7 @@ class TelaLuta(tk.Frame):
         )
         self.lbl_round_hint.pack(pady=(2, 16))
 
-        cfg = tk.Frame(frame, bg=COR_BG_SECUNDARIO, highlightthickness=1, highlightbackground="#27405f")
+        cfg = UICard(frame, bg=COR_BG_SECUNDARIO, border="#27405f")
         cfg.pack(fill="x")
 
         tk.Label(
@@ -372,6 +365,15 @@ class TelaLuta(tk.Frame):
         self.lbl_mapa_info.pack(anchor="w")
 
         return frame
+
+    def _ajustar_wraps_centro(self):
+        largura = 220
+        if hasattr(self, "_frame_center"):
+            largura = max(min(self._frame_center.winfo_width() - 40, 320), 150)
+        if hasattr(self, "lbl_round_hint"):
+            self.lbl_round_hint.config(wraplength=largura)
+        if hasattr(self, "lbl_mapa_info"):
+            self.lbl_mapa_info.config(wraplength=largura)
 
     def _redesenhar_preview_por_resize(self, event):
         dono = self._canvas_owner.get(event.widget)

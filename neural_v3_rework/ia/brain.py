@@ -1383,6 +1383,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         p = self.parent
         role = orders.get("role", "STRIKER")
         tactic = orders.get("tactic", "FOCUS_FIRE")
+        package_role = orders.get("package_role", "")
+        modo_horda = bool(orders.get("modo_horda", False))
         
         # â”€â”€ ROLE-BASED AGGRESSION MODIFIERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         role_agg_mod = {
@@ -1415,6 +1417,21 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             elif role in ("VANGUARD", "SUPPORT"):
                 # Protetores mantÃªm calma
                 self.medo = max(0, self.medo - 0.01 * dt * 60)
+
+        if modo_horda:
+            pressure_ratio = min(1.0, max(0.0, (orders.get("enemy_alive_count", 0) - orders.get("alive_count", 1)) / 6.0))
+            if package_role == "defensor":
+                self._agressividade_temp_mod += 0.04 * dt * 60
+                self.medo = max(0.0, self.medo - 0.015 * dt * 60)
+            elif package_role in ("curandeiro", "suporte_controle"):
+                self._agressividade_temp_mod -= 0.06 * dt * 60
+                self.hesitacao = min(0.35, self.hesitacao + 0.008 * dt * 60)
+            elif package_role in ("limpador_de_horda", "controlador_de_area", "invocador"):
+                self._agressividade_temp_mod += 0.05 * pressure_ratio
+                self.excitacao = min(1.0, self.excitacao + 0.012 * dt * 60 * max(0.25, pressure_ratio))
+            elif package_role == "assassino":
+                self._agressividade_temp_mod -= 0.03 * dt * 60
+                self.hesitacao = min(0.30, self.hesitacao + 0.006 * dt * 60)
         
         # â”€â”€ DESVANTAGEM NUMÃ‰RICA AWARENESS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if orders.get("em_desvantagem", False):

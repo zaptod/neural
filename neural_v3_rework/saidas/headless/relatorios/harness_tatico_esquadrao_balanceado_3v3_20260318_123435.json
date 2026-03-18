@@ -1,0 +1,443 @@
+{
+  "template_id": "esquadrao_balanceado_3v3",
+  "modo": "grupo_vs_grupo",
+  "runs": 1,
+  "team_wins": {
+    "team_b": 1
+  },
+  "winner_counts": {
+    "Cassian Orion da Brasa": 1
+  },
+  "avg_frames": 2727.0,
+  "avg_tempo_simulado": 45.45,
+  "avg_tempo_real": 5.492,
+  "team_damage_avg": {
+    "team_a": 483.982,
+    "team_b": 1143.913
+  },
+  "papeis": {
+    "assassino": {
+      "presencas": 1,
+      "damage_dealt": 183.803,
+      "kills": 0
+    },
+    "atirador": {
+      "presencas": 1,
+      "damage_dealt": 353.005,
+      "kills": 1
+    },
+    "bruiser": {
+      "presencas": 1,
+      "damage_dealt": 911.571,
+      "kills": 3
+    },
+    "curandeiro": {
+      "presencas": 1,
+      "damage_dealt": 78.262,
+      "kills": 0
+    },
+    "defensor": {
+      "presencas": 1,
+      "damage_dealt": 52.716,
+      "kills": 1
+    },
+    "suporte_controle": {
+      "presencas": 1,
+      "damage_dealt": 48.539,
+      "kills": 0
+    }
+  },
+  "template_meta": {
+    "id": "esquadrao_balanceado_3v3",
+    "modo": "grupo_vs_grupo",
+    "nome": "Esquadrao Balanceado 3v3",
+    "cenario": "Arena"
+  },
+  "team_a": [
+    {
+      "papel": "defensor",
+      "nome": "Zarya Solar da Brasa",
+      "arma": "Solstício Quebrado",
+      "familia_arma": "hibrida",
+      "score": 9.667
+    },
+    {
+      "papel": "curandeiro",
+      "nome": "Elda Tempra da Brasa",
+      "arma": "Lira Boreal",
+      "familia_arma": "orbital",
+      "score": 8.371
+    },
+    {
+      "papel": "atirador",
+      "nome": "Valen Vesper da Brasa",
+      "arma": "Véu da Hemomancia",
+      "familia_arma": "foco",
+      "score": 4.33
+    }
+  ],
+  "team_b": [
+    {
+      "papel": "bruiser",
+      "nome": "Cassian Orion da Brasa",
+      "arma": "Raiz do Pântano",
+      "familia_arma": "corrente",
+      "score": 13.0
+    },
+    {
+      "papel": "suporte_controle",
+      "nome": "Vesper Noite da Brasa",
+      "arma": "Pilares do Santuário",
+      "familia_arma": "orbital",
+      "score": 8.33
+    },
+    {
+      "papel": "assassino",
+      "nome": "Iris Rubra da Brasa",
+      "arma": "Solstício Quebrado",
+      "familia_arma": "hibrida",
+      "score": 13.0
+    }
+  ],
+  "lutas": [
+    {
+      "vencedor": "Cassian Orion da Brasa",
+      "frames": 2727,
+      "tempo_simulado": 45.45,
+      "tempo_real": 5.492,
+      "fighters": {
+        "Zarya Solar da Brasa": {
+          "damage_dealt": 52.715660516129034,
+          "damage_taken": 626.0587176688172,
+          "hits_landed": 3,
+          "hits_received": 20,
+          "attacks_attempted": 261,
+          "crits_landed": 1,
+          "skills_cast": 11,
+          "offensive_actions": 213,
+          "skills_detail": {
+            "Cura Menor": 3,
+            "Tempestade Ascendente": 2,
+            "Julgamento Celestial": 2,
+            "Escudo Arcano": 4
+          },
+          "mana_spent": 271.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 1,
+          "max_combo": 2,
+          "weapon_hits": 3,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 52.715660516129034,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Solstício Quebrado": {
+              "hits": 3,
+              "damage": 52.715660516129034,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.011,
+          "dps": 9.6,
+          "fight_duration": 5.5
+        },
+        "Elda Tempra da Brasa": {
+          "damage_dealt": 78.26216666666664,
+          "damage_taken": 309.79851483870965,
+          "hits_landed": 30,
+          "hits_received": 10,
+          "attacks_attempted": 243,
+          "crits_landed": 0,
+          "skills_cast": 15,
+          "offensive_actions": 243,
+          "skills_detail": {
+            "Muralha de Gelo": 2,
+            "Disparo de Mana": 5,
+            "Bola de Fogo": 4,
+            "Escudo Arcano": 2,
+            "Nevasca": 2
+          },
+          "mana_spent": 236.00000000000003,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 16,
+          "weapon_hits": 6,
+          "skill_hits": 6,
+          "summon_hits": 0,
+          "trap_hits": 18,
+          "status_hits": 0,
+          "weapon_damage": 16.86216666666667,
+          "skill_damage": 59.0,
+          "summon_damage": 0.0,
+          "trap_damage": 2.4,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Nevasca": {
+              "hits": 4,
+              "damage": 24.0,
+              "source_type": "skill"
+            },
+            "Orbe": {
+              "hits": 5,
+              "damage": 11.134166666666669,
+              "source_type": "weapon"
+            },
+            "Muralha de Gelo (Wall)": {
+              "hits": 18,
+              "damage": 2.4,
+              "source_type": "trap"
+            },
+            "Bola de Fogo": {
+              "hits": 2,
+              "damage": 35.0,
+              "source_type": "skill"
+            },
+            "Lira Boreal": {
+              "hits": 1,
+              "damage": 5.728000000000001,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.123,
+          "dps": 14.2,
+          "fight_duration": 5.5
+        },
+        "Valen Vesper da Brasa": {
+          "damage_dealt": 353.0046520000001,
+          "damage_taken": 211.38390817204305,
+          "hits_landed": 15,
+          "hits_received": 17,
+          "attacks_attempted": 2828,
+          "crits_landed": 0,
+          "skills_cast": 15,
+          "offensive_actions": 2824,
+          "skills_detail": {
+            "Sanguessuga": 5,
+            "Esfera Sombria": 9,
+            "Avatar de Sangue": 1
+          },
+          "mana_spent": 250.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 1,
+          "max_combo": 4,
+          "weapon_hits": 10,
+          "skill_hits": 5,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 278.20465200000007,
+          "skill_damage": 74.80000000000001,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Sanguessuga": {
+              "hits": 3,
+              "damage": 55.00000000000001,
+              "source_type": "skill"
+            },
+            "Esfera Sombria": {
+              "hits": 2,
+              "damage": 19.8,
+              "source_type": "skill"
+            },
+            "Orbe Magico": {
+              "hits": 10,
+              "damage": 278.20465200000007,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.005,
+          "dps": 64.2,
+          "fight_duration": 5.5
+        },
+        "Cassian Orion da Brasa": {
+          "damage_dealt": 911.570948129032,
+          "damage_taken": 130.3830476903226,
+          "hits_landed": 20,
+          "hits_received": 11,
+          "attacks_attempted": 1411,
+          "crits_landed": 1,
+          "skills_cast": 6,
+          "offensive_actions": 1411,
+          "skills_detail": {
+            "Golpe do Executor": 1,
+            "Praga": 1,
+            "Dardo Venenoso": 4
+          },
+          "mana_spent": 106.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 0,
+          "kills": 3,
+          "max_combo": 8,
+          "weapon_hits": 20,
+          "skill_hits": 0,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 911.570948129032,
+          "skill_damage": 0.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Raiz do Pântano": {
+              "hits": 20,
+              "damage": 911.570948129032,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.014,
+          "dps": 165.7,
+          "fight_duration": 5.5
+        },
+        "Vesper Noite da Brasa": {
+          "damage_dealt": 48.538799999999995,
+          "damage_taken": 174.59112261075273,
+          "hits_landed": 8,
+          "hits_received": 8,
+          "attacks_attempted": 78,
+          "crits_landed": 0,
+          "skills_cast": 4,
+          "offensive_actions": 78,
+          "skills_detail": {
+            "Nevasca": 2,
+            "Aura Sagrada": 2
+          },
+          "mana_spent": 110.0,
+          "blocks": 1,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 4,
+          "weapon_hits": 2,
+          "skill_hits": 6,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 12.5388,
+          "skill_damage": 36.0,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Nevasca": {
+              "hits": 6,
+              "damage": 36.0,
+              "source_type": "skill"
+            },
+            "Pilares do Santuário": {
+              "hits": 1,
+              "damage": 7.7112,
+              "source_type": "weapon"
+            },
+            "Orbe": {
+              "hits": 1,
+              "damage": 4.8276,
+              "source_type": "weapon"
+            }
+          },
+          "accuracy": 0.103,
+          "dps": 8.8,
+          "fight_duration": 5.5
+        },
+        "Iris Rubra da Brasa": {
+          "damage_dealt": 183.80276322580647,
+          "damage_taken": 175.67967955698927,
+          "hits_landed": 9,
+          "hits_received": 19,
+          "attacks_attempted": 1551,
+          "crits_landed": 1,
+          "skills_cast": 4,
+          "offensive_actions": 1551,
+          "skills_detail": {
+            "Julgamento Celestial": 2,
+            "Tempestade Ascendente": 2
+          },
+          "mana_spent": 116.0,
+          "blocks": 0,
+          "dodges": 0,
+          "deaths": 1,
+          "kills": 0,
+          "max_combo": 2,
+          "weapon_hits": 8,
+          "skill_hits": 1,
+          "summon_hits": 0,
+          "trap_hits": 0,
+          "status_hits": 0,
+          "weapon_damage": 139.10276322580648,
+          "skill_damage": 44.7,
+          "summon_damage": 0.0,
+          "trap_damage": 0.0,
+          "status_damage": 0.0,
+          "hit_source_detail": {
+            "Solstício Quebrado": {
+              "hits": 8,
+              "damage": 139.10276322580648,
+              "source_type": "weapon"
+            },
+            "Julgamento Celestial": {
+              "hits": 1,
+              "damage": 44.7,
+              "source_type": "skill"
+            }
+          },
+          "accuracy": 0.006,
+          "dps": 33.4,
+          "fight_duration": 5.5
+        }
+      },
+      "team_stats": {
+        "team_a": {
+          "damage_dealt": 483.982,
+          "damage_taken": 1147.241,
+          "kills": 2,
+          "deaths": 3,
+          "skills_cast": 41,
+          "mana_spent": 757.0
+        },
+        "team_b": {
+          "damage_dealt": 1143.913,
+          "damage_taken": 480.654,
+          "kills": 3,
+          "deaths": 2,
+          "skills_cast": 14,
+          "mana_spent": 332.0
+        }
+      },
+      "team_status": {
+        "team_a": {
+          "vivos": 0,
+          "mortos": 3,
+          "names": [
+            "Zarya Solar da Brasa",
+            "Elda Tempra da Brasa",
+            "Valen Vesper da Brasa"
+          ]
+        },
+        "team_b": {
+          "vivos": 1,
+          "mortos": 2,
+          "names": [
+            "Cassian Orion da Brasa",
+            "Vesper Noite da Brasa",
+            "Iris Rubra da Brasa"
+          ]
+        }
+      },
+      "run_index": 0
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "created_at": "2026-03-18T11:34:52",
+  "posto": "headless",
+  "args": [
+    "--mode",
+    "rapido"
+  ],
+  "saida_logica": "saidas/headless"
+}

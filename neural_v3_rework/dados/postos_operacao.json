@@ -1,0 +1,43 @@
+{
+  "postos": [
+    {
+      "id": "headless",
+      "nome": "Posto Headless",
+      "objetivo": "Coleta rápida de dados, stress e auditoria sem interface gráfica.",
+      "entrypoint": "run_posto_headless.py",
+      "comando_hub": "python run_postos.py headless --mode rapido",
+      "modos": ["rapido", "classes", "raridades", "stress", "all"],
+      "saidas": [
+        "logs de console",
+        "relatorios JSON",
+        "medicoes de velocidade e estabilidade"
+      ]
+    },
+    {
+      "id": "simulacao_completa",
+      "nome": "Posto de Simulação Completa",
+      "objetivo": "Inspeção visual, diversão, tuning fino e leitura de bugs que o headless não mostra.",
+      "entrypoint": "run_posto_simulacao.py",
+      "comando_hub": "python run_postos.py simulacao --modo launcher",
+      "modos": ["launcher", "sim", "manual"],
+      "saidas": [
+        "lutas visuais",
+        "leitura de pacing",
+        "debug de comportamento e VFX"
+      ]
+    },
+    {
+      "id": "pipeline_video",
+      "nome": "Posto de Pipeline de Vídeos",
+      "objetivo": "Gerar vídeos prontos para postagem usando o fluxo ativo de batch, copy e overlays.",
+      "entrypoint": "run_posto_pipeline.py",
+      "comando_hub": "python run_postos.py pipeline --fights 1",
+      "modos": ["comment_roulette", "classic"],
+      "saidas": [
+        "videos",
+        "metadata por plataforma",
+        "assets de publicacao"
+      ]
+    }
+  ]
+}

@@ -44,6 +44,19 @@ def main() -> None:
         help="Formato principal do video: roleta por comentario ou luta classica",
     )
     parser.add_argument(
+        "--encounter-mode",
+        type=str,
+        default="duelo",
+        choices=["duelo", "equipes", "horda"],
+        help="Tipo de encontro da pipeline: duelo, equipes ou horda.",
+    )
+    parser.add_argument(
+        "--template",
+        type=str,
+        default=None,
+        help="Template tatico para encounter-mode equipes/horda.",
+    )
+    parser.add_argument(
         "--comment",
         type=str,
         default=None,
@@ -72,6 +85,7 @@ def main() -> None:
         args.video_format,
         "off" if args.no_coverage_rotation else "on",
     )
+    log.info("Encounter mode: %s | Template: %s", args.encounter_mode, args.template or "auto")
 
     from pipeline_video.batch_runner import run_batch
 
@@ -81,6 +95,8 @@ def main() -> None:
         coverage_rotation=not args.no_coverage_rotation,
         video_format=args.video_format,
         comment=args.comment,
+        encounter_mode=args.encounter_mode,
+        template_id=args.template,
     )
 
     if results:

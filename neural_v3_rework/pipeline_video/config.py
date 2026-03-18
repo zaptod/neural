@@ -4,14 +4,15 @@ Pipeline Config - Constantes e configuracoes do sistema de video.
 
 from __future__ import annotations
 
+import os
 import pathlib
 
 
 # === PATHS ===
 _ROOT = pathlib.Path(__file__).resolve().parent.parent  # neural_v3_rework/
-OUTPUT_DIR = _ROOT / "video_pipeline" / "output"
-FRAMES_DIR = _ROOT / "video_pipeline" / "_frames"
-PORTRAITS_DIR = _ROOT / "video_pipeline" / "portraits"
+OUTPUT_DIR = pathlib.Path(os.environ.get("NF_PIPELINE_OUTPUT_DIR", str(_ROOT / "video_pipeline" / "output")))
+FRAMES_DIR = pathlib.Path(os.environ.get("NF_PIPELINE_FRAMES_DIR", str(_ROOT / "video_pipeline" / "_frames")))
+PORTRAITS_DIR = pathlib.Path(os.environ.get("NF_PIPELINE_PORTRAITS_DIR", str(_ROOT / "video_pipeline" / "portraits")))
 
 # === VIDEO ===
 VIDEO_WIDTH = 1080
