@@ -4,11 +4,13 @@ from types import SimpleNamespace
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame
+import pytest
 
 from efeitos.attack import AttackAnticipation, WeaponTrailEnhanced
 from efeitos.camera import Camera
 from modelos import Arma
 from simulacao.sim_renderer import SimuladorRenderer
+from utilitarios.config import COR_FUNDO
 
 
 pygame.init()
@@ -20,6 +22,46 @@ class _DummyRenderer(SimuladorRenderer):
         self.tela = pygame.Surface((800, 600), pygame.SRCALPHA)
         self.cam = Camera(800, 600)
         self.cam.set_arena_bounds(15, 10, 30, 20)
+
+
+class _DummyFrameRenderer(_DummyRenderer):
+    def __init__(self):
+        super().__init__()
+        self.screen_width = 800
+        self.screen_height = 600
+        self.arena = None
+        self.decals = []
+        self.areas = []
+        self.beams = []
+        self.particulas = []
+        self.summons = []
+        self.traps = []
+        self.fighters = []
+        self.projeteis = []
+        self.dash_trails = []
+        self.hit_sparks = []
+        self.magic_clashes = []
+        self.impact_flashes = []
+        self.block_effects = []
+        self.shockwaves = []
+        self.textos = []
+        self.attack_anims = None
+        self.magic_vfx = None
+        self.movement_anims = None
+        self.show_hitbox_debug = False
+        self.show_hud = False
+        self.show_analysis = False
+        self.vencedor = None
+        self.paused = False
+        self.modo_multi = False
+        self.modo_partida = "duelo"
+        self.portrait_mode = False
+        self.tempo_luta = 0
+        self.TEMPO_MAX_LUTA = 99
+        self.vida_visual_p1 = 100
+        self.vida_visual_p2 = 100
+        self.p1 = SimpleNamespace()
+        self.p2 = SimpleNamespace()
 
 
 class _DummyFighter:
@@ -348,3 +390,321 @@ def test_trap_render_supports_light_prison_signature():
     renderer._desenhar_trap_magica(trap, 1.4)
 
     assert renderer.tela.get_bounding_rect().width > 0
+
+
+def test_orbital_shield_weapon_render_draws_guardian_shape():
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Egide Prismatica",
+        tipo="Orbital",
+        familia="orbital",
+        subtipo="escudo",
+        estilo="Bastiao Prismatico",
+        dano=7,
+        peso=4,
+        quantidade_orbitais=2,
+        r=150,
+        g=220,
+        b=255,
+        raridade="Epico",
+    )
+
+    renderer.desenhar_arma(arma, (400, 300), 0.0, 1.8, 60, 1.15)
+
+    assert renderer.tela.get_bounding_rect().width > 0
+
+
+def test_weapon_render_context_captures_visual_contract(monkeypatch):
+    renderer = _DummyRenderer()
+    renderer.cam.zoom = 1.5
+    arma = Arma(
+        nome="Lamina Astral",
+        tipo="Magica",
+        estilo="Espada Espectral",
+        dano=9,
+        peso=2,
+        raridade="Epico",
+        r=120,
+        g=160,
+        b=210,
+    )
+    monkeypatch.setattr(pygame.time, "get_ticks", lambda: 900)
+
+    contexto = renderer._criar_contexto_render_arma(arma, (320, 240), 30.0, 1.8, 60, 1.2)
+
+    assert contexto.centro == (320, 240)
+    assert contexto.rad == pytest.approx(0.5235987756)
+    assert contexto.zoom == 1.5
+    assert contexto.tipo_norm == "magica"
+    assert contexto.estilo_norm == "espada espectral"
+    assert contexto.cor == (120, 160, 210)
+    assert contexto.cor_clara == (180, 220, 255)
+    assert contexto.cor_escura == (80, 120, 170)
+    assert contexto.raridade_norm == "epico"
+    assert contexto.cor_raridade == (148, 0, 211)
+    assert contexto.larg_base == 8
+    assert contexto.atacando is True
+    assert contexto.tempo == 900
+    assert contexto.zw(2) == 3
+
+
+def test_weapon_render_dispatch_routes_orbital_to_extracted_helper(monkeypatch):
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Sentinela Prismatica",
+        tipo="Orbital",
+        estilo="Bastiao",
+        dano=5,
+        peso=3,
+        raridade="Raro",
+        r=140,
+        g=220,
+        b=255,
+    )
+    chamadas = []
+
+    monkeypatch.setattr(
+        renderer,
+        "_desenhar_arma_orbital",
+        lambda contexto: chamadas.append(contexto),
+    )
+
+    renderer.desenhar_arma(arma, (400, 280), 45.0, 1.8, 60, 1.1)
+
+    assert len(chamadas) == 1
+    assert chamadas[0].tipo_norm == "orbital"
+    assert chamadas[0].centro == (400, 280)
+
+
+def test_weapon_render_dispatch_routes_reta_to_extracted_helper(monkeypatch):
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Lanca Solar",
+        tipo="Reta",
+        estilo="Lanca de Estocada",
+        dano=7,
+        peso=3,
+        raridade="Raro",
+        r=210,
+        g=190,
+        b=120,
+    )
+    chamadas = []
+
+    monkeypatch.setattr(
+        renderer,
+        "_desenhar_arma_reta",
+        lambda contexto: chamadas.append(contexto),
+    )
+
+    renderer.desenhar_arma(arma, (360, 260), 15.0, 1.8, 60, 1.1)
+
+    assert len(chamadas) == 1
+    assert chamadas[0].tipo_norm == "reta"
+    assert chamadas[0].estilo_norm == "lanca de estocada"
+
+
+def test_weapon_render_dispatch_routes_dupla_to_extracted_helper(monkeypatch):
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Fauces",
+        tipo="Dupla",
+        estilo="Adagas Gemeas",
+        dano=6,
+        peso=1,
+        raridade="Epico",
+        r=220,
+        g=80,
+        b=90,
+    )
+    chamadas = []
+
+    monkeypatch.setattr(
+        renderer,
+        "_desenhar_arma_dupla",
+        lambda contexto: chamadas.append(contexto),
+    )
+
+    renderer.desenhar_arma(arma, (390, 275), 20.0, 1.8, 60, 1.1)
+
+    assert len(chamadas) == 1
+    assert chamadas[0].tipo_norm == "dupla"
+    assert chamadas[0].estilo_norm == "adagas gemeas"
+
+
+def test_weapon_render_dispatch_routes_corrente_to_extracted_helper(monkeypatch):
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Mangual do Crepusculo",
+        tipo="Corrente",
+        estilo="Mangual",
+        dano=9,
+        peso=4,
+        raridade="Lendario",
+        r=120,
+        g=120,
+        b=160,
+    )
+    chamadas = []
+
+    monkeypatch.setattr(
+        renderer,
+        "_desenhar_arma_corrente",
+        lambda contexto: chamadas.append(contexto),
+    )
+
+    renderer.desenhar_arma(arma, (420, 285), -15.0, 1.8, 60, 1.2)
+
+    assert len(chamadas) == 1
+    assert chamadas[0].tipo_norm == "corrente"
+    assert chamadas[0].estilo_norm == "mangual"
+
+
+def test_inline_legacy_weapon_wrapper_forwards_to_canonical_dispatch(monkeypatch):
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Reliquia Antiga",
+        tipo="Reta",
+        estilo="Espada Longa",
+        dano=6,
+        peso=2,
+        raridade="Comum",
+        r=150,
+        g=150,
+        b=170,
+    )
+    chamadas = []
+
+    monkeypatch.setattr(
+        renderer,
+        "desenhar_arma",
+        lambda *args: chamadas.append(args),
+    )
+
+    renderer._desenhar_arma_inline_legacy(arma, (401, 299), 12.5, 1.8, 60, 1.05)
+
+    assert chamadas == [(arma, (401, 299), 12.5, 1.8, 60, 1.05)]
+
+
+def test_throwing_weapon_render_still_draws_after_helper_extraction():
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Machado de Guerra",
+        tipo="Arremesso",
+        estilo="Machado",
+        dano=8,
+        peso=3,
+        quantidade=2,
+        raridade="Raro",
+        r=170,
+        g=170,
+        b=180,
+    )
+
+    renderer.desenhar_arma(arma, (400, 300), 25.0, 1.8, 60, 1.1)
+
+    assert renderer.tela.get_bounding_rect().width > 0
+
+
+def test_dual_weapon_alt_style_still_draws_after_helper_extraction():
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Presas de Jade",
+        tipo="Dupla",
+        estilo="Sai",
+        dano=7,
+        peso=2,
+        raridade="Raro",
+        r=120,
+        g=200,
+        b=180,
+    )
+
+    renderer.desenhar_arma(arma, (405, 295), 35.0, 1.8, 60, 1.15)
+
+    assert renderer.tela.get_bounding_rect().width > 0
+
+
+def test_chain_weapon_alt_style_still_draws_after_helper_extraction():
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Laco Rubro",
+        tipo="Corrente",
+        estilo="Chicote",
+        dano=7,
+        peso=2,
+        raridade="Raro",
+        r=180,
+        g=90,
+        b=70,
+    )
+
+    renderer.desenhar_arma(arma, (415, 300), -22.0, 1.8, 60, 1.1)
+
+    assert renderer.tela.get_bounding_rect().width > 0
+
+
+def test_bow_weapon_render_still_draws_after_helper_extraction():
+    renderer = _DummyRenderer()
+    arma = Arma(
+        nome="Arco do Caçador",
+        tipo="Arco",
+        estilo="Arco Longo",
+        dano=6,
+        peso=2,
+        raridade="Incomum",
+        r=120,
+        g=90,
+        b=50,
+    )
+
+    renderer.desenhar_arma(arma, (410, 290), -10.0, 1.8, 60, 1.05)
+
+    assert renderer.tela.get_bounding_rect().width > 0
+
+
+def test_render_frame_context_captures_background_pulse_and_sorted_fighters(monkeypatch):
+    renderer = _DummyFrameRenderer()
+    morto = SimpleNamespace(morto=True)
+    vivo = SimpleNamespace(morto=False)
+    renderer.fighters = [vivo, morto]
+    renderer.arena = SimpleNamespace(config=SimpleNamespace(cor_ambiente=(12, 8, 4)))
+    monkeypatch.setattr(pygame.time, "get_ticks", lambda: 1250)
+
+    contexto = renderer._criar_contexto_render_frame()
+
+    assert contexto.fundo == tuple(
+        min(255, COR_FUNDO[idx] + delta)
+        for idx, delta in enumerate((12, 8, 4))
+    )
+    assert contexto.pulse_time == 1.25
+    assert contexto.lutadores_ordenados == [morto, vivo]
+
+
+def test_desenhar_runs_frame_pipeline_in_order(monkeypatch):
+    renderer = _DummyFrameRenderer()
+    contexto = object()
+    ordem = []
+    etapas = [
+        "_desenhar_fundo_frame",
+        "_desenhar_camadas_magicas_frame",
+        "_desenhar_particulas_frame",
+        "_desenhar_invocacoes_traps_frame",
+        "_desenhar_lutadores_frame",
+        "_desenhar_projeteis_frame",
+        "_desenhar_orbes_frame",
+        "_desenhar_efeitos_frame",
+        "_desenhar_interface_frame",
+    ]
+
+    monkeypatch.setattr(renderer, "_criar_contexto_render_frame", lambda: contexto)
+    for etapa in etapas:
+        monkeypatch.setattr(
+            renderer,
+            etapa,
+            lambda ctx, etapa=etapa: ordem.append((etapa, ctx)),
+        )
+
+    renderer.desenhar()
+
+    assert ordem == [(etapa, contexto) for etapa in etapas]

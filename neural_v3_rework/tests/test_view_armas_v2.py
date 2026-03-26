@@ -51,7 +51,7 @@ def test_resolver_estilo_preview_casa_com_renderizadores_legados():
     assert _resolver_estilo_preview("hibrida", "dupla_forma") == "Espada↔Lança"
 
 
-def test_criar_arma_do_estado_ui_trunca_skills_excedentes():
+def test_criar_arma_do_estado_ui_remove_skills_embutidas():
     dados = _default_weapon_ui_state()
     dados["familia"] = "lamina"
     dados["subtipo"] = "espada"
@@ -66,4 +66,4 @@ def test_criar_arma_do_estado_ui_trunca_skills_excedentes():
 
     assert arma.familia == "lamina"
     assert arma.raridade == "Comum"
-    assert len(arma.habilidades) == 2
+    assert arma.habilidades == []

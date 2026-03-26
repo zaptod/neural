@@ -12,13 +12,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from simulacao import simulacao
 from dados.app_state import AppState
+from interface.headless_summary import load_latest_headless_inspection_target, load_latest_headless_report_summary
 from nucleo.arena import ARENAS, MAPAS_MULTI
 from interface.theme import (
     COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS,
     COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, CORES_CLASSE,
     COR_BG_CARD, COR_BORDA, COR_TEXTO_SUB
 )
-from interface.ui_components import UICard, make_primary_button, make_secondary_button
+from interface.ui_components import HeadlessSummaryCard, ScrollableWorkspace, UICard, make_primary_button, make_secondary_button
 
 # Cores dos times
 CORES_TIME = [
@@ -56,6 +57,7 @@ class TelaMultiBatalha(tk.Frame):
     
     def _on_data_changed(self, _data=None):
         self._atualizar_combos()
+        self._refresh_headless_summary()
     
     def setup_ui(self):
         """Configura a interface completa."""
@@ -99,8 +101,13 @@ class TelaMultiBatalha(tk.Frame):
         )
         self.btn_iniciar.pack()
         
+        workspace = ScrollableWorkspace(self, bg=COR_BG, xscroll=True, yscroll=True)
+        workspace.pack(fill="both", expand=True, padx=20, pady=(10, 5))
+        self._workspace = workspace
+        body_root = workspace.content
+
         # === CONFIG BAR ===
-        config_bar = UICard(self, bg=COR_BG_SECUNDARIO, border=COR_BORDA, pady=10)
+        config_bar = UICard(body_root, bg=COR_BG_SECUNDARIO, border=COR_BORDA, pady=10)
         config_bar.pack(fill="x", padx=20, pady=(10, 5))
         
         # Número de times
@@ -146,9 +153,19 @@ class TelaMultiBatalha(tk.Frame):
             bg=COR_BG_SECUNDARIO, fg=COR_WARNING
         )
         self.lbl_info.pack(side="right", padx=10)
-        
+
+        self.headless_diag_card = HeadlessSummaryCard(
+            body_root,
+            title="Diagnostico Recente De Equipes",
+            compact=False,
+            open_command=self._abrir_ultimo_relatorio_headless,
+            action_text="Aplicar Alvo",
+            action_command=self._aplicar_alvo_inspecao_headless,
+        )
+        self.headless_diag_card.pack(fill="x", padx=20, pady=(0, 8))
+
         # === SCROLLABLE TEAMS AREA ===
-        self.scroll_frame = tk.Frame(self, bg=COR_BG)
+        self.scroll_frame = tk.Frame(body_root, bg=COR_BG)
         self.scroll_frame.pack(fill="both", expand=True, padx=20, pady=5)
         
         # Canvas com scrollbar
@@ -171,6 +188,7 @@ class TelaMultiBatalha(tk.Frame):
         self.canvas.bind("<Leave>", lambda e: self.canvas.unbind_all("<MouseWheel>"))
         
         self._rebuild_teams()
+        self._refresh_headless_summary()
     
     def _rebuild_teams(self):
         """Reconstrói os painéis de time."""
@@ -182,6 +200,7 @@ class TelaMultiBatalha(tk.Frame):
         self.membros_por_time = self.var_membros.get()
         self.team_slots = {}
         self.combo_widgets = {}
+        self.info_labels = {}
         
         total = self.num_times * self.membros_por_time
         self.lbl_info.config(text=f"Total: {total} lutadores ({self.num_times} times × {self.membros_por_time})")
@@ -240,6 +259,7 @@ class TelaMultiBatalha(tk.Frame):
                 lbl = tk.Label(slot_frame, text="", font=("Segoe UI", 8),
                                bg=cor_bg, fg=COR_TEXTO_DIM)
                 lbl.pack(side="left", padx=5)
+                self.info_labels[key] = lbl
                 
                 combo.bind("<<ComboboxSelected>>", 
                     lambda e, l=lbl, v=var: self._on_char_selected(v, l))
@@ -267,6 +287,70 @@ class TelaMultiBatalha(tk.Frame):
         nomes = [p.nome for p in personagens] if personagens else []
         for combo in self.combo_widgets.values():
             combo['values'] = nomes
+
+    def _refresh_headless_summary(self):
+        if hasattr(self, "headless_diag_card"):
+            self._latest_headless_summary = load_latest_headless_report_summary()
+            self.headless_diag_card.set_summary(self._latest_headless_summary)
+
+    def _abrir_ultimo_relatorio_headless(self):
+        resumo = getattr(self, "_latest_headless_summary", None) or load_latest_headless_report_summary()
+        path = str(resumo.get("path", "") or "")
+        if not path or not os.path.exists(path):
+            messagebox.showinfo(
+                "Diagnostico Headless",
+                "Ainda nao existe relatorio headless pronto.\n\nRode o harness tatico ou o posto headless primeiro.",
+            )
+            return
+        try:
+            os.startfile(path)
+        except Exception as exc:
+            messagebox.showerror("Diagnostico Headless", f"Nao foi possivel abrir o relatorio.\n\n{exc}")
+
+    def _aplicar_alvo_inspecao_headless(self):
+        alvo = load_latest_headless_inspection_target()
+        if not alvo.get("found"):
+            messagebox.showinfo(
+                "Aplicar Alvo",
+                "Ainda nao existe alvo de inspecao pronto.\n\nRode o harness tatico primeiro.",
+            )
+            return
+        if str(alvo.get("modo", "") or "") != "grupo_vs_grupo":
+            messagebox.showinfo(
+                "Aplicar Alvo",
+                "O ultimo diagnostico nao e de equipes.\n\nUse a tela correspondente ao modo analisado ou rode um comparativo de grupo vs grupo.",
+            )
+            return
+
+        nomes_disponiveis = {p.nome for p in AppState.get().characters}
+        team_a = [nome for nome in alvo.get("team_a_members", []) if nome in nomes_disponiveis][:4]
+        team_b = [nome for nome in alvo.get("team_b_members", []) if nome in nomes_disponiveis][:4]
+        if not team_a or not team_b:
+            messagebox.showwarning(
+                "Aplicar Alvo",
+                "O relatorio encontrado nao trouxe dois times validos com personagens disponiveis no roster atual.",
+            )
+            return
+
+        membros = max(1, min(4, max(len(team_a), len(team_b))))
+        self.var_num_times.set(2)
+        self.var_membros.set(membros)
+        if alvo.get("cenario"):
+            self.var_cenario.set(alvo["cenario"])
+        self._rebuild_teams()
+
+        for idx in range(membros):
+            nome_a = team_a[idx] if idx < len(team_a) else ""
+            nome_b = team_b[idx] if idx < len(team_b) else ""
+            self.team_slots[(0, idx)].set(nome_a)
+            self.team_slots[(1, idx)].set(nome_b)
+            self._on_char_selected(self.team_slots[(0, idx)], self.info_labels[(0, idx)])
+            self._on_char_selected(self.team_slots[(1, idx)], self.info_labels[(1, idx)])
+
+        self.lbl_info.config(
+            text=f"Inspecao aplicada: {alvo.get('template_nome') or alvo.get('template_id') or 'equipes'}",
+            fg=COR_SUCCESS,
+        )
     
     def iniciar_batalha(self):
         """Valida seleção e inicia a simulação multi-combatente."""

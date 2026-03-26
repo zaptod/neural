@@ -1,74 +1,86 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
-NEURAL FIGHTS - Ponto de Entrada Principal
-Execute este arquivo para iniciar o jogo.
+Neural Fights v3 rework - ponto de entrada principal.
+"""
 
-Uso:
-    python run.py           # Inicia o launcher (UI)
-    python run.py --sim     # Inicia a simulacao diretamente
-    python run.py --test    # Modo de teste manual (controle por teclado)
-    python run.py --help    # Mostra ajuda
-"""
-import sys
+from __future__ import annotations
+
+import argparse
 import os
+import sys
 
-# Adiciona o diretorio do projeto ao path
+
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, PROJECT_DIR)
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
 
-def mostrar_ajuda():
-    """Mostra informacoes de uso"""
-    print("""
-NEURAL FIGHTS v2.0
 
-Uso:
-  python run.py           Inicia o launcher (UI)
-  python run.py --sim     Simulacao automatica (IA vs IA)
-  python run.py --test    Modo de teste manual
-  python run.py --help    Mostra esta ajuda
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Neural Fights v3 rework launcher")
+    parser.add_argument("--sim", action="store_true", help="Inicia a simulacao automatica (IA vs IA).")
+    parser.add_argument("--test", action="store_true", help="Inicia o modo de teste manual.")
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Valida imports e contrato de bootstrap sem abrir janelas.",
+    )
+    return parser
 
-Modo de Teste Manual (--test):
-  WASD/Setas  = Mover
-  SPACE       = Pular
-  J/Z         = Atacar
-  1-5         = Usar Skills
-  T           = Trocar controle (P1/P2)
-  R           = Resetar luta
-  F1          = Toggle Debug
-  F2          = Vida Infinita
-  F3          = Mana Infinita
-  F4          = Cooldowns Zero
-  ESC         = Sair
-    """)
 
-def main():
-    """Ponto de entrada principal."""
-    if len(sys.argv) > 1:
-        arg = sys.argv[1].lower()
-        
-        if arg == '--sim':
-            # Executa simulacao diretamente
-            from simulacao import Simulador
-            sim = Simulador()
-            sim.executar()
-        
-        elif arg == '--test':
-            # Modo de teste manual
-            from utilitarios.test_manual import SimuladorManual
-            sim = SimuladorManual()
-            sim.executar()
-        
-        elif arg in ['--help', '-h', '/?']:
-            mostrar_ajuda()
-        
-        else:
-            print(f"Argumento desconhecido: {arg}")
-            mostrar_ajuda()
+def _resolve_mode(args: argparse.Namespace, parser: argparse.ArgumentParser) -> str:
+    if args.sim and args.test:
+        parser.error("Use apenas um entre --sim e --test.")
+    if args.sim:
+        return "sim"
+    if args.test:
+        return "test"
+    return "launcher"
+
+
+def _run_smoke(mode: str) -> int:
+    if mode == "sim":
+        from simulacao import Simulador  # noqa: F401
+
+        target = "simulacao.Simulador"
+    elif mode == "test":
+        from utilitarios.test_manual import SimuladorManual  # noqa: F401
+
+        target = "utilitarios.test_manual.SimuladorManual"
     else:
-        # Executa o launcher (UI)
-        from interface.main import main as run_launcher
-        run_launcher()
+        from interface.main import main as run_launcher  # noqa: F401
 
-if __name__ == '__main__':
-    main()
+        target = "interface.main"
+    print(f"[smoke] bootstrap ok: {target}")
+    return 0
 
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    mode = _resolve_mode(args, parser)
+
+    if args.smoke:
+        return _run_smoke(mode)
+
+    if mode == "sim":
+        from simulacao import Simulador
+
+        sim = Simulador()
+        sim.executar()
+        return 0
+
+    if mode == "test":
+        from utilitarios.test_manual import SimuladorManual
+
+        sim = SimuladorManual()
+        sim.executar()
+        return 0
+
+    from interface.main import main as run_launcher
+
+    run_launcher()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -6,13 +6,33 @@ Classe Personagem e funções relacionadas
 from .constants import get_class_data
 
 
+def _normalizar_skills_personagem(skills_personagem):
+    if not skills_personagem:
+        return []
+    resultado = []
+    for skill in skills_personagem:
+        if isinstance(skill, dict):
+            nome = str(skill.get("nome", "") or "").strip()
+            if not nome:
+                continue
+            item = {"nome": nome}
+            if "custo" in skill:
+                item["custo"] = float(skill.get("custo", 0.0) or 0.0)
+            resultado.append(item)
+        else:
+            nome = str(skill or "").strip()
+            if nome:
+                resultado.append({"nome": nome})
+    return resultado
+
+
 class Personagem:
     """
     Classe de Personagem com sistema de classes e personalidade.
     """
     def __init__(self, nome, tamanho, forca, mana, nome_arma="", peso_arma_cache=0, 
                  r=200, g=50, b=50, classe="Guerreiro (Força Bruta)", personalidade="Aleatório",
-                 god_id=None, lore=""):  # [PHASE 3] Campo de vínculo divino
+                 god_id=None, lore="", skills_personagem=None):  # [PHASE 3] Campo de vínculo divino
         # MEL-C7: Validação de parâmetros — evita divisão por zero e valores fora dos sliders
         if not nome or not str(nome).strip():
             raise ValueError("Nome não pode ser vazio")
@@ -36,6 +56,7 @@ class Personagem:
         self.personalidade = personalidade  # Personalidade da IA
         self.god_id = god_id                # [PHASE 3] ID do deus que este campeão serve (None = mortal livre)
         self.arma_obj = None               # BUG-C1: Resolvido em runtime pelo simulador (evita AttributeError)
+        self.skills_personagem = _normalizar_skills_personagem(skills_personagem)
 
         # Carrega dados da classe
         self.class_data = get_class_data(classe)
@@ -101,4 +122,5 @@ class Personagem:
             "personalidade": self.personalidade,
             "god_id": self.god_id,          # [PHASE 3] Persiste o vínculo divino
             "lore": self.lore,              # MEL-C3: Background/história opcional
+            "skills_personagem": list(self.skills_personagem),
         }

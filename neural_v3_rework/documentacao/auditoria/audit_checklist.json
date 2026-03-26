@@ -1,0 +1,139 @@
+{
+  "generated_at": "2026-03-26T16:39:36-03:00",
+  "workspace_root": "C:\\Users\\birul\\Desktop\\new",
+  "project_root": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework",
+  "summary": {
+    "total_checks": 11,
+    "ok": 11,
+    "erro": 0
+  },
+  "checks": [
+    {
+      "name": "syntax_ast",
+      "status": "ok",
+      "checked_files": 223,
+      "issues": []
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "run.py",
+        "--smoke"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework",
+      "returncode": 0,
+      "stdout": "[smoke] bootstrap ok: interface.main\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "run_tournament.py",
+        "--smoke"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework",
+      "returncode": 0,
+      "stdout": "[smoke] bootstrap ok: run_tournament -> interface.view_torneio.TournamentWindow\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "run_tournament.py",
+        "--smoke"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework",
+      "returncode": 0,
+      "stdout": "[smoke] bootstrap ok: run_tournament -> interface.view_torneio.TournamentWindow\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "run_postos.py",
+        "--help"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework",
+      "returncode": 0,
+      "stdout": "usage: run_postos.py [-h] {headless,simulacao,pipeline}\n\nNeural Fights - Hub dos postos operacionais\n\npositional arguments:\n  {headless,simulacao,pipeline}\n                        Escolha o posto a executar.\n\noptions:\n  -h, --help            show this help message and exit\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "run_posto_simulacao.py",
+        "--help"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework",
+      "returncode": 0,
+      "stdout": "usage: run_posto_simulacao.py [-h] [--modo {launcher,sim,manual}]\n\nNeural Fights - posto de simulacao completa\n\noptions:\n  -h, --help            show this help message and exit\n  --modo {launcher,sim,manual}\n                        launcher abre a UI principal; sim abre a luta\n                        automatica; manual abre o modo de teste.\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "run_posto_headless.py",
+        "--help"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework",
+      "returncode": 0,
+      "stdout": "usage: run_posto_headless.py [-h] ...\n\nNeural Fights - atalho para o posto headless\n\npositional arguments:\n  args        Argumentos encaminhados para o runner headless.\n\noptions:\n  -h, --help  show this help message and exit\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "run_posto_pipeline.py",
+        "--help"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural\\neural_v3_rework",
+      "returncode": 0,
+      "stdout": "usage: run_posto_pipeline.py [-h] ...\n\nNeural Fights - atalho para o posto de pipeline\n\npositional arguments:\n  args        Argumentos encaminhados para o pipeline de video.\n\noptions:\n  -h, --help  show this help message and exit\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "RUN_GAME.py",
+        "--smoke"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural",
+      "returncode": 0,
+      "stdout": "[smoke] bootstrap ok: interface.main\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "RUN_WORLDMAP.py",
+        "--smoke"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural",
+      "returncode": 0,
+      "stdout": "[smoke] bootstrap ok: world_map_pygame.main\n",
+      "stderr": "",
+      "status": "ok"
+    },
+    {
+      "command": [
+        "C:\\Users\\birul\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+        "-m",
+        "world_map_pygame.main",
+        "--smoke"
+      ],
+      "cwd": "C:\\Users\\birul\\Desktop\\new\\neural",
+      "returncode": 0,
+      "stdout": "[smoke] bootstrap ok: world_map_pygame.main\n",
+      "stderr": "",
+      "status": "ok"
+    }
+  ]
+}

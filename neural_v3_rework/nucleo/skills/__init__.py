@@ -48,6 +48,8 @@ from .classificacao import (
     classificar_skill_magia,
     enriquecer_skill_data,
 )
+import re
+import unicodedata
 
 # SKILL_DB completo â€” retrocompatÃ­vel com todo cÃ³digo existente
 SKILL_DB: dict = {
@@ -226,17 +228,49 @@ for _skill_nome, _skill_data in SKILL_DB.items():
     SKILL_CLASS_DB[_skill_nome] = classificar_skill_magia(_skill_nome, _skill_data)
 
 
+def _repair_mojibake(texto: str) -> str:
+    bruto = str(texto or "")
+    try:
+        reparado = bruto.encode("latin1").decode("utf-8")
+    except Exception:
+        reparado = bruto
+    return reparado
+
+
+def _canonical_skill_key(texto: str) -> str:
+    reparado = _repair_mojibake(texto)
+    normalizado = unicodedata.normalize("NFKD", reparado)
+    sem_acento = "".join(ch for ch in normalizado if not unicodedata.combining(ch))
+    return re.sub(r"[^A-Z0-9]+", "", sem_acento.upper())
+
+
+SKILL_ALIAS_DB: dict[str, str] = {}
+for _skill_nome in SKILL_DB:
+    for _alias in {_skill_nome, _repair_mojibake(_skill_nome)}:
+        _canon = _canonical_skill_key(_alias)
+        if _canon:
+            SKILL_ALIAS_DB.setdefault(_canon, _skill_nome)
+
+
+def _resolve_skill_key(nome: str) -> str:
+    if nome in SKILL_DB:
+        return nome
+    canon = _canonical_skill_key(nome)
+    return SKILL_ALIAS_DB.get(canon, "Nenhuma")
+
+
 # â”€â”€ FunÃ§Ãµes helpers â€” retrocompatÃ­veis com core.skills originais â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def get_skill_data(nome: str) -> dict:
     """Retorna os dados de uma skill pelo nome."""
-    return SKILL_DB.get(nome, SKILL_DB["Nenhuma"])
+    return SKILL_DB.get(_resolve_skill_key(nome), SKILL_DB["Nenhuma"])
 
 
 def get_skill_classification(nome: str) -> ClasseMagia:
     """Retorna a classificacao formal da skill."""
-    if nome in SKILL_CLASS_DB:
-        return SKILL_CLASS_DB[nome]
+    resolved = _resolve_skill_key(nome)
+    if resolved in SKILL_CLASS_DB:
+        return SKILL_CLASS_DB[resolved]
     return classificar_skill_magia(nome, get_skill_data(nome))
 
 

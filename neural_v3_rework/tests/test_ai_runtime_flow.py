@@ -1,5 +1,6 @@
 ﻿"""Runtime-focused regression tests for active AI flow."""
 
+import random
 from types import SimpleNamespace
 
 import pytest
@@ -28,6 +29,16 @@ def _make_fighter(nome, weapon_type="Espada Reta", family=None, team_id=0, x=0.0
     )
     dados.recalcular_com_arma(arma)
     return Lutador(dados, x, y, team_id=team_id)
+
+
+@pytest.fixture(autouse=True)
+def _stable_random_seed():
+    state = random.getstate()
+    random.seed(12345)
+    try:
+        yield
+    finally:
+        random.setstate(state)
 
 
 def _make_sim_stub():
@@ -337,6 +348,23 @@ def test_orbital_prefers_basic_attack_when_burst_ready():
     assert fighter.brain._preferir_skills_neste_frame(2.8, enemy) is False
 
 
+def test_bastiao_prismatico_holds_skills_when_burst_ready_and_mana_is_tight():
+    state = random.getstate()
+    try:
+        fighter = _make_fighter("Bastion", weapon_type="Escudo Orbital", family="orbital")
+        enemy = _make_fighter("Enemy", weapon_type="Espada Reta", family="lamina", team_id=1, x=2.8, y=0.0)
+        fighter.orbital_burst_cd = 0.0
+        fighter.mana_max = 100.0
+        fighter.mana = 38.0
+        fighter.brain.arquetipo_composto = {
+            "pacote_referencia": {"id": "bastiao_prismatico"},
+        }
+
+        assert fighter.brain._preferir_skills_neste_frame(2.8, enemy) is False
+    finally:
+        random.setstate(state)
+
+
 def test_hybrid_long_form_prefers_skills_for_patient_profile():
     fighter = _make_fighter("Hybrid", weapon_type="Transformavel", family="hibrida")
     enemy = _make_fighter("Enemy", weapon_type="Espada Reta", family="lamina", team_id=1, x=3.4, y=0.0)
@@ -344,6 +372,30 @@ def test_hybrid_long_form_prefers_skills_for_patient_profile():
     fighter.brain.tracos = ["CALCULISTA", "ADAPTAVEL"]
 
     assert fighter.brain._preferir_skills_neste_frame(3.4, enemy) is True
+
+
+def test_artilheiro_orbital_projectile_keeps_safe_poke_after_cast():
+    state = random.getstate()
+    try:
+        fighter = _make_fighter("Artillery", weapon_type="Drone Orbital", family="orbital")
+        fighter.brain.arquetipo_composto = {
+            "pacote_referencia": {"id": "artilheiro_de_orbita"},
+        }
+
+        projectile = SkillProfile(
+            nome="Proj Teste",
+            tipo="PROJETIL",
+            custo=10.0,
+            cooldown=1.0,
+            data={},
+            fonte="teste",
+        )
+
+        fighter.brain._pos_uso_skill_estrategica(projectile)
+
+        assert fighter.brain.acao_atual == "POKE"
+    finally:
+        random.setstate(state)
 
 
 def test_corrente_sweet_spot_prefers_basic_attack():
@@ -821,4 +873,171 @@ def test_skill_arena_context_boosts_control_when_enemy_in_danger_zone():
 
     assert control_chance > burst_chance
     assert control_chance > 0.5
+
+
+def test_skill_context_snapshot_tracks_team_and_enemy_state():
+    mage = _make_fighter("Mage", weapon_type="Cetro Arcano", family="foco")
+    enemy = _make_fighter("Enemy", weapon_type="Espada Reta", family="lamina", team_id=1, x=3.0, y=0.0)
+
+    mage.buffer_orbes = [
+        SimpleNamespace(ativo=True, estado="orbitando"),
+        SimpleNamespace(ativo=True, estado="orbitando"),
+    ]
+    mage.brain.team_orders.update({"alive_count": 2, "role": "SUPPORT", "is_weakest": False})
+    mage.brain.leitura_oponente["reposicionando"] = True
+    mage.brain.leitura_oponente["ataque_iminente"] = True
+    mage.brain.consciencia_espacial["zona_perigo_atual"] = "lava"
+    enemy.stun_timer = 1.0
+    enemy.status_effects = [SimpleNamespace(nome="burning"), SimpleNamespace(nome="frozen")]
+    enemy.dots_ativos = [SimpleNamespace(tipo="QUEIMANDO")]
+
+    ctx = mage.brain._criar_contexto_skills(0.016, 3.0, enemy)
+
+    assert ctx is not None
+    assert ctx.familia_arma == "foco"
+    assert ctx.orbes_orbitando == 2
+    assert ctx.has_team is True
+    assert ctx.team_role == "SUPPORT"
+    assert ctx.inimigo_stunado is True
+    assert ctx.inimigo_queimando is True
+    assert ctx.inimigo_congelado is True
+    assert ctx.inimigo_reposicionando is True
+    assert ctx.inimigo_atk_iminente is True
+    assert ctx.eu_em_zona is True
+
+
+def test_skill_pipeline_stops_at_first_priority_handler(monkeypatch):
+    mage = _make_fighter("Mage", weapon_type="Cetro Arcano", family="foco")
+    enemy = _make_fighter("Enemy", weapon_type="Espada Reta", family="lamina", team_id=1, x=3.0, y=0.0)
+    calls = []
+    sentinel_ctx = SimpleNamespace(marker=True)
+    order = [
+        "_tentar_prioridade_time_skills",
+        "_tentar_prioridade_sobrevivencia_skills",
+        "_tentar_prioridade_reacao_skills",
+        "_tentar_prioridade_janela_cc_skills",
+        "_tentar_prioridade_combo_skills",
+        "_tentar_prioridade_execucao_skills",
+        "_tentar_prioridade_burst_skills",
+        "_tentar_prioridade_opener_skills",
+        "_tentar_prioridade_poke_skills",
+        "_tentar_prioridade_manutencao_skills",
+    ]
+
+    monkeypatch.setattr(mage.brain, "_criar_contexto_skills", lambda *args: sentinel_ctx)
+
+    for name in order:
+        def _make_handler(label):
+            return lambda ctx, target, _label=label: calls.append(_label) or (_label == "_tentar_prioridade_execucao_skills")
+
+        monkeypatch.setattr(mage.brain, name, _make_handler(name))
+
+    monkeypatch.setattr(mage.brain, "_tentar_prioridade_rotacao_skills", lambda *args: calls.append("rotacao") or True)
+
+    assert mage.brain._processar_skills_estrategico(0.016, 3.0, enemy) is True
+    assert calls == order[: order.index("_tentar_prioridade_execucao_skills") + 1]
+
+
+def test_skill_pipeline_uses_rotation_after_priority_chain(monkeypatch):
+    mage = _make_fighter("Mage", weapon_type="Cetro Arcano", family="foco")
+    enemy = _make_fighter("Enemy", weapon_type="Espada Reta", family="lamina", team_id=1, x=3.0, y=0.0)
+    calls = []
+    sentinel_ctx = SimpleNamespace(marker=True)
+    order = [
+        "_tentar_prioridade_time_skills",
+        "_tentar_prioridade_sobrevivencia_skills",
+        "_tentar_prioridade_reacao_skills",
+        "_tentar_prioridade_janela_cc_skills",
+        "_tentar_prioridade_combo_skills",
+        "_tentar_prioridade_execucao_skills",
+        "_tentar_prioridade_burst_skills",
+        "_tentar_prioridade_opener_skills",
+        "_tentar_prioridade_poke_skills",
+        "_tentar_prioridade_manutencao_skills",
+    ]
+
+    monkeypatch.setattr(mage.brain, "_criar_contexto_skills", lambda *args: sentinel_ctx)
+
+    for name in order:
+        monkeypatch.setattr(mage.brain, name, lambda ctx, target, _label=name: calls.append(_label) or False)
+
+    monkeypatch.setattr(
+        mage.brain,
+        "_tentar_prioridade_rotacao_skills",
+        lambda ctx, target: calls.append("rotacao") or True,
+    )
+
+    assert mage.brain._processar_skills_estrategico(0.016, 3.0, enemy) is True
+    assert calls == order + ["rotacao"]
+
+
+def test_generic_combat_context_tracks_matchup_and_stall_state():
+    fighter = _make_fighter("Melee", weapon_type="Espada Reta", family="lamina")
+    enemy = _make_fighter("Archer", weapon_type="Arco Longo", family="disparo", team_id=1, x=4.0, y=0.0)
+    fighter.brain.tempo_desde_hit = 4.0
+    fighter.atacando = False
+    fighter.brain.pressao_ritmo = 0.7
+
+    ctx = fighter.brain._criar_contexto_combate_generico(
+        distancia=4.0,
+        roll=0.5,
+        hp_pct=1.0,
+        inimigo_hp_pct=1.0,
+        alcance_efetivo=2.0,
+        alcance_ideal=1.5,
+        inimigo=enemy,
+    )
+
+    assert ctx.minha_familia == "lamina"
+    assert ctx.familia_inimigo == "disparo"
+    assert ctx.sou_ranged is False
+    assert ctx.stall_approaching is True
+    assert ctx.longe is True
+    assert ctx.pressao_ritmo == pytest.approx(0.7)
+
+
+def test_generic_combat_strategy_runs_extracted_phases_in_order(monkeypatch):
+    fighter = _make_fighter("Melee", weapon_type="Espada Reta", family="lamina")
+    enemy = _make_fighter("Enemy", weapon_type="Espada Reta", family="lamina", team_id=1, x=3.0, y=0.0)
+    calls = []
+    sentinel_ctx = SimpleNamespace(marker=True)
+    sentinel_bp = {"retreat_weight": 1.0}
+
+    monkeypatch.setattr(fighter.brain, "_criar_contexto_combate_generico", lambda *args: sentinel_ctx)
+    monkeypatch.setattr(fighter.brain, "_votar_base_generica", lambda ctx, pesos: calls.append("base"))
+    monkeypatch.setattr(
+        fighter.brain,
+        "_votar_profile_traits_generico",
+        lambda ctx, pesos: calls.append("profile") or sentinel_bp,
+    )
+    monkeypatch.setattr(
+        fighter.brain,
+        "_votar_estilo_emocao_generico",
+        lambda ctx, pesos, bp: calls.append(("estilo", bp)),
+    )
+    monkeypatch.setattr(fighter.brain, "_votar_leitura_oponente_generico", lambda ctx, pesos: calls.append("leitura"))
+    monkeypatch.setattr(fighter.brain, "_votar_modificadores_externos_generico", lambda ctx, pesos: calls.append("externos"))
+    monkeypatch.setattr(fighter.brain, "_votar_time_generico", lambda ctx, pesos: calls.append("time"))
+    monkeypatch.setattr(fighter.brain, "_compensar_matchup_generico", lambda ctx, pesos, bp: calls.append(("matchup", bp)))
+    monkeypatch.setattr(fighter.brain, "_aplicar_anti_repeticao_generico", lambda ctx, pesos: calls.append("anti"))
+    monkeypatch.setattr(
+        fighter.brain,
+        "_escolher_acao_generica",
+        lambda ctx, pesos, debug=False: calls.append(("escolher", debug)) or "COMBATE",
+    )
+
+    fighter.brain._estrategia_generica(3.0, 0.5, 1.0, 1.0, 2.0, 1.5, enemy, debug=True)
+
+    assert fighter.brain.acao_atual == "COMBATE"
+    assert calls == [
+        "base",
+        "profile",
+        ("estilo", sentinel_bp),
+        "leitura",
+        "externos",
+        "time",
+        ("matchup", sentinel_bp),
+        "anti",
+        ("escolher", True),
+    ]
 

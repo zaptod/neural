@@ -10,6 +10,7 @@ from tkinter import ttk
 from dados.app_state import AppState
 from dados.battle_db import BattleDB
 from nucleo.elo_system import get_tier, get_tier_info, TIERS
+from interface.ui_components import ScrollableWorkspace
 from interface.theme import (
     COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS,
     COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, COR_DANGER,
@@ -119,28 +120,9 @@ class TelaLeaderboard(tk.Frame):
         frame = tk.Frame(self._content, bg=COR_BG)
         self._tab_frames["leaderboard"] = frame
 
-        # Scrollable canvas
-        canvas = tk.Canvas(frame, bg=COR_BG, highlightthickness=0)
-        scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        self._lb_inner = tk.Frame(canvas, bg=COR_BG)
-        win_id = canvas.create_window((0, 0), window=self._lb_inner, anchor="nw")
-
-        def _on_cfg(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-
-        def _on_canvas_cfg(event):
-            canvas.itemconfig(win_id, width=event.width)
-
-        self._lb_inner.bind("<Configure>", _on_cfg)
-        canvas.bind("<Configure>", _on_canvas_cfg)
-
-        def _on_scroll(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_scroll)
+        workspace = ScrollableWorkspace(frame, bg=COR_BG, xscroll=False, yscroll=True)
+        workspace.pack(side="left", fill="both", expand=True)
+        self._lb_inner = workspace.content
 
     def _populate_leaderboard(self):
         for w in self._lb_inner.winfo_children():
@@ -218,17 +200,9 @@ class TelaLeaderboard(tk.Frame):
         frame = tk.Frame(self._content, bg=COR_BG)
         self._tab_frames["classes"] = frame
 
-        canvas = tk.Canvas(frame, bg=COR_BG, highlightthickness=0)
-        scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        self._cls_inner = tk.Frame(canvas, bg=COR_BG)
-        win_id = canvas.create_window((0, 0), window=self._cls_inner, anchor="nw")
-
-        self._cls_inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win_id, width=e.width))
+        workspace = ScrollableWorkspace(frame, bg=COR_BG, xscroll=False, yscroll=True)
+        workspace.pack(side="left", fill="both", expand=True)
+        self._cls_inner = workspace.content
 
     def _populate_classes(self):
         for w in self._cls_inner.winfo_children():
@@ -283,17 +257,9 @@ class TelaLeaderboard(tk.Frame):
         frame = tk.Frame(self._content, bg=COR_BG)
         self._tab_frames["weapons"] = frame
 
-        canvas = tk.Canvas(frame, bg=COR_BG, highlightthickness=0)
-        scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        self._wpn_inner = tk.Frame(canvas, bg=COR_BG)
-        win_id = canvas.create_window((0, 0), window=self._wpn_inner, anchor="nw")
-
-        self._wpn_inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win_id, width=e.width))
+        workspace = ScrollableWorkspace(frame, bg=COR_BG, xscroll=False, yscroll=True)
+        workspace.pack(side="left", fill="both", expand=True)
+        self._wpn_inner = workspace.content
 
     def _populate_weapons(self):
         for w in self._wpn_inner.winfo_children():
@@ -355,17 +321,9 @@ class TelaLeaderboard(tk.Frame):
         frame = tk.Frame(self._content, bg=COR_BG)
         self._tab_frames["history"] = frame
 
-        canvas = tk.Canvas(frame, bg=COR_BG, highlightthickness=0)
-        scrollbar = tk.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-
-        self._hist_inner = tk.Frame(canvas, bg=COR_BG)
-        win_id = canvas.create_window((0, 0), window=self._hist_inner, anchor="nw")
-
-        self._hist_inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win_id, width=e.width))
+        workspace = ScrollableWorkspace(frame, bg=COR_BG, xscroll=False, yscroll=True)
+        workspace.pack(side="left", fill="both", expand=True)
+        self._hist_inner = workspace.content
 
     def _populate_history(self):
         for w in self._hist_inner.winfo_children():

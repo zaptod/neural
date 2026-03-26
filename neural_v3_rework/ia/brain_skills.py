@@ -1,8 +1,9 @@
 ﻿"""Auto-generated mixin â€” see scripts/split_brain.py"""
+from dataclasses import dataclass
 import random
 import math
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 _log = logging.getLogger("neural_ai")
 
@@ -56,8 +57,56 @@ from ia._brain_mixin_base import _AIBrainMixinBase
 from ia.weapon_ai import resolver_familia_arma
 
 
+@dataclass(frozen=True)
+class SkillDecisionContext:
+    """Snapshot do frame usado pelo pipeline estrategico de skills."""
+
+    dt: float
+    distancia: float
+    parent: Any
+    strategy: Any
+    hp_pct: float
+    inimigo_hp_pct: float
+    mana_pct: float
+    tempo_combate: float
+    role: str
+    plano: Any
+    skills: dict[str, Any]
+    familia_arma: str
+    pacote_id: str
+    orbes_orbitando: int
+    orbital_burst_pronto: bool
+    forma_hibrida: int
+    bonus_hibrido: bool
+    inimigo_stunado: bool
+    inimigo_debuffado: bool
+    inimigo_queimando: bool
+    inimigo_congelado: bool
+    inimigo_reposicionando: bool
+    inimigo_atk_iminente: bool
+    encurralado: bool
+    oponente_encurralado: bool
+    inimigo_em_zona: bool
+    eu_em_zona: bool
+    buffs_ativos: int
+    tenho_summons: bool
+    orders: dict[str, Any]
+    has_team: bool
+    team_role: str
+    is_weakest: bool
+
+
 class SkillsMixin(_AIBrainMixinBase):
     """Mixin de uso inteligente de skills (estratÃ©gico + legado)."""
+
+    def _obter_pacote_composto_id(self):
+        perfil = getattr(self, "arquetipo_composto", None)
+        if not isinstance(perfil, dict):
+            return ""
+        pacote = perfil.get("pacote_referencia") or {}
+        if isinstance(pacote, dict):
+            return str(pacote.get("id", "") or "").strip().lower()
+        return ""
 
     def _modular_chance_skill_por_arena(self, chance, sk, distancia):
         """Ajusta a chance conforme perigo da arena e oportunidades ambientais."""
@@ -108,6 +157,656 @@ class SkillsMixin(_AIBrainMixinBase):
             chance *= 1.18
 
         return max(0.05, min(0.98, chance))
+
+    def _obter_estado_inimigo_para_skills(self, inimigo):
+        """Resolve e cacheia o estado do inimigo usado pelo pipeline de skills."""
+        stun_now = getattr(inimigo, "stun_timer", 0) > 0
+        slow_now = getattr(inimigo, "slow_timer", 0) > 0
+        root_now = getattr(inimigo, "root_timer", 0) > 0
+        dots_count = len(getattr(inimigo, "dots_ativos", []))
+        fx_count = len(getattr(inimigo, "status_effects", []))
+        cache_key = (id(inimigo), stun_now, slow_now, root_now, dots_count, fx_count)
+        cache = getattr(self, "_estado_inimigo_cache", None)
+        stored_key = getattr(self, "_estado_inimigo_frame", None)
+
+        if cache is None or stored_key != cache_key:
+            stunado = self._verificar_inimigo_stunado(inimigo)
+            debuffado = self._verificar_inimigo_debuffado(inimigo)
+            queimando = any(
+                getattr(dot, "tipo", getattr(dot, "nome", "")).upper() in ("QUEIMANDO", "QUEIMAR", "BURNING")
+                for dot in getattr(inimigo, "dots_ativos", [])
+            ) or any(
+                getattr(effect, "nome", "").lower() in ("queimando", "burning")
+                for effect in getattr(inimigo, "status_effects", [])
+            )
+            congelado = getattr(inimigo, "congelado", False) or any(
+                getattr(effect, "nome", "").lower() in ("congelado", "frozen")
+                for effect in getattr(inimigo, "status_effects", [])
+            )
+            cache = (stunado, debuffado, queimando, congelado)
+            self._estado_inimigo_cache = cache
+            self._estado_inimigo_frame = cache_key
+
+        return cache
+
+    def _criar_contexto_skills(self, dt, distancia, inimigo):
+        """Agrupa o estado do frame em um contexto imutavel para decisões de skill."""
+        strategy = self.skill_strategy
+        if strategy is None:
+            return None
+
+        p = self.parent
+        arma = getattr(getattr(p, "dados", None), "arma_obj", None)
+        inimigo_stunado, inimigo_debuffado, inimigo_queimando, inimigo_congelado = self._obter_estado_inimigo_para_skills(inimigo)
+        orders = getattr(self, "team_orders", {}) or {}
+
+        return SkillDecisionContext(
+            dt=dt,
+            distancia=distancia,
+            parent=p,
+            strategy=strategy,
+            hp_pct=p.vida / p.vida_max if p.vida_max > 0 else 1.0,
+            inimigo_hp_pct=inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0,
+            mana_pct=p.mana / p.mana_max if p.mana_max > 0 else 1.0,
+            tempo_combate=self.tempo_combate,
+            role=strategy.role_principal.value,
+            plano=strategy.plano,
+            skills=strategy.skills,
+            familia_arma=resolver_familia_arma(arma),
+            pacote_id=self._obter_pacote_composto_id(),
+            orbes_orbitando=len(
+                [
+                    orb
+                    for orb in getattr(p, "buffer_orbes", [])
+                    if getattr(orb, "ativo", False) and getattr(orb, "estado", "") == "orbitando"
+                ]
+            ),
+            orbital_burst_pronto=getattr(p, "orbital_burst_cd", 999.0) <= 0.0,
+            forma_hibrida=int(getattr(p, "transform_forma", getattr(arma, "forma_atual", 0)) or 0),
+            bonus_hibrido=getattr(p, "transform_bonus_timer", 0.0) > 0.0,
+            inimigo_stunado=inimigo_stunado,
+            inimigo_debuffado=inimigo_debuffado,
+            inimigo_queimando=inimigo_queimando,
+            inimigo_congelado=inimigo_congelado,
+            inimigo_reposicionando=self.leitura_oponente.get("reposicionando", False),
+            inimigo_atk_iminente=self.leitura_oponente.get("ataque_iminente", False),
+            encurralado=self.consciencia_espacial.get("encurralado", False),
+            oponente_encurralado=self.consciencia_espacial.get("oponente_contra_parede", False),
+            inimigo_em_zona=bool(self.consciencia_espacial.get("zona_perigo_inimigo")),
+            eu_em_zona=bool(self.consciencia_espacial.get("zona_perigo_atual")),
+            buffs_ativos=len(getattr(p, "buffs_ativos", [])),
+            tenho_summons=self._contar_summons_ativos() > 0,
+            orders=orders,
+            has_team=orders.get("alive_count", 1) > 1,
+            team_role=orders.get("role", "STRIKER"),
+            is_weakest=orders.get("is_weakest", False),
+        )
+
+    def _pode_usar_skill_estrategica(self, ctx, nome):
+        if nome not in ctx.skills:
+            return False
+
+        p = ctx.parent
+        sk = ctx.skills[nome]
+        custo_efetivo = sk.custo
+        if "Mago" in getattr(p, "classe_nome", ""):
+            custo_efetivo *= 0.8
+        for buff in getattr(p, "buffs_ativos", []):
+            if getattr(buff, "custo_mana_metade", False):
+                custo_efetivo *= 0.5
+                break
+        if p.mana < custo_efetivo:
+            return False
+        if nome in getattr(p, "cd_skills", {}) and p.cd_skills[nome] > 0:
+            return False
+        if sk.tipo in ctx.strategy.cd_por_tipo and ctx.strategy.cd_por_tipo[sk.tipo] > 0:
+            return False
+        return True
+
+    def _tentar_skill_estrategica(self, ctx, nome, inimigo, motivo=""):
+        if not self._pode_usar_skill_estrategica(ctx, nome):
+            return False
+
+        sk = ctx.skills.get(nome)
+        if sk and not self._skill_aoe_segura_para_time(sk, inimigo, ctx.has_team):
+            return False
+        if not self._executar_skill_por_nome(nome):
+            return False
+
+        ctx.strategy.registrar_uso_skill(nome)
+        self._pos_uso_skill_estrategica(ctx.skills[nome])
+        return True
+
+    def _alcance_ok_skill_estrategica(self, ctx, nome, margem=1.25):
+        sk = ctx.skills.get(nome)
+        if not sk or sk.alcance_efetivo <= 0:
+            return True
+        return ctx.distancia <= sk.alcance_efetivo * margem
+
+    def _chance_skill_contextual(self, ctx, base, skill_nome=None):
+        chance = base
+        sk = ctx.skills.get(skill_nome) if skill_nome else None
+        tipo_skill = sk.tipo if sk else ""
+
+        if "CALCULISTA" in self.tracos:
+            if tipo_skill in ("BUFF", "TRAP", "TRANSFORM", "CHANNEL"):
+                chance *= 1.12
+            elif tipo_skill in ("PROJETIL", "BEAM", "AREA"):
+                chance *= 0.88
+        if "PACIENTE" in self.tracos:
+            if tipo_skill in ("BUFF", "TRAP", "CONTROL", "CHANNEL"):
+                chance *= 1.10
+            elif ctx.tempo_combate < 8.0 and tipo_skill in ("AREA", "BEAM"):
+                chance *= 0.84
+        if "BERSERKER" in self.tracos or "FURIOSO" in self.tracos:
+            if tipo_skill in ("AREA", "BEAM", "TRANSFORM", "DASH"):
+                chance *= 1.16
+            elif tipo_skill == "BUFF" and sk and (sk.data.get("cura") or sk.data.get("escudo")):
+                chance *= 0.80
+        if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
+            if tipo_skill in ("DASH", "TRANSFORM", "PROJETIL", "AREA"):
+                chance *= 1.12
+            elif tipo_skill == "CHANNEL":
+                chance *= 0.78
+
+        if ctx.familia_arma == "foco":
+            if tipo_skill in ("PROJETIL", "BEAM", "BUFF") and ctx.orbes_orbitando >= 2:
+                chance *= 1.12
+            if ctx.orbes_orbitando == 0 and ctx.distancia < 2.6 and tipo_skill in ("PROJETIL", "BEAM", "AREA"):
+                chance *= 0.82
+        elif ctx.familia_arma == "orbital":
+            if ctx.orbital_burst_pronto and tipo_skill in ("CONTROL", "AREA", "BUFF", "TRANSFORM"):
+                chance *= 1.10
+            elif not ctx.orbital_burst_pronto and tipo_skill == "BUFF":
+                chance *= 0.92
+            if ctx.pacote_id == "bastiao_prismatico":
+                if tipo_skill in ("BUFF", "CONTROL", "TRAP"):
+                    chance *= 1.16
+                if tipo_skill == "PROJETIL":
+                    chance *= 1.08 if ctx.distancia <= 3.1 else 0.96
+                if tipo_skill in ("PROJETIL", "BEAM", "AREA"):
+                    chance *= 0.86 if ctx.distancia < 2.7 else 0.92
+                if tipo_skill == "CHANNEL":
+                    chance *= 0.58
+                if tipo_skill == "DASH":
+                    chance *= 0.72
+                if ctx.mana_pct < 0.42 and tipo_skill in ("PROJETIL", "BEAM", "AREA"):
+                    chance *= 0.74
+                if ctx.mana_pct < 0.46 and tipo_skill == "CHANNEL":
+                    chance *= 0.54
+                if ctx.mana_pct < 0.34 and tipo_skill == "BUFF":
+                    chance *= 0.90
+            elif ctx.pacote_id == "artilheiro_de_orbita":
+                if tipo_skill in ("PROJETIL", "BEAM"):
+                    preferida = ctx.strategy.preferencias.get("distancia_preferida", 4.0) * 0.82
+                    chance *= 1.18 if ctx.distancia >= max(3.1, preferida) else 0.80
+                if tipo_skill in ("BUFF", "CONTROL", "AREA") and ctx.distancia < 2.9:
+                    chance *= 0.80
+                if tipo_skill == "CHANNEL":
+                    chance *= 0.44
+                if tipo_skill == "SUMMON":
+                    chance *= 0.78
+                if tipo_skill == "AREA":
+                    chance *= 0.74
+                if ctx.mana_pct < 0.38 and tipo_skill not in ("PROJETIL", "BEAM"):
+                    chance *= 0.72
+                if ctx.mana_pct < 0.48 and tipo_skill == "CHANNEL":
+                    chance *= 0.52
+        elif ctx.familia_arma == "hibrida":
+            if tipo_skill == "TRANSFORM" and not ctx.bonus_hibrido:
+                chance *= 1.18
+            if ctx.bonus_hibrido and tipo_skill in ("DASH", "PROJETIL", "BEAM", "AREA"):
+                chance *= 1.15
+            if ctx.forma_hibrida == 1 and tipo_skill == "DASH":
+                chance *= 0.84
+
+        return self._modular_chance_skill_por_arena(chance, sk, ctx.distancia)
+
+    def _ordenar_skills_por_dano(self, ctx, nomes):
+        return sorted(nomes, key=lambda nome: getattr(ctx.skills.get(nome), "dano_total", 0), reverse=True)
+
+    def _tentar_prioridade_time_skills(self, ctx, inimigo):
+        if ctx.has_team and ctx.team_role == "SUPPORT" and not ctx.is_weakest:
+            weakest_ally_hp = 1.0
+            awareness = getattr(self, "multi_awareness", {}) or {}
+            for aliado in awareness.get("aliados", []):
+                weakest_ally_hp = min(weakest_ally_hp, aliado["vida_pct"])
+
+            if weakest_ally_hp < 0.4:
+                for nome in list(ctx.plano.sustains) + list(ctx.plano.rotacao_critical):
+                    sk = ctx.skills.get(nome)
+                    if sk and sk.tipo == "BUFF" and (
+                        sk.data.get("cura")
+                        or sk.data.get("cura_por_segundo")
+                        or sk.data.get("escudo")
+                        or sk.data.get("buff_defesa")
+                    ):
+                        if self._tentar_skill_estrategica(ctx, nome, inimigo, "team_suporte_aliado"):
+                            return True
+
+            if weakest_ally_hp > 0.6 and ctx.mana_pct > 0.5 and ctx.buffs_ativos == 0:
+                for nome, sk in ctx.skills.items():
+                    if sk.tipo == "BUFF" and sk.data.get("buff_dano"):
+                        if self._tentar_skill_estrategica(ctx, nome, inimigo, "team_suporte_buff"):
+                            return True
+
+        if ctx.has_team and ctx.team_role == "CONTROLLER" and ctx.mana_pct > 0.3:
+            ally_intents = ctx.orders.get("ally_intents", {})
+            striker_ready = any(
+                getattr(intent, "action", "") in ("MATAR", "ESMAGAR", "PRESSIONAR")
+                for intent in ally_intents.values()
+            )
+            if striker_ready and not ctx.inimigo_stunado:
+                for nome in ctx.plano.controls:
+                    if self._alcance_ok_skill_estrategica(ctx, nome, 1.15):
+                        if self._tentar_skill_estrategica(ctx, nome, inimigo, "team_cc_para_burst"):
+                            return True
+
+        return False
+
+    def _tentar_prioridade_sobrevivencia_skills(self, ctx, inimigo):
+        if ctx.hp_pct < 0.28:
+            for nome in list(ctx.plano.sustains) + list(ctx.plano.escapes):
+                sk = ctx.skills.get(nome)
+                if sk and (sk.data.get("invencivel") or sk.data.get("intangivel")):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "emergencia_invencivel"):
+                        return True
+
+            cura_candidatos = [
+                (
+                    nome,
+                    ctx.skills[nome].data.get("cura", 0)
+                    + ctx.skills[nome].data.get("cura_por_segundo", 0) * 3
+                    + (ctx.skills[nome].data.get("cura_percent", 0) * ctx.parent.vida_max),
+                )
+                for nome in ctx.plano.rotacao_critical
+                if nome in ctx.skills
+                and ctx.skills[nome].tipo in ("BUFF", "AREA")
+                and (
+                    ctx.skills[nome].data.get("cura")
+                    or ctx.skills[nome].data.get("cura_por_segundo")
+                    or ctx.skills[nome].data.get("cura_percent")
+                )
+            ]
+            for nome, _ in sorted(cura_candidatos, key=lambda item: -item[1]):
+                if self._tentar_skill_estrategica(ctx, nome, inimigo, "emergencia_cura"):
+                    return True
+
+            for nome in ctx.plano.sustains:
+                sk = ctx.skills.get(nome)
+                if sk and sk.data.get("escudo"):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "emergencia_escudo"):
+                        return True
+
+            for nome, sk in ctx.skills.items():
+                if sk.tipo == "TRANSFORM" and sk.data.get("bonus_resistencia", 0) > 0.2:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "emergencia_transform_defensiva"):
+                        return True
+
+            if ctx.distancia < 7.0:
+                for nome, sk in ctx.skills.items():
+                    if sk.data.get("lifesteal", 0) > 0.3 and sk.dano_total > 20:
+                        if self._alcance_ok_skill_estrategica(ctx, nome, 1.1):
+                            if self._tentar_skill_estrategica(ctx, nome, inimigo, "emergencia_lifesteal"):
+                                return True
+
+            if ctx.inimigo_atk_iminente or ctx.hp_pct < 0.18:
+                for nome in ctx.plano.escapes:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "emergencia_escape"):
+                        return True
+
+            if ctx.hp_pct < 0.22 and ctx.distancia < 3.0:
+                for nome in ctx.plano.controls:
+                    if self._alcance_ok_skill_estrategica(ctx, nome, 1.1):
+                        if self._tentar_skill_estrategica(ctx, nome, inimigo, "emergencia_cc_defensivo"):
+                            return True
+
+        if ctx.eu_em_zona:
+            for nome in list(ctx.plano.escapes) + list(ctx.plano.controls) + list(ctx.plano.sustains):
+                sk = ctx.skills.get(nome)
+                if not sk:
+                    continue
+                if self._modular_chance_skill_por_arena(0.92, sk, ctx.distancia) >= 0.88:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "escape_zona_perigosa"):
+                        return True
+
+        return False
+
+    def _tentar_prioridade_reacao_skills(self, ctx, inimigo):
+        if not ctx.inimigo_atk_iminente or ctx.hp_pct <= 0.28:
+            return False
+
+        for nome in ctx.plano.controls:
+            if self._alcance_ok_skill_estrategica(ctx, nome, 1.1) and ctx.mana_pct > 0.20:
+                if self._tentar_skill_estrategica(ctx, nome, inimigo, "cc_preventivo"):
+                    return True
+
+        if ctx.role in ("artillery", "control_mage") or self.medo > 0.5:
+            for nome in ctx.plano.escapes:
+                if self._tentar_skill_estrategica(ctx, nome, inimigo, "escape_preemptivo"):
+                    return True
+
+        return False
+
+    def _tentar_prioridade_janela_cc_skills(self, ctx, inimigo):
+        condicao_cc = ctx.inimigo_reposicionando or ctx.distancia > 4.5 or (ctx.oponente_encurralado and ctx.distancia < 7.0)
+        if condicao_cc and ctx.mana_pct > 0.22 and not ctx.inimigo_stunado:
+            for nome in ctx.plano.controls:
+                sk = ctx.skills.get(nome)
+                if not sk:
+                    continue
+                if ctx.inimigo_reposicionando and ctx.distancia < 2.5 and sk.cooldown > 8:
+                    continue
+                if self._alcance_ok_skill_estrategica(ctx, nome, 1.15):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "janela_cc"):
+                        return True
+
+        if ctx.inimigo_em_zona and ctx.mana_pct > 0.18:
+            for nome, sk in ctx.skills.items():
+                if sk.tipo in ("TRAP", "CONTROL", "AREA", "BEAM") or sk.data.get("bloqueia_movimento", False) or sk.data.get("puxa_para_centro"):
+                    if self._alcance_ok_skill_estrategica(ctx, nome, 1.2):
+                        if self._tentar_skill_estrategica(ctx, nome, inimigo, "punir_zona_perigosa"):
+                            return True
+
+        return False
+
+    def _tentar_prioridade_combo_skills(self, ctx, inimigo):
+        if ctx.mana_pct <= 0.40:
+            return False
+
+        if ctx.inimigo_queimando:
+            for nome, sk in ctx.skills.items():
+                if sk.data.get("condicao") == "ALVO_QUEIMANDO" and self._alcance_ok_skill_estrategica(ctx, nome):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "payload_queimando"):
+                        return True
+
+        if ctx.inimigo_congelado:
+            for nome, sk in ctx.skills.items():
+                if sk.data.get("condicao") == "ALVO_CONGELADO" and self._alcance_ok_skill_estrategica(ctx, nome):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "payload_congelado"):
+                        return True
+
+        ultima = ctx.strategy.ultima_skill
+        if ultima and ultima in ctx.skills and ctx.skills[ultima].elemento:
+            ultimo_elem = ctx.skills[ultima].elemento
+            for nome, sk in ctx.skills.items():
+                if not sk.elemento or sk.elemento == ultimo_elem:
+                    continue
+                if not self._pode_usar_skill_estrategica(ctx, nome) or not self._alcance_ok_skill_estrategica(ctx, nome, 1.2):
+                    continue
+                for combo_entry in ctx.strategy.plano.combos:
+                    if len(combo_entry) >= 3 and "elemental_" in combo_entry[2]:
+                        if combo_entry[0] == ultima and combo_entry[1] == nome:
+                            if self._tentar_skill_estrategica(ctx, nome, inimigo, f"reaction_chain_{combo_entry[2]}"):
+                                return True
+
+        inimigo_marcado = any(
+            getattr(effect, "nome", "").lower() in ("marcado", "marked")
+            for effect in getattr(inimigo, "status_effects", [])
+        )
+        if inimigo_marcado:
+            void_skills = [
+                (nome, sk)
+                for nome, sk in ctx.skills.items()
+                if sk.elemento == "VOID" and sk.dano_total > 15 and self._alcance_ok_skill_estrategica(ctx, nome)
+            ]
+            void_skills.sort(key=lambda item: item[1].dano_total, reverse=True)
+            for nome, _ in void_skills:
+                if self._tentar_skill_estrategica(ctx, nome, inimigo, "void_marcado_double"):
+                    return True
+            for nome in ctx.plano.bursts:
+                if self._alcance_ok_skill_estrategica(ctx, nome):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "burst_sobre_marcado"):
+                        return True
+
+        combo = ctx.strategy.get_combo_recomendado()
+        if not combo:
+            return False
+
+        sk1, sk2, razao = combo
+        custo_total = (ctx.skills[sk1].custo if sk1 in ctx.skills else 9999) + (ctx.skills[sk2].custo if sk2 in ctx.skills else 9999)
+        if ctx.parent.mana < custo_total * 0.88:
+            return False
+
+        chance_combo = 0.75 if (ctx.inimigo_stunado or ctx.oponente_encurralado) else 0.50
+        if "elemental_" in razao:
+            chance_combo = min(0.90, chance_combo + 0.20)
+        chance_combo = self._chance_skill_contextual(ctx, chance_combo, sk1)
+        if random.random() >= chance_combo:
+            return False
+        if not self._alcance_ok_skill_estrategica(ctx, sk1, 1.15):
+            return False
+        if not self._tentar_skill_estrategica(ctx, sk1, inimigo, f"combo_setup_{razao}"):
+            return False
+
+        self.combo_state["em_combo"] = True
+        self.combo_state["pode_followup"] = True
+        self.combo_state["timer_followup"] = 0.5
+        self._proximo_skill_combo = sk2
+        return True
+
+    def _tentar_prioridade_execucao_skills(self, ctx, inimigo):
+        if ctx.inimigo_hp_pct >= 0.32:
+            return False
+
+        ally_intents = ctx.orders.get("ally_intents", {})
+        allies_on_this = (
+            sum(
+                1
+                for intent in ally_intents.values()
+                if getattr(intent, "target_id", 0) == id(inimigo)
+                and getattr(intent, "action", "") in ("MATAR", "ESMAGAR", "PRESSIONAR")
+            )
+            if ctx.has_team
+            else 0
+        )
+        skip_expensive_finisher = allies_on_this >= 2 and ctx.inimigo_hp_pct > 0.10
+
+        if not skip_expensive_finisher:
+            for nome in self._ordenar_skills_por_dano(ctx, ctx.plano.finishers):
+                if self._alcance_ok_skill_estrategica(ctx, nome, 1.30):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "execucao_finisher"):
+                        return True
+
+        for nome in self._ordenar_skills_por_dano(ctx, ctx.plano.bursts):
+            if self._alcance_ok_skill_estrategica(ctx, nome, 1.25):
+                if self._tentar_skill_estrategica(ctx, nome, inimigo, "execucao_burst"):
+                    return True
+
+        if ctx.inimigo_hp_pct < 0.15:
+            for nome, sk in ctx.skills.items():
+                if sk.dano_total > 0 and self._alcance_ok_skill_estrategica(ctx, nome, 1.2):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "execucao_desesperada"):
+                        return True
+
+        return False
+
+    def _tentar_prioridade_burst_skills(self, ctx, inimigo):
+        if not (ctx.inimigo_stunado or ctx.inimigo_debuffado) or ctx.mana_pct <= 0.25:
+            return False
+
+        chance_burst = 0.95 if ctx.inimigo_stunado else 0.80
+        for nome in self._ordenar_skills_por_dano(ctx, ctx.plano.bursts):
+            if self._alcance_ok_skill_estrategica(ctx, nome, 1.30) and random.random() < chance_burst:
+                if self._tentar_skill_estrategica(ctx, nome, inimigo, "burst_window"):
+                    return True
+
+        if ctx.inimigo_stunado:
+            for nome, sk in ctx.skills.items():
+                if sk.tipo == "AREA" and self._alcance_ok_skill_estrategica(ctx, nome):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "area_sobre_stunado"):
+                        return True
+            if ctx.distancia < 4.0:
+                for nome, sk in ctx.skills.items():
+                    if sk.tipo == "CHANNEL" and self._alcance_ok_skill_estrategica(ctx, nome):
+                        if self._tentar_skill_estrategica(ctx, nome, inimigo, "channel_sobre_stunado"):
+                            return True
+
+        if ctx.inimigo_debuffado:
+            for nome, sk in ctx.skills.items():
+                if sk.data.get("penetra_escudo") and self._alcance_ok_skill_estrategica(ctx, nome):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "penetra_sobre_debuffado"):
+                        return True
+
+        return False
+
+    def _tentar_prioridade_opener_skills(self, ctx, inimigo):
+        if ctx.tempo_combate < 8.0:
+            for nome in ctx.plano.rotacao_opening:
+                sk = ctx.skills.get(nome)
+                if not sk:
+                    continue
+                if sk.tipo == "BUFF" and sk.data.get("buff_dano") and ctx.buffs_ativos == 0:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "opener_buff_dano"):
+                        return True
+                elif sk.tipo == "BUFF" and (sk.data.get("lifesteal_global") or sk.data.get("bonus_resistencia")):
+                    if ctx.buffs_ativos == 0 and self._tentar_skill_estrategica(ctx, nome, inimigo, "opener_buff_sustain"):
+                        return True
+                elif sk.tipo == "SUMMON" and not ctx.tenho_summons and ctx.strategy.cd_por_tipo.get("SUMMON", 0) <= 0:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "opener_summon"):
+                        return True
+                elif sk.tipo == "TRANSFORM":
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "opener_transform"):
+                        return True
+                elif sk.tipo == "TRAP" and self._contar_traps_ativos() < 2:
+                    if not sk.data.get("bloqueia_movimento", False):
+                        if self._tentar_skill_estrategica(ctx, nome, inimigo, "opener_trap_trigger"):
+                            return True
+                elif sk.tipo == "BUFF" and sk.data.get("escudo") and ctx.hp_pct < 0.7:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "opener_escudo"):
+                        return True
+
+            for nome, sk in ctx.skills.items():
+                if sk.data.get("efeito") == "MARCADO" and self._alcance_ok_skill_estrategica(ctx, nome, 1.15):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "opener_marca"):
+                        return True
+
+        return False
+
+    def _tentar_prioridade_poke_skills(self, ctx, inimigo):
+        poke_dist_ok = ctx.distancia > 3.0 if ctx.role in ("artillery", "control_mage", "burst_mage") else ctx.distancia > 5.0
+        if not poke_dist_ok or ctx.mana_pct <= 0.30:
+            return False
+
+        chance_poke = {
+            "artillery": 0.88,
+            "control_mage": 0.80,
+            "burst_mage": 0.70,
+            "summoner": 0.60,
+            "battle_mage": 0.45,
+            "trap_master": 0.75,
+            "channeler": 0.72,
+        }.get(ctx.role, 0.38)
+        if "SPAMMER" in self.tracos:
+            chance_poke = min(0.96, chance_poke + 0.14)
+        if "CALCULISTA" in self.tracos:
+            chance_poke *= 0.80
+        if ctx.mana_pct < 0.45:
+            chance_poke *= 0.7
+        if random.random() >= chance_poke:
+            return False
+
+        poke_list = list(ctx.plano.pokes)
+        if ctx.mana_pct < 0.50:
+            poke_list.sort(key=lambda nome: ctx.skills[nome].dano_por_mana if nome in ctx.skills else 0, reverse=True)
+        for nome in poke_list:
+            if random.random() < self._chance_skill_contextual(ctx, 0.92, nome):
+                if self._alcance_ok_skill_estrategica(ctx, nome, 1.12):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "poke"):
+                        return True
+
+        traps_ativos = self._contar_traps_ativos()
+        if traps_ativos >= 3:
+            return False
+
+        for nome, sk in ctx.skills.items():
+            if sk.tipo != "TRAP":
+                continue
+            if sk.data.get("bloqueia_movimento", False):
+                if ctx.inimigo_atk_iminente or ctx.distancia < 4.0:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "wall_zoning_defensivo"):
+                        return True
+            else:
+                if self._tentar_skill_estrategica(ctx, nome, inimigo, "trap_zoning_trigger"):
+                    return True
+
+        return False
+
+    def _tentar_prioridade_manutencao_skills(self, ctx, inimigo):
+        if not ctx.tenho_summons and ctx.mana_pct > 0.45 and ctx.tempo_combate > 5.0:
+            for nome, sk in ctx.skills.items():
+                if sk.tipo == "SUMMON" and ctx.strategy.cd_por_tipo.get("SUMMON", 0) <= 0:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "manutencao_summon"):
+                        return True
+
+        traps_ativos_agora = self._contar_traps_ativos()
+        if traps_ativos_agora < 2 and ctx.mana_pct > 0.40 and ctx.tempo_combate > 6.0:
+            for nome, sk in ctx.skills.items():
+                if sk.tipo == "TRAP" and ctx.strategy.cd_por_tipo.get("TRAP", 0) <= 0:
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "manutencao_trap"):
+                        return True
+
+        if ctx.buffs_ativos == 0 and ctx.mana_pct > 0.35 and ctx.tempo_combate > 6.0:
+            for nome, sk in ctx.skills.items():
+                if sk.tipo == "BUFF" and sk.data.get("buff_dano"):
+                    if self._tentar_skill_estrategica(ctx, nome, inimigo, "manutencao_buff"):
+                        return True
+
+        return False
+
+    def _tentar_prioridade_rotacao_skills(self, ctx, inimigo):
+        if not SKILL_STRATEGY_AVAILABLE:
+            return False
+
+        situacao = CombatSituation(
+            distancia=ctx.distancia,
+            meu_hp_percent=ctx.hp_pct,
+            inimigo_hp_percent=ctx.inimigo_hp_pct,
+            meu_mana_percent=ctx.mana_pct,
+            estou_encurralado=ctx.encurralado,
+            inimigo_encurralado=ctx.oponente_encurralado,
+            inimigo_atacando=ctx.inimigo_atk_iminente,
+            inimigo_stunado=ctx.inimigo_stunado,
+            tenho_summons_ativos=self._contar_summons_ativos(),
+            tenho_traps_ativos=self._contar_traps_ativos(),
+            tenho_buffs_ativos=ctx.buffs_ativos,
+            inimigo_debuffado=ctx.inimigo_debuffado,
+            momentum=self.momentum,
+            tempo_combate=ctx.tempo_combate,
+        )
+        resultado = ctx.strategy.obter_melhor_skill(situacao)
+        if not resultado:
+            return False
+
+        sk_profile, razao = resultado
+        chance = {
+            "artillery": 0.88,
+            "burst_mage": 0.85,
+            "control_mage": 0.83,
+            "summoner": 0.80,
+            "buffer": 0.78,
+            "channeler": 0.80,
+            "battle_mage": 0.65,
+            "dasher": 0.60,
+            "transformer": 0.60,
+        }.get(ctx.role, 0.52)
+        if "SPAMMER" in self.tracos:
+            chance = min(0.96, chance + 0.12)
+        if "CALCULISTA" in self.tracos:
+            chance *= 0.82
+        if self.modo_burst:
+            chance = 0.96
+        if not self._alcance_ok_skill_estrategica(ctx, sk_profile.nome, 1.40):
+            chance *= 0.22
+        chance = self._chance_skill_contextual(ctx, chance, sk_profile.nome)
+        if random.random() >= chance:
+            return False
+        if not self._executar_skill_por_nome(sk_profile.nome):
+            return False
+
+        ctx.strategy.registrar_uso_skill(sk_profile.nome)
+        self._pos_uso_skill_estrategica(sk_profile)
+        return True
 
 
     # =========================================================================
@@ -165,675 +864,27 @@ class SkillsMixin(_AIBrainMixinBase):
 
     
     def _processar_skills_estrategico(self, dt, distancia, inimigo):
-        """
-        IA de Skills v4.0 â€” ESTRATÃ‰GIA TÃTICA CONSCIENTE
-        ===================================================
-        A IA lÃª o estado real do combate e toma decisÃµes contextuais:
-
-        CONTEXTO ANALISADO:
-          â€¢ HP/Mana prÃ³prios e do inimigo
-          â€¢ Estado do inimigo: stunado, debuffado, queimando, congelado
-          â€¢ DistÃ¢ncia e mobilidade
-          â€¢ Fase do combate (inÃ­cio, neutro, vantagem, crÃ­tico, finalizaÃ§Ã£o)
-          â€¢ Sinergias de combo entre skills
-          â€¢ PadrÃ£o recente do inimigo (ataque iminente, reposicionando)
-
-        HIERARQUIA (verificadas em ordem, retorna True ao usar):
-          1. SOBREVIVÃŠNCIA  â€” HP < 28%: cura, escudo, invencibilidade, escape
-          2. JANELA DE CC   â€” inimigo exposto/longe: CC para abrir combo
-          3. REAÃ‡ÃƒO CC      â€” inimigo vai atacar: CC preventivo / dash de escape
-          4. COMBO SINÃ‰RGICOâ€” setup + payload em sequÃªncia
-          5. EXECUÃ‡ÃƒO       â€” inimigo < 30% HP: skill de dano mÃ¡ximo
-          6. BURST WINDOW   â€” inimigo stunado/debuffado: mÃ¡ximo dano
-          7. OPENER         â€” primeiros 8s: buffs, summons, preparaÃ§Ã£o
-          8. POKE/ZONING    â€” fase neutra: pressÃ£o segura de distÃ¢ncia
-          9. ROTAÃ‡ÃƒO NORMAL â€” melhor skill disponÃ­vel da fase atual
-        """
-        p = self.parent
-        strategy = self.skill_strategy
-        if strategy is None:
+        ctx = self._criar_contexto_skills(dt, distancia, inimigo)
+        if ctx is None:
             return False
 
-        # (atualizar jÃ¡ foi chamado em _processar_skills antes do GCD gate)
-
-        # â”€â”€ Estado de combate â”€â”€
-        hp_pct          = p.vida / p.vida_max if p.vida_max > 0 else 1.0
-        inimigo_hp_pct  = inimigo.vida / inimigo.vida_max if inimigo.vida_max > 0 else 1.0
-        mana_pct        = p.mana / p.mana_max if p.mana_max > 0 else 1.0
-        tempo_combate   = self.tempo_combate
-        role            = strategy.role_principal.value
-        plano           = strategy.plano
-        skills          = strategy.skills
-        arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
-        familia_arma = resolver_familia_arma(arma)
-        orbes_orbitando = len([
-            o for o in getattr(p, 'buffer_orbes', [])
-            if getattr(o, 'ativo', False) and getattr(o, 'estado', '') == "orbitando"
-        ])
-        orbital_burst_pronto = getattr(p, 'orbital_burst_cd', 999.0) <= 0.0
-        forma_hibrida = int(getattr(p, 'transform_forma', getattr(arma, 'forma_atual', 0)) or 0)
-        bonus_hibrido = getattr(p, 'transform_bonus_timer', 0.0) > 0.0
-
-        # â”€â”€ Estado do inimigo (BUG-A4 fix: chave de cache baseada em estado real,
-        # nÃ£o em tempo â€” a chave anterior usava int(tempo_combate * 10) que
-        # invalidava o cache a cada 0.1s independente de mudanÃ§as, tornando
-        # a otimizaÃ§Ã£o inoperante.  A nova chave reflete os atributos que
-        # realmente mudam quando o estado do inimigo muda.) â”€â”€
-        _stun_now   = getattr(inimigo, 'stun_timer', 0) > 0
-        _slow_now   = getattr(inimigo, 'slow_timer', 0) > 0
-        _root_now   = getattr(inimigo, 'root_timer', 0) > 0
-        _dots_count = len(getattr(inimigo, 'dots_ativos', []))
-        _fx_count   = len(getattr(inimigo, 'status_effects', []))
-        _cache_key  = (id(inimigo), _stun_now, _slow_now, _root_now, _dots_count, _fx_count)
-        _cache      = getattr(self, '_estado_inimigo_cache', None)
-        _cache_stored_key = getattr(self, '_estado_inimigo_frame', None)
-        if _cache is None or _cache_stored_key != _cache_key:
-            _stunado     = self._verificar_inimigo_stunado(inimigo)
-            _debuffado   = self._verificar_inimigo_debuffado(inimigo)
-            _queimando   = any(
-                getattr(d, 'tipo', getattr(d, 'nome', '')).upper() in ('QUEIMANDO', 'QUEIMAR', 'BURNING')
-                for d in getattr(inimigo, 'dots_ativos', [])
-            ) or any(
-                getattr(e, 'nome', '').lower() in ('queimando', 'burning')
-                for e in getattr(inimigo, 'status_effects', [])
-            )
-            _congelado   = getattr(inimigo, 'congelado', False) or any(
-                getattr(e, 'nome', '').lower() in ('congelado', 'frozen')
-                for e in getattr(inimigo, 'status_effects', [])
-            )
-            self._estado_inimigo_cache = (_stunado, _debuffado, _queimando, _congelado)
-            self._estado_inimigo_frame = _cache_key  # BUG-A4 fix: armazena a chave real
-
-        inimigo_stunado, inimigo_debuffado, inimigo_queimando, inimigo_congelado = self._estado_inimigo_cache
-
-        inimigo_reposicionando = self.leitura_oponente.get("reposicionando", False)
-        inimigo_atk_iminente  = self.leitura_oponente.get("ataque_iminente", False)
-        encurralado           = self.consciencia_espacial.get("encurralado", False)
-        oponente_encurralado  = self.consciencia_espacial.get("oponente_contra_parede", False)
-        inimigo_em_zona       = self.consciencia_espacial.get("zona_perigo_inimigo")
-        eu_em_zona            = self.consciencia_espacial.get("zona_perigo_atual")
-        inimigo_mana_baixa    = getattr(inimigo, 'mana', 999) < getattr(inimigo, 'mana_max', 999) * 0.2
-        buffs_ativos          = len(getattr(p, 'buffs_ativos', []))
-        tenho_summons         = self._contar_summons_ativos() > 0
-
-        # â”€â”€ v13.0: Team context â”€â”€
-        orders = getattr(self, 'team_orders', {})
-        team_role = orders.get("role", "STRIKER")
-        team_tactic = orders.get("tactic", "FOCUS_FIRE")
-        has_team = orders.get("alive_count", 1) > 1
-        is_carry = orders.get("is_carry", False)
-        is_weakest = orders.get("is_weakest", False)
-        ally_no_caminho = getattr(self, 'multi_awareness', {}).get("aliado_no_caminho", False)
-
-        # v13.0: AoE friendly fire suppression helper
-        def _aoe_safe(nome):
-            """Verifica se skill AoE Ã© segura (sem aliados na blast zone)."""
-            if not has_team:
+        for handler in (
+            self._tentar_prioridade_time_skills,
+            self._tentar_prioridade_sobrevivencia_skills,
+            self._tentar_prioridade_reacao_skills,
+            self._tentar_prioridade_janela_cc_skills,
+            self._tentar_prioridade_combo_skills,
+            self._tentar_prioridade_execucao_skills,
+            self._tentar_prioridade_burst_skills,
+            self._tentar_prioridade_opener_skills,
+            self._tentar_prioridade_poke_skills,
+            self._tentar_prioridade_manutencao_skills,
+        ):
+            if handler(ctx, inimigo):
                 return True
-            sk = skills.get(nome)
-            if not sk:
-                return True
-            if sk.tipo not in ("AREA", "BEAM"):
-                return True  # NÃ£o AoE, sempre seguro
-            # Se aliado estÃ¡ no caminho do alvo, suprime AoE 80% das vezes
-            if ally_no_caminho and random.random() < 0.80:
-                return False
-            # Checa raio de AoE vs posiÃ§Ã£o de aliados
-            raio_aoe = sk.data.get("raio", 0) or sk.data.get("largura", 0) or 2.0
-            aliados = getattr(self, 'multi_awareness', {}).get("aliados", [])
-            for aliado in aliados:
-                if aliado["distancia"] < raio_aoe * 1.3 and aliado["distancia"] < distancia:
-                    if random.random() < 0.75:
-                        return False
-            return True
 
-        # â”€â”€ Helpers â”€â”€
-        def pode_usar(nome):
-            if nome not in skills:
-                return False
-            sk = skills[nome]
-            # Custo efetivo com descontos de classe/buff
-            custo_efetivo = sk.custo
-            if "Mago" in p.classe_nome:
-                custo_efetivo *= 0.8
-            for buff in p.buffs_ativos:
-                if getattr(buff, 'custo_mana_metade', False):
-                    custo_efetivo *= 0.5
-                    break
-            if p.mana < custo_efetivo:
-                return False
-            if nome in p.cd_skills and p.cd_skills[nome] > 0:
-                return False
-            if sk.tipo in strategy.cd_por_tipo and strategy.cd_por_tipo[sk.tipo] > 0:
-                return False
-            return True
+        return self._tentar_prioridade_rotacao_skills(ctx, inimigo)
 
-        def tentar(nome, motivo=""):
-            if pode_usar(nome):
-                # v13.0: AoE friendly fire check
-                sk = skills.get(nome)
-                if sk and not self._skill_aoe_segura_para_time(sk, inimigo, has_team):
-                    return False
-                if self._executar_skill_por_nome(nome):
-                    strategy.registrar_uso_skill(nome)
-                    self._pos_uso_skill_estrategica(skills[nome])
-                    return True
-            return False
-
-        def alcance_ok(nome, margem=1.25):
-            sk = skills.get(nome)
-            if not sk or sk.alcance_efetivo <= 0:
-                return True
-            return distancia <= sk.alcance_efetivo * margem
-
-        def _chance_skill_contextual(base, skill_nome=None):
-            chance = base
-            sk = skills.get(skill_nome) if skill_nome else None
-            tipo_skill = sk.tipo if sk else ""
-
-            if "CALCULISTA" in self.tracos:
-                if tipo_skill in ("BUFF", "TRAP", "TRANSFORM", "CHANNEL"):
-                    chance *= 1.12
-                elif tipo_skill in ("PROJETIL", "BEAM", "AREA"):
-                    chance *= 0.88
-            if "PACIENTE" in self.tracos:
-                if tipo_skill in ("BUFF", "TRAP", "CONTROL", "CHANNEL"):
-                    chance *= 1.10
-                elif tempo_combate < 8.0 and tipo_skill in ("AREA", "BEAM"):
-                    chance *= 0.84
-            if "BERSERKER" in self.tracos or "FURIOSO" in self.tracos:
-                if tipo_skill in ("AREA", "BEAM", "TRANSFORM", "DASH"):
-                    chance *= 1.16
-                elif tipo_skill == "BUFF" and sk and (sk.data.get("cura") or sk.data.get("escudo")):
-                    chance *= 0.80
-            if "ERRATICO" in self.tracos or "CAOTICO" in self.tracos:
-                if tipo_skill in ("DASH", "TRANSFORM", "PROJETIL", "AREA"):
-                    chance *= 1.12
-                elif tipo_skill == "CHANNEL":
-                    chance *= 0.78
-
-            if familia_arma == "foco":
-                if tipo_skill in ("PROJETIL", "BEAM", "BUFF") and orbes_orbitando >= 2:
-                    chance *= 1.12
-                if orbes_orbitando == 0 and distancia < 2.6 and tipo_skill in ("PROJETIL", "BEAM", "AREA"):
-                    chance *= 0.82
-            elif familia_arma == "orbital":
-                if orbital_burst_pronto and tipo_skill in ("CONTROL", "AREA", "BUFF", "TRANSFORM"):
-                    chance *= 1.10
-                elif not orbital_burst_pronto and tipo_skill == "BUFF":
-                    chance *= 0.92
-            elif familia_arma == "hibrida":
-                if tipo_skill == "TRANSFORM" and not bonus_hibrido:
-                    chance *= 1.18
-                if bonus_hibrido and tipo_skill in ("DASH", "PROJETIL", "BEAM", "AREA"):
-                    chance *= 1.15
-                if forma_hibrida == 1 and tipo_skill == "DASH":
-                    chance *= 0.84
-
-            return self._modular_chance_skill_por_arena(chance, sk, distancia)
-
-        # ================================================================
-        # v13.0 PRIORIDADE 0: TEAM SUPPORT SKILLS â€” cura/buff aliados
-        # Antes de tudo: se sou SUPPORT e aliado precisa de cura
-        # ================================================================
-        if has_team and team_role == "SUPPORT" and not is_weakest:
-            weakest_ally_hp = 1.0
-            ma = getattr(self, 'multi_awareness', {})
-            for aliado in ma.get("aliados", []):
-                if aliado["vida_pct"] < weakest_ally_hp:
-                    weakest_ally_hp = aliado["vida_pct"]
-
-            if weakest_ally_hp < 0.4:
-                # Aliado em perigo â€” prioriza cura/buff
-                for nome in list(plano.sustains) + list(plano.rotacao_critical):
-                    sk = skills.get(nome)
-                    if sk and sk.tipo == "BUFF" and (
-                        sk.data.get("cura") or sk.data.get("cura_por_segundo") or
-                        sk.data.get("escudo") or sk.data.get("buff_defesa")
-                    ):
-                        if tentar(nome, "team_suporte_aliado"):
-                            return True
-
-            # SUPPORT tambÃ©m buff aliados se todos saudÃ¡veis
-            if weakest_ally_hp > 0.6 and mana_pct > 0.5 and buffs_ativos == 0:
-                for nome in [n for n, sk in skills.items()
-                             if sk.tipo == "BUFF" and sk.data.get("buff_dano")]:
-                    if tentar(nome, "team_suporte_buff"):
-                        return True
-
-        # v13.0: CONTROLLER CC para time â€” se aliado Striker estÃ¡ pronto para burst
-        if has_team and team_role == "CONTROLLER" and mana_pct > 0.3:
-            ally_intents = orders.get("ally_intents", {})
-            striker_ready = any(
-                getattr(intent, 'action', '') in ("MATAR", "ESMAGAR", "PRESSIONAR")
-                for intent in ally_intents.values()
-            )
-            if striker_ready and not inimigo_stunado:
-                for nome in plano.controls:
-                    if alcance_ok(nome, 1.15):
-                        if tentar(nome, "team_cc_para_burst"):
-                            return True
-
-        # ================================================================
-        # PRIORIDADE 1: SOBREVIVÃŠNCIA â€” HP crÃ­tico
-        # ================================================================
-        if hp_pct < 0.28:
-            # 1a. Invencibilidade ou transformaÃ§Ã£o defensiva
-            for nome in list(plano.sustains) + list(plano.escapes):
-                sk = skills.get(nome)
-                if sk and (sk.data.get("invencivel") or sk.data.get("intangivel")):
-                    if tentar(nome, "emergencia_invencivel"):
-                        return True
-            # 1b. Curas diretas (prioriza a de maior valor)
-            cura_candidatos = [
-                (nome, skills[nome].data.get("cura", 0) + skills[nome].data.get("cura_por_segundo", 0) * 3
-                 + (skills[nome].data.get("cura_percent", 0) * p.vida_max))
-                for nome in plano.rotacao_critical
-                if nome in skills and skills[nome].tipo in ("BUFF", "AREA")
-                and (skills[nome].data.get("cura") or skills[nome].data.get("cura_por_segundo")
-                     or skills[nome].data.get("cura_percent"))
-            ]
-            for nome, _ in sorted(cura_candidatos, key=lambda x: -x[1]):
-                if tentar(nome, "emergencia_cura"):
-                    return True
-            # 1c. Escudo mÃ¡gico
-            for nome in plano.sustains:
-                sk = skills.get(nome)
-                if sk and sk.data.get("escudo"):
-                    if tentar(nome, "emergencia_escudo"):
-                        return True
-            # 1c2. v14.0: TransformaÃ§Ãµes defensivas (Armadura de Sangue, etc.)
-            for nome, sk in skills.items():
-                if sk.tipo == "TRANSFORM" and sk.data.get("bonus_resistencia", 0) > 0.2:
-                    if tentar(nome, "emergencia_transform_defensiva"):
-                        return True
-            # 1c3. v14.0: Lifesteal beams as sustain (drain to survive)
-            if distancia < 7.0:
-                for nome, sk in skills.items():
-                    if sk.data.get("lifesteal", 0) > 0.3 and sk.dano_total > 20:
-                        if alcance_ok(nome, 1.1):
-                            if tentar(nome, "emergencia_lifesteal"):
-                                return True
-            # 1d. Escape / dash (prioritÃ¡rio se inimigo atacando)
-            if inimigo_atk_iminente or hp_pct < 0.18:
-                for nome in plano.escapes:
-                    if tentar(nome, "emergencia_escape"):
-                        return True
-            # 1e. Skill de controle defensivo (stun para criar espaÃ§o)
-            if hp_pct < 0.22 and distancia < 3.0:
-                for nome in plano.controls:
-                    if alcance_ok(nome, 1.1) and tentar(nome, "emergencia_cc_defensivo"):
-                        return True
-
-        if eu_em_zona:
-            for nome in list(plano.escapes) + list(plano.controls) + list(plano.sustains):
-                sk = skills.get(nome)
-                if not sk:
-                    continue
-                if self._modular_chance_skill_por_arena(0.92, sk, distancia) >= 0.88:
-                    if tentar(nome, "escape_zona_perigosa"):
-                        return True
-
-        # ================================================================
-        # PRIORIDADE 2: REAÃ‡ÃƒO A ATAQUE IMINENTE
-        # ================================================================
-        if inimigo_atk_iminente and hp_pct > 0.28:
-            # 2a. CC preventivo para interromper o ataque
-            for nome in plano.controls:
-                if alcance_ok(nome, 1.1) and mana_pct > 0.20:
-                    if tentar(nome, "cc_preventivo"):
-                        return True
-            # 2b. Dash de escape se role Ã© kite
-            if role in ("artillery", "control_mage") or self.medo > 0.5:
-                for nome in plano.escapes:
-                    if tentar(nome, "escape_preemptivo"):
-                        return True
-
-        # ================================================================
-        # PRIORIDADE 3: JANELA DE CC â€” inimigo exposto
-        # Momentos ideais: longe (projÃ©til alcanÃ§a), reposicionando, encurralado
-        # ================================================================
-        condicao_cc = (
-            inimigo_reposicionando            or
-            distancia > 4.5                   or
-            (oponente_encurralado and distancia < 7.0)
-        )
-        if condicao_cc and mana_pct > 0.22 and not inimigo_stunado:
-            for nome in plano.controls:
-                sk = skills.get(nome)
-                if not sk:
-                    continue
-                # NÃ£o usar CC lento se inimigo estÃ¡ muito perto e se movendo
-                if inimigo_reposicionando and distancia < 2.5 and sk.cooldown > 8:
-                    continue
-                if alcance_ok(nome, 1.15):
-                    if tentar(nome, "janela_cc"):
-                        return True
-
-        if inimigo_em_zona and mana_pct > 0.18:
-            for nome, sk in skills.items():
-                if sk.tipo in ("TRAP", "CONTROL", "AREA", "BEAM") or sk.data.get("bloqueia_movimento", False) or sk.data.get("puxa_para_centro"):
-                    if alcance_ok(nome, 1.2):
-                        if tentar(nome, "punir_zona_perigosa"):
-                            return True
-
-        # ================================================================
-        # PRIORIDADE 4: COMBO SINÃ‰RGICO â€” setup â†’ payload
-        # Ex: Congelar â†’ Shatter / Queimar â†’ Detonar / Buff â†’ Burst
-        # ================================================================
-        if mana_pct > 0.40:
-            # 4a. Se inimigo jÃ¡ estÃ¡ queimando, prioriza detonate (payload)
-            if inimigo_queimando:
-                det_skills = [n for n, sk in skills.items()
-                              if sk.data.get("condicao") == "ALVO_QUEIMANDO" and alcance_ok(n)]
-                for nome in det_skills:
-                    if tentar(nome, "payload_queimando"):
-                        return True
-
-            # 4b. Se inimigo congelado, prioriza shatter
-            if inimigo_congelado:
-                sht_skills = [n for n, sk in skills.items()
-                              if sk.data.get("condicao") == "ALVO_CONGELADO" and alcance_ok(n)]
-                for nome in sht_skills:
-                    if tentar(nome, "payload_congelado"):
-                        return True
-
-            # 4c. v14.0: ELEMENTAL REACTION CHAINING
-            # Se a Ãºltima skill usada tem um elemento, procura skill com elemento
-            # diferente que gera uma reaÃ§Ã£o forte (multiplicador â‰¥ 1.5)
-            ultima = strategy.ultima_skill
-            if ultima and ultima in skills and skills[ultima].elemento:
-                ultimo_elem = skills[ultima].elemento
-                # Procura skills de elemento diferente que combinam
-                for nome, sk in skills.items():
-                    if not sk.elemento or sk.elemento == ultimo_elem:
-                        continue
-                    if not pode_usar(nome) or not alcance_ok(nome, 1.2):
-                        continue
-                    # Verifica se gera reaÃ§Ã£o
-                    for combo_entry in strategy.plano.combos:
-                        if len(combo_entry) >= 3 and "elemental_" in combo_entry[2]:
-                            if combo_entry[0] == ultima and combo_entry[1] == nome:
-                                if tentar(nome, f"reaction_chain_{combo_entry[2]}"):
-                                    return True
-
-            # 4d. v14.0: MARCADO â†’ follow-up burst
-            # Se inimigo tem status MARCADO, prioriza skill VOID de alto dano
-            inimigo_marcado = any(
-                getattr(e, 'nome', '').lower() in ('marcado', 'marked')
-                for e in getattr(inimigo, 'status_effects', [])
-            )
-            if inimigo_marcado:
-                # Skills void primeiro (dano dobrado em marcado)
-                void_skills = [(n, sk) for n, sk in skills.items()
-                               if sk.elemento == "VOID" and sk.dano_total > 15
-                               and alcance_ok(n)]
-                void_skills.sort(key=lambda x: x[1].dano_total, reverse=True)
-                for nome, _ in void_skills:
-                    if tentar(nome, "void_marcado_double"):
-                        return True
-                # Qualquer burst se nÃ£o tem void
-                for nome in plano.bursts:
-                    if alcance_ok(nome) and tentar(nome, "burst_sobre_marcado"):
-                        return True
-
-            # 4e. Inicia um combo sinÃ©rgico se tiver mana suficiente
-            combo = strategy.get_combo_recomendado()
-            if combo:
-                sk1, sk2, razao = combo
-                custo_total = (skills[sk1].custo if sk1 in skills else 9999) + \
-                              (skills[sk2].custo if sk2 in skills else 9999)
-                if p.mana >= custo_total * 0.88:
-                    # Chance aumenta se inimigo estÃ¡ parado (stunado/encurralado)
-                    chance_combo = 0.75 if (inimigo_stunado or oponente_encurralado) else 0.50
-                    # v14.0: Elemental combos get bonus chance
-                    if "elemental_" in razao:
-                        chance_combo = min(0.90, chance_combo + 0.20)
-                    chance_combo = _chance_skill_contextual(chance_combo, sk1)
-                    if random.random() < chance_combo:
-                        if alcance_ok(sk1, 1.15) and tentar(sk1, f"combo_setup_{razao}"):
-                            self.combo_state["em_combo"] = True
-                            self.combo_state["pode_followup"] = True
-                            self.combo_state["timer_followup"] = 0.5
-                            self._proximo_skill_combo = sk2
-                            return True
-
-        # ================================================================
-        # PRIORIDADE 5: EXECUÃ‡ÃƒO â€” inimigo HP baixo
-        # Gasta mais recursos quando pode confirmar kill
-        # v13.0: Evita overkill se aliados jÃ¡ estÃ£o focando
-        # ================================================================
-        if inimigo_hp_pct < 0.32:
-            # v13.0: Check overkill â€” se 2+ aliados jÃ¡ focam este alvo,
-            # nÃ£o gasta finisher caro (a nÃ£o ser que HP < 10%)
-            ally_intents = orders.get("ally_intents", {})
-            allies_on_this = sum(
-                1 for i in ally_intents.values()
-                if getattr(i, 'target_id', 0) == id(inimigo)
-                and getattr(i, 'action', '') in ("MATAR", "ESMAGAR", "PRESSIONAR")
-            ) if has_team else 0
-            skip_expensive_finisher = allies_on_this >= 2 and inimigo_hp_pct > 0.10
-
-            # 5a. Finisher dedicado
-            if not skip_expensive_finisher:
-                for nome in sorted(plano.finishers,
-                                   key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
-                                   reverse=True):
-                    sk = skills.get(nome)
-                    if not sk:
-                        continue
-                    if alcance_ok(nome, 1.30):
-                        if tentar(nome, "execucao_finisher"):
-                            return True
-            # 5b. Burst de maior dano
-            for nome in sorted(plano.bursts,
-                               key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
-                               reverse=True):
-                sk = skills.get(nome)
-                if sk and alcance_ok(nome, 1.25):
-                    if tentar(nome, "execucao_burst"):
-                        return True
-            # 5c. Se inimigo HP < 15%, usa QUALQUER skill disponÃ­vel
-            if inimigo_hp_pct < 0.15:
-                for nome in skills:
-                    sk = skills[nome]
-                    if sk.dano_total > 0 and alcance_ok(nome, 1.2):
-                        if tentar(nome, "execucao_desesperada"):
-                            return True
-
-        # ================================================================
-        # PRIORIDADE 6: BURST WINDOW â€” inimigo stunado/debuffado
-        # Janela de oportunidade para dano mÃ¡ximo
-        # ================================================================
-        if (inimigo_stunado or inimigo_debuffado) and mana_pct > 0.25:
-            chance_burst = 0.95 if inimigo_stunado else 0.80
-            # Usa burst com mais dano primeiro
-            for nome in sorted(plano.bursts,
-                               key=lambda n: skills.get(n, type("", (), {"dano_total": 0})).dano_total,
-                               reverse=True):
-                sk = skills.get(nome)
-                if sk and alcance_ok(nome, 1.30):
-                    if random.random() < chance_burst:
-                        if tentar(nome, "burst_window"):
-                            return True
-            # Se stunado: usa area tambÃ©m
-            if inimigo_stunado:
-                for nome in [n for n, sk in skills.items() if sk.tipo == "AREA" and alcance_ok(n)]:
-                    if tentar(nome, "area_sobre_stunado"):
-                        return True
-            # v14.0: Se stunado e temos channel â€” perfect window (can't interrupt)
-            if inimigo_stunado and distancia < 4.0:
-                for nome in [n for n, sk in skills.items()
-                             if sk.tipo == "CHANNEL" and alcance_ok(n)]:
-                    if tentar(nome, "channel_sobre_stunado"):
-                        return True
-            # v14.0: Se debuffado (vulnerÃ¡vel/marcado) â€” use penetrating attacks
-            if inimigo_debuffado:
-                penetra = [n for n, sk in skills.items()
-                           if sk.data.get("penetra_escudo") and alcance_ok(n)]
-                for nome in penetra:
-                    if tentar(nome, "penetra_sobre_debuffado"):
-                        return True
-
-        # ================================================================
-        # PRIORIDADE 7: OPENER â€” primeiros 8 segundos
-        # Estabelecer vantagem: buffs de dano, summons, traps, transformaÃ§Ãµes
-        # v14.0: Also considers lifesteal buffs and mark skills as openers
-        # ================================================================
-        if tempo_combate < 8.0:
-            for nome in plano.rotacao_opening:
-                sk = skills.get(nome)
-                if not sk:
-                    continue
-                if sk.tipo == "BUFF" and sk.data.get("buff_dano") and buffs_ativos == 0:
-                    if tentar(nome, "opener_buff_dano"):
-                        return True
-                # v14.0: Lifesteal/resistance buffs as opener
-                elif sk.tipo == "BUFF" and (sk.data.get("lifesteal_global") or sk.data.get("bonus_resistencia")):
-                    if buffs_ativos == 0 and tentar(nome, "opener_buff_sustain"):
-                        return True
-                elif sk.tipo == "SUMMON" and not tenho_summons and strategy.cd_por_tipo.get("SUMMON", 0) <= 0:
-                    if tentar(nome, "opener_summon"):
-                        return True
-                elif sk.tipo == "TRANSFORM":
-                    if tentar(nome, "opener_transform"):
-                        return True
-                elif sk.tipo == "TRAP" and self._contar_traps_ativos() < 2:
-                    # Trigger traps como zona de controle inicial
-                    if not sk.data.get("bloqueia_movimento", False):
-                        if tentar(nome, "opener_trap_trigger"):
-                            return True
-                elif sk.tipo == "BUFF" and sk.data.get("escudo") and hp_pct < 0.7:
-                    if tentar(nome, "opener_escudo"):
-                        return True
-            # v14.0: Mark skills as openers (setup combos for later)
-            for nome, sk in skills.items():
-                if sk.data.get("efeito") == "MARCADO" and alcance_ok(nome, 1.15):
-                    if tentar(nome, "opener_marca"):
-                        return True
-
-        # ================================================================
-        # PRIORIDADE 8: POKE / ZONING â€” fase neutra
-        # Manter pressÃ£o sem se expor. Mais importante para ranged/arty.
-        # v14.0: Enhanced mana management â€” prefer efficient skills when low
-        # ================================================================
-        poke_dist_ok = distancia > 3.0 if role in ("artillery", "control_mage", "burst_mage") else distancia > 5.0
-        if poke_dist_ok and mana_pct > 0.30:
-            chance_poke = {
-                "artillery": 0.88, "control_mage": 0.80, "burst_mage": 0.70,
-                "summoner": 0.60, "battle_mage": 0.45, "trap_master": 0.75,
-                "channeler": 0.72,
-            }.get(role, 0.38)
-            if "SPAMMER" in self.tracos:
-                chance_poke = min(0.96, chance_poke + 0.14)
-            if "CALCULISTA" in self.tracos:
-                chance_poke *= 0.80
-            # v14.0: When mana is medium-low, reduce poke frequency
-            if mana_pct < 0.45:
-                chance_poke *= 0.7
-            if random.random() < chance_poke:
-                # v14.0: Sort pokes by mana efficiency when mana < 50%
-                poke_list = list(plano.pokes)
-                if mana_pct < 0.50:
-                    poke_list.sort(
-                        key=lambda n: skills[n].dano_por_mana if n in skills else 0,
-                        reverse=True
-                    )
-                for nome in poke_list:
-                    if random.random() < _chance_skill_contextual(0.92, nome):
-                        if alcance_ok(nome, 1.12) and tentar(nome, "poke"):
-                            return True
-                # Traps como zoning â€” diferencia wall vs trigger
-                traps_ativos = self._contar_traps_ativos()
-                if traps_ativos < 3:
-                    for nome in [n for n, sk in skills.items() if sk.tipo == "TRAP"]:
-                        sk = skills[nome]
-                        if sk.data.get("bloqueia_movimento", False):
-                            # Walls: colocar entre eu e o inimigo quando inimigo avanÃ§a
-                            if inimigo_atk_iminente or distancia < 4.0:
-                                if tentar(nome, "wall_zoning_defensivo"):
-                                    return True
-                        else:
-                            # Trigger traps: colocar no caminho do inimigo
-                            if tentar(nome, "trap_zoning_trigger"):
-                                return True
-
-        # ================================================================
-        # PRIORIDADE 9: SUMMON MANUTENÃ‡ÃƒO
-        # Re-invocar summons quando nÃ£o hÃ¡ nenhum ativo
-        # ================================================================
-        if not tenho_summons and mana_pct > 0.45 and tempo_combate > 5.0:
-            for nome in [n for n, sk in skills.items()
-                         if sk.tipo == "SUMMON" and strategy.cd_por_tipo.get("SUMMON", 0) <= 0]:
-                if tentar(nome, "manutencao_summon"):
-                    return True
-
-        # ================================================================
-        # PRIORIDADE 9.5: TRAP MANUTENÃ‡ÃƒO
-        # Re-colocar traps quando poucas ativas
-        # ================================================================
-        traps_ativos_agora = self._contar_traps_ativos()
-        if traps_ativos_agora < 2 and mana_pct > 0.40 and tempo_combate > 6.0:
-            for nome in [n for n, sk in skills.items()
-                         if sk.tipo == "TRAP" and strategy.cd_por_tipo.get("TRAP", 0) <= 0]:
-                if tentar(nome, "manutencao_trap"):
-                    return True
-
-        # ================================================================
-        # PRIORIDADE 10: BUFF MANUTENÃ‡ÃƒO
-        # Renovar buffs que expiraram durante o combate
-        # ================================================================
-        if buffs_ativos == 0 and mana_pct > 0.35 and tempo_combate > 6.0:
-            for nome in [n for n, sk in skills.items()
-                         if sk.tipo == "BUFF" and sk.data.get("buff_dano")]:
-                if tentar(nome, "manutencao_buff"):
-                    return True
-
-        # ================================================================
-        # PRIORIDADE 11: ROTAÃ‡ÃƒO GERAL â€” usa o sistema de battle plan
-        # ================================================================
-        if not SKILL_STRATEGY_AVAILABLE:
-            return False
-        situacao = CombatSituation(
-            distancia=distancia,
-            meu_hp_percent=hp_pct,
-            inimigo_hp_percent=inimigo_hp_pct,
-            meu_mana_percent=mana_pct,
-            estou_encurralado=encurralado,
-            inimigo_encurralado=oponente_encurralado,
-            inimigo_atacando=inimigo_atk_iminente,
-            inimigo_stunado=inimigo_stunado,
-            tenho_summons_ativos=self._contar_summons_ativos(),
-            tenho_traps_ativos=self._contar_traps_ativos(),
-            tenho_buffs_ativos=buffs_ativos,
-            inimigo_debuffado=inimigo_debuffado,
-            momentum=self.momentum,
-            tempo_combate=tempo_combate
-        )
-        resultado = strategy.obter_melhor_skill(situacao)
-        if resultado:
-            sk_profile, razao = resultado
-            chance = {
-                "artillery": 0.88, "burst_mage": 0.85, "control_mage": 0.83,
-                "summoner": 0.80, "buffer": 0.78, "channeler": 0.80,
-                "battle_mage": 0.65, "dasher": 0.60, "transformer": 0.60,
-            }.get(role, 0.52)
-            if "SPAMMER" in self.tracos:
-                chance = min(0.96, chance + 0.12)
-            if "CALCULISTA" in self.tracos:
-                chance *= 0.82
-            if self.modo_burst:
-                chance = 0.96
-            if not alcance_ok(sk_profile.nome, 1.40):
-                chance *= 0.22
-            chance = _chance_skill_contextual(chance, sk_profile.nome)
-            if random.random() < chance:
-                if self._executar_skill_por_nome(sk_profile.nome):
-                    strategy.registrar_uso_skill(sk_profile.nome)
-                    self._pos_uso_skill_estrategica(sk_profile)
-                    return True
-
-        return False
 
 
     def _distancia_ponto_segmento(self, ponto, inicio, fim):
@@ -975,6 +1026,7 @@ class SkillsMixin(_AIBrainMixinBase):
         p = self.parent
         arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
         familia_arma = resolver_familia_arma(arma)
+        pacote_id = self._obter_pacote_composto_id()
         orbes_orbitando = len([
             o for o in getattr(p, 'buffer_orbes', [])
             if getattr(o, 'ativo', False) and getattr(o, 'estado', '') == "orbitando"
@@ -1021,7 +1073,12 @@ class SkillsMixin(_AIBrainMixinBase):
                 self.acao_atual = "RECUAR"
             else:
                 if familia_arma == "orbital":
-                    self.acao_atual = "COMBATE" if getattr(p, 'orbital_burst_cd', 999.0) <= 1.0 else "PRESSIONAR"
+                    if pacote_id == "bastiao_prismatico":
+                        self.acao_atual = "COMBATE" if getattr(p, 'orbital_burst_cd', 999.0) <= 1.0 else "CIRCULAR"
+                    elif pacote_id == "artilheiro_de_orbita":
+                        self.acao_atual = "POKE" if getattr(p, 'orbital_burst_cd', 999.0) > 1.0 else "COMBATE"
+                    else:
+                        self.acao_atual = "COMBATE" if getattr(p, 'orbital_burst_cd', 999.0) <= 1.0 else "PRESSIONAR"
                 elif familia_arma == "foco" and ("CALCULISTA" in self.tracos or "PACIENTE" in self.tracos):
                     self.acao_atual = "POKE"
                 else:
@@ -1029,6 +1086,10 @@ class SkillsMixin(_AIBrainMixinBase):
         elif tipo in ["PROJETIL", "BEAM"]:
             if familia_arma == "foco":
                 self.acao_atual = "COMBATE" if orbes_orbitando >= 1 else ("RECUAR" if "PACIENTE" in self.tracos else "CIRCULAR")
+            elif familia_arma == "orbital" and pacote_id == "artilheiro_de_orbita":
+                self.acao_atual = "POKE"
+            elif familia_arma == "orbital" and pacote_id == "bastiao_prismatico":
+                self.acao_atual = "COMBATE"
             elif familia_arma == "hibrida":
                 self.acao_atual = "POKE" if forma_hibrida == 1 else "MATAR"
             elif self.estilo_luta in ["KITE", "RANGED"]:
@@ -1038,7 +1099,7 @@ class SkillsMixin(_AIBrainMixinBase):
                 self.acao_atual = "COMBATE"
         elif tipo == "AREA":
             if familia_arma == "orbital":
-                self.acao_atual = "COMBATE"
+                self.acao_atual = "CIRCULAR" if pacote_id == "artilheiro_de_orbita" else "COMBATE"
             else:
                 self.acao_atual = "MATAR"
         elif tipo == "CHANNEL":

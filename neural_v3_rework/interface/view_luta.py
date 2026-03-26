@@ -12,6 +12,7 @@ from tkinter import messagebox, ttk
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dados.app_state import AppState
+from interface.headless_summary import load_latest_headless_inspection_target, load_latest_headless_report_summary
 from interface.theme import (
     CORES_CLASSE,
     COR_ACCENT,
@@ -23,7 +24,7 @@ from interface.theme import (
     COR_TEXTO,
     COR_TEXTO_DIM,
 )
-from interface.ui_components import UICard, build_page_header, make_primary_button
+from interface.ui_components import UICard, HeadlessSummaryCard, ScrollableWorkspace, build_page_header, make_primary_button
 from simulacao import simulacao
 
 _log = logging.getLogger("interface.view_luta")
@@ -109,9 +110,11 @@ class TelaLuta(tk.Frame):
         )
         self.btn_iniciar.pack(side="right", pady=14)
 
-        main = tk.Frame(self, bg=COR_BG)
-        main.pack(fill="both", expand=True, padx=20, pady=(16, 10))
+        workspace = ScrollableWorkspace(self, bg=COR_BG, xscroll=True, yscroll=True)
+        workspace.pack(fill="both", expand=True, padx=20, pady=(16, 10))
+        main = workspace.content
         self._main_area = main
+        self._workspace = workspace
 
         paned = tk.PanedWindow(
             main,
@@ -364,6 +367,16 @@ class TelaLuta(tk.Frame):
         )
         self.lbl_mapa_info.pack(anchor="w")
 
+        self.headless_diag_card = HeadlessSummaryCard(
+            frame,
+            title="Leitura Tatica Recente",
+            compact=True,
+            open_command=self._abrir_ultimo_relatorio_headless,
+            action_text="Aplicar Alvo",
+            action_command=self._aplicar_alvo_inspecao_headless,
+        )
+        self.headless_diag_card.pack(fill="x", pady=(14, 0))
+
         return frame
 
     def _ajustar_wraps_centro(self):
@@ -383,6 +396,7 @@ class TelaLuta(tk.Frame):
             self._desenhar_preview(self.personagem_p2, self.canvas_p2, self.lbl_nome_p2, self.lbl_stats_p2, COR_P2)
 
     def atualizar_dados(self):
+        self._refresh_headless_summary()
         self.listbox_p1.delete(0, tk.END)
         self.listbox_p2.delete(0, tk.END)
         self.personagem_p1 = None
@@ -420,6 +434,72 @@ class TelaLuta(tk.Frame):
         elif len(personagens) == 1:
             self.listbox_p2.selection_set(0)
             self._on_select_p2()
+
+    def _refresh_headless_summary(self):
+        if hasattr(self, "headless_diag_card"):
+            self._latest_headless_summary = load_latest_headless_report_summary()
+            self.headless_diag_card.set_summary(self._latest_headless_summary)
+
+    def _abrir_ultimo_relatorio_headless(self):
+        resumo = getattr(self, "_latest_headless_summary", None) or load_latest_headless_report_summary()
+        path = str(resumo.get("path", "") or "")
+        if not path or not os.path.exists(path):
+            messagebox.showinfo(
+                "Diagnostico Headless",
+                "Ainda nao existe relatorio headless pronto.\n\nRode o harness tatico ou o posto headless primeiro.",
+            )
+            return
+        try:
+            os.startfile(path)
+        except Exception as exc:
+            messagebox.showerror("Diagnostico Headless", f"Nao foi possivel abrir o relatorio.\n\n{exc}")
+
+    def _selecionar_personagem_por_nome(self, listbox, nome, callback):
+        personagens = self.controller.lista_personagens
+        idx = next((i for i, personagem in enumerate(personagens) if personagem.nome == nome), None)
+        if idx is None:
+            return False
+        listbox.selection_clear(0, tk.END)
+        listbox.selection_set(idx)
+        listbox.activate(idx)
+        listbox.see(idx)
+        callback()
+        return True
+
+    def _aplicar_alvo_inspecao_headless(self):
+        alvo = load_latest_headless_inspection_target()
+        if not alvo.get("found"):
+            messagebox.showinfo(
+                "Aplicar Alvo",
+                "Ainda nao existe alvo de inspecao pronto.\n\nRode o harness tatico primeiro.",
+            )
+            return
+
+        team_a = list(alvo.get("team_a_members", []) or [])
+        team_b = list(alvo.get("team_b_members", []) or [])
+        if len(team_a) != 1 or len(team_b) != 1:
+            messagebox.showinfo(
+                "Aplicar Alvo",
+                "O ultimo diagnostico nao descreve um duelo 1v1 direto.\n\nUse a Arena 1v1 para diagnosticos de duelo ou abra Equipes/Horda para os outros modos.",
+            )
+            return
+
+        ok_a = self._selecionar_personagem_por_nome(self.listbox_p1, team_a[0], self._on_select_p1)
+        ok_b = self._selecionar_personagem_por_nome(self.listbox_p2, team_b[0], self._on_select_p2)
+        if not (ok_a and ok_b):
+            messagebox.showwarning(
+                "Aplicar Alvo",
+                "Os personagens do relatorio nao estao disponiveis no roster atual.",
+            )
+            return
+
+        if alvo.get("cenario"):
+            self.var_cenario.set(alvo["cenario"])
+            self._selecionar_mapa(alvo["cenario"])
+        self.lbl_status.config(
+            text=f"Inspecao aplicada: {alvo.get('template_nome') or alvo.get('template_id') or 'duelo'}",
+            fg=COR_ACCENT,
+        )
 
     def _on_select_p1(self):
         sel = self.listbox_p1.curselection()

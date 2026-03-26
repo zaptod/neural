@@ -3,8 +3,12 @@ World Map — Live Sync
 File-watcher that detects changes from the combat game.
 """
 import os, threading, time
-from config import DATA_DIR
-import data_loader
+try:
+    from .config import DATA_DIR
+    from . import data_loader
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import DATA_DIR
+    import data_loader
 
 
 class LiveSync:

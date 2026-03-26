@@ -89,5 +89,29 @@ SKILLS_ARCANO = {
         "delay": 0.5, "duracao": 2.0,
         "descricao": "Ruptura que silencia e causa dano contÃ­nuo"
     },
+    "Falange Prismatica": {
+        "tipo": "BUFF", "cor": (150, 220, 255), "custo": 24.0, "cooldown": 16.0,
+        "duracao": 6.0, "elemento": "ARCANO",
+        "escudo": 55.0, "reflete_projeteis": True, "bonus_dano_recebido": 0.82,
+        "descricao": "Forma uma muralha prismatica orbitando o conjurador"
+    },
+    "Enxame Astral": {
+        "tipo": "SUMMON", "cor": (140, 170, 255), "custo": 30.0, "cooldown": 18.0,
+        "duracao": 9.0, "elemento": "ARCANO",
+        "summon_vida": 42.0, "summon_dano": 7.5, "efeito": "LENTO",
+        "descricao": "Invoca sentinelas orbitais que pressionam o alvo"
+    },
+    "Laminas de Saturno": {
+        "tipo": "PROJETIL", "dano": 9.0, "velocidade": 16.0, "raio": 0.22,
+        "vida": 2.2, "cor": (220, 200, 255), "custo": 18.0, "cooldown": 4.5,
+        "elemento": "ARCANO", "multi_shot": 4,
+        "descricao": "Laminas arcanas giratorias disparam em rajada"
+    },
+    "Mare Prismatica": {
+        "tipo": "AREA", "dano": 28.0, "raio_area": 3.0, "cor": (130, 200, 255),
+        "custo": 26.0, "cooldown": 11.0, "elemento": "ARCANO", "efeito": "LENTO",
+        "delay": 0.3, "duracao": 2.4,
+        "descricao": "Expande um campo prismático que desacelera e castiga o avanço"
+    },
 }
 

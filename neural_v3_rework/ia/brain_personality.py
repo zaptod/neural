@@ -22,6 +22,7 @@ from ia.personalities import (
 )
 from ia.behavior_profiles import get_behavior_profile, FALLBACK_PROFILE
 from ia.weapon_ai import obter_metricas_arma, resolver_familia_arma
+from nucleo.armas import resolver_subtipo_orbital
 
 try:
     from nucleo.weapon_analysis import (
@@ -226,8 +227,19 @@ class PersonalityMixin(_AIBrainMixinBase):
 
         # Define arquÃ©tipo e alcance IDEAL (onde a IA quer ficar)
         if familia == "orbital":
-            self.arquetipo = "SENTINELA"
-            p.alcance_ideal = max(1.2, alcance_tatico)
+            subtipo_orbital = resolver_subtipo_orbital(arma)
+            if subtipo_orbital == "escudo":
+                self.arquetipo = "BALUARTE_ORBITAL"
+                p.alcance_ideal = max(1.15, min(2.0, alcance_tatico))
+            elif subtipo_orbital == "drone":
+                self.arquetipo = "ARTILHEIRO_ORBITAL"
+                p.alcance_ideal = max(1.6, alcance_tatico)
+            elif subtipo_orbital == "laminas":
+                self.arquetipo = "DANCARINO_ASTRAL"
+                p.alcance_ideal = max(1.3, alcance_tatico * 0.92)
+            else:
+                self.arquetipo = "MAESTRO_ASTRAL"
+                p.alcance_ideal = max(1.5, alcance_tatico)
 
         elif familia == "disparo":
             self.arquetipo = "ARQUEIRO"

@@ -15,9 +15,12 @@ FILE_PAPEIS = ROOT / "dados" / "papeis_taticos.json"
 
 PACKAGE_TO_TEAM_ROLE = {
     "defensor": "VANGUARD",
+    "bastiao_orbital": "VANGUARD",
     "curandeiro": "SUPPORT",
     "suporte_controle": "CONTROLLER",
+    "maestro_astral": "CONTROLLER",
     "atirador": "ARTILLERY",
+    "artilheiro_orbital": "ARTILLERY",
     "assassino": "FLANKER",
     "duelista": "STRIKER",
     "bruiser": "STRIKER",
@@ -87,6 +90,7 @@ def inferir_papel_tatico(fighter) -> dict:
 
     best = None
     second_score = 0.0
+    second_role = ""
     score_map = {}
 
     for papel in packages:
@@ -119,6 +123,7 @@ def inferir_papel_tatico(fighter) -> dict:
         if best is None or score > best["score"]:
             if best is not None:
                 second_score = best["score"]
+                second_role = PACKAGE_TO_TEAM_ROLE.get(_norm(best["papel_id"]), "STRIKER")
             best = {
                 "papel_id": papel.get("id", "bruiser"),
                 "nome": papel.get("nome", papel.get("id", "Bruiser")),
@@ -129,14 +134,19 @@ def inferir_papel_tatico(fighter) -> dict:
             }
         else:
             second_score = max(second_score, score)
+            if score >= second_score:
+                second_role = PACKAGE_TO_TEAM_ROLE.get(_norm(papel.get("id", "")), "STRIKER")
 
     if best is None:
         return {"papel_id": "bruiser", "confidence": 0.0, "score": 0.0}
 
+    best_role = PACKAGE_TO_TEAM_ROLE.get(_norm(best["papel_id"]), "STRIKER")
     confidence = 1.0 if best["score"] <= 0 else max(0.15, min(1.0, (best["score"] - second_score + 1.0) / (best["score"] + 1.0)))
+    if second_role and second_role == best_role:
+        confidence = min(1.0, confidence + 0.08)
     best["confidence"] = round(confidence, 3)
     best["score_map"] = score_map
-    best["team_role"] = PACKAGE_TO_TEAM_ROLE.get(_norm(best["papel_id"]), "STRIKER")
+    best["team_role"] = best_role
     return best
 
 

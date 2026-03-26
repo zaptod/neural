@@ -16,7 +16,7 @@ from modelos import Personagem, LISTA_CLASSES, CLASSES_DATA, get_class_data
 from dados import carregar_personagens, salvar_lista_chars, carregar_armas
 from dados.world_bridge import WorldBridge, WORLDMAP_AVAILABLE  # D01 Sprint 10
 from dados.app_state import AppState
-from nucleo.skills import get_skill_classification
+from nucleo.skills import get_skill_classification, listar_skills_filtradas
 from interface.theme import (
     COR_BG, COR_BG_SECUNDARIO, COR_HEADER, COR_ACCENT, COR_SUCCESS, 
     COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_DANGER, CORES_CLASSE, CATEGORIAS_CLASSE
@@ -24,6 +24,7 @@ from interface.theme import (
 from interface.ui_components import (
     EmptyState,
     InlineFeedbackBar,
+    ScrollableWorkspace,
     UICard,
     build_labeled_combobox,
     build_radio_option_card,
@@ -61,6 +62,7 @@ class TelaPersonagens(tk.Frame):
             "forca": 5.0,
             "mana": 5.0,
             "arma": "",
+            "skills": [],
             "cor_r": 200,
             "cor_g": 50,
             "cor_b": 50,
@@ -92,9 +94,11 @@ class TelaPersonagens(tk.Frame):
         # Header
         self.criar_header()
         
-        main = tk.Frame(self, bg=COR_BG)
-        main.pack(fill="both", expand=True, padx=14, pady=10)
+        workspace = ScrollableWorkspace(self, bg=COR_BG, xscroll=True, yscroll=True)
+        workspace.pack(fill="both", expand=True, padx=14, pady=10)
+        main = workspace.content
         self._main_area = main
+        self._workspace = workspace
 
         paned = tk.PanedWindow(
             main,
@@ -408,21 +412,30 @@ class TelaPersonagens(tk.Frame):
     def _coletar_nomes_skills_preview(self):
         nomes = []
 
-        nome_arma = self.dados_char.get("arma")
-        if nome_arma:
-            arma_obj = next((a for a in self.controller.lista_armas if a.nome == nome_arma), None)
-            if arma_obj:
-                for hab in getattr(arma_obj, "habilidades", []) or []:
-                    if isinstance(hab, dict):
-                        nome = hab.get("nome", "Nenhuma")
-                    else:
-                        nome = str(hab)
-                    if nome and nome != "Nenhuma":
-                        nomes.append(nome)
-                if not nomes:
-                    nome = getattr(arma_obj, "habilidade", "Nenhuma")
-                    if nome and nome != "Nenhuma":
-                        nomes.append(nome)
+        for skill in self.dados_char.get("skills", []) or []:
+            if isinstance(skill, dict):
+                nome = skill.get("nome", "Nenhuma")
+            else:
+                nome = str(skill)
+            if nome and nome != "Nenhuma":
+                nomes.append(nome)
+
+        if not nomes:
+            nome_arma = self.dados_char.get("arma")
+            if nome_arma:
+                arma_obj = next((a for a in self.controller.lista_armas if a.nome == nome_arma), None)
+                if arma_obj:
+                    for hab in getattr(arma_obj, "habilidades", []) or []:
+                        if isinstance(hab, dict):
+                            nome = hab.get("nome", "Nenhuma")
+                        else:
+                            nome = str(hab)
+                        if nome and nome != "Nenhuma":
+                            nomes.append(nome)
+                    if not nomes:
+                        nome = getattr(arma_obj, "habilidade", "Nenhuma")
+                        if nome and nome != "Nenhuma":
+                            nomes.append(nome)
 
         classe_data = get_class_data(self.dados_char["classe"])
         for nome in classe_data.get("skills_afinidade", []):
@@ -1305,6 +1318,9 @@ class TelaPersonagens(tk.Frame):
                 accent=COR_WARNING,
             ).pack(fill="x", padx=6, pady=20)
 
+        self._prefill_skills_from_current_weapon()
+        self._render_selector_skills_personagem(self.frame_conteudo_passo)
+
 
     # ── [PHASE 3] PASSO 7: ALIANÇA DIVINA ──────────────────────────────────────
 
@@ -1821,12 +1837,179 @@ class TelaPersonagens(tk.Frame):
             pady=6,
         ).pack(side="left", padx=(8, 0))
 
+    def _normalizar_skills_char(self, skills):
+        normalizados = []
+        for skill in skills or []:
+            if isinstance(skill, dict):
+                nome = str(skill.get("nome", "") or "").strip()
+                if not nome or nome == "Nenhuma":
+                    continue
+                item = {"nome": nome}
+                if "custo" in skill:
+                    item["custo"] = float(skill.get("custo", 0.0) or 0.0)
+            else:
+                nome = str(skill or "").strip()
+                if not nome or nome == "Nenhuma":
+                    continue
+                item = {"nome": nome}
+            normalizados.append(item)
+
+        vistos = set()
+        unicos = []
+        for item in normalizados:
+            nome = item["nome"]
+            if nome in vistos:
+                continue
+            vistos.add(nome)
+            unicos.append(item)
+        return unicos[:3]
+
+    def _skills_legado_da_arma(self, nome_arma):
+        if not nome_arma:
+            return []
+        arma_obj = next((a for a in self.controller.lista_armas if a.nome == nome_arma), None)
+        if not arma_obj:
+            return []
+
+        skills = []
+        for hab in getattr(arma_obj, "habilidades", []) or []:
+            if isinstance(hab, dict):
+                nome = hab.get("nome", "Nenhuma")
+                custo = hab.get("custo", 0.0)
+            else:
+                nome = str(hab)
+                custo = 0.0
+            if nome and nome != "Nenhuma":
+                skills.append({"nome": nome, "custo": float(custo or 0.0)})
+        if not skills:
+            nome = getattr(arma_obj, "habilidade", "Nenhuma")
+            if nome and nome != "Nenhuma":
+                skills.append({"nome": nome, "custo": float(getattr(arma_obj, "custo_mana", 0.0) or 0.0)})
+        return self._normalizar_skills_char(skills)
+
+    def _prefill_skills_from_current_weapon(self):
+        atuais = self._normalizar_skills_char(self.dados_char.get("skills", []))
+        if atuais:
+            self.dados_char["skills"] = atuais
+            return
+        self.dados_char["skills"] = self._skills_legado_da_arma(self.dados_char.get("arma"))
+
+    def _lista_skills_personagem_filtrada(self):
+        return listar_skills_filtradas(
+            elemento=self._filtro_skill_elemento.get() if hasattr(self, "_filtro_skill_elemento") else None,
+            tipo=self._filtro_skill_tipo.get() if hasattr(self, "_filtro_skill_tipo") else None,
+            forca=self._filtro_skill_forca.get() if hasattr(self, "_filtro_skill_forca") else None,
+            utilidade=self._filtro_skill_utilidade.get() if hasattr(self, "_filtro_skill_utilidade") else None,
+            incluir_nenhuma=True,
+        )
+
+    def _sincronizar_skills_personagem_ui(self):
+        skills = []
+        for combo in getattr(self, "_combos_skills_char", []):
+            nome = combo.get().strip()
+            if not nome or nome == "Nenhuma":
+                continue
+            skills.append({"nome": nome})
+        self.dados_char["skills"] = self._normalizar_skills_char(skills)
+        self.criar_resumo_stats()
+        self.atualizar_preview()
+
+    def _aplicar_filtro_skills_personagem(self, *_args):
+        lista = self._lista_skills_personagem_filtrada()
+        for combo in getattr(self, "_combos_skills_char", []):
+            combo["values"] = lista
+            if combo.get() not in lista:
+                combo.set("Nenhuma")
+        self._sincronizar_skills_personagem_ui()
+
+    def _render_selector_skills_personagem(self, parent):
+        build_section_header(
+            parent,
+            "Skills Do Campeao",
+            "As skills agora pertencem ao personagem. A arma continua definindo alcance, ritmo e identidade visual; o kit magico e escolhido aqui.",
+            bg=COR_BG_SECUNDARIO,
+            accent=COR_ACCENT,
+        )
+
+        filtros = UICard(parent, bg=COR_BG, border="#284564", padx=12, pady=10)
+        filtros.pack(fill="x", padx=4, pady=(4, 8))
+
+        row = tk.Frame(filtros, bg=COR_BG)
+        row.pack(fill="x")
+
+        wrap_elemento, self._filtro_skill_elemento = build_labeled_combobox(
+            row,
+            "Elemento",
+            values=["Todos", "Fogo", "Gelo", "Luz", "Trevas", "Arcano", "Raio", "Sangue", "Veneno", "Vazio", "Natureza", "Neutro"],
+            current="Todos",
+            bg=COR_BG,
+        )
+        wrap_elemento.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        wrap_tipo, self._filtro_skill_tipo = build_labeled_combobox(
+            row,
+            "Tipo",
+            values=["Todos", "PROJETIL", "AREA", "BEAM", "BUFF", "SUMMON", "TRAP", "DASH", "HEAL", "AURA", "CHANNEL"],
+            current="Todos",
+            bg=COR_BG,
+        )
+        wrap_tipo.pack(side="left", fill="x", expand=True, padx=6)
+        wrap_forca, self._filtro_skill_forca = build_labeled_combobox(
+            row,
+            "Forca",
+            values=["Todos", "SUPORTE", "PRESSAO", "PRECISAO", "IMPACTO", "CATACLISMO"],
+            current="Todos",
+            bg=COR_BG,
+        )
+        wrap_forca.pack(side="left", fill="x", expand=True, padx=6)
+        wrap_funcao, self._filtro_skill_utilidade = build_labeled_combobox(
+            row,
+            "Funcao",
+            values=["Todos", "DANO", "CONTROLE", "PROTECAO", "CURA", "AMPLIFICACAO", "MOBILIDADE", "INVOCACAO", "DISRUPCAO", "ZONA", "PRECISAO"],
+            current="Todos",
+            bg=COR_BG,
+        )
+        wrap_funcao.pack(side="left", fill="x", expand=True, padx=(6, 0))
+
+        for combo in (self._filtro_skill_elemento, self._filtro_skill_tipo, self._filtro_skill_forca, self._filtro_skill_utilidade):
+            combo.bind("<<ComboboxSelected>>", self._aplicar_filtro_skills_personagem)
+
+        slots_card = UICard(parent, bg=COR_BG, border="#284564", padx=12, pady=12)
+        slots_card.pack(fill="x", padx=4, pady=(0, 10))
+
+        self._combos_skills_char = []
+        skills = self._normalizar_skills_char(self.dados_char.get("skills", []))
+        self.dados_char["skills"] = skills
+        lista = self._lista_skills_personagem_filtrada()
+
+        for idx in range(3):
+            wrap = tk.Frame(slots_card, bg=COR_BG)
+            wrap.pack(fill="x", pady=4)
+            tk.Label(wrap, text=f"Slot {idx + 1}", font=("Arial", 9, "bold"), bg=COR_BG, fg=COR_TEXTO_DIM, width=10, anchor="w").pack(side="left")
+            combo = ttk.Combobox(wrap, values=lista, state="readonly", width=34)
+            combo.pack(side="left", fill="x", expand=True)
+            combo.set(skills[idx]["nome"] if idx < len(skills) else "Nenhuma")
+            combo.bind("<<ComboboxSelected>>", lambda _e: self._sincronizar_skills_personagem_ui())
+            self._combos_skills_char.append(combo)
+
+        tk.Label(
+            slots_card,
+            text="As skills de afinidade da classe continuam entrando automaticamente. Aqui voce escolhe o kit ativo e autoral do campeao.",
+            font=("Arial", 9),
+            bg=COR_BG,
+            fg=COR_TEXTO_DIM,
+            wraplength=620,
+            justify="left",
+        ).pack(anchor="w", pady=(8, 0))
+
     def _selecionar_arma(self, nome):
         """Seleciona uma arma"""
         if nome == "Nenhuma":
             self.dados_char["arma"] = ""
         else:
             self.dados_char["arma"] = nome
+        self._prefill_skills_from_current_weapon()
+        if hasattr(self, "_combos_skills_char"):
+            self._aplicar_filtro_skills_personagem()
         self.criar_resumo_stats()
         self.atualizar_preview()
 
@@ -1982,6 +2165,27 @@ class TelaPersonagens(tk.Frame):
         if self.passo_atual == 6:
             self.mostrar_passo(6)
 
+    def focar_personagem_nome(self, nome, *, abrir_edicao=True):
+        nome = str(nome or "").strip()
+        if not nome or not hasattr(self, "tree"):
+            return False
+        for item in self.tree.get_children():
+            values = self.tree.item(item, "values") or ()
+            if values and str(values[0]) == nome:
+                self.tree.selection_set(item)
+                self.tree.focus(item)
+                self.tree.see(item)
+                self.selecionar_personagem()
+                if abrir_edicao:
+                    self.mostrar_passo(1)
+                    if hasattr(self, "feedback_lista"):
+                        self.feedback_lista.set_message(
+                            f"Foco headless aplicado em {nome}. Revise o pacote, a personalidade e o kit completo.",
+                            tone="info",
+                        )
+                return True
+        return False
+
     def salvar_personagem(self):
         """Salva o personagem atual"""
         try:
@@ -2024,6 +2228,7 @@ class TelaPersonagens(tk.Frame):
                 self.dados_char["personalidade"],
                 self.dados_char.get("god_id"),  # [PHASE 3]
                 self.dados_char.get("lore", ""),  # MEL-C3: Background opcional
+                skills_personagem=self._normalizar_skills_char(self.dados_char.get("skills", [])),
             )
             
             _state = AppState.get()
@@ -2082,6 +2287,7 @@ class TelaPersonagens(tk.Frame):
             "forca": p.forca,
             "mana": p.mana,
             "arma": p.nome_arma or "",
+            "skills": list(getattr(p, "skills_personagem", []) or []),
             "cor_r": p.cor_r,
             "cor_g": p.cor_g,
             "cor_b": p.cor_b,
@@ -2117,6 +2323,7 @@ class TelaPersonagens(tk.Frame):
             "forca": 5.0,
             "mana": 5.0,
             "arma": "",
+            "skills": [],
             "cor_r": 200,
             "cor_g": 50,
             "cor_b": 50,

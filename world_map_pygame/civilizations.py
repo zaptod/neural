@@ -6,13 +6,22 @@ trade routes, diplomacy-driven wars. Civilizations LIVE and BREATHE.
 import numpy as np
 import math
 import random
-from config import (
-    MAP_W, MAP_H, RESOURCE_TYPES,
-    POP_GROWTH_BASE, POP_MAX_VILLAGE, POP_MAX_CITY,
-    GOD_COLORS, BIOME_COLORS,
-    SETTLE_MIN_DIST, EXPAND_FOOD_THRESH,
-    AUTO_CIV_TICK,
-)
+try:
+    from .config import (
+        MAP_W, MAP_H, RESOURCE_TYPES,
+        POP_GROWTH_BASE, POP_MAX_VILLAGE, POP_MAX_CITY,
+        GOD_COLORS, BIOME_COLORS,
+        SETTLE_MIN_DIST, EXPAND_FOOD_THRESH,
+        AUTO_CIV_TICK,
+    )
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H, RESOURCE_TYPES,
+        POP_GROWTH_BASE, POP_MAX_VILLAGE, POP_MAX_CITY,
+        GOD_COLORS, BIOME_COLORS,
+        SETTLE_MIN_DIST, EXPAND_FOOD_THRESH,
+        AUTO_CIV_TICK,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -172,8 +181,18 @@ class CivilizationSystem:
     def simulate(self, dt, biome_map, biome_names, heightmap, influence, material_layer,
                  weather=None, season=None, world=None):
         """One tick of civilization simulation — with universal synergy + auto-expansion."""
-        from synergy import (BIOME_BUILDING_PRODUCTION, SEASON_EFFECTS,
-                              MATERIAL_BUILDING_EFFECTS)
+        try:
+            from .synergy import (
+                BIOME_BUILDING_PRODUCTION,
+                SEASON_EFFECTS,
+                MATERIAL_BUILDING_EFFECTS,
+            )
+        except ImportError:  # pragma: no cover - direct script fallback
+            from synergy import (
+                BIOME_BUILDING_PRODUCTION,
+                SEASON_EFFECTS,
+                MATERIAL_BUILDING_EFFECTS,
+            )
         changed = False
 
         season_name = season or 'spring'

@@ -21,6 +21,7 @@ from utilitarios.balance_config import (
     DANO_ECO_RATIO, SLOW_FATOR_DEFAULT, SLOW_DURACAO_DEFAULT,
 )
 from nucleo.combat import DotEffect
+from nucleo.armas import resolver_subtipo_orbital
 from modelos import ENCANTAMENTOS
 
 _log = logging.getLogger("entities")
@@ -526,12 +527,15 @@ class CombatMixin:
     def get_escudo_info(self):
         """Retorna info do escudo orbital."""
         arma = self.dados.arma_obj
-        if not arma or "Orbital" not in arma.tipo:
+        if not arma or resolver_subtipo_orbital(arma) != "escudo":
+            return None
+        if not getattr(self, "orbital_shield_active", False):
             return None
         cx, cy = int(self.pos[0] * PPM), int(self.pos[1] * PPM)
         dist_base_cm = getattr(arma, 'distancia', 50.0)
-        largura_escudo = getattr(arma, 'largura', 90.0)
+        largura_escudo = max(110.0, float(getattr(arma, 'largura', 90.0) or 90.0))
         dist_base_px = int(((dist_base_cm / 100) * PPM) * self.fator_escala)
         raio_char_px = int((self.dados.tamanho / 2) * PPM)
-        return (cx, cy), dist_base_px + raio_char_px, self.angulo_arma_visual, largura_escudo
+        distancia_total = dist_base_px + int(raio_char_px * 0.7)
+        return (cx, cy), distancia_total, self.angulo_arma_visual, largura_escudo
 

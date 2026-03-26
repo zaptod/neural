@@ -532,14 +532,14 @@
         "categoria": "arma_tatica",
         "tipo": "Orbital",
         "tipo_legacy": "Orbital",
-        "estilo": "Mágico (Orbe)",
-        "dano": 6.200000000000001,
-        "peso": 3.9099999999999997,
-        "critico": 0.045,
-        "velocidade_ataque": 0.9072,
+        "estilo": "Bastiao Prismatico",
+        "dano": 6.24,
+        "peso": 4.45,
+        "critico": 0.038,
+        "velocidade_ataque": 0.86,
         "afinidade_elemento": "GELO",
         "quantidade": 1,
-        "quantidade_orbitais": 3,
+        "quantidade_orbitais": 2,
         "forca_arco": 0.0,
         "durabilidade": 100.0,
         "durabilidade_max": 100.0,
@@ -547,70 +547,70 @@
         "r": 150,
         "g": 230,
         "b": 255,
-        "raridade": "Épico",
+        "raridade": "Epico",
         "habilidades": [
             {
-                "nome": "Muralha de Gelo",
-                "custo": 22.0
+                "nome": "Falange Prismatica",
+                "custo": 24.0
             },
             {
-                "nome": "Nevasca",
-                "custo": 28.0
+                "nome": "Mare Prismatica",
+                "custo": 26.0
             }
         ],
-        "habilidade": "Muralha de Gelo",
-        "custo_mana": 22.0,
+        "habilidade": "Falange Prismatica",
+        "custo_mana": 24.0,
         "encantamentos": [],
         "passiva": null,
         "combate": {
-            "dano_base": 6.200000000000001,
-            "peso": 3.9099999999999997,
-            "alcance": 1.9999999999999998,
+            "dano_base": 6.24,
+            "peso": 4.45,
+            "alcance": 1.82,
             "alcance_minimo": 0.0085,
             "arco": 360.0,
-            "cadencia": 0.9072,
-            "startup": 0.05,
-            "ativo": 0.12,
-            "recovery": 0.138,
-            "critico": 0.045,
-            "escala_forca": 0.7,
-            "escala_mana": 0.3,
+            "cadencia": 0.86,
+            "startup": 0.045,
+            "ativo": 0.14,
+            "recovery": 0.17,
+            "critico": 0.038,
+            "escala_forca": 0.56,
+            "escala_mana": 0.68,
             "projeteis_por_ataque": 1,
-            "velocidade_projetil": 14.0,
+            "velocidade_projetil": 11.0,
             "spread": 0.0,
-            "stagger": 0.36,
+            "stagger": 0.48,
             "qtd_orbitais": 2,
             "forca_disparo": 0.0,
             "durabilidade_base": 100.0
         },
         "visual": {
-            "silhueta": "anel_guardiao",
-            "rastro": "orbita",
-            "impacto": "pulso",
-            "ornamento": "sigilo_orbital",
-            "brilho": 0.42,
+            "silhueta": "baluarte_prismatico",
+            "rastro": "escudo_orbital",
+            "impacto": "repulsao_gelida",
+            "ornamento": "aegis",
+            "brilho": 0.36,
             "cor_base": {
                 "r": 150,
                 "g": 230,
                 "b": 255
             },
-            "acabamento": "Épico"
+            "acabamento": "Epico"
         },
         "magia": {
             "usa_foco": false,
             "afinidade": "GELO",
             "habilidades": [
                 {
-                    "nome": "Muralha de Gelo",
-                    "custo": 22.0
+                    "nome": "Falange Prismatica",
+                    "custo": 24.0
                 },
                 {
-                    "nome": "Nevasca",
-                    "custo": 28.0
+                    "nome": "Mare Prismatica",
+                    "custo": 26.0
                 }
             ],
-            "skill_primaria": "Muralha de Gelo",
-            "custo_primario": 22.0
+            "skill_primaria": "Falange Prismatica",
+            "custo_primario": 24.0
         },
         "geometria": {
             "comp_cabo": 15.0,
@@ -649,7 +649,7 @@
         "forma2_cabo": 0.0,
         "forma2_lamina": 0.0,
         "meta_legado": {
-            "raridade": "Épico",
+            "raridade": "Epico",
             "encantamentos": [],
             "passiva": null
         }
@@ -664,10 +664,10 @@
         "tipo": "Corrente",
         "tipo_legacy": "Corrente",
         "estilo": "Chicote",
-        "dano": 7.5600000000000005,
+        "dano": 6.48,
         "peso": 4.8,
-        "critico": 0.05500000000000001,
-        "velocidade_ataque": 0.7776000000000001,
+        "critico": 0.035,
+        "velocidade_ataque": 0.732,
         "afinidade_elemento": "NATUREZA",
         "quantidade": 1,
         "quantidade_orbitais": 1,
@@ -694,22 +694,22 @@
         "encantamentos": [],
         "passiva": null,
         "combate": {
-            "dano_base": 7.5600000000000005,
+            "dano_base": 6.48,
             "peso": 4.8,
-            "alcance": 2.9999999999999996,
+            "alcance": 2.74,
             "alcance_minimo": 0.7,
             "arco": 165.0,
-            "cadencia": 0.7776000000000001,
-            "startup": 0.198,
+            "cadencia": 0.732,
+            "startup": 0.218,
             "ativo": 0.12,
-            "recovery": 0.276,
-            "critico": 0.05500000000000001,
-            "escala_forca": 1.02,
+            "recovery": 0.315,
+            "critico": 0.035,
+            "escala_forca": 0.9,
             "escala_mana": 0.0,
             "projeteis_por_ataque": 1,
             "velocidade_projetil": 0.0,
             "spread": 0.0,
-            "stagger": 0.7,
+            "stagger": 0.5,
             "qtd_orbitais": 0,
             "forca_disparo": 0.0,
             "durabilidade_base": 100.0
@@ -1318,14 +1318,14 @@
         "categoria": "arma_tatica",
         "tipo": "Orbital",
         "tipo_legacy": "Orbital",
-        "estilo": "Defensivo (Escudo)",
-        "dano": 6.48,
-        "peso": 4.2,
-        "critico": 0.042,
-        "velocidade_ataque": 0.9072,
+        "estilo": "Sentinelas do Santuario",
+        "dano": 5.72,
+        "peso": 4.7,
+        "critico": 0.034,
+        "velocidade_ataque": 0.78,
         "afinidade_elemento": "LUZ",
         "quantidade": 1,
-        "quantidade_orbitais": 2,
+        "quantidade_orbitais": 3,
         "forca_arco": 0.0,
         "durabilidade": 100.0,
         "durabilidade_max": 100.0,
@@ -1336,45 +1336,45 @@
         "raridade": "Raro",
         "habilidades": [
             {
-                "nome": "Aura Sagrada",
-                "custo": 25.0
+                "nome": "Falange Prismatica",
+                "custo": 24.0
             },
             {
-                "nome": "Aura Sagrada",
-                "custo": 18.0
+                "nome": "Redencao",
+                "custo": 28.0
             }
         ],
-        "habilidade": "Aura Sagrada",
-        "custo_mana": 25.0,
+        "habilidade": "Falange Prismatica",
+        "custo_mana": 24.0,
         "encantamentos": [],
         "passiva": null,
         "combate": {
-            "dano_base": 6.48,
-            "peso": 4.2,
-            "alcance": 1.9999999999999998,
+            "dano_base": 5.72,
+            "peso": 4.7,
+            "alcance": 1.72,
             "alcance_minimo": 0.0085,
             "arco": 360.0,
-            "cadencia": 0.9072,
+            "cadencia": 0.78,
             "startup": 0.05,
-            "ativo": 0.12,
-            "recovery": 0.138,
-            "critico": 0.042,
-            "escala_forca": 0.7,
-            "escala_mana": 0.3,
+            "ativo": 0.15,
+            "recovery": 0.2,
+            "critico": 0.034,
+            "escala_forca": 0.48,
+            "escala_mana": 0.7,
             "projeteis_por_ataque": 1,
-            "velocidade_projetil": 14.0,
+            "velocidade_projetil": 10.5,
             "spread": 0.0,
-            "stagger": 0.36,
-            "qtd_orbitais": 2,
+            "stagger": 0.45,
+            "qtd_orbitais": 3,
             "forca_disparo": 0.0,
             "durabilidade_base": 100.0
         },
         "visual": {
-            "silhueta": "anel_guardiao",
-            "rastro": "orbita",
-            "impacto": "pulso",
-            "ornamento": "sigilo_orbital",
-            "brilho": 0.42,
+            "silhueta": "sentinelas_luminares",
+            "rastro": "escudo_liturgico",
+            "impacto": "repulsao_sagrada",
+            "ornamento": "pilar",
+            "brilho": 0.4,
             "cor_base": {
                 "r": 220,
                 "g": 220,
@@ -1387,16 +1387,16 @@
             "afinidade": "LUZ",
             "habilidades": [
                 {
-                    "nome": "Aura Sagrada",
-                    "custo": 25.0
+                    "nome": "Falange Prismatica",
+                    "custo": 24.0
                 },
                 {
-                    "nome": "Aura Sagrada",
-                    "custo": 18.0
+                    "nome": "Redencao",
+                    "custo": 28.0
                 }
             ],
-            "skill_primaria": "Aura Sagrada",
-            "custo_primario": 25.0
+            "skill_primaria": "Falange Prismatica",
+            "custo_primario": 24.0
         },
         "geometria": {
             "comp_cabo": 15.0,
@@ -1567,6 +1567,399 @@
         "forma2_lamina": 0.0,
         "meta_legado": {
             "raridade": "Mítico",
+            "encantamentos": [],
+            "passiva": null
+        }
+    },
+    {
+        "schema_version": 2,
+        "id": "ninho-de-aster",
+        "nome": "Ninho de Aster",
+        "familia": "orbital",
+        "subtipo": "drone",
+        "categoria": "arma_tatica",
+        "tipo": "Orbital",
+        "tipo_legacy": "Orbital",
+        "estilo": "Drone Sentinela",
+        "dano": 5.92,
+        "peso": 3.6,
+        "critico": 0.058,
+        "velocidade_ataque": 0.91,
+        "afinidade_elemento": "ARCANO",
+        "quantidade": 1,
+        "quantidade_orbitais": 2,
+        "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "forma_atual": 1,
+        "r": 130,
+        "g": 170,
+        "b": 255,
+        "raridade": "Epico",
+        "habilidades": [
+            {
+                "nome": "Enxame Astral",
+                "custo": 30.0
+            },
+            {
+                "nome": "Misseis Arcanos",
+                "custo": 15.0
+            }
+        ],
+        "habilidade": "Enxame Astral",
+        "custo_mana": 30.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 5.92,
+            "peso": 3.6,
+            "alcance": 2.18,
+            "alcance_minimo": 0.0,
+            "arco": 360.0,
+            "cadencia": 0.91,
+            "startup": 0.05,
+            "ativo": 0.11,
+            "recovery": 0.16,
+            "critico": 0.058,
+            "escala_forca": 0.58,
+            "escala_mana": 0.52,
+            "projeteis_por_ataque": 2,
+            "velocidade_projetil": 16.0,
+            "spread": 4.5,
+            "stagger": 0.3,
+            "qtd_orbitais": 2,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "drone_sentinela",
+            "rastro": "vetor_azul",
+            "impacto": "estalo_arcano",
+            "ornamento": "nucleo",
+            "brilho": 0.34,
+            "cor_base": {
+                "r": 130,
+                "g": 170,
+                "b": 255
+            },
+            "acabamento": "Epico"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "ARCANO",
+            "habilidades": [
+                {
+                    "nome": "Enxame Astral",
+                    "custo": 30.0
+                },
+                {
+                    "nome": "Misseis Arcanos",
+                    "custo": 15.0
+                }
+            ],
+            "skill_primaria": "Nenhuma",
+            "custo_primario": 0.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 192.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 1.92,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 192.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 1.92,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "meta_legado": {
+            "raridade": "Epico",
+            "encantamentos": [],
+            "passiva": null
+        }
+    },
+    {
+        "schema_version": 2,
+        "id": "coroa-de-saturno",
+        "nome": "Coroa de Saturno",
+        "familia": "orbital",
+        "subtipo": "laminas",
+        "categoria": "arma_tatica",
+        "tipo": "Orbital",
+        "tipo_legacy": "Orbital",
+        "estilo": "Laminas Orbitais",
+        "dano": 6.140000000000001,
+        "peso": 3.4849999999999994,
+        "critico": 0.084,
+        "velocidade_ataque": 0.8424,
+        "afinidade_elemento": "VOID",
+        "quantidade": 1,
+        "quantidade_orbitais": 3,
+        "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "forma_atual": 1,
+        "r": 215,
+        "g": 185,
+        "b": 255,
+        "raridade": "Mitico",
+        "habilidades": [
+            {
+                "nome": "Laminas de Saturno",
+                "custo": 18.0
+            },
+            {
+                "nome": "Desintegrar",
+                "custo": 40.0
+            }
+        ],
+        "habilidade": "Laminas de Saturno",
+        "custo_mana": 18.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 6.140000000000001,
+            "peso": 3.4849999999999994,
+            "alcance": 1.74,
+            "alcance_minimo": 0.0,
+            "arco": 360.0,
+            "cadencia": 0.8424,
+            "startup": 0.05,
+            "ativo": 0.11,
+            "recovery": 0.16,
+            "critico": 0.084,
+            "escala_forca": 0.6696000000000001,
+            "escala_mana": 0.462,
+            "projeteis_por_ataque": 3,
+            "velocidade_projetil": 15.0,
+            "spread": 8.0,
+            "stagger": 0.33,
+            "qtd_orbitais": 3,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "coroa_cortante",
+            "rastro": "corte_estelar",
+            "impacto": "cisalha_void",
+            "ornamento": "anel_fraturado",
+            "brilho": 0.46,
+            "cor_base": {
+                "r": 215,
+                "g": 185,
+                "b": 255
+            },
+            "acabamento": "Mitico"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "VOID",
+            "habilidades": [
+                {
+                    "nome": "Laminas de Saturno",
+                    "custo": 18.0
+                },
+                {
+                    "nome": "Desintegrar",
+                    "custo": 40.0
+                }
+            ],
+            "skill_primaria": "Nenhuma",
+            "custo_primario": 0.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 174.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 1.74,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 174.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 1.74,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "meta_legado": {
+            "raridade": "Mitico",
+            "encantamentos": [],
+            "passiva": null
+        }
+    },
+    {
+        "schema_version": 2,
+        "id": "rosario-prismatico",
+        "nome": "Rosario Prismatico",
+        "familia": "orbital",
+        "subtipo": "orbes",
+        "categoria": "arma_tatica",
+        "tipo": "Orbital",
+        "tipo_legacy": "Orbital",
+        "estilo": "Orbes Liturgicos",
+        "dano": 5.74,
+        "peso": 3.4849999999999994,
+        "critico": 0.05,
+        "velocidade_ataque": 0.8424,
+        "afinidade_elemento": "LUZ",
+        "quantidade": 1,
+        "quantidade_orbitais": 4,
+        "forca_arco": 0.0,
+        "durabilidade": 100.0,
+        "durabilidade_max": 100.0,
+        "forma_atual": 1,
+        "r": 255,
+        "g": 210,
+        "b": 150,
+        "raridade": "Lendario",
+        "habilidades": [
+            {
+                "nome": "Mare Prismatica",
+                "custo": 26.0
+            },
+            {
+                "nome": "Orbe de Mana",
+                "custo": 20.0
+            }
+        ],
+        "habilidade": "Mare Prismatica",
+        "custo_mana": 26.0,
+        "encantamentos": [],
+        "passiva": null,
+        "combate": {
+            "dano_base": 5.74,
+            "peso": 3.4849999999999994,
+            "alcance": 1.82,
+            "alcance_minimo": 0.0,
+            "arco": 360.0,
+            "cadencia": 0.8424,
+            "startup": 0.05,
+            "ativo": 0.12,
+            "recovery": 0.17,
+            "critico": 0.05,
+            "escala_forca": 0.5456,
+            "escala_mana": 0.462,
+            "projeteis_por_ataque": 2,
+            "velocidade_projetil": 13.0,
+            "spread": 4.0,
+            "stagger": 0.28,
+            "qtd_orbitais": 4,
+            "forca_disparo": 0.0,
+            "durabilidade_base": 100.0
+        },
+        "visual": {
+            "silhueta": "rosario_orbital",
+            "rastro": "halo_prismatico",
+            "impacto": "pulso_solar",
+            "ornamento": "contas",
+            "brilho": 0.42,
+            "cor_base": {
+                "r": 255,
+                "g": 210,
+                "b": 150
+            },
+            "acabamento": "Lendario"
+        },
+        "magia": {
+            "usa_foco": false,
+            "afinidade": "LUZ",
+            "habilidades": [
+                {
+                    "nome": "Mare Prismatica",
+                    "custo": 26.0
+                },
+                {
+                    "nome": "Orbe de Mana",
+                    "custo": 20.0
+                }
+            ],
+            "skill_primaria": "Nenhuma",
+            "custo_primario": 0.0
+        },
+        "geometria": {
+            "comp_cabo": 15.0,
+            "comp_lamina": 50.0,
+            "largura": 30.0,
+            "distancia": 182.0,
+            "comp_corrente": 0.0,
+            "comp_ponta": 0.0,
+            "largura_ponta": 0.0,
+            "tamanho_projetil": 0.0,
+            "tamanho_arco": 0.0,
+            "tamanho_flecha": 0.0,
+            "tamanho": 8.0,
+            "distancia_max": 1.82,
+            "separacao": 0.0,
+            "forma1_cabo": 0.0,
+            "forma1_lamina": 0.0,
+            "forma2_cabo": 0.0,
+            "forma2_lamina": 0.0
+        },
+        "comp_cabo": 15.0,
+        "comp_lamina": 50.0,
+        "largura": 30.0,
+        "distancia": 182.0,
+        "comp_corrente": 0.0,
+        "comp_ponta": 0.0,
+        "largura_ponta": 0.0,
+        "tamanho_projetil": 0.0,
+        "tamanho_arco": 0.0,
+        "tamanho_flecha": 0.0,
+        "tamanho": 8.0,
+        "distancia_max": 1.82,
+        "separacao": 0.0,
+        "forma1_cabo": 0.0,
+        "forma1_lamina": 0.0,
+        "forma2_cabo": 0.0,
+        "forma2_lamina": 0.0,
+        "meta_legado": {
+            "raridade": "Lendario",
             "encantamentos": [],
             "passiva": null
         }

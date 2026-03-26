@@ -12,6 +12,11 @@ _log = logging.getLogger("interface.main")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dados.app_state import AppState
+from interface.headless_summary import (
+    load_latest_headless_archetype_focus,
+    load_latest_headless_inspection_target,
+    load_latest_headless_report_summary,
+)
 from interface.theme import (
     apply_ttk_theme,
     COR_ACCENT,
@@ -29,6 +34,7 @@ from interface.ui_components import (
     ResponsiveCardSection,
     StatCard,
     UICard,
+    build_section_header,
     build_page_header,
     make_primary_button,
     make_secondary_button,
@@ -72,6 +78,7 @@ def _setup_worldmap_hook():
 _setup_worldmap_hook()
 
 from interface.view_armas import TelaArmas
+from interface.view_arquetipos import TelaArquetipos
 from interface.view_chars import TelaPersonagens
 from interface.view_luta import TelaLuta
 from interface.view_multi import TelaMultiBatalha
@@ -89,6 +96,51 @@ def _load_json_count(path, key):
         return len(value) if isinstance(value, list) else 0
     except Exception:
         return 0
+
+
+def resolve_visual_frame_for_headless_mode(modo):
+    modo_norm = str(modo or "").strip().lower()
+    mapping = {
+        "duelo": "TelaLuta",
+        "1v1": "TelaLuta",
+        "grupo_vs_grupo": "TelaMultiBatalha",
+        "equipes": "TelaMultiBatalha",
+        "grupo_vs_horda": "TelaHorda",
+        "horda": "TelaHorda",
+    }
+    return mapping.get(modo_norm, "")
+
+
+def build_pipeline_args_for_headless_target(target):
+    alvo = dict(target or {})
+    if not alvo.get("found"):
+        return []
+
+    modo = str(alvo.get("modo", "") or "").strip().lower()
+    cenario = str(alvo.get("cenario", "") or "").strip()
+    template_id = str(alvo.get("template_id", "") or "").strip()
+    team_a = [str(item).strip() for item in alvo.get("team_a_members", []) or [] if str(item).strip()]
+    team_b = [str(item).strip() for item in alvo.get("team_b_members", []) or [] if str(item).strip()]
+
+    args = ["pipeline", "--fights", "1", "--video-format", "classic"]
+    if modo in {"duelo", "1v1"}:
+        if len(team_a) != 1 or len(team_b) != 1:
+            return []
+        args.extend(["--encounter-mode", "duelo", "--fighter1", team_a[0], "--fighter2", team_b[0]])
+        if cenario:
+            args.extend(["--cenario", cenario])
+        return args
+    if modo in {"grupo_vs_grupo", "equipes"}:
+        if not template_id:
+            return []
+        args.extend(["--encounter-mode", "equipes", "--template", template_id])
+        return args
+    if modo in {"grupo_vs_horda", "horda"}:
+        if not template_id:
+            return []
+        args.extend(["--encounter-mode", "horda", "--template", template_id])
+        return args
+    return []
 
 
 class SistemaApp(tk.Tk):
@@ -112,6 +164,7 @@ class SistemaApp(tk.Tk):
         for F in (
             MenuPrincipal,
             TelaArmas,
+            TelaArquetipos,
             TelaPersonagens,
             TelaLuta,
             TelaMultiBatalha,
@@ -163,6 +216,8 @@ class MenuPrincipal(tk.Frame):
         super().__init__(parent, bg=COR_BG)
         self.controller = controller
         self._stats_labels = {}
+        self._diag_labels = {}
+        self._latest_headless_path = ""
 
         canvas = tk.Canvas(self, bg=COR_BG, highlightthickness=0, bd=0)
         scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
@@ -227,7 +282,9 @@ class MenuPrincipal(tk.Frame):
             ("Equipe", lambda: self.controller.show_frame("TelaMultiBatalha"), COR_ACCENT_ALT),
             ("Horda", lambda: self.controller.show_frame("TelaHorda"), COR_SUCCESS),
             ("Forja", lambda: self.controller.show_frame("TelaArmas"), COR_WARNING),
+            ("Arquétipos", lambda: self.controller.show_frame("TelaArquetipos"), COR_ACCENT_ALT),
         ]
+        quick_actions[-1] = (quick_actions[-1][0], self._abrir_arquetipos_do_headless, quick_actions[-1][2])
         for text, cmd, color in quick_actions:
             make_primary_button(
                 right,
@@ -310,6 +367,14 @@ class MenuPrincipal(tk.Frame):
             "Balanceamento e IA",
             "Atalhos para o framework tatico novo, pensado para videos, esquadras, hordas e missoes.",
             [
+                {
+                    "accent": COR_ACCENT,
+                    "title": "Arvore de Arquetipos",
+                    "description": "Cruze classe, personalidade, arma e skills para enxergar o pacote inteiro de decisao da IA.",
+                    "pills": ["ia", "pacotes", "combinacoes"],
+                    "primary_text": "Abrir Explorador",
+                    "primary_command": self._abrir_arquetipos_do_headless,
+                },
                 {
                     "accent": COR_ACCENT,
                     "title": "Plano Tatico",
@@ -399,6 +464,126 @@ class MenuPrincipal(tk.Frame):
         )
         sec_postos.pack(fill="x", pady=(0, 18))
 
+        sec_diag = UICard(sections_wrap, bg=COR_CARD, border=COR_BORDER)
+        sec_diag.pack(fill="x", pady=(0, 18))
+        build_section_header(
+            sec_diag,
+            "Ultimo Diagnostico Headless",
+            "Resumo do ultimo relatorio tatico para voce enxergar os problemas mais urgentes sem abrir o JSON.",
+            bg=COR_CARD,
+            accent=COR_WARNING,
+        )
+
+        diag_body = tk.Frame(sec_diag, bg=COR_CARD)
+        diag_body.pack(fill="x", padx=18, pady=(6, 18))
+
+        diag_left = tk.Frame(diag_body, bg=COR_CARD)
+        diag_left.pack(side="left", fill="both", expand=True)
+
+        badge = tk.Label(
+            diag_left,
+            text="SEM RELATORIO",
+            font=("Segoe UI", 9, "bold"),
+            bg="#243244",
+            fg=COR_TEXT,
+            padx=10,
+            pady=5,
+        )
+        badge.pack(anchor="w", pady=(0, 10))
+        self._diag_labels["badge"] = badge
+
+        title = tk.Label(
+            diag_left,
+            text="Nenhum relatorio headless ainda",
+            font=("Bahnschrift SemiBold", 20),
+            bg=COR_CARD,
+            fg=COR_TEXT,
+            anchor="w",
+            justify="left",
+            wraplength=760,
+        )
+        title.pack(fill="x")
+        self._diag_labels["title"] = title
+
+        meta = tk.Label(
+            diag_left,
+            text="Rode o posto headless ou o harness tatico para preencher este painel.",
+            font=("Segoe UI", 10),
+            bg=COR_CARD,
+            fg=COR_TEXT_DIM,
+            anchor="w",
+            justify="left",
+            wraplength=860,
+        )
+        meta.pack(fill="x", pady=(4, 12))
+        self._diag_labels["meta"] = meta
+
+        for key, label in (
+            ("alerts", "Alertas principais"),
+            ("recs", "Recomendacoes"),
+            ("areas", "Areas mais citadas"),
+            ("packages", "Pacotes em evidencia"),
+            ("review", "Eixo prioritario"),
+        ):
+            line = tk.Label(
+                diag_left,
+                text=f"{label}: -",
+                font=("Segoe UI", 10),
+                bg=COR_CARD,
+                fg=COR_TEXT,
+                anchor="w",
+                justify="left",
+                wraplength=860,
+            )
+            line.pack(fill="x", pady=3)
+            self._diag_labels[key] = line
+
+        diag_right = tk.Frame(diag_body, bg=COR_CARD)
+        diag_right.pack(side="right", anchor="ne", padx=(16, 0))
+        make_primary_button(
+            diag_right,
+            "Abrir Relatorio",
+            self._abrir_ultimo_relatorio_headless,
+            bg=COR_WARNING,
+            fg="#07131f",
+        ).pack(fill="x", pady=4)
+        make_primary_button(
+            diag_right,
+            "Abrir Inspecao Visual",
+            self._abrir_inspecao_visual_do_headless,
+            bg=COR_SUCCESS,
+            fg="#07131f",
+        ).pack(fill="x", pady=4)
+        make_primary_button(
+            diag_right,
+            "Gravar Video do Alvo",
+            self._gravar_video_do_headless,
+            bg=COR_ACCENT,
+            fg="#07131f",
+        ).pack(fill="x", pady=4)
+        make_secondary_button(
+            diag_right,
+            "Editar Personagem",
+            self._abrir_personagem_do_headless,
+        ).pack(fill="x", pady=4)
+        make_secondary_button(
+            diag_right,
+            "Abrir Forja",
+            self._abrir_arma_do_headless,
+        ).pack(fill="x", pady=4)
+        make_secondary_button(
+            diag_right,
+            "Abrir Saidas",
+            lambda: self._abrir_arquivo(SAIDAS_HEADLESS_DIR, "Saidas Headless"),
+        ).pack(fill="x", pady=4)
+        make_primary_button(
+            diag_right,
+            "Rodar Comparativo",
+            lambda: self._executar_posto("Harness Tatico", ["headless", "--tatico", "--modo", "grupo_vs_grupo", "--runs", "1"]),
+            bg=COR_ACCENT_ALT,
+            fg="#07131f",
+        ).pack(fill="x", pady=4)
+
         sec_sistema = ResponsiveCardSection(
             sections_wrap,
             "Sistema e Mundo",
@@ -455,6 +640,135 @@ class MenuPrincipal(tk.Frame):
         for key, value in stats.items():
             if key in self._stats_labels:
                 self._stats_labels[key].set_value(value)
+        self._atualizar_diagnostico_headless()
+
+    def _atualizar_diagnostico_headless(self):
+        resumo = load_latest_headless_report_summary()
+        self._latest_headless_path = resumo.get("path", "") or ""
+        tone = resumo.get("status_tone", "idle")
+        palette = {
+            "healthy": ("#123227", COR_SUCCESS),
+            "warning": ("#4a3815", "#f5c451"),
+            "critical": ("#4e1f26", "#ff9494"),
+            "idle": ("#243244", COR_TEXT_DIM),
+        }
+        bg_badge, fg_badge = palette.get(tone, palette["idle"])
+        if "badge" in self._diag_labels:
+            self._diag_labels["badge"].configure(
+                text=resumo.get("status_text", "SEM RELATORIO"),
+                bg=bg_badge,
+                fg=fg_badge,
+            )
+        if "title" in self._diag_labels:
+            self._diag_labels["title"].configure(text=resumo.get("headline", "-"))
+        if "meta" in self._diag_labels:
+            self._diag_labels["meta"].configure(text=resumo.get("subheadline", "-"))
+        if "alerts" in self._diag_labels:
+            self._diag_labels["alerts"].configure(text=f"Alertas principais: {resumo.get('alert_text', '-')}")
+        if "recs" in self._diag_labels:
+            self._diag_labels["recs"].configure(text=f"Recomendacoes: {resumo.get('recommendation_text', '-')}")
+        if "areas" in self._diag_labels:
+            self._diag_labels["areas"].configure(text=f"Areas mais citadas: {resumo.get('areas_text', '-')}")
+        if "packages" in self._diag_labels:
+            self._diag_labels["packages"].configure(text=f"Pacotes em evidencia: {resumo.get('package_text', '-')}")
+        if "review" in self._diag_labels:
+            self._diag_labels["review"].configure(text=f"Eixo prioritario: {resumo.get('review_axis_text', '-')} | {resumo.get('review_plan_text', '-')}")
+
+    def _abrir_arquetipos_do_headless(self):
+        self.controller.show_frame("TelaArquetipos")
+        frame = self.controller.frames.get("TelaArquetipos")
+        if frame is None or not hasattr(frame, "aplicar_alvo_headless"):
+            return
+        frame.aplicar_alvo_headless(silencioso=True)
+
+    def _abrir_inspecao_visual_do_headless(self):
+        alvo = load_latest_headless_inspection_target()
+        if not alvo.get("found"):
+            messagebox.showinfo(
+                "Inspecao Visual",
+                "Ainda nao existe alvo de inspecao vindo do headless.\n\nRode o harness tatico primeiro.",
+            )
+            return
+        page_name = resolve_visual_frame_for_headless_mode(alvo.get("modo", ""))
+        if not page_name:
+            messagebox.showinfo(
+                "Inspecao Visual",
+                "O ultimo relatorio nao aponta um modo visual suportado automaticamente.",
+            )
+            return
+        self.controller.show_frame(page_name)
+        frame = self.controller.frames.get(page_name)
+        if frame is None or not hasattr(frame, "_aplicar_alvo_inspecao_headless"):
+            messagebox.showwarning(
+                "Inspecao Visual",
+                f"A tela {page_name} nao suporta aplicacao automatica do alvo.",
+            )
+            return
+        frame._aplicar_alvo_inspecao_headless()
+
+    def _gravar_video_do_headless(self):
+        alvo = load_latest_headless_inspection_target()
+        if not alvo.get("found"):
+            messagebox.showinfo(
+                "Pipeline do Alvo",
+                "Ainda nao existe alvo de inspecao vindo do headless.\n\nRode o harness tatico primeiro.",
+            )
+            return
+        args = build_pipeline_args_for_headless_target(alvo)
+        if not args:
+            messagebox.showinfo(
+                "Pipeline do Alvo",
+                "O ultimo alvo nao pode ser convertido automaticamente em uma gravacao da pipeline.\n\nVerifique se o relatorio tem template ou duelo direto valido.",
+            )
+            return
+        self._executar_posto("Pipeline do Alvo", args)
+
+    def _abrir_personagem_do_headless(self):
+        foco = load_latest_headless_archetype_focus()
+        if not foco.get("found"):
+            messagebox.showinfo(
+                "Foco Headless",
+                "Ainda nao existe foco de pacote vindo do headless.\n\nRode o harness tatico primeiro.",
+            )
+            return
+        nome = str(foco.get("personagem_nome", "") or "")
+        self.controller.show_frame("TelaPersonagens")
+        frame = self.controller.frames.get("TelaPersonagens")
+        if frame is None or not hasattr(frame, "focar_personagem_nome") or not nome:
+            return
+        if not frame.focar_personagem_nome(nome, abrir_edicao=True):
+            messagebox.showwarning(
+                "Foco Headless",
+                f"O personagem '{nome}' nao esta disponivel no roster atual.",
+            )
+
+    def _abrir_arma_do_headless(self):
+        foco = load_latest_headless_archetype_focus()
+        if not foco.get("found"):
+            messagebox.showinfo(
+                "Foco Headless",
+                "Ainda nao existe foco de pacote vindo do headless.\n\nRode o harness tatico primeiro.",
+            )
+            return
+        nome = str(foco.get("arma_nome", "") or "")
+        self.controller.show_frame("TelaArmas")
+        frame = self.controller.frames.get("TelaArmas")
+        if frame is None or not hasattr(frame, "focar_arma_nome") or not nome:
+            return
+        if not frame.focar_arma_nome(nome):
+            messagebox.showwarning(
+                "Foco Headless",
+                f"A arma '{nome}' nao esta disponivel no arsenal atual.",
+            )
+
+    def _abrir_ultimo_relatorio_headless(self):
+        if not self._latest_headless_path or not os.path.exists(self._latest_headless_path):
+            messagebox.showinfo(
+                "Ultimo Diagnostico",
+                "Ainda nao existe relatorio headless pronto.\n\nRode o posto headless ou o harness tatico primeiro.",
+            )
+            return
+        self._abrir_arquivo(self._latest_headless_path, "Ultimo Diagnostico Headless")
 
     def _abrir_arquivo(self, path, titulo):
         if not os.path.exists(path):

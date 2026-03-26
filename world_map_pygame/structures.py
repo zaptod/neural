@@ -3,7 +3,10 @@ World Map — Pixel Art Structures
 Small hand-drawn icons for strongholds, temples, ruins, etc.
 """
 import pygame
-from config import GOD_COLORS
+try:
+    from .config import GOD_COLORS
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import GOD_COLORS
 
 # ── pixel-art templates ────────────────────────────────────────────────────────
 # 0 = transparent, 1 = dark outline, 2 = main, 3 = highlight

@@ -1,44 +1,29 @@
 #!/usr/bin/env python3
-"""Atalho para o posto de simulação completa."""
+"""Atalho para o posto de simulacao completa."""
 
 from __future__ import annotations
 
 import argparse
-import os
-import subprocess
 import sys
 
-from utilitarios.postos_operacao import create_session_dir, ensure_posto_dirs, write_session_manifest
+from run_postos import main as run_postos_main
 
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-RUN_SCRIPT = os.path.join(ROOT, "run.py")
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Neural Fights - Posto de simulacao completa")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Neural Fights - posto de simulacao completa")
     parser.add_argument(
         "--modo",
         choices=["launcher", "sim", "manual"],
         default="launcher",
         help="launcher abre a UI principal; sim abre a luta automatica; manual abre o modo de teste.",
     )
-    args = parser.parse_args()
+    return parser
 
-    ensure_posto_dirs()
-    session_dir = create_session_dir("simulacao")
-    write_session_manifest(
-        session_dir,
-        {"posto": "simulacao", "modo": args.modo, "args": sys.argv[1:], "saida_logica": "saidas/simulacao"},
-    )
 
-    cmd = [sys.executable, RUN_SCRIPT]
-    if args.modo == "sim":
-        cmd.append("--sim")
-    elif args.modo == "manual":
-        cmd.append("--test")
-    return subprocess.run(cmd, cwd=ROOT).returncode
+def main(argv: list[str] | None = None) -> int:
+    parsed = build_parser().parse_args(argv)
+    return run_postos_main(["simulacao", "--modo", parsed.modo])
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

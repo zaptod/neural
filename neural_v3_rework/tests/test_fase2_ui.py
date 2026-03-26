@@ -6,6 +6,9 @@ Does NOT require a running Tk/Pygame instance.
 """
 import os
 import sys
+import json
+import shutil
+import uuid
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -124,6 +127,395 @@ class TestPostFightResult(unittest.TestCase):
         # The dict should be safely consumable
         self.assertEqual(result.get("winner_stats", {}).get("damage_dealt", 0), 0)
         self.assertEqual(result.get("loser_stats", {}).get("hits_landed", 0), 0)
+
+
+class TestHubDiagnosticSummary(unittest.TestCase):
+    def test_resolve_archetype_review_targets(self):
+        from interface.view_arquetipos import resolve_archetype_review_targets
+
+        self.assertEqual(resolve_archetype_review_targets("arma")["targets"], ["arma"])
+        self.assertEqual(resolve_archetype_review_targets("skill")["targets"], ["skill_1", "skill_2", "skill_3"])
+        self.assertEqual(resolve_archetype_review_targets("ia")["targets"], ["personalidade", "classe", "arma"])
+        self.assertIn("papel", resolve_archetype_review_targets("papel")["message"].lower())
+
+    def test_resolve_visual_frame_for_headless_mode(self):
+        from interface.main import resolve_visual_frame_for_headless_mode
+
+        self.assertEqual(resolve_visual_frame_for_headless_mode("duelo"), "TelaLuta")
+        self.assertEqual(resolve_visual_frame_for_headless_mode("1v1"), "TelaLuta")
+        self.assertEqual(resolve_visual_frame_for_headless_mode("grupo_vs_grupo"), "TelaMultiBatalha")
+        self.assertEqual(resolve_visual_frame_for_headless_mode("equipes"), "TelaMultiBatalha")
+        self.assertEqual(resolve_visual_frame_for_headless_mode("grupo_vs_horda"), "TelaHorda")
+        self.assertEqual(resolve_visual_frame_for_headless_mode("horda"), "TelaHorda")
+        self.assertEqual(resolve_visual_frame_for_headless_mode("campanha"), "")
+
+    def test_build_pipeline_args_for_headless_target_duelo(self):
+        from interface.main import build_pipeline_args_for_headless_target
+
+        args = build_pipeline_args_for_headless_target(
+            {
+                "found": True,
+                "modo": "duelo",
+                "cenario": "Arena",
+                "team_a_members": ["Alpha"],
+                "team_b_members": ["Beta"],
+            }
+        )
+        self.assertEqual(
+            args,
+            [
+                "pipeline",
+                "--fights",
+                "1",
+                "--video-format",
+                "classic",
+                "--encounter-mode",
+                "duelo",
+                "--fighter1",
+                "Alpha",
+                "--fighter2",
+                "Beta",
+                "--cenario",
+                "Arena",
+            ],
+        )
+
+    def test_build_pipeline_args_for_headless_target_equipes(self):
+        from interface.main import build_pipeline_args_for_headless_target
+
+        args = build_pipeline_args_for_headless_target(
+            {
+                "found": True,
+                "modo": "grupo_vs_grupo",
+                "template_id": "esquadrao_balanceado_3v3",
+            }
+        )
+        self.assertEqual(
+            args,
+            [
+                "pipeline",
+                "--fights",
+                "1",
+                "--video-format",
+                "classic",
+                "--encounter-mode",
+                "equipes",
+                "--template",
+                "esquadrao_balanceado_3v3",
+            ],
+        )
+
+    def test_build_pipeline_args_for_headless_target_horda(self):
+        from interface.main import build_pipeline_args_for_headless_target
+
+        args = build_pipeline_args_for_headless_target(
+            {
+                "found": True,
+                "modo": "grupo_vs_horda",
+                "template_id": "corredor_contra_horda",
+            }
+        )
+        self.assertEqual(
+            args,
+            [
+                "pipeline",
+                "--fights",
+                "1",
+                "--video-format",
+                "classic",
+                "--encounter-mode",
+                "horda",
+                "--template",
+                "corredor_contra_horda",
+            ],
+        )
+
+    def test_load_latest_headless_report_summary_vazio(self):
+        from interface.main import load_latest_headless_report_summary
+
+        base_tmp = os.path.join(os.path.dirname(os.path.dirname(__file__)), "_tmp_ui_reports")
+        os.makedirs(base_tmp, exist_ok=True)
+        tmp = os.path.join(base_tmp, f"case_{uuid.uuid4().hex}")
+        os.makedirs(tmp, exist_ok=True)
+        try:
+            resumo = load_latest_headless_report_summary(tmp)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        self.assertFalse(resumo["found"])
+        self.assertIn("Nenhum", resumo["headline"])
+        self.assertIn("Nenhum pacote", resumo["package_text"])
+
+    def test_load_latest_headless_report_summary_comparativo(self):
+        from interface.main import load_latest_headless_report_summary
+
+        base_tmp = os.path.join(os.path.dirname(os.path.dirname(__file__)), "_tmp_ui_reports")
+        os.makedirs(base_tmp, exist_ok=True)
+        tmp = os.path.join(base_tmp, f"case_{uuid.uuid4().hex}")
+        os.makedirs(tmp, exist_ok=True)
+        try:
+            older = os.path.join(tmp, "harness_tatico_grupo_vs_grupo_20260318_120000.json")
+            newer = os.path.join(tmp, "harness_tatico_grupo_vs_grupo_20260318_123000.json")
+            with open(older, "w", encoding="utf-8") as handle:
+                json.dump({"template_id": "old", "modo": "grupo_vs_grupo", "alertas": []}, handle)
+            with open(newer, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "modo": "grupo_vs_grupo",
+                        "comparativo": {
+                            "total_templates": 3,
+                            "melhor_template": {"template_id": "esquadrao_balanceado_3v3"},
+                            "pior_template": {"template_id": "dupla_tatica_2v2"},
+                            "alertas_mais_comuns": {"DOMINANCIA_EXCESSIVA": 2},
+                            "pacotes_impacto": [
+                                {"pacote": "vanguarda_brutal", "score_saude_medio": 81.0},
+                                {"pacote": "bastiao_prismatico", "score_saude_medio": 76.0},
+                            ],
+                            "resumo_plano_ajuste": {"areas_mais_citadas": {"composicao": 2, "ia": 1}},
+                            "recomendacoes_balanceamento": [{"codigo": "REVISAR_FAMILIA_DOMINANTE"}],
+                            "planos_ajuste_templates": [
+                                {
+                                    "template_id": "dupla_tatica_2v2",
+                                    "prioridade_geral": "alta",
+                                    "score_saude": 42.0,
+                                    "pacote_dominante": "vanguarda_brutal",
+                                    "sugestoes": [
+                                        {"area": "arma", "prioridade": "alta", "alvo": "corrente"},
+                                    ],
+                                }
+                            ],
+                        },
+                    },
+                    handle,
+                )
+            resumo = load_latest_headless_report_summary(tmp)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        self.assertTrue(resumo["found"])
+        self.assertIn("3 templates", resumo["headline"])
+        self.assertIn("Esquadrao", resumo["subheadline"])
+        self.assertEqual(resumo["status_tone"], "warning")
+        self.assertIn("Dominancia", resumo["alert_text"])
+        self.assertIn("Revisar Familia Dominante", resumo["recommendation_text"])
+        self.assertIn("Composicao", resumo["areas_text"])
+        self.assertIn("Vanguarda Brutal", resumo["package_text"])
+        self.assertIn("Arma", resumo["review_axis_text"])
+        self.assertIn("Pacote", resumo["review_plan_text"])
+        self.assertIn("Inspecionar", resumo["inspection_title"])
+        self.assertIn("Pacote", resumo["inspection_text"])
+        self.assertTrue(resumo["inspection_text"])
+
+    def test_load_latest_headless_balance_focus(self):
+        from interface.headless_summary import load_latest_headless_balance_focus
+
+        base_tmp = os.path.join(os.path.dirname(os.path.dirname(__file__)), "_tmp_ui_reports")
+        os.makedirs(base_tmp, exist_ok=True)
+        tmp = os.path.join(base_tmp, f"case_{uuid.uuid4().hex}")
+        os.makedirs(tmp, exist_ok=True)
+        try:
+            report_file = os.path.join(tmp, "harness_tatico_grupo_vs_grupo_20260318_150000.json")
+            with open(report_file, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "modo": "grupo_vs_grupo",
+                        "comparativo": {
+                            "planos_ajuste_templates": [
+                                {
+                                    "template_id": "dupla_tatica_2v2",
+                                    "prioridade_geral": "alta",
+                                    "score_saude": 42.0,
+                                    "pacote_dominante": "vanguarda_brutal",
+                                    "sugestoes": [
+                                        {
+                                            "area": "arma",
+                                            "prioridade": "alta",
+                                            "alvo": "corrente",
+                                            "acao": "Reduzir pressao continua",
+                                            "motivo": "Conversao excessiva no midrange",
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    },
+                    handle,
+                )
+            foco = load_latest_headless_balance_focus(tmp)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        self.assertTrue(foco["found"])
+        self.assertEqual(foco["template_id"], "dupla_tatica_2v2")
+        self.assertEqual(foco["pacote_foco"], "vanguarda_brutal")
+        self.assertEqual(foco["area"], "arma")
+        self.assertEqual(foco["alvo"], "corrente")
+        self.assertIn("Reduzir", foco["acao"])
+        self.assertIn("Conversao", foco["motivo"])
+
+    def test_load_latest_headless_inspection_target_comparativo(self):
+        from interface.headless_summary import load_latest_headless_inspection_target
+
+        base_tmp = os.path.join(os.path.dirname(os.path.dirname(__file__)), "_tmp_ui_reports")
+        os.makedirs(base_tmp, exist_ok=True)
+        tmp = os.path.join(base_tmp, f"case_{uuid.uuid4().hex}")
+        os.makedirs(tmp, exist_ok=True)
+        templates_file = os.path.join(tmp, "templates.json")
+        try:
+            with open(templates_file, "w", encoding="utf-8") as handle:
+                json.dump({"templates": []}, handle)
+
+            report_file = os.path.join(tmp, "harness_tatico_grupo_vs_grupo_20260318_150000.json")
+            with open(report_file, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "modo": "grupo_vs_grupo",
+                        "templates": [
+                            {
+                                "template_id": "dupla_tatica_2v2",
+                                "modo": "grupo_vs_grupo",
+                                "template_meta": {"nome": "Dupla Tatica 2v2", "cenario": "Arena"},
+                                "team_a": [{"nome": "Alpha"}],
+                                "team_b": [{"nome": "Beta"}],
+                            }
+                        ],
+                        "comparativo": {
+                            "planos_ajuste_templates": [
+                                {
+                                    "template_id": "dupla_tatica_2v2",
+                                    "prioridade_geral": "alta",
+                                    "score_saude": 42.0,
+                                    "sugestoes": [{"area": "arma", "prioridade": "alta", "alvo": "hibrida"}],
+                                }
+                            ]
+                        },
+                    },
+                    handle,
+                )
+            alvo = load_latest_headless_inspection_target(tmp, templates_path=templates_file)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        self.assertTrue(alvo["found"])
+        self.assertEqual(alvo["modo"], "grupo_vs_grupo")
+        self.assertEqual(alvo["template_id"], "dupla_tatica_2v2")
+        self.assertEqual(alvo["team_a_members"], ["Alpha"])
+        self.assertEqual(alvo["team_b_members"], ["Beta"])
+
+    def test_load_latest_headless_inspection_target_horda_resolve_preset(self):
+        from interface.headless_summary import load_latest_headless_inspection_target
+
+        base_tmp = os.path.join(os.path.dirname(os.path.dirname(__file__)), "_tmp_ui_reports")
+        os.makedirs(base_tmp, exist_ok=True)
+        tmp = os.path.join(base_tmp, f"case_{uuid.uuid4().hex}")
+        os.makedirs(tmp, exist_ok=True)
+        templates_file = os.path.join(tmp, "templates.json")
+        try:
+            with open(templates_file, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "templates": [
+                            {
+                                "id": "corredor_contra_horda",
+                                "modo": "grupo_vs_horda",
+                                "nome": "Corredor Contra Horda",
+                                "cenario": "Coliseu",
+                                "horda": {"preset_id": "corredor_infectado"},
+                            }
+                        ]
+                    },
+                    handle,
+                )
+
+            report_file = os.path.join(tmp, "harness_tatico_corredor_contra_horda_20260318_150500.json")
+            with open(report_file, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "template_id": "corredor_contra_horda",
+                        "modo": "grupo_vs_horda",
+                        "template_meta": {"nome": "Corredor Contra Horda", "cenario": "Coliseu"},
+                        "team_a": [{"nome": "Zarya"}, {"nome": "Elda"}],
+                        "pacotes": {"bastiao_prismatico": {"nome": "Bastiao Prismático", "damage_dealt": 88.0}},
+                    },
+                    handle,
+                )
+            alvo = load_latest_headless_inspection_target(tmp, templates_path=templates_file)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        self.assertTrue(alvo["found"])
+        self.assertEqual(alvo["modo"], "grupo_vs_horda")
+        self.assertEqual(alvo["cenario"], "Coliseu")
+        self.assertEqual(alvo["horde_preset_id"], "corredor_infectado")
+        self.assertEqual(alvo["pacote_foco"], "bastiao_prismatico")
+
+    def test_load_latest_headless_archetype_focus_prefere_pacote_dominante(self):
+        from interface.headless_summary import load_latest_headless_archetype_focus
+
+        base_tmp = os.path.join(os.path.dirname(os.path.dirname(__file__)), "_tmp_ui_reports")
+        os.makedirs(base_tmp, exist_ok=True)
+        tmp = os.path.join(base_tmp, f"case_{uuid.uuid4().hex}")
+        os.makedirs(tmp, exist_ok=True)
+        try:
+            report_file = os.path.join(tmp, "harness_tatico_grupo_vs_grupo_20260318_151000.json")
+            with open(report_file, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {
+                        "modo": "grupo_vs_grupo",
+                        "templates": [
+                            {
+                                "template_id": "triade_astral_3v3",
+                                "modo": "grupo_vs_grupo",
+                                "template_meta": {"nome": "Triade Astral 3v3"},
+                                "team_a": [
+                                    {
+                                        "nome": "Elda",
+                                        "pacote_arquetipo": "bastiao_prismatico",
+                                        "pacote_nome": "Bastiao Prismático",
+                                    },
+                                    {
+                                        "nome": "Iona",
+                                        "pacote_arquetipo": "artilheiro_de_orbita",
+                                        "pacote_nome": "Artilheiro de Órbita",
+                                    },
+                                ],
+                                "team_b": [
+                                    {
+                                        "nome": "Cassian",
+                                        "arma": "Raiz do Pântano",
+                                        "pacote_arquetipo": "vanguarda_brutal",
+                                        "pacote_nome": "Vanguarda Brutal",
+                                    }
+                                ],
+                                "pacotes": {
+                                    "bastiao_prismatico": {"nome": "Bastiao Prismático", "damage_dealt": 120.0},
+                                    "vanguarda_brutal": {"nome": "Vanguarda Brutal", "damage_dealt": 240.0},
+                                },
+                            }
+                        ],
+                        "comparativo": {
+                            "planos_ajuste_templates": [
+                                {
+                                    "template_id": "triade_astral_3v3",
+                                    "prioridade_geral": "alta",
+                                    "score_saude": 38.0,
+                                    "pacote_dominante": "vanguarda_brutal",
+                                    "sugestoes": [{"area": "pacote", "prioridade": "alta", "alvo": "vanguarda_brutal"}],
+                                }
+                            ]
+                        },
+                    },
+                    handle,
+                )
+            foco = load_latest_headless_archetype_focus(tmp)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+        self.assertTrue(foco["found"])
+        self.assertEqual(foco["template_id"], "triade_astral_3v3")
+        self.assertEqual(foco["pacote_foco"], "vanguarda_brutal")
+        self.assertEqual(foco["pacote_nome"], "Vanguarda Brutal")
+        self.assertEqual(foco["personagem_nome"], "Cassian")
+        self.assertEqual(foco["arma_nome"], "Raiz do Pântano")
 
 
 class TestLeaderboardData(unittest.TestCase):

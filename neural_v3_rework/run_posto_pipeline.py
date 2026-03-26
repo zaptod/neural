@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
-"""Atalho para o posto de pipeline de vídeos."""
+"""Atalho para o posto de pipeline de videos."""
 
 from __future__ import annotations
 
-import os
-import subprocess
+import argparse
 import sys
 
-from utilitarios.postos_operacao import build_pipeline_env, create_session_dir, ensure_posto_dirs, write_session_manifest
+from run_postos import main as run_postos_main
 
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-SCRIPT = os.path.join(ROOT, "pipeline_video", "run_pipeline.py")
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Neural Fights - atalho para o posto de pipeline")
+    parser.add_argument(
+        "args",
+        nargs=argparse.REMAINDER,
+        help="Argumentos encaminhados para o pipeline de video.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parsed = build_parser().parse_args(argv)
+    return run_postos_main(["pipeline", *parsed.args])
 
 
 if __name__ == "__main__":
-    ensure_posto_dirs()
-    session_dir = create_session_dir("pipeline")
-    write_session_manifest(
-        session_dir,
-        {"posto": "pipeline", "args": sys.argv[1:], "saida_logica": "saidas/pipeline"},
-    )
-    raise SystemExit(
-        subprocess.run(
-            [sys.executable, SCRIPT, *sys.argv[1:]],
-            cwd=ROOT,
-            env=build_pipeline_env(),
-        ).returncode
-    )
+    raise SystemExit(main(sys.argv[1:]))

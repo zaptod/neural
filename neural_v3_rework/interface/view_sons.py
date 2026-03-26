@@ -12,6 +12,8 @@ import shutil
 import logging
 _log = logging.getLogger("ui.view_sons")
 
+from interface.ui_components import ScrollableWorkspace
+
 # Cores do tema
 COR_FUNDO = "#2C3E50"
 COR_TEXTO = "#ECF0F1"
@@ -342,36 +344,9 @@ class TelaSons(tk.Frame):
         self._criar_painel_volumes()
         
         # === ÁREA PRINCIPAL COM SCROLL ===
-        main_container = tk.Frame(self, bg=COR_FUNDO)
-        main_container.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        # Canvas com scrollbar
-        canvas = tk.Canvas(main_container, bg=COR_FUNDO, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(main_container, orient="vertical", command=canvas.yview)
-        
-        self.scrollable_frame = tk.Frame(canvas, bg=COR_FUNDO)
-        
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
-        
-        _win_id = canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-
-        def _sync_width(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-            canvas.itemconfig(_win_id, width=event.width)
-
-        canvas.bind("<Configure>", _sync_width)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        # Bind mouse wheel
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        workspace = ScrollableWorkspace(self, bg=COR_FUNDO, xscroll=False, yscroll=True)
+        workspace.pack(fill="both", expand=True, padx=10, pady=5)
+        self.scrollable_frame = workspace.content
         
         # === CRIAR CATEGORIAS ===
         self._criar_categorias()

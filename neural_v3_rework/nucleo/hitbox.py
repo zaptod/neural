@@ -9,6 +9,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Dict
 from utilitarios.config import PPM
+from nucleo.armas import resolver_subtipo_orbital
 
 # === CONFIGURAÃ‡ÃƒO DE DEBUG ===
 DEBUG_HITBOX = False  # Ativar/desativar prints de debug (MUITO VERBOSO)
@@ -637,19 +638,41 @@ class SistemaHitbox:
     
     def _calcular_hitbox_orbital(self, lutador, arma, cx, cy, fator, raio_char) -> HitboxInfo:
         """Calcula hitbox para armas orbitais"""
-        # Orbital: 1.5x o raio (escudo/drone orbita perto)
-        fator_arma = 1.5
+        subtipo = resolver_subtipo_orbital(arma)
+        fator_por_subtipo = {
+            "escudo": 1.28,
+            "drone": 1.85,
+            "laminas": 1.46,
+            "orbes": 1.62,
+        }
+        largura_por_subtipo = {
+            "escudo": max(112.0, float(getattr(arma, "largura", 90.0) or 90.0)),
+            "drone": 56.0,
+            "laminas": 52.0,
+            "orbes": 42.0,
+        }
+        ativo = bool(getattr(lutador, "orbital_dmg_timer", 0.0) > 0.0)
+        if subtipo == "escudo":
+            ativo = bool(getattr(lutador, "orbital_shield_active", False) or ativo)
+
+        # Orbital: raio varia por subtipo, para diferenciar defesa/pressao
+        fator_arma = fator_por_subtipo.get(subtipo, 1.55)
         dist_orbital = raio_char * fator_arma
         
-        debug_log(f"  Orbital: raio_char={raio_char:.1f} fator={fator_arma} dist_px={dist_orbital:.1f}", "CALC")
+        debug_log(
+            f"  Orbital[{subtipo}]: raio_char={raio_char:.1f} fator={fator_arma} dist_px={dist_orbital:.1f} ativo={ativo}",
+            "CALC",
+        )
         
         return HitboxInfo(
             tipo="Orbital",
             centro=(cx, cy),
             alcance=dist_orbital,
             angulo=lutador.angulo_arma_visual,
-            largura_angular=getattr(arma, 'largura', 90.0),
-            ativo=True
+            largura_angular=largura_por_subtipo.get(subtipo, 48.0),
+            ativo=ativo,
+            forma=f"orbital_{subtipo}",
+            profile={"subtipo_orbital": subtipo},
         )
     
     def _verificar_janela_hit(self, atacante, tipo_arma: str) -> bool:
@@ -1034,8 +1057,12 @@ class SistemaHitbox:
         
         Verifica se o alvo estÃ¡ prÃ³ximo da posiÃ§Ã£o atual do orbital.
         """
+        if not hitbox.ativo:
+            return False, "orbital inativo"
+
         cx, cy = hitbox.centro
         ax, ay = alvo
+        subtipo = (hitbox.profile or {}).get("subtipo_orbital", "orbes")
         
         # PosiÃ§Ã£o atual do orbital (no Ã¢ngulo visual)
         rad = math.radians(hitbox.angulo)
@@ -1049,18 +1076,30 @@ class SistemaHitbox:
         # largura_angular aqui guarda a largura do escudo em cm
         # cm -> m -> px: (cm / 100) * PPM
         raio_orbital = (hitbox.largura_angular / 100.0) * PPM * 0.5
-        
+
         # Garantir raio mÃ­nimo visÃ­vel
         raio_orbital = max(raio_orbital, 15.0)  # mÃ­nimo 15px
+        if subtipo == "escudo":
+            raio_orbital *= 1.15
+        elif subtipo == "drone":
+            raio_orbital *= 0.88
+        elif subtipo == "laminas":
+            raio_orbital *= 0.95
+        else:
+            raio_orbital *= 0.82
         
         # Raio de colisÃ£o generoso: orbital + alvo + margem
-        raio_colisao = raio_orbital + raio_alvo + 5  # +5px de margem
+        margem_extra = 8 if subtipo == "escudo" else 5 if subtipo == "laminas" else 3
+        raio_colisao = raio_orbital + raio_alvo + margem_extra
         
-        debug_log(f"    Orbital: pos=({orbital_x:.1f}, {orbital_y:.1f}) dist={dist:.1f} raio_col={raio_colisao:.1f} (raio_orb={raio_orbital:.1f})", "GEOM")
+        debug_log(
+            f"    Orbital[{subtipo}]: pos=({orbital_x:.1f}, {orbital_y:.1f}) dist={dist:.1f} raio_col={raio_colisao:.1f} (raio_orb={raio_orbital:.1f})",
+            "GEOM",
+        )
         
         if dist <= raio_colisao:
-            return True, "colisÃ£o orbital (escudo)"
-        
+            return True, f"colisao orbital ({subtipo})"
+
         return False, f"orbital fora de alcance (dist={dist:.1f} > raio={raio_colisao:.1f})"
     
     def _colisao_arco(self, hitbox: HitboxInfo, alvo: Tuple[float, float],

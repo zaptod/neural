@@ -17,6 +17,10 @@ video = [
     "opencv-python>=4.8.0",
     "numpy>=1.24.0",
 ]
+worldmap = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -28,7 +32,7 @@ include = [
     "ia*", "nucleo*", "dados*", "efeitos*",
     "modelos*", "simulacao*", "ferramentas*",
     "torneio*", "interface*", "utilitarios*",
-    "pipeline_video*",
+    "pipeline_video*", "world_map_pygame*",
 ]
 
 [tool.pytest.ini_options]
@@ -36,4 +40,5 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+norecursedirs = ["tests/_tmp_ui_reports", "_tmp_ui_reports", "tests/.tmp_ui", ".tmp_ui"]
 addopts = "-p no:cacheprovider"

@@ -4,8 +4,12 @@ Left sidebar toolbar, top control bar, info panel, brush cursor.
 """
 import pygame
 import math
-from config import GOD_COLORS, SCR
-from tools import TOOL_CATEGORIES, BRUSH_SIZES, MATERIALS, MAT_NAMES
+try:
+    from .config import GOD_COLORS, SCR
+    from .tools import TOOL_CATEGORIES, BRUSH_SIZES, MATERIALS, MAT_NAMES
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import GOD_COLORS, SCR
+    from tools import TOOL_CATEGORIES, BRUSH_SIZES, MATERIALS, MAT_NAMES
 
 # ─── Layout ───────────────────────────────────────────────────────────────────
 SIDEBAR_W       = 52

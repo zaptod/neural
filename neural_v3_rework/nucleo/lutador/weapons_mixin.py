@@ -26,7 +26,7 @@ from efeitos.weapon_animations import (
     get_weapon_animation_manager, WEAPON_PROFILES, STYLE_PROFILES,
 )
 from nucleo.hitbox import HITBOX_PROFILES
-from nucleo.armas import get_weapon_runtime_controller
+from nucleo.armas import get_weapon_runtime_controller, resolver_subtipo_orbital
 
 _log = logging.getLogger("entities")
 
@@ -596,13 +596,185 @@ class WeaponsMixin:
         if familia in ("orbital", "foco") or tipo in ("Orbital", "Orbe", "Mágica", "Magica"):
             arma_obj = self.dados.arma_obj
             if arma_obj:
-                self.orbital_angle += self.orbital_speed * dt
-                if self.orbital_angle >= 360:
-                    self.orbital_angle -= 360
+                if familia == "orbital" or tipo == "Orbital":
+                    perfil_orbital = self._perfil_orbital_runtime(arma_obj)
+                    self.orbital_speed = perfil_orbital["velocidade"]
+                    subtipo_orbital = perfil_orbital["subtipo"]
+                    if subtipo_orbital == "escudo":
+                        alvo = self.angulo_olhar % 360
+                        diff = ((alvo - self.orbital_angle + 540) % 360) - 180
+                        passo = min(abs(diff), self.orbital_speed * dt)
+                        if diff >= 0:
+                            self.orbital_angle += passo
+                        else:
+                            self.orbital_angle -= passo
+                        self.orbital_shield_active = True
+                    else:
+                        self.orbital_angle += self.orbital_speed * dt
+                        self.orbital_shield_active = False
+                    self.orbital_angle %= 360
+                else:
+                    self.orbital_angle += self.orbital_speed * dt
+                    if self.orbital_angle >= 360:
+                        self.orbital_angle -= 360
             if self.orbital_dmg_timer > 0:
                 self.orbital_dmg_timer -= dt
             if self.orbital_burst_cd > 0:
                 self.orbital_burst_cd -= dt
+
+    def _perfil_orbital_runtime(self, arma):
+        """Resolve comportamento mecânico das orbitais por subtipo."""
+        subtipo = resolver_subtipo_orbital(arma)
+        qtd = max(1, int(getattr(arma, "quantidade_orbitais", 1) or 1))
+        perfis = {
+            "escudo": {
+                "subtipo": "escudo",
+                "qtd": qtd,
+                "raio_mult": 1.28,
+                "velocidade": 104.0,
+                "contato_cd": 0.58,
+                "burst_cd": 4.6,
+                "burst_speed": 11.0,
+                "burst_projeteis": max(1, qtd),
+                "burst_spread": 28.0,
+                "burst_tipo": "chakram",
+                "burst_tamanho": 0.30,
+                "dano_mult": 0.86,
+                "alcance_extra": 0.75,
+                "escudo_angular": 132.0,
+            },
+            "drone": {
+                "subtipo": "drone",
+                "qtd": qtd,
+                "raio_mult": 1.88,
+                "velocidade": 156.0,
+                "contato_cd": 0.74,
+                "burst_cd": 3.8,
+                "burst_speed": 16.5,
+                "burst_projeteis": max(2, qtd + 1),
+                "burst_spread": 20.0,
+                "burst_tipo": "faca",
+                "burst_tamanho": 0.20,
+                "dano_mult": 0.82,
+                "alcance_extra": 1.45,
+                "escudo_angular": 0.0,
+            },
+            "laminas": {
+                "subtipo": "laminas",
+                "qtd": qtd,
+                "raio_mult": 1.46,
+                "velocidade": 268.0,
+                "contato_cd": 0.24,
+                "burst_cd": 4.1,
+                "burst_speed": 15.2,
+                "burst_projeteis": max(2, qtd * 2),
+                "burst_spread": 16.0,
+                "burst_tipo": "shuriken",
+                "burst_tamanho": 0.18,
+                "dano_mult": 0.74,
+                "alcance_extra": 1.05,
+                "escudo_angular": 0.0,
+            },
+            "orbes": {
+                "subtipo": "orbes",
+                "qtd": qtd,
+                "raio_mult": 1.64,
+                "velocidade": 188.0,
+                "contato_cd": 0.36,
+                "burst_cd": 4.8,
+                "burst_speed": 13.4,
+                "burst_projeteis": max(1, qtd),
+                "burst_spread": 12.0,
+                "burst_tipo": "orbe",
+                "burst_tamanho": 0.26,
+                "dano_mult": 0.78,
+                "alcance_extra": 1.20,
+                "escudo_angular": 0.0,
+            },
+        }
+        return perfis.get(subtipo, perfis["orbes"])
+
+    def _disparar_burst_orbital(self, inimigo, arma, perfil_orbital, raio_orbita):
+        """Dispara burst orbital respeitando o papel tático do subtipo."""
+        if not inimigo or inimigo.morto:
+            return
+
+        mana_total = float(getattr(self, "mana", getattr(self.dados, "mana", 0.0)) or 0.0)
+        dano_total = arma.dano * (0.72 + self.dados.forca / 3.8 + mana_total / 18.0)
+        dano_total *= perfil_orbital["dano_mult"]
+        cor = (arma.r, arma.g, arma.b) if hasattr(arma, "r") else (120, 180, 255)
+        qtd = perfil_orbital["qtd"]
+        projeteis = perfil_orbital["burst_projeteis"]
+        spread = perfil_orbital["burst_spread"]
+        tipo_proj = perfil_orbital["burst_tipo"]
+
+        for i in range(projeteis):
+            ang_orbital = self.orbital_angle + (360 / qtd) * (i % qtd)
+            rad_o = math.radians(ang_orbital)
+            spawn_x = self.pos[0] + math.cos(rad_o) * raio_orbita
+            spawn_y = self.pos[1] + math.sin(rad_o) * raio_orbita
+            ang_para_alvo = math.degrees(math.atan2(inimigo.pos[1] - spawn_y, inimigo.pos[0] - spawn_x))
+            if projeteis > 1:
+                offset = -spread / 2 + (spread / max(1, projeteis - 1)) * i
+            else:
+                offset = 0.0
+            self.buffer_projeteis.append(ArmaProjetil(
+                tipo=tipo_proj,
+                x=spawn_x,
+                y=spawn_y,
+                angulo=ang_para_alvo + offset,
+                dono=self,
+                dano=dano_total / max(1, projeteis),
+                velocidade=perfil_orbital["burst_speed"],
+                tamanho=perfil_orbital["burst_tamanho"],
+                cor=cor,
+            ))
+
+    def _alcances_orbitais_runtime(self, arma, raio_orbita, perfil_orbital):
+        """Converte o perfil orbital para alcances reais de contato e burst."""
+        subtipo = perfil_orbital["subtipo"]
+        controller = get_weapon_runtime_controller(arma)
+        alcance_base = float(controller.attack_range(self, arma) if arma else 0.0)
+
+        alcance_contato = raio_orbita + self.raio_fisico * perfil_orbital["alcance_extra"]
+        alcance_burst = raio_orbita + self.raio_fisico * (
+            3.1 if subtipo == "drone" else 2.4 if subtipo == "escudo" else 2.8
+        )
+
+        contato_bias = {
+            "escudo": 1.02,
+            "drone": 0.78,
+            "laminas": 0.90,
+            "orbes": 0.84,
+        }
+        burst_bias = {
+            "escudo": 1.18,
+            "drone": 1.42,
+            "laminas": 1.55,
+            "orbes": 1.30,
+        }
+
+        if alcance_base > 0:
+            alcance_contato = max(alcance_contato, alcance_base * contato_bias.get(subtipo, 0.84))
+            alcance_burst = max(alcance_burst, alcance_base * burst_bias.get(subtipo, 1.24))
+
+        return alcance_contato, alcance_burst
+
+    def _orbital_em_janela_de_contato(self, inimigo, distancia, arma, raio_orbita, perfil_orbital):
+        """Decide quando a órbita pode registrar um hit corpo a corpo."""
+        if inimigo is None or inimigo.morto or abs(self.z - inimigo.z) >= 1.5:
+            return False
+
+        alcance_contato, _ = self._alcances_orbitais_runtime(arma, raio_orbita, perfil_orbital)
+        if distancia > alcance_contato:
+            return False
+
+        if perfil_orbital["subtipo"] != "escudo":
+            return True
+
+        ang_inimigo = math.degrees(math.atan2(inimigo.pos[1] - self.pos[1], inimigo.pos[0] - self.pos[0]))
+        diff = ((ang_inimigo - self.orbital_angle + 540) % 360) - 180
+        return abs(diff) <= perfil_orbital["escudo_angular"] / 2
 
     def _executar_ataques_corrente(self, dt, distancia, inimigo, estilo):
         """Sistema Corrente v6.0 com modos mais consistentes."""
@@ -874,7 +1046,7 @@ class WeaponsMixin:
         self.cooldown_ataque = base_cd / vel_ataque
 
     def _executar_ataques_orbital(self, dt, distancia, inimigo, estilo):
-        """Sistema Orbital v15.0."""
+        """Sistema Orbital v16.0 com papeis distintos por subtipo."""
         anim_manager = get_weapon_animation_manager()
         self.angulo_arma_visual = self.orbital_angle
 
@@ -893,45 +1065,43 @@ class WeaponsMixin:
         if not arma:
             return
 
-        qtd_orbitais = max(1, int(getattr(arma, 'quantidade_orbitais', 1)))
-        raio_orbita = self.raio_fisico * 1.5
+        perfil_orbital = self._perfil_orbital_runtime(arma)
+        subtipo_orbital = perfil_orbital["subtipo"]
+        raio_orbita = self.raio_fisico * perfil_orbital["raio_mult"]
+        self.orbital_speed = perfil_orbital["velocidade"]
+        self.orbital_shield_active = subtipo_orbital == "escudo"
 
-        if self.orbital_dmg_timer <= 0 and not inimigo.morto:
-            alcance_orbital = raio_orbita + self.raio_fisico * 0.5
-            if distancia < alcance_orbital and abs(self.z - inimigo.z) < 1.5:
-                self.atacando = True
-                self.ataque_id += 1
-                self.alvos_atingidos_neste_ataque.clear()
-                self.timer_animacao = 0.15
-                anim_manager.start_attack(id(self), "Orbital", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
-                self.orbital_dmg_timer = (
-                    0.3 if "LÃ¢minas" in estilo or "Laminas" in estilo
-                    else 0.8 if "Drone" in estilo or "Ofensivo" in estilo
-                    else 1.2 if "Escudo" in estilo or "Defensivo" in estilo
-                    else 0.5
-                )
+        if subtipo_orbital == "escudo" and inimigo and not inimigo.morto:
+            ang_para_inimigo = math.degrees(math.atan2(inimigo.pos[1] - self.pos[1], inimigo.pos[0] - self.pos[0]))
+            diff = ((ang_para_inimigo - self.orbital_angle + 540) % 360) - 180
+            self.orbital_angle = (self.orbital_angle + max(-42.0 * dt, min(42.0 * dt, diff))) % 360
+            self.angulo_arma_visual = self.orbital_angle
+
+        alcance_contato, alcance_burst = self._alcances_orbitais_runtime(arma, raio_orbita, perfil_orbital)
+
+        if self.orbital_dmg_timer <= 0 and self._orbital_em_janela_de_contato(inimigo, distancia, arma, raio_orbita, perfil_orbital):
+            self.atacando = True
+            self.ataque_id += 1
+            self.alvos_atingidos_neste_ataque.clear()
+            self.timer_animacao = 0.14 if subtipo_orbital == "laminas" else 0.18 if subtipo_orbital == "escudo" else 0.16
+            anim_manager.start_attack(id(self), "Orbital", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
+            self.orbital_dmg_timer = perfil_orbital["contato_cd"]
+            if subtipo_orbital == "escudo":
+                dx = inimigo.pos[0] - self.pos[0]
+                dy = inimigo.pos[1] - self.pos[1]
+                mag = math.hypot(dx, dy) or 1.0
+                inimigo.vel[0] += (dx / mag) * 0.45
+                inimigo.vel[1] += (dy / mag) * 0.45
 
         if self.orbital_burst_cd <= 0 and not inimigo.morto:
-            acoes = ["MATAR", "ESMAGAR", "COMBATE", "PRESSIONAR"]
-            if self.brain.acao_atual in acoes and distancia < raio_orbita * 3:
-                self.orbital_burst_cd = 5.0
+            acoes = {"MATAR", "ESMAGAR", "COMBATE", "PRESSIONAR", "CONTRA_ATAQUE", "POKE"}
+            if self.brain.acao_atual in acoes and distancia < alcance_burst:
+                self.orbital_burst_cd = perfil_orbital["burst_cd"]
                 self.atacando = True
                 self.ataque_id += 1
                 self.alvos_atingidos_neste_ataque.clear()
-                self.timer_animacao = 0.3
-                dano_total = arma.dano * (self.dados.forca / 2.0 + 0.5)
-                cor = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else (120, 180, 255)
-                for i in range(qtd_orbitais):
-                    ang_orbital = self.orbital_angle + (360 / qtd_orbitais) * i
-                    rad_o = math.radians(ang_orbital)
-                    spawn_x = self.pos[0] + math.cos(rad_o) * raio_orbita
-                    spawn_y = self.pos[1] + math.sin(rad_o) * raio_orbita
-                    ang_para_alvo = math.degrees(math.atan2(
-                        inimigo.pos[1] - spawn_y, inimigo.pos[0] - spawn_x))
-                    self.buffer_projeteis.append(ArmaProjetil(
-                        tipo="orbe", x=spawn_x, y=spawn_y, angulo=ang_para_alvo,
-                        dono=self, dano=dano_total / qtd_orbitais,
-                        velocidade=14.0, tamanho=0.25, cor=cor))
+                self.timer_animacao = 0.26 if subtipo_orbital == "escudo" else 0.22
+                self._disparar_burst_orbital(inimigo, arma, perfil_orbital, raio_orbita)
                 anim_manager.start_attack(id(self), "Orbital", tuple(self.pos), self.angulo_olhar, weapon_style=estilo)
 
         if self.atacando:

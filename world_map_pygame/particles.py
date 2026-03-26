@@ -5,10 +5,16 @@ Ambient atmosphere particles: snow, leaves, waves, sand, mist, magic, clouds.
 import pygame
 import random
 import math
-from config import (
-    MAP_W, MAP_H,
-    MAX_PARTICLES, GOD_COLORS, SCR,
-)
+try:
+    from .config import (
+        MAP_W, MAP_H,
+        MAX_PARTICLES, GOD_COLORS, SCR,
+    )
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H,
+        MAX_PARTICLES, GOD_COLORS, SCR,
+    )
 
 
 class _P:

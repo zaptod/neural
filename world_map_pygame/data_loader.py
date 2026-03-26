@@ -3,7 +3,10 @@ World Map — Data Loader
 JSON I/O helpers for world state, gods, and game integration.
 """
 import json, os
-from config import DATA_DIR, NEURAL_DIR
+try:
+    from .config import DATA_DIR, NEURAL_DIR
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import DATA_DIR, NEURAL_DIR
 
 
 def _load(path, default=None):

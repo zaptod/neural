@@ -7,6 +7,7 @@ from tkinter import ttk, messagebox
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dados.app_state import AppState
+from interface.headless_summary import load_latest_headless_inspection_target, load_latest_headless_report_summary
 from interface.theme import (
     COR_ACCENT,
     COR_BG,
@@ -17,7 +18,7 @@ from interface.theme import (
     COR_TEXTO,
     COR_TEXTO_DIM,
 )
-from interface.ui_components import UICard, build_page_header, make_primary_button, make_secondary_button
+from interface.ui_components import UICard, HeadlessSummaryCard, ScrollableWorkspace, build_page_header, make_primary_button, make_secondary_button
 from nucleo.arena import ARENAS
 from simulacao import simulacao
 from utilitarios.encounter_config import build_horde_match_config, load_horde_presets
@@ -44,7 +45,12 @@ class TelaHorda(tk.Frame):
             button_fg="#07131f",
         )
 
-        config = UICard(self, bg=COR_BG_SECUNDARIO, border=COR_BORDA)
+        workspace = ScrollableWorkspace(self, bg=COR_BG, xscroll=True, yscroll=True)
+        workspace.pack(fill="both", expand=True, padx=24, pady=(18, 0))
+        self._workspace = workspace
+        body_root = workspace.content
+
+        config = UICard(body_root, bg=COR_BG_SECUNDARIO, border=COR_BORDA)
         config.pack(fill="x", padx=24, pady=(18, 12))
 
         tk.Label(config, text="Lutadores", font=("Segoe UI", 11, "bold"), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO).grid(row=0, column=0, sticky="w", padx=14, pady=10)
@@ -73,7 +79,16 @@ class TelaHorda(tk.Frame):
 
         tk.Label(config, textvariable=self._preset_desc, justify="left", wraplength=820, bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM, font=("Segoe UI", 10)).grid(row=2, column=0, columnspan=5, sticky="ew", padx=14, pady=(0, 12))
 
-        body = tk.Frame(self, bg=COR_BG)
+        self.headless_diag_card = HeadlessSummaryCard(
+            body_root,
+            title="Diagnostico Recente Da Horda",
+            open_command=self._abrir_ultimo_relatorio_headless,
+            action_text="Aplicar Alvo",
+            action_command=self._aplicar_alvo_inspecao_headless,
+        )
+        self.headless_diag_card.pack(fill="x", padx=24, pady=(0, 12))
+
+        body = tk.Frame(body_root, bg=COR_BG)
         body.pack(fill="both", expand=True, padx=24, pady=(0, 24))
         body.grid_columnconfigure(0, weight=3)
         body.grid_columnconfigure(1, weight=2)
@@ -91,9 +106,11 @@ class TelaHorda(tk.Frame):
 
         self._rebuild_slots()
         self._update_preset_info()
+        self._refresh_headless_summary()
 
     def _on_data_changed(self, _data=None):
         self._rebuild_slots()
+        self._refresh_headless_summary()
 
     def _rebuild_slots(self):
         for widget in self.slots_card.winfo_children():
@@ -154,6 +171,60 @@ class TelaHorda(tk.Frame):
         else:
             tk.Label(self.summary_card, text="Nenhum lutador selecionado.", font=("Segoe UI", 10), bg=COR_BG_SECUNDARIO, fg=COR_TEXTO_DIM).pack(anchor="w", padx=16, pady=8)
 
+    def _refresh_headless_summary(self):
+        if hasattr(self, "headless_diag_card"):
+            self._latest_headless_summary = load_latest_headless_report_summary()
+            self.headless_diag_card.set_summary(self._latest_headless_summary)
+
+    def _abrir_ultimo_relatorio_headless(self):
+        resumo = getattr(self, "_latest_headless_summary", None) or load_latest_headless_report_summary()
+        path = str(resumo.get("path", "") or "")
+        if not path or not os.path.exists(path):
+            messagebox.showinfo(
+                "Diagnostico Headless",
+                "Ainda nao existe relatorio headless pronto.\n\nRode o harness tatico ou o posto headless primeiro.",
+            )
+            return
+        try:
+            os.startfile(path)
+        except Exception as exc:
+            messagebox.showerror("Diagnostico Headless", f"Nao foi possivel abrir o relatorio.\n\n{exc}")
+
+    def _aplicar_alvo_inspecao_headless(self):
+        alvo = load_latest_headless_inspection_target()
+        if not alvo.get("found"):
+            messagebox.showinfo(
+                "Aplicar Alvo",
+                "Ainda nao existe alvo de inspecao pronto.\n\nRode o harness tatico primeiro.",
+            )
+            return
+        if str(alvo.get("modo", "") or "") != "grupo_vs_horda":
+            messagebox.showinfo(
+                "Aplicar Alvo",
+                "O ultimo diagnostico nao e de horda.\n\nUse a tela correspondente ao modo analisado ou rode um comparativo de grupo vs horda.",
+            )
+            return
+
+        nomes_disponiveis = {p.nome for p in self.state.characters}
+        membros = [nome for nome in alvo.get("team_a_members", []) if nome in nomes_disponiveis][:4]
+        if not membros:
+            messagebox.showwarning(
+                "Aplicar Alvo",
+                "O relatorio encontrado nao trouxe uma expedicao valida com personagens disponiveis no roster atual.",
+            )
+            return
+
+        self.var_slots.set(len(membros))
+        if alvo.get("horde_preset_id") in self.horde_presets:
+            self.var_preset.set(alvo["horde_preset_id"])
+        if alvo.get("cenario"):
+            self.var_cenario.set(alvo["cenario"])
+        self._rebuild_slots()
+        for idx, nome in enumerate(membros):
+            self.slot_vars[idx].set(nome)
+        self._update_preset_info()
+        self._refresh_summary()
+
     def iniciar_horda(self):
         membros = [var.get() for var in self.slot_vars if var.get()]
         if not membros:
@@ -176,4 +247,3 @@ class TelaHorda(tk.Frame):
         self.state.set_match_config(config)
         sim = simulacao.Simulador()
         sim.run()
-

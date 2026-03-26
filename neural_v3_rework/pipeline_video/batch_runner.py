@@ -37,7 +37,24 @@ from pipeline_video.metadata_generator import (
 )
 from pipeline_video.roulette_status import gerar_story_roleta_status, slugify_comment
 from ferramentas.harness_tatico import montar_template_selecionado
-from utilitarios.encounter_config import build_horde_match_config, build_team_match_config
+from utilitarios.encounter_config import build_duel_match_config, build_horde_match_config, build_team_match_config
+
+
+def _resolver_duelo_direto_roster(fighter1_name: str, fighter2_name: str):
+    from dados.app_state import AppState
+
+    state = AppState.get()
+    p1 = state.get_character(fighter1_name)
+    p2 = state.get_character(fighter2_name)
+    if p1 is None or p2 is None:
+        raise ValueError(f"Duelo direto invalido: roster nao contem '{fighter1_name}' e '{fighter2_name}'.")
+
+    a1 = state.get_weapon_for_character(p1)
+    a2 = state.get_weapon_for_character(p2)
+    if a1 is None or a2 is None:
+        raise ValueError("Duelo direto invalido: um dos lutadores nao possui arma valida no roster atual.")
+
+    return p1, a1, p2, a2
 
 
 def run_batch(
@@ -49,6 +66,9 @@ def run_batch(
     comment: str | None = None,
     encounter_mode: str = "duelo",
     template_id: str | None = None,
+    fighter1_name: str | None = None,
+    fighter2_name: str | None = None,
+    forced_cenario: str | None = None,
 ) -> list[dict]:
     """
     Gera um batch completo de videos, uma luta por plataforma.
@@ -79,23 +99,39 @@ def run_batch(
         _log.info("=" * 60)
 
         story = None
+        duelo_direto = (
+            encounter_mode == "duelo"
+            and str(fighter1_name or "").strip()
+            and str(fighter2_name or "").strip()
+        )
         if encounter_mode == "duelo" and video_format == "comment_roulette":
             story = gerar_story_roleta_status(comment, fight_index=idx)
             c1, a1 = story["fighter1"], story["weapon1"]
             c2, a2 = story["fighter2"], story["weapon2"]
+        elif duelo_direto:
+            p1_obj, a1_obj, p2_obj, a2_obj = _resolver_duelo_direto_roster(str(fighter1_name), str(fighter2_name))
+            c1 = a1 = c2 = a2 = None
         elif encounter_mode == "duelo":
             c1, a1, c2, a2 = gerar_par_de_lutadores(generation_mode=generation_mode)
         else:
             selecao = montar_template_selecionado(template_id or ("esquadrao_balanceado_3v3" if encounter_mode == "equipes" else "corredor_contra_horda"))
             c1 = a1 = c2 = a2 = None
 
-        cenario = random.choice(cenarios)
+        cenario = forced_cenario or random.choice(cenarios)
         if encounter_mode == "duelo":
-            nome1 = c1["nome"]
-            nome2 = c2["nome"]
-            classe1 = c1["classe"]
-            classe2 = c2["classe"]
-            gap_abs, gap_rel = _gap_poder(c1, a1, c2, a2)
+            if duelo_direto:
+                nome1 = p1_obj.nome
+                nome2 = p2_obj.nome
+                classe1 = p1_obj.classe
+                classe2 = p2_obj.classe
+                gap_abs = 0.0
+                gap_rel = 0.0
+            else:
+                nome1 = c1["nome"]
+                nome2 = c2["nome"]
+                classe1 = c1["classe"]
+                classe2 = c2["classe"]
+                gap_abs, gap_rel = _gap_poder(c1, a1, c2, a2)
         else:
             nome1 = selecao["template"].get("team_a", {}).get("label", "Time 1")
             nome2 = selecao["template"].get("team_b", {}).get("label", "Time 2") if encounter_mode == "equipes" else str((selecao.get("horda_config") or {}).get("label", "Horda"))
@@ -119,7 +155,7 @@ def run_batch(
             fight_name = "".join(ch if ch.isalnum() or ch in "_-" else "_" for ch in fight_name)
             video_path = str(plat_dir / f"{fight_name}.mp4")
 
-            if encounter_mode == "duelo":
+            if encounter_mode == "duelo" and not duelo_direto:
                 recorder = FightRecorder(
                     c1,
                     a1,
@@ -129,6 +165,20 @@ def run_batch(
                     output_path=video_path,
                     story_mode="roleta_status" if story else "classic",
                     roulette_story=story,
+                )
+            elif encounter_mode == "duelo":
+                encounter_config = build_duel_match_config(
+                    p1_obj.nome,
+                    p2_obj.nome,
+                    cenario=cenario,
+                    portrait_mode=True,
+                    extra={"metadata": {"pipeline_source": "headless_target"}},
+                )
+                recorder = EncounterRecorder(
+                    encounter_config,
+                    extra_characters=[p1_obj, p2_obj],
+                    extra_weapons=[a1_obj, a2_obj],
+                    output_path=video_path,
                 )
             else:
                 if encounter_mode == "equipes":

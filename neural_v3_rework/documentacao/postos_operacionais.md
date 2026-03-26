@@ -52,6 +52,9 @@ Harness tatico:
 - escolhe personagens reais do roster por papel tatico
 - roda combate real em modo dummy para `1v1`, `grupo_vs_grupo` e `grupo_vs_horda`
 - gera metricas comparaveis por time, papel e template
+- quando roda varios templates no mesmo modo, gera `comparativo` com ranking de saude, alertas mais comuns, templates criticos e impacto medio por papel
+- o `comparativo` agora tambem gera `recomendacoes_balanceamento`, apontando eixos provaveis de ajuste como burst, sustain, frontline de horda, papel dominante e familia de arma dominante
+- cada template no comparativo agora tambem recebe um `plano_ajuste` separado por area (`arma`, `skill`, `papel`, `ia`, `composicao`) para guiar a iteracao do balanceamento
 
 ## 2. Posto de Simulacao Completa
 

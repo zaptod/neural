@@ -6,16 +6,28 @@ Classifies 22 biomes including tropical, tundra, taiga, volcano, crystal, corrup
 import numpy as np
 from scipy.ndimage import zoom as _zoom
 
-from config import (
-    MAP_W, MAP_H,
-    TERRAIN_SEED, MOISTURE_SEED, TEMPERATURE_SEED,
-    TERRAIN_OCTAVES, TERRAIN_PERSISTENCE, TERRAIN_LACUNARITY,
-    BIOME_COLORS,
-    ELEV_DEEP_OCEAN, ELEV_OCEAN, ELEV_SHALLOW, ELEV_BEACH,
-    ELEV_LOWLAND, ELEV_HIGHLAND, ELEV_MOUNTAIN, ELEV_PEAK,
-    MOIST_DRY, MOIST_MED, MOIST_WET,
-    TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
-)
+try:
+    from .config import (
+        MAP_W, MAP_H,
+        TERRAIN_SEED, MOISTURE_SEED, TEMPERATURE_SEED,
+        TERRAIN_OCTAVES, TERRAIN_PERSISTENCE, TERRAIN_LACUNARITY,
+        BIOME_COLORS,
+        ELEV_DEEP_OCEAN, ELEV_OCEAN, ELEV_SHALLOW, ELEV_BEACH,
+        ELEV_LOWLAND, ELEV_HIGHLAND, ELEV_MOUNTAIN, ELEV_PEAK,
+        MOIST_DRY, MOIST_MED, MOIST_WET,
+        TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
+    )
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H,
+        TERRAIN_SEED, MOISTURE_SEED, TEMPERATURE_SEED,
+        TERRAIN_OCTAVES, TERRAIN_PERSISTENCE, TERRAIN_LACUNARITY,
+        BIOME_COLORS,
+        ELEV_DEEP_OCEAN, ELEV_OCEAN, ELEV_SHALLOW, ELEV_BEACH,
+        ELEV_LOWLAND, ELEV_HIGHLAND, ELEV_MOUNTAIN, ELEV_PEAK,
+        MOIST_DRY, MOIST_MED, MOIST_WET,
+        TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
+    )
 
 # ───────────────────────────────────────────────────────────────────────────────
 # Noise helpers

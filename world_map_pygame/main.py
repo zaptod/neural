@@ -6,32 +6,53 @@ EVERYTHING interacts with EVERYTHING: weather↔units↔buildings↔materials↔
 v6.0: 1600×1000 map, chunk renderer, world history & eras, army AI,
       auto-civ expansion, Noita-depth 44 reactions, diplomacy.
 """
-import pygame
-import sys
+
+from __future__ import annotations
+
+import argparse
+import math
 import os
 import random
-import math
+
 import numpy as np
+import pygame
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from config import *
-from terrain import generate_terrain, is_land
-from influence import InfluenceMap
-from camera import Camera
-from renderer import Renderer
-from structures import StructureRenderer
-from particles import ParticleSystem
-from ui import WorldBoxUI
-from tools import ToolState, MaterialLayer, apply_tool, MATERIALS, MAT_NAMES
-from events import EventLog
-from data_loader import load_world_state, save_world_state, load_gods, save_gods
-from live_sync import LiveSync
-from civilizations import CivilizationSystem
-from units import UnitSystem
-from weather import WeatherSystem
-from synergy import SynergyEngine
-from history import WorldHistory
+try:
+    from .config import *  # noqa: F403
+    from .terrain import generate_terrain, is_land
+    from .influence import InfluenceMap
+    from .camera import Camera
+    from .renderer import Renderer
+    from .structures import StructureRenderer
+    from .particles import ParticleSystem
+    from .ui import WorldBoxUI
+    from .tools import ToolState, MaterialLayer, apply_tool, MATERIALS, MAT_NAMES
+    from .events import EventLog
+    from .data_loader import load_world_state, save_world_state, load_gods, save_gods
+    from .live_sync import LiveSync
+    from .civilizations import CivilizationSystem
+    from .units import UnitSystem
+    from .weather import WeatherSystem
+    from .synergy import SynergyEngine
+    from .history import WorldHistory
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import *  # noqa: F403
+    from terrain import generate_terrain, is_land
+    from influence import InfluenceMap
+    from camera import Camera
+    from renderer import Renderer
+    from structures import StructureRenderer
+    from particles import ParticleSystem
+    from ui import WorldBoxUI
+    from tools import ToolState, MaterialLayer, apply_tool, MATERIALS, MAT_NAMES
+    from events import EventLog
+    from data_loader import load_world_state, save_world_state, load_gods, save_gods
+    from live_sync import LiveSync
+    from civilizations import CivilizationSystem
+    from units import UnitSystem
+    from weather import WeatherSystem
+    from synergy import SynergyEngine
+    from history import WorldHistory
 
 # ─── Default gods ──────────────────────────────────────────────────────────────
 DEFAULT_GODS = [
@@ -330,10 +351,20 @@ class WorldMap:
 
     def _reclassify_biomes(self):
         """Re-run biome classification after terrain edits."""
-        from config import (ELEV_DEEP_OCEAN, ELEV_OCEAN, ELEV_SHALLOW, ELEV_BEACH,
-                            ELEV_LOWLAND, ELEV_HIGHLAND, ELEV_MOUNTAIN, ELEV_PEAK,
-                            MOIST_DRY, MOIST_MED, MOIST_WET,
-                            TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT)
+        try:
+            from .config import (
+                ELEV_DEEP_OCEAN, ELEV_OCEAN, ELEV_SHALLOW, ELEV_BEACH,
+                ELEV_LOWLAND, ELEV_HIGHLAND, ELEV_MOUNTAIN, ELEV_PEAK,
+                MOIST_DRY, MOIST_MED, MOIST_WET,
+                TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
+            )
+        except ImportError:  # pragma: no cover - direct script fallback
+            from config import (
+                ELEV_DEEP_OCEAN, ELEV_OCEAN, ELEV_SHALLOW, ELEV_BEACH,
+                ELEV_LOWLAND, ELEV_HIGHLAND, ELEV_MOUNTAIN, ELEV_PEAK,
+                MOIST_DRY, MOIST_MED, MOIST_WET,
+                TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
+            )
         bn = self.biome_names
         idx = {name: i for i, name in enumerate(bn)}
         bm = self.biome_map
@@ -568,7 +599,10 @@ class WorldMap:
             # ── UNIVERSAL SYNERGY ENGINE ───────────────────────────────
             self._synergy_accum += dt * speed
             if self._synergy_accum >= 0.2:  # 5 synergy ticks per second
-                from synergy import SynergyEngine as SE
+                try:
+                    from .synergy import SynergyEngine as SE
+                except ImportError:  # pragma: no cover - direct script fallback
+                    from synergy import SynergyEngine as SE
                 SE.reset_tick_modifiers(self)
                 self.synergy.tick(self._synergy_accum, self)
                 self._synergy_accum = 0.0
@@ -794,10 +828,25 @@ class WorldMap:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-def main():
+def build_parser():
+    parser = argparse.ArgumentParser(description="Aethermoor world map launcher")
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Valida bootstrap e imports sem abrir a janela pygame.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None):
+    args = build_parser().parse_args(argv)
+    if args.smoke:
+        print("[smoke] bootstrap ok: world_map_pygame.main")
+        return 0
     app = WorldMap()
     app.run()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -108,14 +108,14 @@ def _pipeline_args(rest: list[str]) -> int:
     return _run_command([sys.executable, script, *rest], env=build_pipeline_env())
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Neural Fights - Hub dos postos operacionais")
     parser.add_argument(
         "posto",
         choices=["headless", "simulacao", "pipeline"],
         help="Escolha o posto a executar.",
     )
-    args, rest = parser.parse_known_args()
+    args, rest = parser.parse_known_args(argv)
 
     if args.posto == "headless":
         return _headless_args(rest)

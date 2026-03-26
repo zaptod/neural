@@ -5,11 +5,18 @@ Weather now affects biomes by modifying moisture/temperature.
 """
 import numpy as np
 import random
-from config import (
-    MAP_W, MAP_H,
-    WEATHER_TICK_RATE, SEASON_LENGTH, SEASONS,
-    TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
-)
+try:
+    from .config import (
+        MAP_W, MAP_H,
+        WEATHER_TICK_RATE, SEASON_LENGTH, SEASONS,
+        TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
+    )
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H,
+        WEATHER_TICK_RATE, SEASON_LENGTH, SEASONS,
+        TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -126,7 +133,10 @@ class WeatherSystem:
     # ── apply zone effects ─────────────────────────────────────────────────
     def _apply_zone(self, zone, heightmap, moisture, material_layer,
                     biome_map, biome_names):
-        from tools import MAT_INDEX
+        try:
+            from .tools import MAT_INDEX
+        except ImportError:  # pragma: no cover - direct script fallback
+            from tools import MAT_INDEX
         changed = False
         x, y, r = zone.x, zone.y, zone.radius
         y0 = max(0, y - r)

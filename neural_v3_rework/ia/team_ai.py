@@ -160,9 +160,8 @@ class TeamCoordinator:
 
         # === TÁTICAS ===
         self.tactic = TeamTactic.FOCUS_FIRE
-        self.tactic_timer = 0.0
         self.tactic_reeval_cd = 3.0  # Reavalia a cada 3s
-        self.tactic_timer = self.tactic_reeval_cd
+        self.tactic_timer = self.tactic_reeval_cd  # avalia imediatamente no primeiro update
         self.target_priority = TargetPriority.LOWEST_HP
 
         # === FOCO ===
@@ -249,9 +248,7 @@ class TeamCoordinator:
 
             self.roles[mid] = role
             self.role_confidence[mid] = max(0.7, float(package.get("confidence", 0.0)))
-            self.role_confidence[mid] = 0.7  # confiança base
             role_counts[role] = role_counts.get(role, 0) + 1
-            self.role_confidence[mid] = max(0.7, float(package.get("confidence", 0.0)))
 
         # Identifica carry (maior dano potencial)
         best_dmg = 0
@@ -579,12 +576,12 @@ class TeamCoordinator:
             self.target_priority = TargetPriority.LOWEST_HP
 
         if horde_mode:
-            self.target_priority = TargetPriority.HIGHEST_THREAT if elite_present else (
-                TargetPriority.HIGHEST_THREAT if self.tactic == TeamTactic.PROTECT_CARRY else TargetPriority.NEAREST
-            )
-
-        if horde_mode:
-            self.target_priority = TargetPriority.HIGHEST_THREAT if elite_present else TargetPriority.NEAREST
+            if elite_present:
+                self.target_priority = TargetPriority.HIGHEST_THREAT
+            elif self.tactic == TeamTactic.PROTECT_CARRY:
+                self.target_priority = TargetPriority.HIGHEST_THREAT
+            else:
+                self.target_priority = TargetPriority.NEAREST
 
     # ─── FOCO DE ALVO ────────────────────────────────────────
     def _update_focus_targets(self, all_fighters):

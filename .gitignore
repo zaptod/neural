@@ -1,0 +1,14 @@
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Neural Fights runtime artifacts
+neural_v3_rework/saidas/
+neural_v3_rework/dados/_db_shadow/
+neural_v3_rework/tests/_tmp_ui_reports/
+neural_v3_rework/tests/.tmp_ui/
+
+# Local uploads and temporary files
+.tmp.driveupload/

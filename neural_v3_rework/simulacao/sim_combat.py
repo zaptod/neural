@@ -1,4 +1,5 @@
 ﻿"""Auto-generated mixin â€” gerado por scripts/split_simulacao.py (arquivado em _archive/scripts/)"""
+from dataclasses import dataclass
 import pygame
 import logging
 _log = logging.getLogger("simulacao")  # QC-02
@@ -32,8 +33,159 @@ from ia import CombatChoreographer  # Sistema de Coreografia v5.0
 from nucleo.game_feel import GameFeelManager, HitStopManager  # Sistema de Game Feel v8.0
 
 
+@dataclass
+class AttackImpactVector:
+    dx_px: int
+    dy_px: int
+    vx: float
+    vy: float
+    mag: float
+    direcao_impacto: float
+    posicao_mundo: tuple[float, float]
+
+
+@dataclass
+class ChainAttackResolution:
+    dano: float
+    knockback_mult: float = 1.0
+    label: str | None = None
+
+
 class SimuladorCombat:
     """Mixin de combate: detecÃ§Ã£o de hits, clashes, bloqueios e fÃ­sica."""
+
+    def _arma_usa_hitbox_direta(self, arma):
+        return not arma or arma.tipo not in ["Arremesso", "Arco", "MÃ¡gica"]
+
+    def _ja_acertou_alvo_neste_ataque(self, atacante, defensor):
+        alvos_atingidos = getattr(atacante, 'alvos_atingidos_neste_ataque', None)
+        return alvos_atingidos is not None and id(defensor) in alvos_atingidos
+
+    def _marcar_alvo_atingido_neste_ataque(self, atacante, defensor):
+        alvos_atingidos = getattr(atacante, 'alvos_atingidos_neste_ataque', None)
+        if alvos_atingidos is not None:
+            alvos_atingidos.add(id(defensor))
+
+    def _calcular_vetor_impacto(self, atacante, defensor):
+        dx_px = int(defensor.pos[0] * PPM)
+        dy_px = int(defensor.pos[1] * PPM)
+        vx = defensor.pos[0] - atacante.pos[0]
+        vy = defensor.pos[1] - atacante.pos[1]
+        mag = math.hypot(vx, vy) or 1
+        return AttackImpactVector(
+            dx_px=dx_px,
+            dy_px=dy_px,
+            vx=vx,
+            vy=vy,
+            mag=mag,
+            direcao_impacto=math.atan2(vy, vx),
+            posicao_mundo=(dx_px / PPM, dy_px / PPM),
+        )
+
+    def _calcular_dano_ataque_melee(self, atacante, arma):
+        dano_base = arma.dano * (0.78 + atacante.dados.forca / 3.1)
+        if hasattr(atacante, 'calcular_dano_ataque'):
+            return atacante.calcular_dano_ataque(dano_base)
+        return dano_base, False
+
+    def _aplicar_desgaste_durabilidade_arma(self, atacante, arma, dano, is_critico):
+        if not hasattr(arma, 'durabilidade'):
+            return dano
+
+        desgaste = 0.5 if not is_critico else 1.0
+        arma.durabilidade = max(0.0, arma.durabilidade - desgaste)
+        if arma.durabilidade > 0:
+            return dano
+
+        dano *= 0.5
+        if not getattr(arma, '_aviso_quebrada_exibido', False):
+            self.textos.append(FloatingText(
+                atacante.pos[0] * PPM, atacante.pos[1] * PPM - 70,
+                "ARMA QUEBRADA!", (200, 50, 50), 22
+            ))
+            arma._aviso_quebrada_exibido = True
+        return dano
+
+    def _aplicar_mecanicas_corrente(self, atacante, defensor, arma, dano, vetor_impacto):
+        if not arma or arma.tipo != "Corrente":
+            return ChainAttackResolution(dano=dano)
+
+        chain_estilo = getattr(arma, 'estilo', '')
+        chain_result = ChainAttackResolution(dano=dano)
+        dist_hit = math.hypot(vetor_impacto.vx, vetor_impacto.vy)
+
+        if "Mangual" in chain_estilo or "Flail" in chain_estilo:
+            momentum = getattr(atacante, 'chain_momentum', 0)
+            chain_result.dano *= (1.0 + momentum * 0.6)
+            chain_result.knockback_mult = 1.0 + momentum * 0.8
+            atacante.chain_momentum = min(1.0, momentum + 0.25)
+            if momentum >= 0.7:
+                chain_result.label = "MOMENTUM!"
+            return chain_result
+
+        if chain_estilo == "Kusarigama":
+            mode = getattr(atacante, 'chain_mode', 0)
+            if mode == 0:
+                chain_result.dano *= 0.75
+                from nucleo.combat import DotEffect
+                dot = DotEffect("SANGRANDO", defensor, arma.dano * 0.3, 3.0, (180, 40, 40))
+                defensor.dots_ativos.append(dot)
+                chain_result.label = "CORTE!"
+            else:
+                defensor.stun_timer = max(defensor.stun_timer, 0.4)
+                chain_result.knockback_mult = 1.3
+                chain_result.label = "STUN!"
+            return chain_result
+
+        if chain_estilo == "Chicote":
+            alcance_total = getattr(atacante, 'raio_fisico', 0.5) * 6.0
+            ratio_dist = dist_hit / max(alcance_total, 0.1)
+            if ratio_dist >= 0.65:
+                chain_result.dano *= 2.0
+                chain_result.label = "CRACK!"
+                if defensor.atacando:
+                    defensor.atacando = False
+                    defensor.cooldown_ataque = 0.3
+            else:
+                chain_result.dano *= 0.6
+            chain_result.knockback_mult = 0.5
+            return chain_result
+
+        if chain_estilo == "Meteor Hammer":
+            spin_speed = getattr(atacante, 'chain_spin_speed', 0)
+            chain_result.dano *= (1.0 + min(spin_speed, 3.0) * 0.33)
+            chain_result.knockback_mult = 0.8
+            if spin_speed >= 2.0:
+                chain_result.label = "ORBITA!"
+            return chain_result
+
+        if "Corrente com Peso" in chain_estilo:
+            defensor.slow_timer = max(defensor.slow_timer, 1.5)
+            defensor.slow_fator = min(defensor.slow_fator, 0.6)
+            pull_force = 4.0
+            pull_dx = atacante.pos[0] - defensor.pos[0]
+            pull_dy = atacante.pos[1] - defensor.pos[1]
+            pull_mag = math.hypot(pull_dx, pull_dy) or 1
+            defensor.vel[0] += (pull_dx / pull_mag) * pull_force
+            defensor.vel[1] += (pull_dy / pull_mag) * pull_force
+            chain_result.knockback_mult = 0.3
+            chain_result.label = "PUXÃƒO!"
+            return chain_result
+
+        return chain_result
+
+    def _determinar_tipo_golpe(self, atacante, dano, is_critico):
+        classe_atacante = getattr(atacante, 'classe_nome', "Guerreiro")
+        if any(c in classe_atacante for c in ["Berserker", "Guerreiro", "Cavaleiro", "Gladiador"]):
+            tipo_golpe = "PESADO" if dano > 20 else "MEDIO"
+            if dano > 35 or is_critico:
+                tipo_golpe = "DEVASTADOR"
+            return tipo_golpe
+        if any(c in classe_atacante for c in ["Assassino", "Ninja", "Ladino"]):
+            return "DEVASTADOR" if is_critico else "LEVE"
+        if dano > 25:
+            return "PESADO"
+        return "MEDIO"
 
 
     def checar_ataque(self, atacante, defensor):

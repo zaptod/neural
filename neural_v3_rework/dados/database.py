@@ -73,6 +73,7 @@ def carregar_personagens():
             item.get("personalidade", "AleatÃ³rio"),
             item.get("god_id", None),       # [PHASE 3] Carrega vÃ­nculo divino
             item.get("lore", ""),           # INC-1: lore nÃ£o estava sendo carregado
+            item.get("skills_personagem", item.get("habilidades_personagem", [])),
         )
         lista.append(p)
     return lista

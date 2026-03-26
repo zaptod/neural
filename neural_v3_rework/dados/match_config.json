@@ -1,30 +1,28 @@
 {
-  "modo_partida": "equipes",
-  "p1_nome": "Aeron Ferro da Brasa",
-  "p2_nome": "Mira Ferro da Brasa",
-  "cenario": "Arena",
-  "best_of": 1,
-  "portrait_mode": false,
-  "teams": [
-    {
-      "team_id": 0,
-      "label": "Time 1",
-      "members": [
-        "Aeron Ferro da Brasa",
-        "Kaelis Ferro da Brasa"
-      ]
-    },
-    {
-      "team_id": 1,
-      "label": "Time 2",
-      "members": [
-        "Mira Ferro da Brasa",
-        "Darian Ferro da Brasa"
-      ]
-    }
-  ],
-  "horda_config": null,
-  "campaign_context": {},
-  "objective_config": {},
-  "metadata": {}
+    "modo_partida": "duelo",
+    "p1_nome": "Aeron Ferro da Brasa",
+    "p2_nome": "Kaelis Ferro da Brasa",
+    "cenario": "Arena",
+    "best_of": 1,
+    "portrait_mode": false,
+    "teams": [
+        {
+            "team_id": 0,
+            "label": "Time 1",
+            "members": [
+                "Aeron Ferro da Brasa"
+            ]
+        },
+        {
+            "team_id": 1,
+            "label": "Time 2",
+            "members": [
+                "Kaelis Ferro da Brasa"
+            ]
+        }
+    ],
+    "horda_config": null,
+    "campaign_context": {},
+    "objective_config": {},
+    "metadata": {}
 }

@@ -170,3 +170,62 @@ def test_hibrida_troca_para_forma_longa_quando_alvo_afasta():
     assert fighter.transform_forma == 1
     assert fighter.transform_bonus_timer > 0.0
     assert fighter.atacando is True
+
+
+def test_orbital_escudo_ativa_guarda_e_dispara_burst_defensivo():
+    arma = Arma(
+        nome="Egide Prismatica",
+        tipo="Orbital",
+        familia="orbital",
+        subtipo="escudo",
+        estilo="Bastiao Prismatico",
+        dano=8,
+        peso=4,
+        quantidade_orbitais=2,
+        habilidades=[],
+    )
+    fighter = _make_fighter("Guardiao", arma)
+    enemy = _make_fighter("Target", Arma(nome="Espada", tipo="Reta", dano=8, peso=3))
+    fighter.brain.acao_atual = "COMBATE"
+    fighter.cooldown_ataque = 0.0
+    fighter.atacando = False
+    fighter.pos = [0.0, 0.0]
+    enemy.pos = [2.0, 0.0]
+    enemy.z = 0.0
+    fighter.z = 0.0
+
+    fighter.executar_ataques(0.016, 2.0, enemy)
+
+    assert fighter.orbital_shield_active is True
+    assert fighter.atacando is True
+    assert fighter.buffer_projeteis
+    assert fighter.get_escudo_info() is not None
+
+
+def test_orbital_laminas_dispara_rajada_agressiva():
+    arma = Arma(
+        nome="Coroa de Saturno",
+        tipo="Orbital",
+        familia="orbital",
+        subtipo="laminas",
+        estilo="Laminas Orbitais",
+        dano=8,
+        peso=3,
+        quantidade_orbitais=3,
+        habilidades=[],
+    )
+    fighter = _make_fighter("Blade", arma)
+    enemy = _make_fighter("Target", Arma(nome="Espada", tipo="Reta", dano=8, peso=3))
+    fighter.brain.acao_atual = "PRESSIONAR"
+    fighter.cooldown_ataque = 0.0
+    fighter.atacando = False
+    fighter.pos = [0.0, 0.0]
+    enemy.pos = [2.6, 0.0]
+    enemy.z = 0.0
+    fighter.z = 0.0
+
+    fighter.executar_ataques(0.016, 2.6, enemy)
+
+    assert fighter.orbital_shield_active is False
+    assert fighter.buffer_projeteis
+    assert len(fighter.buffer_projeteis) >= 3

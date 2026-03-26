@@ -13,6 +13,7 @@ from interface.theme import (
     COR_TEXTO,
     COR_TEXTO_DIM,
     COR_TEXTO_SUB,
+    COR_WARNING,
 )
 
 
@@ -77,6 +78,61 @@ class UICard(tk.Frame):
             pady=pady,
             **kwargs,
         )
+
+
+class ScrollableWorkspace(tk.Frame):
+    def __init__(self, parent, *, bg=COR_BG, xscroll=True, yscroll=True, **kwargs):
+        super().__init__(parent, bg=bg, **kwargs)
+        self._xscroll = xscroll
+        self._yscroll = yscroll
+
+        self.canvas = tk.Canvas(self, bg=bg, highlightthickness=0, bd=0)
+        self.canvas.pack(side="left", fill="both", expand=True)
+
+        self.v_scroll = None
+        self.h_scroll = None
+        if yscroll:
+            self.v_scroll = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+            self.v_scroll.pack(side="right", fill="y")
+            self.canvas.configure(yscrollcommand=self.v_scroll.set)
+        if xscroll:
+            self.h_scroll = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
+            self.h_scroll.pack(side="bottom", fill="x")
+            self.canvas.configure(xscrollcommand=self.h_scroll.set)
+
+        self.content = tk.Frame(self.canvas, bg=bg)
+        self._window_id = self.canvas.create_window((0, 0), window=self.content, anchor="nw")
+
+        self.content.bind("<Configure>", self._on_content_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.canvas.bind("<Enter>", self._bind_mousewheel)
+        self.canvas.bind("<Leave>", self._unbind_mousewheel)
+
+    def _on_content_configure(self, _event=None):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event=None):
+        if not self._xscroll and event is not None:
+            self.canvas.itemconfigure(self._window_id, width=event.width)
+        if not self._yscroll and event is not None:
+            self.canvas.itemconfigure(self._window_id, height=event.height)
+
+    def _bind_mousewheel(self, _event=None):
+        if self._yscroll:
+            self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+            self.canvas.bind_all("<Shift-MouseWheel>", self._on_shift_mousewheel)
+
+    def _unbind_mousewheel(self, _event=None):
+        self.canvas.unbind_all("<MouseWheel>")
+        self.canvas.unbind_all("<Shift-MouseWheel>")
+
+    def _on_mousewheel(self, event):
+        if self._yscroll:
+            self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _on_shift_mousewheel(self, event):
+        if self._xscroll:
+            self.canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
 
 
 class InlineFeedbackBar(UICard):
@@ -532,6 +588,203 @@ class EmptyState(UICard):
             justify="left",
             wraplength=360,
         ).pack(fill="x", pady=(6, 0))
+
+
+class HeadlessSummaryCard(UICard):
+    def __init__(self, parent, *, title="Diagnostico Headless", compact=False, open_command=None, action_text=None, action_command=None):
+        super().__init__(parent, bg=COR_BG_CARD, border=COR_BORDA, padx=16, pady=14)
+        self._compact = compact
+
+        top = tk.Frame(self, bg=COR_BG_CARD)
+        top.pack(fill="x")
+
+        self._badge = tk.Label(
+            top,
+            text="SEM RELATORIO",
+            font=("Segoe UI", 8 if compact else 9, "bold"),
+            bg="#243244",
+            fg=COR_TEXTO_DIM,
+            padx=10,
+            pady=4,
+        )
+        self._badge.pack(side="left", anchor="nw")
+
+        actions = tk.Frame(top, bg=COR_BG_CARD)
+        actions.pack(side="right", anchor="ne")
+
+        if open_command:
+            make_secondary_button(
+                actions,
+                "Abrir Relatorio",
+                open_command,
+                padx=12,
+                pady=7,
+                font=("Segoe UI", 9, "bold"),
+            ).pack(side="right", anchor="ne")
+        if action_command and action_text:
+            make_primary_button(
+                actions,
+                action_text,
+                action_command,
+                padx=12,
+                pady=7,
+                font=("Segoe UI", 9, "bold"),
+            ).pack(side="right", anchor="ne", padx=(0, 8))
+
+        tk.Label(
+            self,
+            text=title,
+            font=("Bahnschrift SemiBold", 15 if compact else 18),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO,
+            anchor="w",
+        ).pack(fill="x", pady=(10, 4))
+
+        wrap = 260 if compact else 720
+        self._headline = tk.Label(
+            self,
+            text="Nenhum relatorio headless ainda",
+            font=("Segoe UI", 10 if compact else 11, "bold"),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._headline.pack(fill="x")
+
+        self._subheadline = tk.Label(
+            self,
+            text="Rode o posto headless para preencher este painel.",
+            font=("Segoe UI", 9),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO_DIM,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._subheadline.pack(fill="x", pady=(4, 8))
+
+        self._alerts = tk.Label(
+            self,
+            text="Alertas: -",
+            font=("Segoe UI", 9),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._alerts.pack(fill="x", pady=2)
+
+        self._recs = tk.Label(
+            self,
+            text="Recomendacoes: -",
+            font=("Segoe UI", 9),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._recs.pack(fill="x", pady=2)
+
+        self._areas = tk.Label(
+            self,
+            text="Areas: -",
+            font=("Segoe UI", 9),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO_DIM,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._areas.pack(fill="x", pady=(2, 0))
+
+        self._packages = tk.Label(
+            self,
+            text="Pacotes em evidencia: -",
+            font=("Segoe UI", 9),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO_DIM,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._packages.pack(fill="x", pady=(2, 0))
+
+        self._review_axis = tk.Label(
+            self,
+            text="Eixo prioritario: -",
+            font=("Segoe UI", 9, "bold"),
+            bg=COR_BG_CARD,
+            fg=COR_WARNING,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._review_axis.pack(fill="x", pady=(8, 0))
+
+        self._review_plan = tk.Label(
+            self,
+            text="Plano de revisao: -",
+            font=("Segoe UI", 9),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO_DIM,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._review_plan.pack(fill="x", pady=(2, 0))
+
+        self._inspection_title = tk.Label(
+            self,
+            text="Alvo de Inspecao",
+            font=("Segoe UI", 9, "bold"),
+            bg=COR_BG_CARD,
+            fg=COR_SUCCESS,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._inspection_title.pack(fill="x", pady=(10, 2))
+
+        self._inspection_text = tk.Label(
+            self,
+            text="Assim que existir um relatorio recente, este painel aponta o que observar na proxima luta.",
+            font=("Segoe UI", 9),
+            bg=COR_BG_CARD,
+            fg=COR_TEXTO_DIM,
+            anchor="w",
+            justify="left",
+            wraplength=wrap,
+        )
+        self._inspection_text.pack(fill="x", pady=(0, 0))
+
+    def set_summary(self, resumo):
+        tone = str((resumo or {}).get("status_tone", "idle") or "idle")
+        palette = {
+            "healthy": ("#123227", COR_SUCCESS),
+            "warning": ("#4a3815", "#f5c451"),
+            "critical": ("#4e1f26", "#ff9494"),
+            "idle": ("#243244", COR_TEXTO_DIM),
+        }
+        bg_badge, fg_badge = palette.get(tone, palette["idle"])
+        self._badge.configure(
+            text=str((resumo or {}).get("status_text", "SEM RELATORIO") or "SEM RELATORIO"),
+            bg=bg_badge,
+            fg=fg_badge,
+        )
+        self._headline.configure(text=str((resumo or {}).get("headline", "-") or "-"))
+        self._subheadline.configure(text=str((resumo or {}).get("subheadline", "-") or "-"))
+        self._alerts.configure(text=f"Alertas: {str((resumo or {}).get('alert_text', '-') or '-')}")
+        self._recs.configure(text=f"Recomendacoes: {str((resumo or {}).get('recommendation_text', '-') or '-')}")
+        self._areas.configure(text=f"Areas: {str((resumo or {}).get('areas_text', '-') or '-')}")
+        self._packages.configure(text=f"Pacotes em evidencia: {str((resumo or {}).get('package_text', '-') or '-')}")
+        self._review_axis.configure(text=f"Eixo prioritario: {str((resumo or {}).get('review_axis_text', '-') or '-')}")
+        self._review_plan.configure(text=f"Plano de revisao: {str((resumo or {}).get('review_plan_text', '-') or '-')}")
+        self._inspection_title.configure(text=str((resumo or {}).get("inspection_title", "Alvo de Inspecao") or "Alvo de Inspecao"))
+        self._inspection_text.configure(text=str((resumo or {}).get("inspection_text", "-") or "-"))
 
 
 def render_stat_grid(

@@ -4,11 +4,18 @@ Each god's strongholds radiate influence; no hard borders.
 Uses sparse computation: only computes within stronghold radius (130× faster for big maps).
 """
 import numpy as np
-from config import (
-    MAP_W, MAP_H,
-    INFLUENCE_DEFAULT_RADIUS, INFLUENCE_MIN_THRESHOLD,
-    INFLUENCE_WATER_FACTOR,
-)
+try:
+    from .config import (
+        MAP_W, MAP_H,
+        INFLUENCE_DEFAULT_RADIUS, INFLUENCE_MIN_THRESHOLD,
+        INFLUENCE_WATER_FACTOR,
+    )
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H,
+        INFLUENCE_DEFAULT_RADIUS, INFLUENCE_MIN_THRESHOLD,
+        INFLUENCE_WATER_FACTOR,
+    )
 
 
 class InfluenceMap:

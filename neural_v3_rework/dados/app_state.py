@@ -517,10 +517,24 @@ class AppState:
                 raw_chars = json.load(f)
             # Build weapon-weight lookup from in-memory weapons (already loaded)
             weapon_weights = {a.nome: a.peso for a in self._weapons}
+            weapon_lookup = {a.nome: a for a in self._weapons}
             result = []
+            migrated = False
             for item in raw_chars:
                 nome_arma  = item.get("nome_arma", "")
                 peso_arma  = weapon_weights.get(nome_arma, 0)
+                skills_personagem = list(item.get("skills_personagem", item.get("habilidades_personagem", [])) or [])
+                if not skills_personagem and nome_arma in weapon_lookup:
+                    arma_obj = weapon_lookup[nome_arma]
+                    habilidades = list(getattr(arma_obj, "habilidades", []) or [])
+                    if habilidades:
+                        skills_personagem = habilidades
+                        migrated = True
+                    else:
+                        nome_skill = str(getattr(arma_obj, "habilidade", "Nenhuma") or "Nenhuma")
+                        if nome_skill and nome_skill != "Nenhuma":
+                            skills_personagem = [{"nome": nome_skill, "custo": float(getattr(arma_obj, "custo_mana", 0.0) or 0.0)}]
+                            migrated = True
                 p = Personagem(
                     item["nome"], item["tamanho"], item["forca"], item["mana"],
                     nome_arma, peso_arma,
@@ -529,8 +543,11 @@ class AppState:
                     item.get("personalidade", "AleatÃ³rio"),
                     item.get("god_id", None),
                     item.get("lore", ""),   # MEL-C3: Background opcional (compatÃ­vel com JSONs antigos)
+                    skills_personagem=skills_personagem,
                 )
                 result.append(p)
+            if migrated:
+                self._write_json(FILE_CHARS, [p.to_dict() for p in result])
             return result
         except Exception as e:
             _log.warning("Erro ao carregar characters: %s", e)

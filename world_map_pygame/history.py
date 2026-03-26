@@ -5,7 +5,10 @@ territory changes, civilization rise/fall. History shapes the future.
 """
 import time
 import random
-from config import ERA_LENGTH, ERA_NAMES, HISTORY_MAX_EVENTS
+try:
+    from .config import ERA_LENGTH, ERA_NAMES, HISTORY_MAX_EVENTS
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import ERA_LENGTH, ERA_NAMES, HISTORY_MAX_EVENTS
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -477,7 +480,10 @@ class WorldHistory:
 
     def _apply_disaster(self, dtype, x, y, world):
         """Actually apply disaster effects to the world."""
-        from tools import MAT_INDEX
+        try:
+            from .tools import MAT_INDEX
+        except ImportError:  # pragma: no cover - direct script fallback
+            from tools import MAT_INDEX
         ml = world.materials
         r = random.randint(15, 35)
 

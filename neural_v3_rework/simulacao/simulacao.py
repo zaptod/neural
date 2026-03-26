@@ -1,6 +1,7 @@
 ﻿import pygame
 import logging
 _log = logging.getLogger("simulacao")  # QC-02
+from dataclasses import dataclass
 import json
 import math
 import random
@@ -36,6 +37,14 @@ from simulacao.horde_runtime import HordeWaveManager
 from simulacao.sim_renderer import SimuladorRenderer
 from simulacao.sim_combat import SimuladorCombat
 from simulacao.sim_effects import SimuladorEffects
+
+
+@dataclass(frozen=True)
+class FrameUpdateContext:
+    dt: float
+    dt_efetivo: float
+    early_exit: bool = False
+    reason: str = ""
 
 
 class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
@@ -97,6 +106,139 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
             return AppState.get().match_config.get("portrait_mode", False)
         except Exception:  # QC-01
             return False
+
+    def _update_frame_transients(self, dt: float) -> None:
+        for texto in self.textos:
+            texto.update(dt)
+        self.textos = [texto for texto in self.textos if texto.vida > 0]
+
+        for shockwave in self.shockwaves:
+            shockwave.update(dt)
+        self.shockwaves = [shockwave for shockwave in self.shockwaves if shockwave.vida > 0]
+
+    def _update_hit_stop_visuals(self, dt: float) -> None:
+        for efeito in self.impact_flashes:
+            efeito.update(dt * 0.3)
+        for efeito in self.hit_sparks:
+            efeito.update(dt * 0.3)
+
+    def _prepare_frame_update(self, dt: float) -> FrameUpdateContext:
+        self.cam.atualizar(dt, self.p1, self.p2, fighters=self.fighters)
+        atualizar_debug(dt)
+
+        if self.paused:
+            return FrameUpdateContext(dt=dt, dt_efetivo=dt, early_exit=True, reason="paused")
+
+        self._update_frame_transients(dt)
+
+        dt_efetivo = dt
+        if self.game_feel:
+            dt_efetivo = self.game_feel.update(dt)
+            if dt_efetivo == 0:
+                self._update_hit_stop_visuals(dt)
+                return FrameUpdateContext(
+                    dt=dt,
+                    dt_efetivo=dt_efetivo,
+                    early_exit=True,
+                    reason="game_feel_hit_stop",
+                )
+        else:
+            if self.hit_stop_timer > 0:
+                self.hit_stop_timer -= dt
+                return FrameUpdateContext(
+                    dt=dt,
+                    dt_efetivo=0.0,
+                    early_exit=True,
+                    reason="legacy_hit_stop",
+                )
+
+        return FrameUpdateContext(dt=dt, dt_efetivo=dt_efetivo)
+
+    def _collect_pending_runtime_objects(self) -> None:
+        for lutador in self.fighters:
+            if lutador.buffer_projeteis:
+                self.projeteis.extend(lutador.buffer_projeteis)
+                lutador.buffer_projeteis = []
+
+            if hasattr(lutador, 'buffer_orbes') and lutador.buffer_orbes:
+                if not hasattr(self, 'orbes'):
+                    self.orbes = []
+
+            if hasattr(lutador, 'buffer_areas') and lutador.buffer_areas:
+                if not hasattr(self, 'areas'):
+                    self.areas = []
+                self.areas.extend(lutador.buffer_areas)
+                lutador.buffer_areas = []
+
+            if hasattr(lutador, 'buffer_beams') and lutador.buffer_beams:
+                if not hasattr(self, 'beams'):
+                    self.beams = []
+                self.beams.extend(lutador.buffer_beams)
+                lutador.buffer_beams = []
+
+            if hasattr(lutador, 'buffer_summons') and lutador.buffer_summons:
+                if not hasattr(self, 'summons'):
+                    self.summons = []
+                for summon in lutador.buffer_summons:
+                    if hasattr(self, 'magic_vfx') and self.magic_vfx:
+                        elemento = "ARCANO"
+                        nome = getattr(summon, 'nome', '').lower()
+                        if any(word in nome for word in ["fogo", "fire", "chama"]):
+                            elemento = "FOGO"
+                        elif any(word in nome for word in ["gelo", "ice"]):
+                            elemento = "GELO"
+                        elif any(word in nome for word in ["raio", "light"]):
+                            elemento = "RAIO"
+                        elif any(word in nome for word in ["trevas", "shadow"]):
+                            elemento = "TREVAS"
+                        self.magic_vfx.spawn_summon(summon.x * PPM, summon.y * PPM, elemento)
+
+                self.summons.extend(lutador.buffer_summons)
+                lutador.buffer_summons = []
+
+            if hasattr(lutador, 'buffer_traps') and lutador.buffer_traps:
+                if not hasattr(self, 'traps'):
+                    self.traps = []
+                self.traps.extend(lutador.buffer_traps)
+                lutador.buffer_traps = []
+
+    def _update_runtime_effects(self, dt: float) -> None:
+        for efeito in self.impact_flashes:
+            efeito.update(dt)
+        self.impact_flashes = [efeito for efeito in self.impact_flashes if efeito.vida > 0]
+
+        for efeito in self.magic_clashes:
+            efeito.update(dt)
+        self.magic_clashes = [efeito for efeito in self.magic_clashes if efeito.vida > 0]
+
+        for efeito in self.block_effects:
+            efeito.update(dt)
+        self.block_effects = [efeito for efeito in self.block_effects if efeito.vida > 0]
+
+        for efeito in self.dash_trails:
+            efeito.update(dt)
+        self.dash_trails = [efeito for efeito in self.dash_trails if efeito.vida > 0]
+
+        for efeito in self.hit_sparks:
+            efeito.update(dt)
+        self.hit_sparks = [efeito for efeito in self.hit_sparks if efeito.vida > 0]
+
+    def _update_magic_vfx_runtime(self, dt: float) -> None:
+        if not (hasattr(self, 'magic_vfx') and self.magic_vfx):
+            return
+
+        self.magic_vfx.update(dt)
+        for proj in self.projeteis:
+            elemento_trail = self._get_projetil_elemento(proj)
+            trail_vfx = self.magic_vfx.get_or_create_trail(id(proj), elemento_trail)
+            vel_proj = getattr(proj, 'vel', getattr(proj, 'vel_disparo', 10.0))
+            try:
+                vel_proj = float(vel_proj)
+            except (TypeError, ValueError):
+                vel_proj = 10.0
+            if not math.isfinite(vel_proj) or vel_proj <= 0:
+                vel_proj = 10.0
+            trail_vfx.update(dt, proj.x * PPM, proj.y * PPM, vel_proj * 0.1)
 
     def __init__(self):
         pygame.init()
@@ -627,119 +769,13 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
 
 
     def update(self, dt):
-        self.cam.atualizar(dt, self.p1, self.p2, fighters=self.fighters)
-        # Atualiza sistema de debug de hitbox
-        atualizar_debug(dt)
-        
-        if self.paused: return
+        frame = self._prepare_frame_update(dt)
+        if frame.early_exit:
+            return
 
-        for t in self.textos: t.update(dt)
-        self.textos = [t for t in self.textos if t.vida > 0]
-        for s in self.shockwaves: s.update(dt)
-        self.shockwaves = [s for s in self.shockwaves if s.vida > 0]
-
-        # === GAME FEEL v8.0 - HIT STOP GERENCIADO ===
-        # O Game Feel Manager pode zerar o dt durante hit stop
-        dt_efetivo = dt
-        if self.game_feel:
-            dt_efetivo = self.game_feel.update(dt)
-            # Durante hit stop, apenas efeitos visuais atualizam
-            if dt_efetivo == 0:
-                # Atualiza apenas efeitos visuais durante hit stop
-                for ef in self.impact_flashes: ef.update(dt * 0.3)  # Slow mo nos efeitos
-                for ef in self.hit_sparks: ef.update(dt * 0.3)
-                return
-        else:
-            # Fallback para sistema antigo de hit stop
-            if self.hit_stop_timer > 0: 
-                self.hit_stop_timer -= dt
-                return
-
-        # === COLETA OBJETOS DOS LUTADORES ===
-        for p in self.fighters:
-            # ProjÃ©teis
-            if p.buffer_projeteis:
-                self.projeteis.extend(p.buffer_projeteis)
-                p.buffer_projeteis = []
-            # Orbes mÃ¡gicos
-            if hasattr(p, 'buffer_orbes') and p.buffer_orbes:
-                if not hasattr(self, 'orbes'):
-                    self.orbes = []
-                # Orbes ficam na lista do lutador para atualizaÃ§Ã£o de Ã³rbita
-                # mas tambÃ©m precisamos processar colisÃµes aqui
-            # Ãreas
-            if hasattr(p, 'buffer_areas') and p.buffer_areas:
-                if not hasattr(self, 'areas'):
-                    self.areas = []
-                self.areas.extend(p.buffer_areas)
-                p.buffer_areas = []
-            # Beams
-            if hasattr(p, 'buffer_beams') and p.buffer_beams:
-                if not hasattr(self, 'beams'):
-                    self.beams = []
-                self.beams.extend(p.buffer_beams)
-                p.buffer_beams = []
-            
-            # === NOVOS TIPOS v2.0 ===
-            # Summons (invocaÃ§Ãµes)
-            if hasattr(p, 'buffer_summons') and p.buffer_summons:
-                if not hasattr(self, 'summons'):
-                    self.summons = []
-                # Spawn effect dramÃ¡tico para cada novo summon
-                for summon in p.buffer_summons:
-                    if hasattr(self, 'magic_vfx') and self.magic_vfx:
-                        # Determina elemento pelo nome/cor do summon
-                        elemento = "ARCANO"
-                        nome = getattr(summon, 'nome', '').lower()
-                        if any(w in nome for w in ["fogo", "fire", "chama"]):
-                            elemento = "FOGO"
-                        elif any(w in nome for w in ["gelo", "ice"]):
-                            elemento = "GELO"
-                        elif any(w in nome for w in ["raio", "light"]):
-                            elemento = "RAIO"
-                        elif any(w in nome for w in ["trevas", "shadow"]):
-                            elemento = "TREVAS"
-                        
-                        self.magic_vfx.spawn_summon(summon.x * PPM, summon.y * PPM, elemento)
-                
-                self.summons.extend(p.buffer_summons)
-                p.buffer_summons = []
-            
-            # Traps (armadilhas/estruturas)
-            if hasattr(p, 'buffer_traps') and p.buffer_traps:
-                if not hasattr(self, 'traps'):
-                    self.traps = []
-                self.traps.extend(p.buffer_traps)
-                p.buffer_traps = []
-
-        # === ATUALIZA NOVOS EFEITOS v7.0 ===
-        for ef in self.impact_flashes: ef.update(dt)
-        self.impact_flashes = [ef for ef in self.impact_flashes if ef.vida > 0]
-        for ef in self.magic_clashes: ef.update(dt)
-        self.magic_clashes = [ef for ef in self.magic_clashes if ef.vida > 0]
-        for ef in self.block_effects: ef.update(dt)
-        self.block_effects = [ef for ef in self.block_effects if ef.vida > 0]
-        for ef in self.dash_trails: ef.update(dt)
-        self.dash_trails = [ef for ef in self.dash_trails if ef.vida > 0]
-        for ef in self.hit_sparks: ef.update(dt)
-        self.hit_sparks = [ef for ef in self.hit_sparks if ef.vida > 0]
-        
-        # === ATUALIZA MAGIC VFX v11.0 ===
-        if hasattr(self, 'magic_vfx') and self.magic_vfx:
-            self.magic_vfx.update(dt)
-            # === ATUALIZA TRAILS ELEMENTAIS v11.0 (movido de desenhar para ter acesso a dt) ===
-            for proj in self.projeteis:
-                # v14.0: Usa cache de elemento (evita string parsing por frame)
-                _elem_trail = self._get_projetil_elemento(proj)
-                trail_vfx = self.magic_vfx.get_or_create_trail(id(proj), _elem_trail)
-                vel_proj = getattr(proj, 'vel', getattr(proj, 'vel_disparo', 10.0))
-                try:
-                    vel_proj = float(vel_proj)
-                except (TypeError, ValueError):
-                    vel_proj = 10.0
-                if not math.isfinite(vel_proj) or vel_proj <= 0:
-                    vel_proj = 10.0
-                trail_vfx.update(dt, proj.x * PPM, proj.y * PPM, vel_proj * 0.1)
+        self._collect_pending_runtime_objects()
+        self._update_runtime_effects(frame.dt)
+        self._update_magic_vfx_runtime(frame.dt)
 
         # === CLASH DE PROJÃ‰TEIS (v7.0) ===
         self._verificar_clash_projeteis()
@@ -1533,148 +1569,125 @@ class Simulador(SimuladorRenderer, SimuladorCombat, SimuladorEffects):
                 if not channel.ativo:
                     lutador.channel_ativo = None
 
-        if not self.vencedor:
-            # DES-4: Incrementa timer de luta e declara vencedor por HP se tempo esgotar
-            self.tempo_luta += dt
-            # v14.0: Update stats collector frame (approx frame from elapsed time)
-            if hasattr(self, 'stats_collector'):
-                self.stats_collector.set_frame(int(self.tempo_luta * 60))
-            if self.tempo_luta >= self.TEMPO_MAX_LUTA:
-                # v13.0: Winner por HP no timeout - time com mais HP% total ganha
-                self.vencedor = self._determinar_vencedor_por_tempo()
-                self.textos.append(FloatingText(
-                    self.screen_width // 2, self.screen_height // 2 - 80,
-                    "TEMPO ESGOTADO!", (255, 200, 50), 36
-                ))
-                self.ativar_slow_motion()
-
-            if self.modo_partida == "horda" and self.horde_manager:
-                self.horde_manager.update(dt)
-
-            if not self.vencedor:
-                if self.modo_partida == "horda":
-                    self.vencedor = self._verificar_vitoria_horda()
-                else:
-                    # v13.0: Verifica se algum time foi eliminado (last team standing)
-                    self.vencedor = self._verificar_last_team_standing()
-
-            # Atualiza Sistema de Coreografia v5.0
-            if self.choreographer:
-                momento_anterior = self.choreographer.momento_atual
-                self.choreographer.update(dt)
-                
-                # === SWORD CLASH v6.1 - Detecta inÃ­cio do momento CLASH ===
-                if self.choreographer.momento_atual == "CLASH" and momento_anterior != "CLASH":
-                    self._executar_sword_clash()
-
-                # === Sprint3: slow-mo para momentos cinematogrÃ¡ficos alÃ©m da morte ===
-                # Antes: ativar_slow_motion() sÃ³ em morte e timeout.
-                # FINAL_SHOWDOWN, NEAR_MISS e CLIMAX_CHARGE sÃ£o momentos
-                # dramaticamente tÃ£o intensos quanto morte mas nunca tinham slow-mo.
-                novo_momento = self.choreographer.momento_atual
-                if novo_momento != momento_anterior:
-                    if novo_momento == "FINAL_SHOWDOWN":
-                        # Ãšltimo confronto: slow-mo suave e longo
-                        self.time_scale = 0.6
-                        self.slow_mo_timer = 1.2
-                    elif novo_momento == "NEAR_MISS":
-                        # Quase-acerto: micro-freeze dramÃ¡tico
-                        self.time_scale = 0.35
-                        self.slow_mo_timer = 0.18
-                    elif novo_momento == "CLIMAX_CHARGE":
-                        # Ambos preparando golpe final: tensÃ£o crescente
-                        self.time_scale = 0.7
-                        self.slow_mo_timer = 0.8
-                    elif novo_momento == "PURSUIT":
-                        # PerseguiÃ§Ã£o: levemente mais lento para ampliar distÃ¢ncia visual
-                        self.time_scale = 0.8
-                        self.slow_mo_timer = 0.6
-
-            self._aplicar_pressao_ritmo(dt)
-            
-            # v13.0: Atualiza TeamCoordinator ANTES dos lutadores individuais
-            if self.modo_multi:
-                from ia.team_ai import TeamCoordinatorManager
-                TeamCoordinatorManager.get().update(dt, self.fighters)
-
-            # v13.0: Atualiza TODOS os lutadores com consciÃªncia multi-combatente
-            for f in self.fighters:
-                if not f.morto:
-                    # Encontra nearest enemy para este lutador
-                    inimigo = self._encontrar_inimigo_mais_proximo(f)
-                    if inimigo:
-                        f.update(dt, inimigo, todos_lutadores=self.fighters)
-                    else:
-                        # No enemy alive â€” skip AI processing to avoid self-targeting bugs
-                        f.update(dt, None, todos_lutadores=self.fighters)
-
-            self._atualizar_aliases_principais()
-
-            self._atualizar_direcao_cinematica(dt)
-            
-            # === ATUALIZA COOLDOWNS DE SOM DE PAREDE ===
-            if hasattr(self, '_wall_sound_cooldown'):
-                for lutador_id in list(self._wall_sound_cooldown.keys()):
-                    self._wall_sound_cooldown[lutador_id] = max(0, self._wall_sound_cooldown[lutador_id] - dt)
-            
-            # === APLICA LIMITES DA ARENA v9.0 ===
-            if self.arena:
-                # v13.0: Aplica limites para TODOS os lutadores
-                for f in self.fighters:
-                    impacto = self.arena.aplicar_limites(f, dt)
-                    if impacto > 0:
-                        self._criar_efeito_colisao_parede(f, impacto)
-                
-                # Limpa colisÃµes antigas da arena
-                self.arena.limpar_colisoes()
-
-                # C02: processa efeitos especiais da arena sobre os lutadores
-                if self.arena.efeitos_ativos:
-                    self._processar_efeitos_arena(dt)
-
-            self.resolver_fisica_corpos(dt)
-            self.verificar_colisoes_combate()
-            self.atualizar_rastros()
-            
-            # v13.0: Atualiza vida visual de todos os fighters
-            for f in self.fighters:
-                if f in self.vida_visual:
-                    self.vida_visual[f] += (f.vida - self.vida_visual[f]) * 5 * dt
-            # Backward compat
-            self.vida_visual_p1 += (self.p1.vida - self.vida_visual_p1) * 5 * dt
-            self.vida_visual_p2 += (self.p2.vida - self.vida_visual_p2) * 5 * dt
-            
-            # === DETECTA EVENTOS DE MOVIMENTO v8.0 ===
-            self._detectar_eventos_movimento()
-        
-        # === ATUALIZA ANIMAÃ‡Ã•ES DE MOVIMENTO v8.0 ===
-        if self.movement_anims:
-            self.movement_anims.update(dt)
-        
-        # === ATUALIZA ANIMAÃ‡Ã•ES DE ATAQUE v8.0 IMPACT EDITION ===
-        if self.attack_anims:
-            self.attack_anims.update(dt)
-        
-        # v14.0: Limita partÃ­culas para performance com muitos lutadores
-        MAX_PARTICULAS = 600
-        if len(self.particulas) > MAX_PARTICULAS:
-            # Remove as mais antigas (inÃ­cio da lista) para manter o limite
-            self.particulas = self.particulas[-MAX_PARTICULAS:]
-        
-        alive_particulas = []
-        for p in self.particulas:
-            p.atualizar(dt)
-            if p.vida <= 0: 
-                if p.cor == VERMELHO_SANGUE and random.random() < 0.3:
-                    self.decals.append(Decal(p.x, p.y, p.tamanho * 2, SANGUE_ESCURO))
-            else:
-                alive_particulas.append(p)
-        self.particulas = alive_particulas
-        if len(self.decals) > 100: self.decals.pop(0)
+        self._update_active_match_state(dt)
+        self._update_post_frame_systems(dt)
 
     # =========================================================================
     # v14.0: MÃ‰TODOS AUXILIARES MULTI-COMBATENTE + PERFORMANCE
     # =========================================================================
+
+    def _update_active_match_state(self, dt: float) -> None:
+        if self.vencedor:
+            return
+
+        self.tempo_luta += dt
+        if hasattr(self, 'stats_collector'):
+            self.stats_collector.set_frame(int(self.tempo_luta * 60))
+        if self.tempo_luta >= self.TEMPO_MAX_LUTA:
+            self.vencedor = self._determinar_vencedor_por_tempo()
+            self.textos.append(FloatingText(
+                self.screen_width // 2, self.screen_height // 2 - 80,
+                "TEMPO ESGOTADO!", (255, 200, 50), 36
+            ))
+            self.ativar_slow_motion()
+
+        if self.modo_partida == "horda" and self.horde_manager:
+            self.horde_manager.update(dt)
+
+        if not self.vencedor:
+            if self.modo_partida == "horda":
+                self.vencedor = self._verificar_vitoria_horda()
+            else:
+                self.vencedor = self._verificar_last_team_standing()
+
+        if self.choreographer:
+            momento_anterior = self.choreographer.momento_atual
+            self.choreographer.update(dt)
+
+            if self.choreographer.momento_atual == "CLASH" and momento_anterior != "CLASH":
+                self._executar_sword_clash()
+
+            novo_momento = self.choreographer.momento_atual
+            if novo_momento != momento_anterior:
+                if novo_momento == "FINAL_SHOWDOWN":
+                    self.time_scale = 0.6
+                    self.slow_mo_timer = 1.2
+                elif novo_momento == "NEAR_MISS":
+                    self.time_scale = 0.35
+                    self.slow_mo_timer = 0.18
+                elif novo_momento == "CLIMAX_CHARGE":
+                    self.time_scale = 0.7
+                    self.slow_mo_timer = 0.8
+                elif novo_momento == "PURSUIT":
+                    self.time_scale = 0.8
+                    self.slow_mo_timer = 0.6
+
+        self._aplicar_pressao_ritmo(dt)
+
+        if self.modo_multi:
+            from ia.team_ai import TeamCoordinatorManager
+            TeamCoordinatorManager.get().update(dt, self.fighters)
+
+        for lutador in self.fighters:
+            if not lutador.morto:
+                inimigo = self._encontrar_inimigo_mais_proximo(lutador)
+                if inimigo:
+                    lutador.update(dt, inimigo, todos_lutadores=self.fighters)
+                else:
+                    lutador.update(dt, None, todos_lutadores=self.fighters)
+
+        self._atualizar_aliases_principais()
+        self._atualizar_direcao_cinematica(dt)
+
+        if hasattr(self, '_wall_sound_cooldown'):
+            for lutador_id in list(self._wall_sound_cooldown.keys()):
+                self._wall_sound_cooldown[lutador_id] = max(0, self._wall_sound_cooldown[lutador_id] - dt)
+
+        if self.arena:
+            for lutador in self.fighters:
+                impacto = self.arena.aplicar_limites(lutador, dt)
+                if impacto > 0:
+                    self._criar_efeito_colisao_parede(lutador, impacto)
+
+            self.arena.limpar_colisoes()
+
+            if self.arena.efeitos_ativos:
+                self._processar_efeitos_arena(dt)
+
+        self.resolver_fisica_corpos(dt)
+        self.verificar_colisoes_combate()
+        self.atualizar_rastros()
+
+        for lutador in self.fighters:
+            if lutador in self.vida_visual:
+                self.vida_visual[lutador] += (lutador.vida - self.vida_visual[lutador]) * 5 * dt
+        self.vida_visual_p1 += (self.p1.vida - self.vida_visual_p1) * 5 * dt
+        self.vida_visual_p2 += (self.p2.vida - self.vida_visual_p2) * 5 * dt
+
+        self._detectar_eventos_movimento()
+
+    def _update_post_frame_systems(self, dt: float) -> None:
+        if self.movement_anims:
+            self.movement_anims.update(dt)
+
+        if self.attack_anims:
+            self.attack_anims.update(dt)
+
+        max_particulas = 600
+        if len(self.particulas) > max_particulas:
+            self.particulas = self.particulas[-max_particulas:]
+
+        alive_particulas = []
+        for particula in self.particulas:
+            particula.atualizar(dt)
+            if particula.vida <= 0:
+                if particula.cor == VERMELHO_SANGUE and random.random() < 0.3:
+                    self.decals.append(Decal(particula.x, particula.y, particula.tamanho * 2, SANGUE_ESCURO))
+            else:
+                alive_particulas.append(particula)
+        self.particulas = alive_particulas
+        if len(self.decals) > 100:
+            self.decals.pop(0)
 
     def _flush_match_stats(self):
         """

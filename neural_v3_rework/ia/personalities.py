@@ -264,6 +264,10 @@ ARQUETIPO_DATA = {
     "GUARDIAO": {"alcance": 1.5, "estilo": "DEFENSIVE", "agressividade": 0.2},
     "MURALHA": {"alcance": 1.5, "estilo": "FORTRESS", "agressividade": 0.25},
     "TEMPLARIO": {"alcance": 2.0, "estilo": "HOLY_WARRIOR", "agressividade": 0.45},
+    "BALUARTE_ORBITAL": {"alcance": 1.7, "estilo": "FORTRESS", "agressividade": 0.28},
+    "ARTILHEIRO_ORBITAL": {"alcance": 2.3, "estilo": "PRESSURE", "agressividade": 0.62},
+    "MAESTRO_ASTRAL": {"alcance": 2.4, "estilo": "TACTICIAN", "agressividade": 0.38},
+    "DANCARINO_ASTRAL": {"alcance": 1.8, "estilo": "MOBILE", "agressividade": 0.68},
     
     # === HÍBRIDOS ===
     "LANCEIRO": {"alcance": 5.0, "estilo": "POKE", "agressividade": 0.5},  # Arremesso: 5.0
@@ -1450,6 +1454,42 @@ PERSONALIDADES_PRESETS = {
         "instintos_fixos": ["ADAPTACAO_RAPIDA", "DASH_PANICO"],
         "ritmo_fixo": "CAOTICO",
         "agressividade_mod": 0.2,
+    },
+    "Baluarte Astral": {
+        "descricao": "Orbita para proteger aliados e esmagar quem invade o perimetro.",
+        "icone": "@",
+        "cor": (130, 190, 255),
+        "tracos_fixos": ["PROTETOR", "MURALHA", "PREVISOR", "CALCULISTA", "SENTINEL"],
+        "estilo_fixo": "FORTRESS",
+        "filosofia_fixa": "RESISTENCIA",
+        "quirks_fixos": ["CONTRA_ATAQUE_PERFEITO", "PERSISTENTE"],
+        "instintos_fixos": ["BLOQUEIO_INSTINTIVO", "DEFESA_FINAL"],
+        "ritmo_fixo": "RESPIRACAO",
+        "agressividade_mod": -0.08,
+    },
+    "Maestro de Orbitas": {
+        "descricao": "Controla tempo, distancia e janelas de burst com calma cirurgica.",
+        "icone": "*",
+        "cor": (185, 150, 255),
+        "tracos_fixos": ["CALCULISTA", "PACIENTE", "ZONE_CONTROLLER", "PREVISOR", "ORBITA"],
+        "estilo_fixo": "TACTICIAN",
+        "filosofia_fixa": "LEITURA",
+        "quirks_fixos": ["CALCULISTA_FRIO", "OLHOS_DE_AGUIA"],
+        "instintos_fixos": ["ATAQUE_OPORTUNIDADE", "ADAPTACAO_RAPIDA"],
+        "ritmo_fixo": "PREDADOR",
+        "agressividade_mod": 0.02,
+    },
+    "Tempestade Orbital": {
+        "descricao": "Gira em pressao crescente ate abrir a luta em rajadas brutais.",
+        "icone": "+",
+        "cor": (255, 140, 110),
+        "tracos_fixos": ["PRESSAO_CONSTANTE", "EXPLOSIVO", "DOMINADOR", "RELAMPAGO", "CHAIN_CASTER"],
+        "estilo_fixo": "PRESSURE",
+        "filosofia_fixa": "EXPLOSAO",
+        "quirks_fixos": ["BURST_MODE", "MOMENTUM_SURFER"],
+        "instintos_fixos": ["PRESSAO_INSTINTIVA", "PERSEGUICAO_AUTOMATICA"],
+        "ritmo_fixo": "TEMPESTADE",
+        "agressividade_mod": 0.22,
     },
 }
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from nucleo.armas import get_family_spec, inferir_familia
+from nucleo.armas import get_family_spec, inferir_familia, resolver_subtipo_orbital
 
 try:
     from nucleo.armas import get_weapon_runtime_controller
@@ -78,7 +78,15 @@ def obter_metricas_arma(arma, fighter=None) -> dict[str, float | str]:
     elif familia == "foco":
         alcance_tatico = max(alcance_min + 0.25, alcance_max * 0.80)
     elif familia == "orbital":
-        alcance_tatico = max(1.20, alcance_max * 0.92)
+        subtipo_orbital = resolver_subtipo_orbital(arma)
+        if subtipo_orbital == "escudo":
+            alcance_tatico = max(1.15, min(2.1, alcance_max * 0.72))
+        elif subtipo_orbital == "drone":
+            alcance_tatico = max(1.65, alcance_max * 1.02)
+        elif subtipo_orbital == "laminas":
+            alcance_tatico = max(1.35, alcance_max * 0.84)
+        else:
+            alcance_tatico = max(1.55, alcance_max * 0.94)
     elif familia == "dupla":
         alcance_tatico = max(0.75, alcance_min + 0.10, alcance_max * 0.72)
     elif familia == "haste":

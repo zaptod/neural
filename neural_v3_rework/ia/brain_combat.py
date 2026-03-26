@@ -1,7 +1,9 @@
 ﻿"""Auto-generated mixin â€” see scripts/split_brain.py"""
+from dataclasses import dataclass
 import random
 import math
 import logging
+from typing import Any
 
 _log = logging.getLogger("neural_ai")
 
@@ -24,6 +26,7 @@ from ia.weapon_ai import (
     obter_metricas_arma,
     resolver_familia_arma,
 )
+from nucleo.armas import resolver_subtipo_orbital
 
 try:
     from nucleo.weapon_analysis import (
@@ -46,11 +49,45 @@ except ImportError:
 from ia._brain_mixin_base import _AIBrainMixinBase
 
 
+@dataclass(frozen=True)
+class CombatDecisionContext:
+    """Snapshot do frame usado pelo caminho generico de movimento."""
+
+    distancia: float
+    roll: float
+    hp_pct: float
+    inimigo_hp_pct: float
+    alcance_efetivo: float
+    alcance_ideal: float
+    parent: Any
+    inimigo: Any
+    minha_arma: Any
+    minha_familia: str
+    sou_ranged: bool
+    arma_inimigo: Any
+    familia_inimigo: str
+    no_alcance: bool
+    quase_no_alcance: bool
+    longe: bool
+    muito_longe: bool
+    stall_approaching: bool
+    pressao_ritmo: float
+
+
 class CombatMixin(_AIBrainMixinBase):
     """Mixin de decisÃ£o de ataque, combos, baiting, momentum e movimento tÃ¡tico."""
 
     # MEL-AI-04: janela de observaÃ§Ã£o pÃ³s-bait
     BAIT_JANELA_OBSERVACAO = 0.2  # segundos de observaÃ§Ã£o apÃ³s o bait terminar
+
+    def _obter_pacote_composto_id(self):
+        perfil = getattr(self, "arquetipo_composto", None)
+        if not isinstance(perfil, dict):
+            return ""
+        pacote = perfil.get("pacote_referencia") or {}
+        if isinstance(pacote, dict):
+            return str(pacote.get("id", "") or "").strip().lower()
+        return ""
 
     def _aplicar_janela_padrao_oponente(self, inimigo, distancia):
         """Cria janelas especiais para punir habitos detectados do oponente."""
@@ -193,16 +230,17 @@ class CombatMixin(_AIBrainMixinBase):
         assinatura_agil = arquetipo in {"ASSASSINO", "NINJA", "SOMBRA", "DUELISTA"} or "FLANQUEADOR" in self.tracos or "ACROBATA" in self.tracos
 
         if medo > 0.62 and confianca < 0.48:
-            if opener in {"MATAR", "ESMAGAR"}:
+            if opener in {"MATAR", "ESMAGAR", "ATAQUE_RAPIDO"}:
                 opener = "CONTRA_ATAQUE" if familia not in {"foco", "orbital", "disparo", "arremesso"} else "POKE"
-            if followup in {"ESMAGAR", "MATAR", "PRESSIONAR"}:
+            if followup in {"ESMAGAR", "MATAR", "PRESSIONAR", "FLANQUEAR"}:
                 followup = "COMBATE" if familia not in {"foco", "orbital"} else "POKE"
             timer = max(timer, 0.52)
             boost_excitacao = min(boost_excitacao, 0.06)
 
         if (raiva > 0.72 or excitacao > 0.78 or momentum > 0.45 or humor in {"EUFORICO", "EXTASE", "FURIOSO", "BERSERK"}) and hp_pct > 0.22:
             if assinatura_agil:
-                if opener in {"APROXIMAR", "CONTRA_ATAQUE", "COMBATE", "POKE", "CIRCULAR", "MATAR"}:
+                # Se a fúria já promoveu o opener para MATAR, não desfaça esse pico dramático.
+                if opener in {"APROXIMAR", "CONTRA_ATAQUE", "COMBATE", "POKE", "CIRCULAR"}:
                     opener = "ATAQUE_RAPIDO"
                 if followup in {None, "COMBATE", "POKE", "MATAR", "ESMAGAR", "PRESSIONAR"}:
                     followup = "FLANQUEAR"
@@ -905,6 +943,488 @@ class CombatMixin(_AIBrainMixinBase):
             janela["qualidade"] = qualidade
             janela["duracao"] = duracao
 
+    def _criar_contexto_combate_generico(self, distancia, roll, hp_pct, inimigo_hp_pct, alcance_efetivo, alcance_ideal, inimigo):
+        """Agrupa o estado usado pelo caminho generico de movimento."""
+        p = self.parent
+        minha_arma = getattr(getattr(p, "dados", None), "arma_obj", None)
+        arma_inimigo = getattr(getattr(inimigo, "dados", None), "arma_obj", None)
+        return CombatDecisionContext(
+            distancia=distancia,
+            roll=roll,
+            hp_pct=hp_pct,
+            inimigo_hp_pct=inimigo_hp_pct,
+            alcance_efetivo=alcance_efetivo,
+            alcance_ideal=alcance_ideal,
+            parent=p,
+            inimigo=inimigo,
+            minha_arma=minha_arma,
+            minha_familia=resolver_familia_arma(minha_arma),
+            sou_ranged=arma_eh_ranged(minha_arma),
+            arma_inimigo=arma_inimigo,
+            familia_inimigo=resolver_familia_arma(arma_inimigo),
+            no_alcance=distancia <= alcance_efetivo,
+            quase_no_alcance=distancia <= alcance_efetivo * 1.3,
+            longe=distancia > alcance_efetivo * 1.5,
+            muito_longe=distancia > alcance_efetivo * 2.5,
+            stall_approaching=self.tempo_desde_hit > 3.0 and not p.atacando,
+            pressao_ritmo=max(0.0, min(1.0, float(getattr(self, "pressao_ritmo", 0.0) or 0.0))),
+        )
+
+    def _votar_movimento(self, pesos, acao, peso):
+        pesos[acao] = pesos.get(acao, 0.0) + peso
+
+    def _votar_base_generica(self, ctx, pesos):
+        if ctx.inimigo_hp_pct < 0.25 and ctx.no_alcance:
+            self._votar_movimento(pesos, "MATAR", 1.5)
+            self._votar_movimento(pesos, "ESMAGAR", 1.0)
+            if ctx.stall_approaching:
+                self._votar_movimento(pesos, "APROXIMAR", 1.0)
+        elif ctx.no_alcance:
+            if ctx.inimigo_hp_pct < 0.3:
+                self._votar_movimento(pesos, "MATAR", 1.2)
+                self._votar_movimento(pesos, "ESMAGAR", 0.8)
+            else:
+                for acao, peso in (
+                    ("MATAR", 0.6),
+                    ("ATAQUE_RAPIDO", 0.5),
+                    ("COMBATE", 0.4),
+                    ("FLANQUEAR", 0.4),
+                    ("CIRCULAR", 0.3),
+                    ("PRESSIONAR", 0.3),
+                    ("CONTRA_ATAQUE", 0.2),
+                ):
+                    self._votar_movimento(pesos, acao, peso)
+            if ctx.stall_approaching:
+                self._votar_movimento(pesos, "APROXIMAR", 0.8)
+                self._votar_movimento(pesos, "PRESSIONAR", 0.6)
+        elif ctx.quase_no_alcance:
+            for acao, peso in (
+                ("APROXIMAR", 0.7),
+                ("PRESSIONAR", 0.5),
+                ("FLANQUEAR", 0.4),
+                ("COMBATE", 0.3),
+                ("POKE", 0.2),
+                ("CIRCULAR", 0.2),
+            ):
+                self._votar_movimento(pesos, acao, peso)
+        elif ctx.longe or ctx.muito_longe:
+            self._votar_movimento(pesos, "APROXIMAR", 1.0)
+            self._votar_movimento(pesos, "PRESSIONAR", 0.4)
+
+        if ctx.familia_inimigo == "disparo" and not ctx.sou_ranged:
+            if ctx.distancia > ctx.alcance_efetivo * 0.9:
+                self._votar_movimento(pesos, "APROXIMAR", 1.3)
+                self._votar_movimento(pesos, "FLANQUEAR", 0.9)
+                self._votar_movimento(pesos, "PRESSIONAR", 0.8)
+            else:
+                self._votar_movimento(pesos, "MATAR", 0.7)
+                self._votar_movimento(pesos, "PRESSIONAR", 0.5)
+            if ctx.hp_pct > 0.25:
+                pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.55
+                pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.45
+
+    def _votar_profile_traits_generico(self, ctx, pesos):
+        bp = getattr(self, "_behavior_profile", FALLBACK_PROFILE)
+
+        if ctx.hp_pct < bp.get("recuar_threshold", 0.30):
+            if bp.get("nunca_recua", False):
+                self._votar_movimento(pesos, "MATAR", 2.5)
+                self._votar_movimento(pesos, "ESMAGAR", 1.5)
+            else:
+                self._votar_movimento(pesos, "RECUAR", 1.5 * bp.get("retreat_weight", 1.0))
+                self._votar_movimento(pesos, "FUGIR", 0.8 * bp.get("retreat_weight", 1.0))
+        elif ctx.hp_pct < 0.50 and bp.get("nunca_recua", False):
+            self._votar_movimento(pesos, "MATAR", 1.5)
+
+        if ctx.inimigo_hp_pct < bp.get("execute_threshold", 0.25):
+            self._votar_movimento(pesos, "MATAR", 2.0 * bp.get("pressao_mult", 1.0))
+            self._votar_movimento(pesos, "ESMAGAR", 1.0 * bp.get("pressao_mult", 1.0))
+        elif ctx.inimigo_hp_pct < 0.50:
+            self._votar_movimento(pesos, "PRESSIONAR", 1.0 * bp.get("pressao_mult", 1.0))
+
+        if bp.get("perseguir_sempre", False) and ctx.distancia > ctx.alcance_efetivo * 1.2:
+            self._votar_movimento(pesos, "APROXIMAR", 1.5 * bp.get("approach_weight", 1.0))
+            self._votar_movimento(pesos, "PRESSIONAR", 0.8 * bp.get("approach_weight", 1.0))
+
+        for trait in self.tracos:
+            effects = get_trait_effects(trait)
+            for acao, peso in effects.items():
+                self._votar_movimento(pesos, acao, peso)
+
+        if "COVARDE" in self.tracos and ctx.hp_pct < bp.get("recuar_threshold", 0.30) + 0.10:
+            if self.vezes_que_fugiu > 4:
+                self._votar_movimento(pesos, "MATAR", 2.0)
+                self.raiva = 0.9
+            else:
+                self._votar_movimento(pesos, "FUGIR", 2.0 * bp.get("retreat_weight", 1.0))
+        if "BERSERKER" in self.tracos and ctx.hp_pct < 0.45:
+            self._votar_movimento(pesos, "MATAR", (1.0 - ctx.hp_pct) * 3.0)
+        if "FINALIZADOR_NATO" in self.tracos and ctx.inimigo_hp_pct < 0.25:
+            self._votar_movimento(pesos, "MATAR", 2.0)
+        if "CLUTCH_PLAYER" in self.tracos and ctx.hp_pct < 0.30:
+            self._votar_movimento(pesos, "MATAR", 1.5)
+            self._votar_movimento(pesos, "CONTRA_ATAQUE", 1.0)
+        if "TILTER" in self.tracos and ctx.hp_pct < 0.30:
+            self._votar_movimento(pesos, "FUGIR", 0.8)
+            self._votar_movimento(pesos, "RECUAR", 0.5)
+        if "PHOENIX" in self.tracos and ctx.hp_pct < 0.20:
+            self._votar_movimento(pesos, "MATAR", 2.5)
+        if "ULTIMO_SUSPIRO" in self.tracos and ctx.hp_pct < 0.10:
+            self._votar_movimento(pesos, "MATAR", 3.0)
+            self._votar_movimento(pesos, "ESMAGAR", 2.0)
+        if "UNDERDOG" in self.tracos and ctx.hp_pct < ctx.inimigo_hp_pct - 0.2:
+            self._votar_movimento(pesos, "MATAR", 1.2)
+            self._votar_movimento(pesos, "PRESSIONAR", 0.8)
+        if "MOMENTUM_RIDER" in self.tracos and self.momentum > 0.3:
+            self._votar_movimento(pesos, "MATAR", 1.0)
+            self._votar_movimento(pesos, "PRESSIONAR", 0.8)
+        if "MASOQUISTA" in self.tracos:
+            dano_bonus = (1.0 - ctx.hp_pct) * 2.0
+            self._votar_movimento(pesos, "MATAR", dano_bonus * 0.5)
+            self._votar_movimento(pesos, "PRESSIONAR", dano_bonus * 0.3)
+        if "KAMIKAZE" in self.tracos:
+            self._votar_movimento(pesos, "MATAR", 3.0)
+        if "EMOTIVO" in self.tracos:
+            self._votar_movimento(pesos, "MATAR", self.raiva * 0.6)
+            self._votar_movimento(pesos, "FUGIR", self.medo * 0.6)
+
+        return bp
+
+    def _votar_estilo_emocao_generico(self, ctx, pesos, bp):
+        estilo_ativo = getattr(self, "_estilo_override", None) or self.estilo_luta
+        estilo_data = ESTILOS_LUTA.get(estilo_ativo, ESTILOS_LUTA["BALANCED"])
+        agressividade = estilo_data.get("agressividade_base", 0.6)
+        agressividade = min(1.0, agressividade + min(0.2, self.tempo_combate / 60.0))
+        if ctx.inimigo_hp_pct < 0.3:
+            agressividade = min(1.0, agressividade + 0.25)
+        if ctx.hp_pct < 0.25 and "BERSERKER" not in self.tracos:
+            agressividade = max(0.3, agressividade - 0.1)
+
+        if ctx.distancia < ctx.alcance_ideal * 0.7:
+            self._votar_movimento(pesos, estilo_data["acao_perto"], agressividade * 0.8)
+        elif ctx.distancia > ctx.alcance_efetivo * 1.3:
+            self._votar_movimento(pesos, estilo_data["acao_longe"], agressividade * 0.8)
+        else:
+            self._votar_movimento(pesos, estilo_data["acao_medio"], agressividade * 0.8)
+
+        for acao_key, mult_key in [
+            ("APROXIMAR", "approach_weight"),
+            ("RECUAR", "retreat_weight"),
+            ("FUGIR", "retreat_weight"),
+            ("FLANQUEAR", "flank_weight"),
+            ("POKE", "poke_weight"),
+        ]:
+            if acao_key in pesos:
+                pesos[acao_key] = pesos[acao_key] * bp.get(mult_key, 1.0)
+
+        if "FRIO" not in self.tracos and self.raiva > 0.4:
+            self._votar_movimento(pesos, "MATAR", self.raiva * 0.6 * bp.get("raiva_ganho_mult", 1.0))
+            self._votar_movimento(pesos, "ESMAGAR", self.raiva * 0.4 * bp.get("raiva_ganho_mult", 1.0))
+        if "FRIO" not in self.tracos and self.medo > 0.4:
+            self._votar_movimento(pesos, "RECUAR", self.medo * 0.5 * bp.get("medo_ganho_mult", 1.0))
+            self._votar_movimento(pesos, "FUGIR", self.medo * 0.3 * bp.get("medo_ganho_mult", 1.0))
+
+        humor_data = HUMORES.get(self.humor, HUMORES["CALMO"])
+        mod_humor = humor_data.get("mod_agressividade", 0.0)
+        if mod_humor > 0.15:
+            self._votar_movimento(pesos, "MATAR", mod_humor * 0.5)
+            self._votar_movimento(pesos, "APROXIMAR", mod_humor * 0.3)
+        elif mod_humor < -0.25:
+            self._votar_movimento(pesos, "COMBATE", abs(mod_humor) * 0.4)
+            self._votar_movimento(pesos, "RECUAR", abs(mod_humor) * 0.2)
+
+        if self._rand() < 0.2:
+            filosofia_data = FILOSOFIAS.get(self.filosofia, FILOSOFIAS["EQUILIBRIO"])
+            for acao in filosofia_data["preferencia_acao"]:
+                self._votar_movimento(pesos, acao, 0.3)
+
+        if self.momentum > AI_MOMENTUM_POSITIVO:
+            self._votar_movimento(pesos, "MATAR", 0.3)
+            self._votar_movimento(pesos, "PRESSIONAR", 0.2)
+        elif self.momentum < AI_MOMENTUM_NEGATIVO:
+            self._votar_movimento(pesos, "RECUAR", 0.2)
+            self._votar_movimento(pesos, "COMBATE", 0.2)
+            self._votar_movimento(pesos, "CIRCULAR", 0.1)
+
+        if ctx.pressao_ritmo > 0.05:
+            self._votar_movimento(pesos, "APROXIMAR", 0.22 + ctx.pressao_ritmo * 0.32)
+            self._votar_movimento(pesos, "PRESSIONAR", 0.16 + ctx.pressao_ritmo * 0.28)
+            if ctx.distancia <= ctx.alcance_efetivo * 1.15:
+                self._votar_movimento(pesos, "MATAR", 0.08 + ctx.pressao_ritmo * 0.18)
+            pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * max(0.18, 1.0 - ctx.pressao_ritmo * 0.7)
+            pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * max(0.12, 1.0 - ctx.pressao_ritmo * 0.8)
+
+    def _votar_leitura_oponente_generico(self, ctx, pesos):
+        leitura = self.leitura_oponente
+        if leitura["previsibilidade"] > AI_PREVISIBILIDADE_ALTA:
+            tend_esq = leitura.get("tendencia_esquerda", 0.5)
+            if self._dir_circular_cd <= 0:
+                if tend_esq > 0.60:
+                    self.dir_circular = 1
+                    self._dir_circular_cd = 0.4
+                elif tend_esq < 0.40:
+                    self.dir_circular = -1
+                    self._dir_circular_cd = 0.4
+
+            tempo_reacao = getattr(self, "timer_decisao", 0.2)
+            vel_in = getattr(ctx.inimigo, "vel", (0.0, 0.0))
+            pos_in = getattr(ctx.inimigo, "pos", (0.0, 0.0))
+            self._pos_interceptacao = (
+                pos_in[0] + vel_in[0] * tempo_reacao,
+                pos_in[1] + vel_in[1] * tempo_reacao,
+            )
+
+            if leitura["agressividade_percebida"] > 0.6:
+                self._votar_movimento(pesos, "CONTRA_ATAQUE", 0.6)
+            elif leitura.get("frequencia_pulo", 0) > 0.35 and ctx.distancia < 5.0:
+                self._votar_movimento(pesos, "COMBATE", 0.5)
+            else:
+                self._votar_movimento(pesos, "PRESSIONAR", 0.4)
+        else:
+            self._pos_interceptacao = None
+
+        if leitura["agressividade_percebida"] > AI_AGRESSIVIDADE_ALTA and ("REATIVO" in self.tracos or "OPORTUNISTA" in self.tracos):
+            self._votar_movimento(pesos, "CONTRA_ATAQUE", 0.4)
+        if leitura.get("frequencia_pulo", 0) > 0.4:
+            self._votar_movimento(pesos, "COMBATE", 0.25)
+        if ctx.distancia < 4.0:
+            tend = leitura.get("tendencia_esquerda", 0.5)
+            if self._dir_circular_cd <= 0:
+                if tend > 0.65:
+                    self.dir_circular = 1
+                    self._dir_circular_cd = 0.4
+                elif tend < 0.35:
+                    self.dir_circular = -1
+                    self._dir_circular_cd = 0.4
+
+        padrao_dominante = self._obter_padrao_dominante_oponente(ctx.inimigo) if hasattr(self, "_obter_padrao_dominante_oponente") else None
+        if padrao_dominante == "entrada_agressiva":
+            self._votar_movimento(pesos, "CONTRA_ATAQUE", 0.45)
+            self._votar_movimento(pesos, "CIRCULAR", 0.22)
+        elif padrao_dominante == "recuo_pos_ataque":
+            self._votar_movimento(pesos, "PRESSIONAR", 0.35)
+            self._votar_movimento(pesos, "APROXIMAR", 0.24)
+        elif padrao_dominante == "guarda_reativa":
+            self._votar_movimento(pesos, "FLANQUEAR", 0.30)
+            self._votar_movimento(pesos, "CIRCULAR", 0.18)
+        elif padrao_dominante == "prepara_burst_orbital":
+            self._votar_movimento(pesos, "CIRCULAR", 0.38)
+            self._votar_movimento(pesos, "RECUAR", 0.24)
+        elif padrao_dominante == "troca_forma_burst":
+            self._votar_movimento(pesos, "CIRCULAR", 0.22)
+            self._votar_movimento(pesos, "POKE", 0.18)
+
+    def _votar_modificadores_externos_generico(self, ctx, pesos):
+        acao_anterior = self.acao_atual
+        self._aplicar_modificadores_espaciais(ctx.distancia, ctx.inimigo)
+        sugestao_espacial = self.acao_atual
+        self.acao_atual = acao_anterior
+        if sugestao_espacial not in ("NEUTRO",) and sugestao_espacial != acao_anterior:
+            self._votar_movimento(pesos, sugestao_espacial, 0.5)
+
+        self._aplicar_modificadores_armas(ctx.distancia, ctx.inimigo)
+        sugestao_arma = self.acao_atual
+        self.acao_atual = acao_anterior
+        if sugestao_arma not in ("NEUTRO",) and sugestao_arma != acao_anterior:
+            self._votar_movimento(pesos, sugestao_arma, 0.45)
+
+    def _votar_time_generico(self, ctx, pesos):
+        orders = getattr(self, "team_orders", {})
+        team_role = orders.get("role", "")
+        team_tactic = orders.get("tactic", "")
+        team_center = orders.get("team_center", (0, 0))
+        has_team = orders.get("alive_count", 1) > 1
+
+        if has_team and team_role:
+            if team_role == "VANGUARD":
+                self._votar_movimento(pesos, "APROXIMAR", 0.5)
+                self._votar_movimento(pesos, "PRESSIONAR", 0.5)
+                self._votar_movimento(pesos, "MATAR", 0.3)
+                self._votar_movimento(pesos, "BLOQUEAR", 0.2)
+                pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.4
+                pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.2
+            elif team_role == "FLANKER":
+                self._votar_movimento(pesos, "FLANQUEAR", 0.8)
+                self._votar_movimento(pesos, "CIRCULAR", 0.4)
+                if ctx.no_alcance:
+                    self._votar_movimento(pesos, "ATAQUE_RAPIDO", 0.5)
+                else:
+                    self._votar_movimento(pesos, "APROXIMAR", 0.3)
+                pesos["PRESSIONAR"] = pesos.get("PRESSIONAR", 0.0) * 0.5
+            elif team_role == "ARTILLERY":
+                if ctx.distancia < ctx.alcance_efetivo * 0.6:
+                    self._votar_movimento(pesos, "RECUAR", 1.2)
+                    self._votar_movimento(pesos, "FUGIR", 0.6)
+                elif ctx.distancia < ctx.alcance_efetivo:
+                    self._votar_movimento(pesos, "RECUAR", 0.5)
+                    self._votar_movimento(pesos, "CIRCULAR", 0.4)
+                else:
+                    self._votar_movimento(pesos, "COMBATE", 0.5)
+                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.3
+                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.5
+            elif team_role == "SUPPORT":
+                dist_to_center = math.hypot(
+                    ctx.parent.pos[0] - team_center[0], ctx.parent.pos[1] - team_center[1]
+                ) if team_center != (0, 0) else 999
+                if dist_to_center > 6.0:
+                    self._votar_movimento(pesos, "RECUAR", 0.6)
+                    self._votar_movimento(pesos, "CIRCULAR", 0.4)
+                else:
+                    self._votar_movimento(pesos, "COMBATE", 0.5)
+                    self._votar_movimento(pesos, "CIRCULAR", 0.3)
+                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.4
+                pesos["ESMAGAR"] = pesos.get("ESMAGAR", 0.0) * 0.3
+            elif team_role == "CONTROLLER":
+                if ctx.distancia < ctx.alcance_ideal * 0.6:
+                    self._votar_movimento(pesos, "RECUAR", 0.6)
+                    self._votar_movimento(pesos, "CIRCULAR", 0.5)
+                elif ctx.distancia < ctx.alcance_efetivo:
+                    self._votar_movimento(pesos, "COMBATE", 0.5)
+                    self._votar_movimento(pesos, "CIRCULAR", 0.4)
+                    self._votar_movimento(pesos, "FLANQUEAR", 0.3)
+                else:
+                    self._votar_movimento(pesos, "APROXIMAR", 0.3)
+                    self._votar_movimento(pesos, "CIRCULAR", 0.3)
+            elif team_role == "STRIKER":
+                if ctx.no_alcance:
+                    self._votar_movimento(pesos, "MATAR", 0.4)
+                    self._votar_movimento(pesos, "ESMAGAR", 0.3)
+                else:
+                    self._votar_movimento(pesos, "APROXIMAR", 0.4)
+                    self._votar_movimento(pesos, "PRESSIONAR", 0.3)
+
+            pacote_id = self._obter_pacote_composto_id()
+            if pacote_id == "vanguarda_brutal":
+                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.74
+                pesos["ESMAGAR"] = pesos.get("ESMAGAR", 0.0) * 0.80
+                self._votar_movimento(pesos, "COMBATE", 0.28)
+                self._votar_movimento(pesos, "CIRCULAR", 0.18)
+                if ctx.distancia > ctx.alcance_efetivo * 0.92:
+                    pesos["PRESSIONAR"] = pesos.get("PRESSIONAR", 0.0) * 0.82
+                else:
+                    pesos["PRESSIONAR"] = pesos.get("PRESSIONAR", 0.0) * 0.76
+
+            if team_tactic == "RETREAT_REGROUP":
+                self._votar_movimento(pesos, "RECUAR", 1.0)
+                self._votar_movimento(pesos, "CIRCULAR", 0.5)
+                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.3
+                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.3
+            elif team_tactic == "FULL_AGGRO":
+                self._votar_movimento(pesos, "MATAR", 0.5)
+                self._votar_movimento(pesos, "APROXIMAR", 0.4)
+                self._votar_movimento(pesos, "PRESSIONAR", 0.3)
+            elif team_tactic == "KITE_AND_POKE":
+                if ctx.distancia < ctx.alcance_efetivo * 0.8:
+                    self._votar_movimento(pesos, "RECUAR", 0.5)
+                self._votar_movimento(pesos, "CIRCULAR", 0.3)
+                self._votar_movimento(pesos, "POKE", 0.3)
+            elif team_tactic == "PINCER_ATTACK":
+                if team_role == "FLANKER":
+                    self._votar_movimento(pesos, "FLANQUEAR", 0.8)
+                else:
+                    self._votar_movimento(pesos, "PRESSIONAR", 0.4)
+                    self._votar_movimento(pesos, "APROXIMAR", 0.3)
+            elif team_tactic == "PROTECT_CARRY":
+                if orders.get("is_carry", False):
+                    self._votar_movimento(pesos, "MATAR", 0.4)
+                    self._votar_movimento(pesos, "PRESSIONAR", 0.3)
+                elif team_role in ("VANGUARD", "SUPPORT"):
+                    self._votar_movimento(pesos, "COMBATE", 0.3)
+                    self._votar_movimento(pesos, "CIRCULAR", 0.3)
+            elif team_tactic == "BAIT_AND_PUNISH":
+                if team_role in ("CONTROLLER", "FLANKER"):
+                    self._votar_movimento(pesos, "CIRCULAR", 0.4)
+                    self._votar_movimento(pesos, "RECUAR", 0.3)
+                else:
+                    self._votar_movimento(pesos, "COMBATE", 0.3)
+
+    def _compensar_matchup_generico(self, ctx, pesos, bp):
+        perfil_agressivo = (
+            bp.get("approach_weight", 1.0)
+            + bp.get("pressao_mult", 1.0)
+            + bp.get("combo_tendencia", 1.0)
+        )
+        perfil_defensivo = (
+            bp.get("retreat_weight", 1.0)
+            + bp.get("bloqueio_mult", 1.0)
+            + bp.get("paciencia_mult", 1.0)
+        )
+
+        if ctx.minha_familia in (FAMILIAS_CURTA_DISTANCIA | {"haste"}) and perfil_defensivo > perfil_agressivo * 1.12:
+            pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.62
+            pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.52
+            self._votar_movimento(pesos, "APROXIMAR", 0.35)
+            self._votar_movimento(pesos, "PRESSIONAR", 0.28)
+            if ctx.minha_familia == "orbital":
+                self._votar_movimento(pesos, "COMBATE", 0.42)
+                votos_anti_passivo = 0.24 if ctx.distancia > ctx.alcance_efetivo * 1.1 else 0.0
+                if votos_anti_passivo > 0:
+                    self._votar_movimento(pesos, "APROXIMAR", votos_anti_passivo)
+
+        if ctx.minha_familia in {"disparo", "arremesso", "foco"} and perfil_agressivo > perfil_defensivo * 1.20:
+            pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.84
+            pesos["ESMAGAR"] = pesos.get("ESMAGAR", 0.0) * 0.78
+            self._votar_movimento(pesos, "COMBATE", 0.25)
+            self._votar_movimento(pesos, "CIRCULAR", 0.20)
+            if ctx.distancia < ctx.alcance_ideal * 0.75:
+                self._votar_movimento(pesos, "RECUAR", 0.28)
+            elif ctx.distancia > ctx.alcance_efetivo * 1.05:
+                self._votar_movimento(pesos, "APROXIMAR", 0.18)
+
+        if ctx.familia_inimigo == "disparo" and not ctx.sou_ranged and ctx.minha_familia in FAMILIAS_PRESSAO_MELEE:
+            if perfil_agressivo < perfil_defensivo:
+                self._votar_movimento(pesos, "FLANQUEAR", 0.24)
+                self._votar_movimento(pesos, "CIRCULAR", 0.12)
+                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.92
+
+    def _aplicar_anti_repeticao_generico(self, ctx, pesos):
+        if len(self.historico_acoes) >= 3:
+            ultimas_3 = self.historico_acoes[-3:]
+            acao_rep = self.acao_atual
+            if ultimas_3.count(acao_rep) >= 2:
+                pesos[acao_rep] = pesos.get(acao_rep, 0.0) * 0.5
+
+        if self.circular_consecutivo >= 3:
+            pesos["CIRCULAR"] = pesos.get("CIRCULAR", 0.0) * 0.1
+            if ctx.no_alcance:
+                self._votar_movimento(pesos, "COMBATE", 0.8)
+                self._votar_movimento(pesos, "PRESSIONAR", 0.5)
+            else:
+                self._votar_movimento(pesos, "APROXIMAR", 0.7)
+                self._votar_movimento(pesos, "FLANQUEAR", 0.5)
+
+    def _escolher_acao_generica(self, ctx, pesos, debug=False):
+        if not pesos:
+            return None
+
+        acao_escolhida = max(pesos, key=pesos.__getitem__)
+        top_items = sorted(pesos.items(), key=lambda item: item[1], reverse=True)
+        if len(top_items) > 1:
+            max_w = max(0.01, top_items[0][1])
+            contenders = [(acao, peso) for acao, peso in top_items[:4] if peso >= max_w * 0.72]
+
+            variancia_base = 0.14
+            if "Caótico" in self.tracos or "IMPRUDENTE" in self.tracos:
+                variancia_base += 0.08
+            if "Contemplativo" in self.tracos or "PRUDENTE" in self.tracos:
+                variancia_base -= 0.06
+            variancia_base = max(0.05, min(0.30, variancia_base))
+
+            if len(contenders) >= 2 and random.random() < variancia_base:
+                total = sum(max(0.01, peso) for _, peso in contenders)
+                cursor = random.random() * total
+                acumulado = 0.0
+                for action_name, weight in contenders:
+                    acumulado += max(0.01, weight)
+                    if cursor <= acumulado:
+                        acao_escolhida = action_name
+                        break
+
+        if debug:
+            top3 = sorted(pesos.items(), key=lambda item: item[1], reverse=True)[:3]
+            _log.debug("[DECISAO] %s â†’ genÃ©rico | top3=%s", ctx.parent.dados.nome, top3)
+        return acao_escolhida
+
 
     # =========================================================================
     # MOVIMENTO v8.0 COM INTELIGÃŠNCIA HUMANA
@@ -1198,9 +1718,68 @@ class CombatMixin(_AIBrainMixinBase):
     def _estrategia_orbital(self, distancia, roll, alcance_efetivo, alcance_ideal, hp_pct, inimigo_hp_pct, arma):
         """Estratégia para armas orbitais: controlar espaço e explodir janelas de burst."""
         burst_pronto = getattr(self.parent, "orbital_burst_cd", 0.0) <= 0.0
-        alcance_burst = max(3.2, alcance_efetivo * 1.35)
-        muito_perto = distancia < max(1.2, alcance_ideal * 0.55)
-        zona_orbita = distancia <= max(2.4, alcance_efetivo * 1.05)
+        subtipo_orbital = resolver_subtipo_orbital(arma)
+        pacote_id = self._obter_pacote_composto_id()
+        alcance_burst = max(3.2, alcance_efetivo * (1.18 if subtipo_orbital == "escudo" else 1.35 if subtipo_orbital == "laminas" else 1.48))
+        muito_perto = distancia < max(1.15, alcance_ideal * (0.62 if subtipo_orbital == "escudo" else 0.50))
+        zona_orbita = distancia <= max(2.25, alcance_efetivo * (0.92 if subtipo_orbital == "escudo" else 1.08))
+
+        if subtipo_orbital == "escudo":
+            if pacote_id == "bastiao_prismatico":
+                if muito_perto and hp_pct < 0.42:
+                    self.acao_atual = random.choice(["COMBATE", "CONTRA_ATAQUE", "RECUAR"])
+                elif burst_pronto and distancia < alcance_burst * 0.84 and inimigo_hp_pct < 0.48:
+                    self.acao_atual = random.choice(["CONTRA_ATAQUE", "COMBATE"])
+                elif zona_orbita:
+                    self.acao_atual = random.choice(["COMBATE", "CONTRA_ATAQUE", "CIRCULAR"])
+                elif distancia > alcance_burst:
+                    self.acao_atual = random.choice(["APROXIMAR", "COMBATE"])
+                else:
+                    self.acao_atual = random.choice(["COMBATE", "CIRCULAR", "CONTRA_ATAQUE"])
+                return
+            if muito_perto and hp_pct < 0.38:
+                self.acao_atual = random.choice(["COMBATE", "CIRCULAR", "RECUAR"])
+            elif burst_pronto and distancia < alcance_burst * 0.88 and inimigo_hp_pct < 0.55:
+                self.acao_atual = random.choice(["COMBATE", "PRESSIONAR", "CONTRA_ATAQUE"])
+            elif zona_orbita:
+                self.acao_atual = random.choice(["COMBATE", "CIRCULAR", "CONTRA_ATAQUE"])
+            elif distancia > alcance_burst:
+                self.acao_atual = random.choice(["APROXIMAR", "PRESSIONAR"])
+            else:
+                self.acao_atual = random.choice(["APROXIMAR", "COMBATE", "CIRCULAR"])
+            return
+
+        if subtipo_orbital == "drone":
+            if pacote_id == "artilheiro_de_orbita":
+                if muito_perto and hp_pct < 0.36:
+                    self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "POKE"])
+                elif burst_pronto and zona_orbita:
+                    self.acao_atual = random.choice(["POKE", "COMBATE", "PRESSIONAR"] if inimigo_hp_pct < 0.40 else ["POKE", "CIRCULAR", "COMBATE"])
+                elif distancia > alcance_burst:
+                    self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR", "POKE"])
+                else:
+                    self.acao_atual = random.choice(["POKE", "CIRCULAR", "COMBATE"])
+                return
+            if muito_perto and hp_pct < 0.30:
+                self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "POKE"])
+            elif burst_pronto and zona_orbita:
+                self.acao_atual = random.choice(["PRESSIONAR", "POKE", "MATAR"] if inimigo_hp_pct < 0.45 else ["PRESSIONAR", "COMBATE", "POKE"])
+            elif distancia > alcance_burst:
+                self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR", "PRESSIONAR"])
+            else:
+                self.acao_atual = random.choice(["POKE", "COMBATE", "CIRCULAR"])
+            return
+
+        if subtipo_orbital == "laminas":
+            if muito_perto and hp_pct < 0.28:
+                self.acao_atual = random.choice(["CIRCULAR", "COMBATE", "RECUAR"])
+            elif burst_pronto and zona_orbita:
+                self.acao_atual = random.choice(["MATAR", "PRESSIONAR", "FLANQUEAR"] if inimigo_hp_pct < 0.5 else ["COMBATE", "FLANQUEAR", "PRESSIONAR"])
+            elif distancia > alcance_burst:
+                self.acao_atual = random.choice(["APROXIMAR", "FLANQUEAR"])
+            else:
+                self.acao_atual = random.choice(["COMBATE", "MATAR", "FLANQUEAR"])
+            return
 
         if muito_perto and hp_pct < 0.32:
             self.acao_atual = random.choice(["RECUAR", "CIRCULAR", "COMBATE"])
@@ -1245,470 +1824,30 @@ class CombatMixin(_AIBrainMixinBase):
 
     def _estrategia_generica(self, distancia, roll, hp_pct, inimigo_hp_pct,
                               alcance_efetivo, alcance_ideal, inimigo, debug=False):
-        """
-        Caminho genÃ©rico de decisÃ£o usando sistema de pesos acumulativos.
-
-        MEL-AI-03: em vez de 7 camadas de modificadores que sobrescrevem a aÃ§Ã£o
-        anterior em cascata (podendo inverter completamente a decisÃ£o base), cada
-        fonte de influÃªncia deposita pesos num dict {acao: peso}. A aÃ§Ã£o final Ã©
-        a de maior peso acumulado. Isso mantÃ©m todas as influÃªncias visÃ­veis e
-        proporciona decisÃµes mais coerentes com a intenÃ§Ã£o principal da IA.
-        """
-        p = self.parent
-        minha_arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
-        minha_familia = resolver_familia_arma(minha_arma)
-        sou_ranged = arma_eh_ranged(minha_arma)
-        arma_inimigo = getattr(getattr(inimigo, 'dados', None), 'arma_obj', None)
-        familia_inimigo = resolver_familia_arma(arma_inimigo)
-        no_alcance       = distancia <= alcance_efetivo
-        quase_no_alcance = distancia <= alcance_efetivo * 1.3
-        longe            = distancia > alcance_efetivo * 1.5
-        muito_longe      = distancia > alcance_efetivo * 2.5
-
+        ctx = self._criar_contexto_combate_generico(
+            distancia,
+            roll,
+            hp_pct,
+            inimigo_hp_pct,
+            alcance_efetivo,
+            alcance_ideal,
+            inimigo,
+        )
         pesos: dict[str, float] = {}
+        self._votar_base_generica(ctx, pesos)
+        bp = self._votar_profile_traits_generico(ctx, pesos)
+        self._votar_estilo_emocao_generico(ctx, pesos, bp)
+        self._votar_leitura_oponente_generico(ctx, pesos)
+        self._votar_modificadores_externos_generico(ctx, pesos)
+        self._votar_time_generico(ctx, pesos)
+        self._compensar_matchup_generico(ctx, pesos, bp)
+        self._aplicar_anti_repeticao_generico(ctx, pesos)
 
-        def votar(acao: str, peso: float) -> None:
-            pesos[acao] = pesos.get(acao, 0.0) + peso
-
-        # FIX: Anti-stall â€” se tempo_desde_hit alto e no alcance, prioriza approach
-        stall_approaching = (self.tempo_desde_hit > 3.0 and not p.atacando)
-
-        # â”€â”€ 1. BASE: posiÃ§Ã£o e HP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if inimigo_hp_pct < 0.25 and no_alcance:
-            votar("MATAR",  1.5); votar("ESMAGAR", 1.0)
-            if stall_approaching:
-                votar("APROXIMAR", 1.0)  # NÃ£o acertou em 3s â†’ fecha distÃ¢ncia
-        elif no_alcance:
-            if inimigo_hp_pct < 0.3:
-                votar("MATAR", 1.2); votar("ESMAGAR", 0.8)
-            else:
-                votar("MATAR", 0.6); votar("ATAQUE_RAPIDO", 0.5); votar("COMBATE", 0.4)
-                votar("FLANQUEAR", 0.4); votar("CIRCULAR", 0.3); votar("PRESSIONAR", 0.3)
-                votar("CONTRA_ATAQUE", 0.2)
-            if stall_approaching:
-                votar("APROXIMAR", 0.8); votar("PRESSIONAR", 0.6)
-        elif quase_no_alcance:
-            votar("APROXIMAR", 0.7); votar("PRESSIONAR", 0.5); votar("FLANQUEAR", 0.4)
-            votar("COMBATE", 0.3); votar("POKE", 0.2); votar("CIRCULAR", 0.2)
-        elif longe or muito_longe:
-            votar("APROXIMAR", 1.0); votar("PRESSIONAR", 0.4)
-
-        # Anti-kite dedicado: corpo a corpo contra arco deve colar no alvo.
-        # Evita que pesos defensivos secundÃ¡rios mantenham a IA estacionada no mid-range.
-        if familia_inimigo == "disparo" and not sou_ranged:
-            if distancia > alcance_efetivo * 0.9:
-                votar("APROXIMAR", 1.3)
-                votar("FLANQUEAR", 0.9)
-                votar("PRESSIONAR", 0.8)
-            else:
-                votar("MATAR", 0.7)
-                votar("PRESSIONAR", 0.5)
-            if hp_pct > 0.25:
-                pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.55
-                pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.45
-
-        # â”€â”€ 2. BEHAVIOR PROFILE + TRAÃ‡OS (data-driven) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        bp = getattr(self, '_behavior_profile', FALLBACK_PROFILE)
-
-        # Profile: retreat behavior â€” personality controls when/if retreat happens
-        if hp_pct < bp.get("recuar_threshold", 0.30):
-            if bp.get("nunca_recua", False):
-                # Berserker/Viking: low HP = MORE aggression, not retreat
-                votar("MATAR", 2.5); votar("ESMAGAR", 1.5)
-            else:
-                votar("RECUAR", 1.5 * bp.get("retreat_weight", 1.0))
-                votar("FUGIR", 0.8 * bp.get("retreat_weight", 1.0))
-        elif hp_pct < 0.50 and bp.get("nunca_recua", False):
-            votar("MATAR", 1.5)  # Even at medium HP, aggressive profiles push forward
-
-        # Profile: pressure multiplier â€” how much they push advantages
-        if inimigo_hp_pct < bp.get("execute_threshold", 0.25):
-            votar("MATAR", 2.0 * bp.get("pressao_mult", 1.0))
-            votar("ESMAGAR", 1.0 * bp.get("pressao_mult", 1.0))
-        elif inimigo_hp_pct < 0.50:
-            votar("PRESSIONAR", 1.0 * bp.get("pressao_mult", 1.0))
-
-        # Profile: pursuit behavior
-        if bp.get("perseguir_sempre", False) and distancia > alcance_efetivo * 1.2:
-            votar("APROXIMAR", 1.5 * bp.get("approach_weight", 1.0))
-            votar("PRESSIONAR", 0.8 * bp.get("approach_weight", 1.0))
-
-        # Profile: damage reaction (applied via emotional system)
-        # This sets the tendency, actual emotion update happens in brain_emotions
-
-        # Data-driven trait effects â€” ALL traits processed from lookup table
-        for trait in self.tracos:
-            effects = get_trait_effects(trait)
-            for acao, peso in effects.items():
-                votar(acao, peso)
-
-        # Dynamic trait effects (context-dependent)
-        if "COVARDE" in self.tracos and hp_pct < bp.get("recuar_threshold", 0.30) + 0.10:
-            if self.vezes_que_fugiu > 4:
-                votar("MATAR", 2.0); self.raiva = 0.9
-            else:
-                votar("FUGIR", 2.0 * bp.get("retreat_weight", 1.0))
-        if "BERSERKER" in self.tracos and hp_pct < 0.45:
-            rage_bonus = (1.0 - hp_pct) * 3.0  # More HP lost = bigger bonus
-            votar("MATAR", rage_bonus)
-        if "FINALIZADOR_NATO" in self.tracos and inimigo_hp_pct < 0.25:
-            votar("MATAR", 2.0)
-        if "CLUTCH_PLAYER" in self.tracos and hp_pct < 0.30:
-            votar("MATAR", 1.5); votar("CONTRA_ATAQUE", 1.0)
-        if "TILTER" in self.tracos and hp_pct < 0.30:
-            votar("FUGIR", 0.8); votar("RECUAR", 0.5)
-        if "PHOENIX" in self.tracos and hp_pct < 0.20:
-            votar("MATAR", 2.5)
-        if "ULTIMO_SUSPIRO" in self.tracos and hp_pct < 0.10:
-            votar("MATAR", 3.0); votar("ESMAGAR", 2.0)
-        if "UNDERDOG" in self.tracos and hp_pct < inimigo_hp_pct - 0.2:
-            votar("MATAR", 1.2); votar("PRESSIONAR", 0.8)
-        if "MOMENTUM_RIDER" in self.tracos and self.momentum > 0.3:
-            votar("MATAR", 1.0); votar("PRESSIONAR", 0.8)
-        if "MASOQUISTA" in self.tracos:
-            dano_bonus = (1.0 - hp_pct) * 2.0
-            votar("MATAR", dano_bonus * 0.5); votar("PRESSIONAR", dano_bonus * 0.3)
-        if "KAMIKAZE" in self.tracos:
-            votar("MATAR", 3.0)
-        if "EMOTIVO" in self.tracos:
-            votar("MATAR", self.raiva * 0.6)
-            votar("FUGIR", self.medo * 0.6)
-
-        # â”€â”€ 3. ESTILO DE LUTA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        # HIGH-04 fix: respeita _estilo_override temporÃ¡rio do instinto style_switch
-        # sem corromper self.estilo_luta (que pertence Ã  personalidade base).
-        estilo_ativo = getattr(self, '_estilo_override', None) or self.estilo_luta
-        estilo_data   = ESTILOS_LUTA.get(estilo_ativo, ESTILOS_LUTA["BALANCED"])
-        agressividade = estilo_data.get("agressividade_base", 0.6)
-        agressividade = min(1.0, agressividade + min(0.2, self.tempo_combate / 60.0))
-        if inimigo_hp_pct < 0.3: agressividade = min(1.0, agressividade + 0.25)
-        if hp_pct < 0.25 and "BERSERKER" not in self.tracos: agressividade = max(0.3, agressividade - 0.1)
-
-        if distancia < alcance_ideal * 0.7:
-            votar(estilo_data["acao_perto"], agressividade * 0.8)
-        elif distancia > alcance_efetivo * 1.3:
-            votar(estilo_data["acao_longe"], agressividade * 0.8)
-        else:
-            votar(estilo_data["acao_medio"], agressividade * 0.8)
-
-        # â”€â”€ 4. PROFILE-DRIVEN MOVEMENT MODIFIERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        # Apply profile-based weight multipliers to movement actions
-        for acao_key, mult_key in [
-            ("APROXIMAR", "approach_weight"), ("RECUAR", "retreat_weight"),
-            ("FUGIR", "retreat_weight"), ("FLANQUEAR", "flank_weight"),
-            ("POKE", "poke_weight"),
-        ]:
-            if acao_key in pesos:
-                mult = bp.get(mult_key, 1.0)
-                pesos[acao_key] = pesos[acao_key] * mult
-
-        # Emotion-based voting with profile amplification
-        raiva_mult = bp.get("raiva_ganho_mult", 1.0)
-        medo_mult = bp.get("medo_ganho_mult", 1.0)
-        if "FRIO" not in self.tracos and self.raiva > 0.4:
-            votar("MATAR", self.raiva * 0.6 * raiva_mult)
-            votar("ESMAGAR", self.raiva * 0.4 * raiva_mult)
-        if "FRIO" not in self.tracos and self.medo > 0.4:
-            votar("RECUAR", self.medo * 0.5 * medo_mult)
-            votar("FUGIR", self.medo * 0.3 * medo_mult)
-
-        # â”€â”€ 5. HUMOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        humor_data = HUMORES.get(self.humor, HUMORES["CALMO"])
-        mod_humor  = humor_data.get("mod_agressividade", 0.0)
-        if mod_humor > 0.15:
-            votar("MATAR", mod_humor * 0.5); votar("APROXIMAR", mod_humor * 0.3)
-        elif mod_humor < -0.25:
-            votar("COMBATE", abs(mod_humor) * 0.4); votar("RECUAR", abs(mod_humor) * 0.2)
-
-        # â”€â”€ 6. FILOSOFIA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if self._rand() < 0.2:
-            filosofia_data = FILOSOFIAS.get(self.filosofia, FILOSOFIAS["EQUILIBRIO"])
-            for a in filosofia_data["preferencia_acao"]:
-                votar(a, 0.3)
-
-        # â”€â”€ 7. MOMENTUM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if self.momentum > AI_MOMENTUM_POSITIVO:
-            votar("MATAR", 0.3); votar("PRESSIONAR", 0.2)
-        elif self.momentum < AI_MOMENTUM_NEGATIVO:
-            votar("RECUAR", 0.2); votar("COMBATE", 0.2); votar("CIRCULAR", 0.1)
-
-        # Pressao de ritmo v15.0: quando a simulacao detecta neutral morto,
-        # empurra os lutadores para quebrar o impasse.
-        pressao_ritmo = max(0.0, min(1.0, float(getattr(self, "pressao_ritmo", 0.0) or 0.0)))
-        if pressao_ritmo > 0.05:
-            votar("APROXIMAR", 0.22 + pressao_ritmo * 0.32)
-            votar("PRESSIONAR", 0.16 + pressao_ritmo * 0.28)
-            if distancia <= alcance_efetivo * 1.15:
-                votar("MATAR", 0.08 + pressao_ritmo * 0.18)
-            pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * max(0.18, 1.0 - pressao_ritmo * 0.7)
-            pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * max(0.12, 1.0 - pressao_ritmo * 0.8)
-
-        # â”€â”€ 8. LEITURA DO OPONENTE (intercepÃ§Ã£o) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        leitura = self.leitura_oponente
-        if leitura["previsibilidade"] > AI_PREVISIBILIDADE_ALTA:
-            tend_esq = leitura.get("tendencia_esquerda", 0.5)
-            if self._dir_circular_cd <= 0:
-                if tend_esq > 0.60:
-                    self.dir_circular = 1; self._dir_circular_cd = 0.4
-                elif tend_esq < 0.40:
-                    self.dir_circular = -1; self._dir_circular_cd = 0.4
-
-            # M-N01: calcula posiÃ§Ã£o futura real do oponente e armazena como alvo de intercepÃ§Ã£o
-            tempo_reacao = getattr(self, 'timer_decisao', 0.2)
-            vel_in = getattr(inimigo, 'vel', (0.0, 0.0))
-            pos_in = getattr(inimigo, 'pos', (0.0, 0.0))
-            self._pos_interceptacao = (
-                pos_in[0] + vel_in[0] * tempo_reacao,
-                pos_in[1] + vel_in[1] * tempo_reacao,
-            )
-
-            if leitura["agressividade_percebida"] > 0.6:
-                votar("CONTRA_ATAQUE", 0.6)
-            elif leitura.get("frequencia_pulo", 0) > 0.35 and distancia < 5.0:
-                votar("COMBATE", 0.5)
-            else:
-                votar("PRESSIONAR", 0.4)
-        else:
-            self._pos_interceptacao = None  # sem previsÃ£o suficiente â€” nÃ£o interceptar
-        if leitura["agressividade_percebida"] > AI_AGRESSIVIDADE_ALTA:
-            if "REATIVO" in self.tracos or "OPORTUNISTA" in self.tracos:
-                votar("CONTRA_ATAQUE", 0.4)
-        if leitura.get("frequencia_pulo", 0) > 0.4:
-            votar("COMBATE", 0.25)
-        if distancia < 4.0:
-            tend = leitura.get("tendencia_esquerda", 0.5)
-            if self._dir_circular_cd <= 0:
-                if tend > 0.65:
-                    self.dir_circular = 1; self._dir_circular_cd = 0.4
-                elif tend < 0.35:
-                    self.dir_circular = -1; self._dir_circular_cd = 0.4
-
-        padrao_dominante = None
-        if hasattr(self, "_obter_padrao_dominante_oponente"):
-            padrao_dominante = self._obter_padrao_dominante_oponente(inimigo)
-        if padrao_dominante == "entrada_agressiva":
-            votar("CONTRA_ATAQUE", 0.45)
-            votar("CIRCULAR", 0.22)
-        elif padrao_dominante == "recuo_pos_ataque":
-            votar("PRESSIONAR", 0.35)
-            votar("APROXIMAR", 0.24)
-        elif padrao_dominante == "guarda_reativa":
-            votar("FLANQUEAR", 0.30)
-            votar("CIRCULAR", 0.18)
-        elif padrao_dominante == "prepara_burst_orbital":
-            votar("CIRCULAR", 0.38)
-            votar("RECUAR", 0.24)
-        elif padrao_dominante == "troca_forma_burst":
-            votar("CIRCULAR", 0.22)
-            votar("POKE", 0.18)
-
-        # â”€â”€ 9. MODIFICADORES ESPACIAIS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        # HIGH-02 fix: antes, _aplicar_modificadores_espaciais sobrescrevia acao_atual
-        # diretamente E depois o voto adicionava peso sobre essa aÃ§Ã£o jÃ¡ sobrescrita â€”
-        # dupla influÃªncia com peso efetivo de ~1.1. Restauramos acao_atual apÃ³s
-        # coletar a sugestÃ£o, tornando o peso real 0.5 (voto Ãºnico, sem sobrescrita).
-        _acao_antes_esp = self.acao_atual
-        self._aplicar_modificadores_espaciais(distancia, inimigo)
-        _sugestao_esp = self.acao_atual
-        self.acao_atual = _acao_antes_esp
-        if _sugestao_esp not in ("NEUTRO",) and _sugestao_esp != _acao_antes_esp:
-            votar(_sugestao_esp, 0.5)
-
-        # â”€â”€ 10. MODIFICADORES DE ARMAS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        # HIGH-02 fix: mesmo problema â€” dupla influÃªncia via sobrescrita + voto.
-        _acao_antes_arma = self.acao_atual
-        self._aplicar_modificadores_armas(distancia, inimigo)
-        _sugestao_arma = self.acao_atual
-        self.acao_atual = _acao_antes_arma
-        if _sugestao_arma not in ("NEUTRO",) and _sugestao_arma != _acao_antes_arma:
-            votar(_sugestao_arma, 0.45)
-
-        # â”€â”€ 11. TEAM ROLE-BASED MOVEMENT v13.0 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        orders = getattr(self, 'team_orders', {})
-        team_role = orders.get("role", "")
-        team_tactic = orders.get("tactic", "")
-        team_center = orders.get("team_center", (0, 0))
-        has_team = orders.get("alive_count", 1) > 1
-
-        if has_team and team_role:
-            if team_role == "VANGUARD":
-                # Vanguard fica entre aliados e inimigos, engaja frontalmente
-                votar("APROXIMAR", 0.5); votar("PRESSIONAR", 0.5); votar("MATAR", 0.3)
-                votar("BLOQUEAR", 0.2)
-                # NÃ£o recua facilmente
-                pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.4
-                pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.2
-            elif team_role == "FLANKER":
-                # Flanker circula para atacar pelo lado
-                votar("FLANQUEAR", 0.8); votar("CIRCULAR", 0.4)
-                if no_alcance:
-                    votar("ATAQUE_RAPIDO", 0.5)
-                else:
-                    votar("APROXIMAR", 0.3)
-                # Evita engajamento frontal direto
-                pesos["PRESSIONAR"] = pesos.get("PRESSIONAR", 0.0) * 0.5
-            elif team_role == "ARTILLERY":
-                # Artillery mantÃ©m distÃ¢ncia mÃ¡xima
-                if distancia < alcance_efetivo * 0.6:
-                    votar("RECUAR", 1.2); votar("FUGIR", 0.6)
-                elif distancia < alcance_efetivo:
-                    votar("RECUAR", 0.5); votar("CIRCULAR", 0.4)
-                else:
-                    votar("COMBATE", 0.5)
-                # Penaliza aproximaÃ§Ã£o agressiva
-                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.3
-                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.5
-            elif team_role == "SUPPORT":
-                # Suporte fica perto do centro do time, evita frontline
-                dist_to_center = math.hypot(
-                    p.pos[0] - team_center[0], p.pos[1] - team_center[1]
-                ) if team_center != (0, 0) else 999
-                if dist_to_center > 6.0:
-                    # Longe do time, reagrupa
-                    votar("RECUAR", 0.6); votar("CIRCULAR", 0.4)
-                else:
-                    votar("COMBATE", 0.5); votar("CIRCULAR", 0.3)
-                # Suporte evita engajamento direto
-                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.4
-                pesos["ESMAGAR"] = pesos.get("ESMAGAR", 0.0) * 0.3
-            elif team_role == "CONTROLLER":
-                # Controller mantÃ©m distÃ¢ncia mÃ©dia, zone control
-                if distancia < alcance_ideal * 0.6:
-                    votar("RECUAR", 0.6); votar("CIRCULAR", 0.5)
-                elif distancia < alcance_efetivo:
-                    votar("COMBATE", 0.5); votar("CIRCULAR", 0.4); votar("FLANQUEAR", 0.3)
-                else:
-                    votar("APROXIMAR", 0.3); votar("CIRCULAR", 0.3)
-            elif team_role == "STRIKER":
-                # Striker Ã© agressivo mas calculado
-                if no_alcance:
-                    votar("MATAR", 0.4); votar("ESMAGAR", 0.3)
-                else:
-                    votar("APROXIMAR", 0.4); votar("PRESSIONAR", 0.3)
-
-            # â”€â”€ TACTIC-BASED OVERRIDES â”€â”€
-            if team_tactic == "RETREAT_REGROUP":
-                votar("RECUAR", 1.0); votar("CIRCULAR", 0.5)
-                pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.3
-                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.3
-            elif team_tactic == "FULL_AGGRO":
-                votar("MATAR", 0.5); votar("APROXIMAR", 0.4); votar("PRESSIONAR", 0.3)
-            elif team_tactic == "KITE_AND_POKE":
-                if distancia < alcance_efetivo * 0.8:
-                    votar("RECUAR", 0.5)
-                votar("CIRCULAR", 0.3); votar("POKE", 0.3)
-            elif team_tactic == "PINCER_ATTACK":
-                if team_role == "FLANKER":
-                    votar("FLANQUEAR", 0.8)
-                else:
-                    votar("PRESSIONAR", 0.4); votar("APROXIMAR", 0.3)
-            elif team_tactic == "PROTECT_CARRY":
-                if orders.get("is_carry", False):
-                    # Carry joga mais agressivo
-                    votar("MATAR", 0.4); votar("PRESSIONAR", 0.3)
-                elif team_role in ("VANGUARD", "SUPPORT"):
-                    # Protetores ficam perto do carry
-                    votar("COMBATE", 0.3); votar("CIRCULAR", 0.3)
-            elif team_tactic == "BAIT_AND_PUNISH":
-                if team_role in ("CONTROLLER", "FLANKER"):
-                    votar("CIRCULAR", 0.4); votar("RECUAR", 0.3)
-                else:
-                    votar("COMBATE", 0.3)
-
-        # â”€â”€ 12. COMPENSAÃ‡ÃƒO ARMA x COMPORTAMENTO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        # Evita que perfis extremos de personalidade distorÃ§am demais o win-rate
-        # de um tipo de arma especÃ­fico.
-        perfil_agressivo = (
-            bp.get("approach_weight", 1.0)
-            + bp.get("pressao_mult", 1.0)
-            + bp.get("combo_tendencia", 1.0)
-        )
-        perfil_defensivo = (
-            bp.get("retreat_weight", 1.0)
-            + bp.get("bloqueio_mult", 1.0)
-            + bp.get("paciencia_mult", 1.0)
-        )
-
-        # Perfis muito defensivos em armas de curta distÃ¢ncia tendem a colapsar o tipo.
-        if minha_familia in (FAMILIAS_CURTA_DISTANCIA | {"haste"}) and perfil_defensivo > perfil_agressivo * 1.12:
-            pesos["RECUAR"] = pesos.get("RECUAR", 0.0) * 0.62
-            pesos["FUGIR"] = pesos.get("FUGIR", 0.0) * 0.52
-            votar("APROXIMAR", 0.35)
-            votar("PRESSIONAR", 0.28)
-            if minha_familia == "orbital":
-                votar("COMBATE", 0.42)
-                votos_anti_passivo = 0.24 if distancia > alcance_efetivo * 1.1 else 0.0
-                if votos_anti_passivo > 0:
-                    votar("APROXIMAR", votos_anti_passivo)
-
-        # Perfis extremamente agressivos em ranged podem inflar demais o tipo.
-        if minha_familia in {"disparo", "arremesso", "foco"} and perfil_agressivo > perfil_defensivo * 1.20:
-            pesos["MATAR"] = pesos.get("MATAR", 0.0) * 0.84
-            pesos["ESMAGAR"] = pesos.get("ESMAGAR", 0.0) * 0.78
-            votar("COMBATE", 0.25)
-            votar("CIRCULAR", 0.20)
-            if distancia < alcance_ideal * 0.75:
-                votar("RECUAR", 0.28)
-            elif distancia > alcance_efetivo * 1.05:
-                votar("APROXIMAR", 0.18)
-
-        # Reduz acoplamento excessivo de anti-kite quando a vantagem de arma jÃ¡ Ã© clara.
-        if familia_inimigo == "disparo" and not sou_ranged and minha_familia in FAMILIAS_PRESSAO_MELEE:
-            if perfil_agressivo < perfil_defensivo:
-                votar("FLANQUEAR", 0.24)
-                votar("CIRCULAR", 0.12)
-                pesos["APROXIMAR"] = pesos.get("APROXIMAR", 0.0) * 0.92
-
-        # â”€â”€ ANTI-REPETIÃ‡ÃƒO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if len(self.historico_acoes) >= 3:
-            ultimas_3 = self.historico_acoes[-3:]
-            acao_rep = self.acao_atual
-            if ultimas_3.count(acao_rep) >= 2:
-                pesos[acao_rep] = pesos.get(acao_rep, 0.0) * 0.5   # penaliza repetiÃ§Ã£o
-
-        # â”€â”€ ANTI-CIRCULAR: impede orbitar infinitamente â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if self.circular_consecutivo >= 3:
-            # JÃ¡ circulou demais â€” penaliza fortemente e forÃ§a aÃ§Ã£o diferente
-            pesos["CIRCULAR"] = pesos.get("CIRCULAR", 0.0) * 0.1
-            # Incentiva aÃ§Ãµes que quebrem o padrÃ£o
-            if no_alcance:
-                votar("COMBATE", 0.8); votar("PRESSIONAR", 0.5)
-            else:
-                votar("APROXIMAR", 0.7); votar("FLANQUEAR", 0.5)
-
-        # â”€â”€ DECISÃƒO FINAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        if pesos:
-            acao_escolhida = max(pesos, key=pesos.__getitem__)
-
-            # Introduz variabilidade controlada para evitar lutas previsÃ­veis.
-            top_items = sorted(pesos.items(), key=lambda x: x[1], reverse=True)
-            if len(top_items) > 1:
-                max_w = max(0.01, top_items[0][1])
-                contenders = [(a, w) for a, w in top_items[:4] if w >= max_w * 0.72]
-
-                variancia_base = 0.14
-                if "CaÃ³tico" in self.tracos or "IMPRUDENTE" in self.tracos:
-                    variancia_base += 0.08
-                if "Contemplativo" in self.tracos or "PRUDENTE" in self.tracos:
-                    variancia_base -= 0.06
-                variancia_base = max(0.05, min(0.30, variancia_base))
-
-                if len(contenders) >= 2 and random.random() < variancia_base:
-                    total = sum(max(0.01, w) for _, w in contenders)
-                    r = random.random() * total
-                    acc = 0.0
-                    for action_name, weight in contenders:
-                        acc += max(0.01, weight)
-                        if r <= acc:
-                            acao_escolhida = action_name
-                            break
-
-            if debug:
-                top3 = sorted(pesos.items(), key=lambda x: x[1], reverse=True)[:3]
-                _log.debug("[DECISAO] %s â†’ genÃ©rico | top3=%s", p.dados.nome, top3)
+        acao_escolhida = self._escolher_acao_generica(ctx, pesos, debug=debug)
+        if acao_escolhida:
             self.acao_atual = acao_escolhida
+        return
 
-    
     # L-N02: mÃ©todos [DEPRECIADO] removidos (Sprint 4) â€” lÃ³gica jÃ¡ absorvida em _estrategia_generica
 
     def _calcular_alcance_efetivo(self):

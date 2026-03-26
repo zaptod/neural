@@ -24,6 +24,7 @@ from interface.ui_components import (
     build_labeled_combobox,
     build_labeled_entry,
     InlineFeedbackBar,
+    ScrollableWorkspace,
     UICard,
     build_page_header,
     build_radio_option_card,
@@ -137,8 +138,9 @@ def _aplicar_preset_familia(dados, familia, subtipo=None, preservar_cores=False)
 
 def _criar_arma_do_estado_ui(dados):
     dados = _sincronizar_dados_arma_v2(dict(dados))
-    max_slots, _ = _limites_magia_por_familia(dados)
-    dados["habilidades"] = list(dados.get("habilidades", []))[:max_slots]
+    # Skills ativas agora pertencem ao personagem. A arma salva apenas o
+    # perfil mecanico/visual; habilidades legadas ficam so para fallback/migracao.
+    dados["habilidades"] = []
     cores = dados["cores"]
     return Arma(
         nome=dados["nome"],
@@ -192,9 +194,11 @@ class TelaArmas(tk.Frame):
         # Header
         self.criar_header()
 
-        main = tk.Frame(self, bg=COR_BG)
-        main.pack(fill="both", expand=True, padx=14, pady=10)
+        workspace = ScrollableWorkspace(self, bg=COR_BG, xscroll=True, yscroll=True)
+        workspace.pack(fill="both", expand=True, padx=14, pady=10)
+        main = workspace.content
         self._main_area = main
+        self._workspace = workspace
 
         paned = tk.PanedWindow(
             main,
@@ -292,7 +296,7 @@ class TelaArmas(tk.Frame):
         self.frame_progresso.pack(anchor="e", pady=10)
 
         self.labels_progresso = []
-        nomes_passos = ["Base", "Acabamento", "Visual", "Magia", "Finalizar"]
+        nomes_passos = ["Base", "Acabamento", "Visual", "Perfil", "Finalizar"]
         for i, nome in enumerate(nomes_passos, 1):
             cor = COR_SUCCESS if i == 1 else COR_TEXTO_DIM
             lbl = tk.Label(
@@ -468,7 +472,7 @@ class TelaArmas(tk.Frame):
             ("Acabamento", self.dados_arma["raridade"]),
             ("Dano", f"{self.dados_arma['dano']:.0f}"),
             ("Peso", f"{self.dados_arma['peso']:.1f} kg"),
-            ("Skills", str(len(self.dados_arma["habilidades"]))),
+            ("Kit Arcano", "Personagem"),
         ]
         
         render_stat_grid(
@@ -1477,6 +1481,137 @@ class TelaArmas(tk.Frame):
             self.vars_encantamento[nome].set(False)
         self.dados_arma["encantamentos"] = []
 
+    def passo_habilidades(self):
+        """Passo 4 redefinido: skills saem da arma e viram parte do personagem."""
+        self.lbl_passo_titulo.config(text="4. PERFIL TATICO")
+
+        dados = _sincronizar_dados_arma_v2(dict(self.dados_arma))
+        spec = get_family_spec(dados["familia"])
+        mecanica = spec.get("mecanica", {})
+        legado = list(dados.get("habilidades", []) or [])
+        max_slots, _ = _limites_magia_por_familia(dados)
+
+        self.lbl_passo_desc.config(
+            text="As skills foram movidas para o criador de personagens. A arma agora guarda so o nucleo mecanico e visual."
+        )
+
+        aviso = UICard(self.frame_conteudo_passo, bg=COR_BG, border=COR_ACCENT, padx=14, pady=12)
+        aviso.pack(fill="x", pady=(6, 10))
+        tk.Label(
+            aviso,
+            text="KIT MAGICO AGORA PERTENCE AO CAMPEAO",
+            font=("Arial", 11, "bold"),
+            bg=COR_BG,
+            fg=COR_ACCENT,
+        ).pack(anchor="w")
+        tk.Label(
+            aviso,
+            text=(
+                "Novas armas nao salvam mais habilidades ativas. "
+                "A selecao de magia foi movida para a criacao de personagem, "
+                "onde o conjunto completo faz mais sentido para IA, arquétipos e balanceamento."
+            ),
+            font=("Arial", 9),
+            bg=COR_BG,
+            fg=COR_TEXTO_DIM,
+            wraplength=780,
+            justify="left",
+        ).pack(anchor="w", pady=(6, 0))
+
+        main = tk.Frame(self.frame_conteudo_passo, bg=COR_BG_SECUNDARIO)
+        main.pack(fill="both", expand=True)
+        main.grid_columnconfigure(0, weight=1, minsize=280)
+        main.grid_columnconfigure(1, weight=1, minsize=320)
+
+        card_identidade = UICard(main, bg=COR_BG, border="#284564", padx=12, pady=10)
+        card_identidade.grid(row=0, column=0, sticky="nsew", padx=(0, 6), pady=4)
+        build_section_header(
+            card_identidade,
+            "Leitura Da Arma",
+            "O que a arma entrega sozinha em comportamento, ritmo e distancia.",
+            bg=COR_BG,
+            accent=COR_ACCENT,
+        )
+        render_stat_grid(
+            card_identidade,
+            [
+                ("Familia", spec["nome"]),
+                ("Subtipo", dados["subtipo"]),
+                ("Categoria", dados["categoria"].replace("_", " ")),
+                ("Alcance", f"{float(mecanica.get('alcance', 1.5) or 1.5):.1f}"),
+                ("Cadencia", f"{float(mecanica.get('cadencia', 1.0) or 1.0):.2f}"),
+                ("Impacto", f"{float(mecanica.get('dano_base', dados['dano']) or dados['dano']):.0f}"),
+            ],
+            columns=2,
+            bg=COR_BG,
+        )
+        tk.Label(
+            card_identidade,
+            text=f"Referencia de heranca antiga por familia: ate {max_slots} slot(s) legados, mas novas armas ja saem limpas.",
+            font=("Arial", 9),
+            bg=COR_BG,
+            fg=COR_TEXTO_DIM,
+            wraplength=360,
+            justify="left",
+        ).pack(anchor="w", padx=12, pady=(8, 0))
+
+        card_legado = UICard(main, bg=COR_BG, border="#284564", padx=12, pady=10)
+        card_legado.grid(row=0, column=1, sticky="nsew", padx=(6, 0), pady=4)
+        build_section_header(
+            card_legado,
+            "Migracao E Compatibilidade",
+            "Leitura de skills antigas da arma apenas como referencia para uma transicao segura.",
+            bg=COR_BG,
+            accent=COR_SUCCESS,
+        )
+        if legado:
+            tk.Label(
+                card_legado,
+                text="Skills legadas detectadas nesta arma:",
+                font=("Arial", 10, "bold"),
+                bg=COR_BG,
+                fg=COR_TEXTO,
+            ).pack(anchor="w", padx=12, pady=(2, 6))
+            for hab in legado:
+                if isinstance(hab, dict):
+                    nome = hab.get("nome", "Desconhecida")
+                    custo = float(hab.get("custo", 0.0) or 0.0)
+                    texto = f"- {nome} ({custo:.0f} mana)"
+                else:
+                    texto = f"- {hab}"
+                tk.Label(
+                    card_legado,
+                    text=texto,
+                    font=("Arial", 9),
+                    bg=COR_BG,
+                    fg=COR_TEXTO_DIM,
+                    anchor="w",
+                    justify="left",
+                ).pack(fill="x", padx=12, pady=1)
+        else:
+            tk.Label(
+                card_legado,
+                text="Nenhuma skill legada nesta arma. O kit magico sera 100% montado no personagem.",
+                font=("Arial", 10),
+                bg=COR_BG,
+                fg=COR_SUCCESS,
+                wraplength=360,
+                justify="left",
+            ).pack(anchor="w", padx=12, pady=(6, 0))
+
+        tk.Label(
+            card_legado,
+            text=(
+                "Ao salvar, a Forja grava apenas o perfil mecanico e visual da arma. "
+                "A engine continua compativel com fallback legado para nao quebrar personagens antigos durante a migracao."
+            ),
+            font=("Arial", 9),
+            bg=COR_BG,
+            fg=COR_TEXTO_DIM,
+            wraplength=360,
+            justify="left",
+        ).pack(anchor="w", padx=12, pady=(12, 0))
+
     # -------------------------------------------------------------------------
     # PASSO 6: FINALIZAR
     # -------------------------------------------------------------------------
@@ -1506,12 +1641,11 @@ class TelaArmas(tk.Frame):
         stats_frame = tk.Frame(frame_resumo, bg=COR_BG)
         stats_frame.pack(pady=15)
 
-        max_slots, _ = _limites_magia_por_familia(dados)
         stats = [
             ("Dano Base", f"{dados['dano']:.0f}"),
             ("Peso", f"{dados['peso']:.1f}kg"),
             ("Categoria", dados['categoria'].replace('_', ' ')),
-            ("Slots", f"{len(dados['habilidades'])}/{max_slots}"),
+            ("Kit Arcano", "Personagem"),
         ]
 
         for i, (nome, valor) in enumerate(stats):
@@ -1520,23 +1654,15 @@ class TelaArmas(tk.Frame):
                 font=("Arial", 11), bg=COR_BG, fg=COR_TEXTO
             ).grid(row=i // 2, column=i % 2, padx=20, pady=3, sticky="w")
 
-        if dados["habilidades"]:
-            tk.Label(
-                frame_resumo, text="Habilidades:",
-                font=("Arial", 10, "bold"), bg=COR_BG, fg=COR_SUCCESS
-            ).pack(anchor="w", padx=15)
-
-            for hab in dados["habilidades"]:
-                if isinstance(hab, dict):
-                    nome = hab.get("nome", "Desconhecida")
-                    custo = hab.get("custo", 0)
-                    texto = f"  - {nome} ({custo} mana)"
-                else:
-                    texto = f"  - {hab}"
-                tk.Label(
-                    frame_resumo, text=texto,
-                    font=("Arial", 9), bg=COR_BG, fg=COR_TEXTO
-                ).pack(anchor="w", padx=15)
+        tk.Label(
+            frame_resumo,
+            text="As habilidades ativas sao escolhidas no criador de personagens. Esta arma sera salva limpa, focada apenas em identidade mecanica e visual.",
+            font=("Arial", 9),
+            bg=COR_BG,
+            fg=COR_TEXTO_DIM,
+            wraplength=420,
+            justify="left",
+        ).pack(anchor="w", padx=15, pady=(6, 0))
 
     # =========================================================================
     # PREVIEW
@@ -2583,7 +2709,7 @@ class TelaArmas(tk.Frame):
 
         self.indice_em_edicao = idx
         self.mostrar_passo(1)
-        self.feedback_lista.set_message(f"Editando {arma.nome}. Revise família, visual e kit mágico.", tone="info")
+        self.feedback_lista.set_message(f"Editando {arma.nome}. Revise familia, visual e perfil mecanico.", tone="info")
 
     def editar_arma(self):
         """Inicia edicao da arma selecionada."""
@@ -2614,4 +2740,23 @@ class TelaArmas(tk.Frame):
     def atualizar_dados(self):
         """Chamado quando a tela e exibida"""
         self.atualizar_lista()
+
+    def focar_arma_nome(self, nome):
+        nome = str(nome or "").strip()
+        if not nome or not hasattr(self, "tree"):
+            return False
+        for item in self.tree.get_children():
+            values = self.tree.item(item, "values") or ()
+            if values and str(values[0]) == nome:
+                self.tree.selection_set(item)
+                self.tree.focus(item)
+                self.tree.see(item)
+                self.selecionar_arma(None)
+                if hasattr(self, "feedback_lista"):
+                    self.feedback_lista.set_message(
+                        f"Foco headless aplicado em {nome}. Revise familia, geometria e leitura visual da arma.",
+                        tone="info",
+                    )
+                return True
+        return False
 

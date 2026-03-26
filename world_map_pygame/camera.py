@@ -3,7 +3,10 @@ World Map — Camera System
 Pan / zoom with keyboard, mouse drag, and scroll wheel.
 """
 import pygame
-from config import MAP_W, MAP_H, ZOOM_LEVELS, DEFAULT_ZOOM, SCR
+try:
+    from .config import MAP_W, MAP_H, ZOOM_LEVELS, DEFAULT_ZOOM, SCR
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import MAP_W, MAP_H, ZOOM_LEVELS, DEFAULT_ZOOM, SCR
 
 
 class Camera:

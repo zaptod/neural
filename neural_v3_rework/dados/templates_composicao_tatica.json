@@ -45,6 +45,28 @@
       }
     },
     {
+      "id": "corte_astral_2v2",
+      "modo": "grupo_vs_grupo",
+      "nome": "Corte Astral 2v2",
+      "cenario": "Arena",
+      "duracao_max_seg": 95,
+      "runs_recomendados": 2,
+      "team_a": {
+        "label": "Orbitas Coordenadas",
+        "slots": [
+          { "papel": "bastiao_orbital", "personagem": "Lyss Aurel", "pacote_arquetipo": "bastiao_prismatico" },
+          { "papel": "artilheiro_orbital", "personagem": "Iona Hex", "pacote_arquetipo": "artilheiro_de_orbita" }
+        ]
+      },
+      "team_b": {
+        "label": "Ruptura Direta",
+        "slots": [
+          { "papel": "bruiser", "personagem": "Cassian Orion da Brasa", "pacote_arquetipo": "vanguarda_brutal" },
+          { "papel": "assassino", "personagem": "Iris Rubra da Brasa", "pacote_arquetipo": "assassino_termico" }
+        ]
+      }
+    },
+    {
       "id": "esquadrao_balanceado_3v3",
       "modo": "grupo_vs_grupo",
       "nome": "Esquadrao Balanceado 3v3",
@@ -65,6 +87,30 @@
           { "papel": "bruiser" },
           { "papel": "suporte_controle" },
           { "papel": "assassino" }
+        ]
+      }
+    },
+    {
+      "id": "triade_astral_3v3",
+      "modo": "grupo_vs_grupo",
+      "nome": "Triade Astral 3v3",
+      "cenario": "Arena",
+      "duracao_max_seg": 125,
+      "runs_recomendados": 2,
+      "team_a": {
+        "label": "Constelacao Viva",
+        "slots": [
+          { "papel": "bastiao_orbital", "personagem": "Aegis Valebrilho", "pacote_arquetipo": "bastiao_prismatico" },
+          { "papel": "maestro_astral", "personagem": "Seris Prismal", "pacote_arquetipo": "maestro_astral" },
+          { "papel": "artilheiro_orbital", "personagem": "Iona Hex", "pacote_arquetipo": "artilheiro_de_orbita" }
+        ]
+      },
+      "team_b": {
+        "label": "Pressao Hibrida",
+        "slots": [
+          { "papel": "defensor" },
+          { "papel": "suporte_controle" },
+          { "papel": "bruiser" }
         ]
       }
     },
@@ -116,6 +162,30 @@
       "horda": {
         "preset_id": "corredor_infectado",
         "duracao_max_seg": 120
+      }
+    },
+    {
+      "id": "falange_prismatica_horda",
+      "modo": "grupo_vs_horda",
+      "nome": "Falange Prismatica Na Horda",
+      "cenario": "Coliseu",
+      "duracao_max_seg": 130,
+      "runs_recomendados": 2,
+      "team_a": {
+        "label": "Anel Defensivo",
+        "slots": [
+          { "papel": "bastiao_orbital", "personagem": "Aegis Valebrilho", "pacote_arquetipo": "bastiao_prismatico" },
+          { "papel": "maestro_astral", "personagem": "Orin Celest", "pacote_arquetipo": "maestro_astral" },
+          { "papel": "limpador_de_horda" }
+        ]
+      },
+      "team_b": {
+        "label": "Horda",
+        "slots": []
+      },
+      "horda": {
+        "preset_id": "corredor_infectado",
+        "duracao_max_seg": 130
       }
     }
   ]

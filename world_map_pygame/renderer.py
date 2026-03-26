@@ -6,14 +6,24 @@ Supports massive maps (1600×1000+) without lag.
 """
 import pygame
 import numpy as np
-from config import (
-    MAP_W, MAP_H, TOPBAR_H, SCR,
-    BIOME_COLORS, GOD_COLORS,
-    INFLUENCE_TINT_STRENGTH, INFLUENCE_WATER_FACTOR,
-    MINIMAP_W, MINIMAP_H, MINIMAP_MARGIN,
-    CHUNK_SIZE,
-)
-from tools import MATERIALS, MAT_NAMES, MAT_INDEX
+try:
+    from .config import (
+        MAP_W, MAP_H, TOPBAR_H, SCR,
+        BIOME_COLORS, GOD_COLORS,
+        INFLUENCE_TINT_STRENGTH, INFLUENCE_WATER_FACTOR,
+        MINIMAP_W, MINIMAP_H, MINIMAP_MARGIN,
+        CHUNK_SIZE,
+    )
+    from .tools import MATERIALS, MAT_NAMES, MAT_INDEX
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H, TOPBAR_H, SCR,
+        BIOME_COLORS, GOD_COLORS,
+        INFLUENCE_TINT_STRENGTH, INFLUENCE_WATER_FACTOR,
+        MINIMAP_W, MINIMAP_H, MINIMAP_MARGIN,
+        CHUNK_SIZE,
+    )
+    from tools import MATERIALS, MAT_NAMES, MAT_INDEX
 
 # Pre-compute material colour LUT: (num_materials, 3)
 _MAT_COLOR_LUT = np.zeros((len(MAT_NAMES), 3), dtype=np.uint8)

@@ -3,7 +3,7 @@
 import pytest
 
 from ia.skill_strategy import CombatSituation, SkillPurpose, SkillStrategySystem, StrategicRole
-from nucleo.skills import SKILL_DB
+from nucleo.skills import SKILL_DB, get_skill_data
 
 
 def _make_skill_info(nome):
@@ -119,6 +119,12 @@ def test_condicoes_ideais(sss):
 def test_rotations(sss):
     assert sss.plano.rotacao_opening
     assert isinstance(sss.plano.rotacao_disadvantage, list)
+
+
+def test_get_skill_data_resolve_aliases_com_acentos():
+    assert get_skill_data("Redenção")["tipo"] == "AREA"
+    assert get_skill_data("Sobrecarga Entrópica")["tipo"] == "BUFF"
+    assert get_skill_data("Lança de Luz")["tipo"] == "PROJETIL"
 
 
 def test_role_detection():

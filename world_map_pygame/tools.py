@@ -3,9 +3,14 @@ World Map — Tools & Brush System  (v4.0 MEGA UPDATE)
 Element synergy, expanded materials, advanced god powers, construction tools.
 """
 import numpy as np
-from config import (
-    MAP_W, MAP_H, ELEMENT_REACTIONS, REACTION_MATERIALS,
-)
+try:
+    from .config import (
+        MAP_W, MAP_H, ELEMENT_REACTIONS, REACTION_MATERIALS,
+    )
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H, ELEMENT_REACTIONS, REACTION_MATERIALS,
+    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Tool categories — 10 categories with expanded tools

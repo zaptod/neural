@@ -27,6 +27,42 @@
       "fraco_em": ["burst_duelo", "frente_sozinho", "pressao_imediata"]
     },
     {
+      "id": "bastiao_orbital",
+      "nome": "Bastiao Orbital",
+      "objetivo": "Usar orbitais de escudo para proteger a linha, negar engage e responder com contra-ataque curto.",
+      "arquetipos_prioritarios": ["PALADINO", "CLERIGO", "CAVALEIRO", "ARCANO", "MAGO_CONTROLE"],
+      "tracos_prioritarios": ["PROTETOR", "MURALHA", "PREVISOR", "CALCULISTA", "SENTINEL"],
+      "familias_arma_preferidas": ["orbital", "hibrida"],
+      "classes_magia_preferidas": ["PROTECAO", "CONTROLE", "CURA"],
+      "forcas_magia_preferidas": ["SUPORTE", "PRESSAO"],
+      "forte_em": ["peel", "frente_estavel", "anti_mergulho", "segurar_corredor"],
+      "fraco_em": ["perseguicao_longa", "burst_muito_aberto", "mapa_muito_grande"]
+    },
+    {
+      "id": "artilheiro_orbital",
+      "nome": "Artilheiro Orbital",
+      "objetivo": "Manter pressao modular com drones e rajadas orbitais sem entrar em troca longa.",
+      "arquetipos_prioritarios": ["MAGO", "ARCANO", "INVENTOR", "ATIRADOR", "MAGO_AGRESSIVO"],
+      "tracos_prioritarios": ["KITER", "ESPACAMENTO_MESTRE", "PRESSAO_CONSTANTE", "PACIENTE", "FOCADO"],
+      "familias_arma_preferidas": ["orbital", "foco", "disparo"],
+      "classes_magia_preferidas": ["PRECISAO", "DANO", "ZONA"],
+      "forcas_magia_preferidas": ["PRESSAO", "PRECISAO", "IMPACTO"],
+      "forte_em": ["poke", "dps_seguro", "zona_media", "punir_alvos_lentos"],
+      "fraco_em": ["colado_no_corpo", "frontline_pura", "cerco_duplo"]
+    },
+    {
+      "id": "maestro_astral",
+      "nome": "Maestro Astral",
+      "objetivo": "Sincronizar orbitas, invocacoes e zonas para controlar ritmo e espaco do combate.",
+      "arquetipos_prioritarios": ["ARCANO", "INVOCADOR", "MAGO_CONTROLE", "NECROMANTE", "SACERDOTE"],
+      "tracos_prioritarios": ["ZONE_CONTROLLER", "SETUP_ARTIST", "PACIENTE", "CALCULISTA", "ORBITA"],
+      "familias_arma_preferidas": ["orbital", "foco"],
+      "classes_magia_preferidas": ["INVOCACAO", "ZONA", "CONTROLE", "PROTECAO"],
+      "forcas_magia_preferidas": ["SUPORTE", "PRESSAO", "CATACLISMO"],
+      "forte_em": ["controle_de_mapa", "setup_de_time", "anti_horda", "attrition"],
+      "fraco_em": ["pickoff_rapido", "duelo_seco", "explosao_imediata"]
+    },
+    {
       "id": "suporte_controle",
       "nome": "Suporte De Controle",
       "objetivo": "Criar janelas para o time com trava, slow, zona e setup.",

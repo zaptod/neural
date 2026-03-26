@@ -6,10 +6,16 @@ Units form groups, seek targets, coordinate attacks, retreat when losing.
 import numpy as np
 import math
 import random
-from config import (
-    MAP_W, MAP_H, UNIT_TYPES, UNIT_SPEED, GOD_COLORS,
-    ARMY_MIN_SIZE, ARMY_MERGE_RADIUS, PATROL_RADIUS, RAID_RANGE,
-)
+try:
+    from .config import (
+        MAP_W, MAP_H, UNIT_TYPES, UNIT_SPEED, GOD_COLORS,
+        ARMY_MIN_SIZE, ARMY_MERGE_RADIUS, PATROL_RADIUS, RAID_RANGE,
+    )
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H, UNIT_TYPES, UNIT_SPEED, GOD_COLORS,
+        ARMY_MIN_SIZE, ARMY_MERGE_RADIUS, PATROL_RADIUS, RAID_RANGE,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -431,7 +437,10 @@ class UnitSystem:
     def simulate(self, dt, heightmap, biome_map, biome_names, land_mask,
                  influence=None, material_layer=None, world=None):
         """Update all units: move, fight, army AI, die."""
-        from synergy import COMBAT_TYPE_ADVANTAGE
+        try:
+            from .synergy import COMBAT_TYPE_ADVANTAGE
+        except ImportError:  # pragma: no cover - direct script fallback
+            from synergy import COMBAT_TYPE_ADVANTAGE
         changed = False
 
         # Army auto-formation check (every 2 seconds)

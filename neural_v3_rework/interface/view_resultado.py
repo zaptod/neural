@@ -12,7 +12,7 @@ from interface.theme import (
     COR_TEXTO, COR_TEXTO_DIM, COR_WARNING, COR_P1, COR_P2, COR_DANGER,
     COR_BG_CARD, COR_BORDA, COR_TEXTO_SUB,
 )
-from interface.ui_components import UICard, make_primary_button
+from interface.ui_components import ScrollableWorkspace, UICard, make_primary_button
 
 # Tier → (cor, emoji)
 TIER_VISUAL = {
@@ -101,27 +101,9 @@ class PostFightScreen(tk.Toplevel):
         ).pack()
 
         # ── Main scrollable area ───────────────────────────────────────
-        canvas = tk.Canvas(self, bg=COR_BG, highlightthickness=0)
-        scrollbar = tk.Scrollbar(self, orient="vertical", command=canvas.yview)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="top", fill="both", expand=True)
-
-        inner = tk.Frame(canvas, bg=COR_BG)
-        win_id = canvas.create_window((0, 0), window=inner, anchor="n")
-
-        def _on_frame_cfg(event):
-            canvas.configure(scrollregion=canvas.bbox("all"))
-
-        def _on_canvas_cfg(event):
-            canvas.itemconfig(win_id, width=event.width)
-
-        inner.bind("<Configure>", _on_frame_cfg)
-        canvas.bind("<Configure>", _on_canvas_cfg)
-
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        workspace = ScrollableWorkspace(self, bg=COR_BG, xscroll=False, yscroll=True)
+        workspace.pack(side="top", fill="both", expand=True)
+        inner = workspace.content
 
         # ── ELO Section ────────────────────────────────────────────────
         elo_frame = UICard(inner, bg=COR_BG_CARD, border=COR_BORDA, padx=15, pady=14)

@@ -82,15 +82,34 @@ class Lutador(StatsMixin, PhysicsMixin, CombatMixin, WeaponsMixin):
 
         # === SISTEMA DE SKILLS ===
         self.skills_arma = []
+        self.skills_personagem = []
         self.skills_classe = []
         self.skill_atual_idx = 0
         self.cd_skills = {}
 
-        # Carrega skills da arma
+        # Carrega skills equipadas do personagem (fonte de verdade nova).
+        skills_personagem = list(getattr(self.dados, "skills_personagem", []) or [])
+        if skills_personagem:
+            for hab in skills_personagem:
+                if isinstance(hab, dict):
+                    nome_hab = hab.get("nome", "Nenhuma")
+                    custo_hab = hab.get("custo")
+                else:
+                    nome_hab = str(hab)
+                    custo_hab = None
+                skill_data = get_skill_data(nome_hab)
+                if skill_data["tipo"] != "NADA":
+                    custo_final = skill_data.get("custo", 0) if custo_hab is None else custo_hab
+                    skill_info = {"nome": nome_hab, "custo": custo_final, "data": skill_data}
+                    self.skills_personagem.append(skill_info)
+                    self.skills_arma.append(skill_info)
+                    self.cd_skills[nome_hab] = 0.0
+
+        # Fallback legado: se o personagem ainda nao tiver kit proprio, herda skills da arma.
         arma = self.dados.arma_obj
         if arma:
             habilidades = getattr(arma, 'habilidades', [])
-            if habilidades:
+            if not self.skills_arma and habilidades:
                 for hab in habilidades:
                     if isinstance(hab, dict):
                         nome_hab = hab.get("nome", "Nenhuma")
@@ -102,7 +121,7 @@ class Lutador(StatsMixin, PhysicsMixin, CombatMixin, WeaponsMixin):
                     if skill_data["tipo"] != "NADA":
                         self.skills_arma.append({"nome": nome_hab, "custo": custo_hab, "data": skill_data})
                         self.cd_skills[nome_hab] = 0.0
-            else:
+            elif not self.skills_arma:
                 nome_raw = getattr(arma, 'habilidade', "Nenhuma")
                 skill_data = get_skill_data(nome_raw)
                 if skill_data["tipo"] != "NADA":
@@ -268,8 +287,22 @@ class Lutador(StatsMixin, PhysicsMixin, CombatMixin, WeaponsMixin):
 
         # IA â€” import inline intencional para quebrar ciclo:
         # ia/__init__ â†’ brain â†’ nucleo/__init__ â†’ entities â†’ fighter/entity â†’ ai
+        try:
+            from ia.composite_archetypes import inferir_arquetipo_composto  # noqa: PLC0415
+
+            self.arquetipo_composto = inferir_arquetipo_composto(
+                self.classe_nome,
+                getattr(self.dados, "personalidade", "Aleatorio"),
+                arma,
+                self.skills_personagem or self.skills_arma,
+            )
+        except Exception:
+            self.arquetipo_composto = None
+
         from ia import AIBrain  # noqa: PLC0415
         self.brain = AIBrain(self)
+        if self.arquetipo_composto is not None:
+            setattr(self.brain, "arquetipo_composto", self.arquetipo_composto)
 
     @property
     def ai(self):

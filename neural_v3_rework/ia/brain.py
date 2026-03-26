@@ -856,6 +856,12 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         p = self.parent
         arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
         familia = resolver_familia_arma(arma)
+        perfil_composto = getattr(self, "arquetipo_composto", None)
+        pacote_id = ""
+        if isinstance(perfil_composto, dict):
+            pacote_ref = perfil_composto.get("pacote_referencia") or {}
+            if isinstance(pacote_ref, dict):
+                pacote_id = str(pacote_ref.get("id", "") or "").strip().lower()
         mana_pct = p.mana / max(getattr(p, 'mana_max', 1.0), 1.0)
         team_role = self.team_orders.get("role", "STRIKER")
         team_tactic = self.team_orders.get("tactic", "FOCUS_FIRE")
@@ -900,6 +906,14 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
                 prefer_skills = False
             elif "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos:
                 prefer_skills = True
+            if pacote_id == "bastiao_prismatico":
+                if mana_pct < 0.44 or burst_pronto:
+                    prefer_skills = False
+            elif pacote_id == "artilheiro_de_orbita":
+                if distancia < max(2.9, alcance_ideal * 0.78) or mana_pct < 0.28:
+                    prefer_skills = False
+                else:
+                    prefer_skills = True
 
         elif familia == "hibrida":
             forma_atual = int(getattr(p, 'transform_forma', getattr(arma, 'forma_atual', 0)) or 0)
@@ -928,9 +942,19 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             prefer_skills = False
         elif team_tactic == "KITE_AND_POKE" and familia in {"foco", "disparo", "arremesso"}:
             prefer_skills = True
+        elif pacote_id == "artilheiro_de_orbita" and team_tactic == "KITE_AND_POKE":
+            prefer_skills = mana_pct > 0.24 and distancia >= max(2.9, alcance_ideal * 0.76)
 
         if self.janela_ataque.get("aberta", False) and self.janela_ataque.get("qualidade", 0.0) > 0.75:
             if familia in {"corrente", "orbital", "hibrida"}:
+                prefer_skills = False
+        if (
+            pacote_id == "vanguarda_brutal"
+            and team_role in {"VANGUARD", "STRIKER"}
+            and self.team_orders.get("alive_count", 1) > 1
+            and familia in {"lamina", "corrente", "haste"}
+        ):
+            if distancia <= max(2.8, alcance_ideal * 1.02) or hp_pct > 0.45:
                 prefer_skills = False
 
         if vies_skill_adaptativo > 0.18:

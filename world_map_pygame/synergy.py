@@ -6,11 +6,18 @@ Central orchestration for ALL cross-system interactions.
 import numpy as np
 import math
 import random
-from config import (
-    MAP_W, MAP_H, UNIT_TYPES, UNIT_SPEED,
-    TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
-    SEASONS,
-)
+try:
+    from .config import (
+        MAP_W, MAP_H, UNIT_TYPES, UNIT_SPEED,
+        TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
+        SEASONS,
+    )
+except ImportError:  # pragma: no cover - direct script fallback
+    from config import (
+        MAP_W, MAP_H, UNIT_TYPES, UNIT_SPEED,
+        TEMP_COLD, TEMP_COOL, TEMP_WARM, TEMP_HOT,
+        SEASONS,
+    )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # INTERACTION DATA TABLES
@@ -380,7 +387,10 @@ class SynergyEngine:
 
                 # Fire suppression from rain/snow/cold
                 if effects.get('fire_suppress', False):
-                    from tools import MAT_INDEX
+                    try:
+                        from .tools import MAT_INDEX
+                    except ImportError:  # pragma: no cover - direct script fallback
+                        from tools import MAT_INDEX
                     fire_idx = MAT_INDEX.get('fire', 0)
                     hf_idx = MAT_INDEX.get('hellfire', 0)
                     bx, by = b.x, b.y
@@ -568,7 +578,10 @@ class SynergyEngine:
 
     # ── Units → Material emissions ─────────────────────────────────────────
     def _units_emit_materials(self, dt, world):
-        from tools import MAT_INDEX
+        try:
+            from .tools import MAT_INDEX
+        except ImportError:  # pragma: no cover - direct script fallback
+            from tools import MAT_INDEX
         changed = False
         materials = world.materials
 
@@ -597,7 +610,10 @@ class SynergyEngine:
 
     # ── Buildings → Environment ────────────────────────────────────────────
     def _buildings_affect_environment(self, dt, world):
-        from tools import MAT_INDEX
+        try:
+            from .tools import MAT_INDEX
+        except ImportError:  # pragma: no cover - direct script fallback
+            from tools import MAT_INDEX
         changed = False
         civs = world.civilizations
         materials = world.materials

@@ -57,6 +57,24 @@ def main() -> None:
         help="Template tatico para encounter-mode equipes/horda.",
     )
     parser.add_argument(
+        "--fighter1",
+        type=str,
+        default=None,
+        help="Nome do primeiro lutador para duelo direto da pipeline.",
+    )
+    parser.add_argument(
+        "--fighter2",
+        type=str,
+        default=None,
+        help="Nome do segundo lutador para duelo direto da pipeline.",
+    )
+    parser.add_argument(
+        "--cenario",
+        type=str,
+        default=None,
+        help="Cenario forcado para a gravacao do encontro alvo.",
+    )
+    parser.add_argument(
         "--comment",
         type=str,
         default=None,
@@ -97,6 +115,9 @@ def main() -> None:
         comment=args.comment,
         encounter_mode=args.encounter_mode,
         template_id=args.template,
+        fighter1_name=args.fighter1,
+        fighter2_name=args.fighter2,
+        forced_cenario=args.cenario,
     )
 
     if results:
