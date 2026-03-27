@@ -8,8 +8,8 @@ import pytest
 from ia.skill_strategy import SkillProfile
 from nucleo.entities import Lutador
 from modelos import Arma, Personagem
-from simulacao.sim_combat import AttackImpactVector, SimuladorCombat
-from utilitarios.config import PPM
+from simulacao.sim_combat import AttackImpactVector, DefensiveTempoFeedback, SimuladorCombat
+from utilitarios.config import AMARELO_FAISCA, PPM
 
 
 def _make_fighter(nome, weapon_type="Espada Reta", family=None, team_id=0, x=0.0, y=0.0):
@@ -73,16 +73,20 @@ def _make_combat_harness():
     sim.block_effects = []
     sim.textos = []
     sim.particulas = []
+    sim.projeteis = []
     sim.impact_flashes = []
     sim.magic_clashes = []
     sim.shockwaves = []
     sim.hit_sparks = []
+    sim.dash_trails = []
     sim.hit_stop_timer = 0.0
     sim.time_scale = 1.0
     sim.slow_mo_timer = 0.0
     sim.game_feel = None
     sim.choreographer = None
     sim.attack_anims = None
+    sim.p1 = None
+    sim.p2 = None
     sim.vencedor = None
     sim.spawn_particulas = lambda *args, **kwargs: None
     sim._criar_knockback_visual = lambda *args, **kwargs: None
@@ -95,6 +99,8 @@ class _StatsCollectorSpy:
         self.attempts = []
         self.hits = []
         self.deaths = []
+        self.blocks = []
+        self.dodges = []
 
     def record_attack_attempt(self, *args, **kwargs):
         self.attempts.append((args, kwargs))
@@ -104,6 +110,12 @@ class _StatsCollectorSpy:
 
     def record_death(self, *args, **kwargs):
         self.deaths.append((args, kwargs))
+
+    def record_block(self, *args, **kwargs):
+        self.blocks.append((args, kwargs))
+
+    def record_dodge(self, *args, **kwargs):
+        self.dodges.append((args, kwargs))
 
 
 def test_combat_helper_blocks_direct_hitbox_for_ranged_types():
@@ -605,6 +617,460 @@ def test_combat_helper_resolver_fisica_corpos_para_no_primeiro_early_exit():
     assert calls[0][1] == pytest.approx(6.0)
 
 
+def test_combat_helper_cria_contexto_clash_magico_com_defaults_e_pixels():
+    sim = _make_combat_harness()
+    proj1 = SimpleNamespace(x=2.0, y=4.0, cor=(10, 20, 30))
+    proj2 = SimpleNamespace(x=4.0, y=6.0)
+
+    contexto = sim._criar_contexto_clash_magico(proj1, proj2)
+
+    assert contexto.mx == pytest.approx(3.0)
+    assert contexto.my == pytest.approx(5.0)
+    assert contexto.mx_px == pytest.approx(3.0 * PPM)
+    assert contexto.my_px == pytest.approx(5.0 * PPM)
+    assert contexto.cor1 == (10, 20, 30)
+    assert contexto.cor2 == (100, 100, 255)
+
+
+def test_combat_helper_executa_clash_magico_orquestra_subetapas_em_ordem():
+    sim = _make_combat_harness()
+    proj1 = SimpleNamespace()
+    proj2 = SimpleNamespace()
+    contexto = SimpleNamespace(mx=1.0, my=2.0)
+    calls = []
+
+    sim._desativar_projeteis_clash_magico = lambda a, b: calls.append(("desativar", a, b))
+    sim._criar_contexto_clash_magico = lambda a, b: calls.append(("contexto", a, b)) or contexto
+    sim._aplicar_vfx_clash_magico = lambda current: calls.append(("vfx", current))
+    sim._aplicar_feedback_camera_audio_clash_magico = lambda current: calls.append(("feedback", current))
+    sim._emitir_particulas_clash_magico = lambda current: calls.append(("particulas", current))
+
+    sim._executar_clash_magico(proj1, proj2)
+
+    assert calls == [
+        ("desativar", proj1, proj2),
+        ("contexto", proj1, proj2),
+        ("vfx", contexto),
+        ("feedback", contexto),
+        ("particulas", contexto),
+    ]
+
+
+def test_combat_helper_desativa_projeteis_no_clash_magico():
+    sim = _make_combat_harness()
+    proj1 = SimpleNamespace(ativo=True)
+    proj2 = SimpleNamespace(ativo=True)
+
+    sim._desativar_projeteis_clash_magico(proj1, proj2)
+
+    assert proj1.ativo is False
+    assert proj2.ativo is False
+
+
+def test_combat_helper_cancela_estado_sword_clash_resetando_ataques():
+    sim = _make_combat_harness()
+    p1 = SimpleNamespace(
+        atacando=True,
+        timer_animacao=0.25,
+        cooldown_ataque=1.0,
+        alvos_atingidos_neste_ataque={1, 2},
+    )
+    p2 = SimpleNamespace(
+        atacando=True,
+        timer_animacao=0.10,
+        cooldown_ataque=1.0,
+        alvos_atingidos_neste_ataque={3},
+    )
+
+    sim._cancelar_estado_sword_clash(p1, p2)
+
+    assert p1.atacando is False
+    assert p2.atacando is False
+    assert p1.timer_animacao == 0
+    assert p2.timer_animacao == 0
+    assert p1.cooldown_ataque == pytest.approx(0.3)
+    assert p2.cooldown_ataque == pytest.approx(0.3)
+    assert p1.alvos_atingidos_neste_ataque == set()
+    assert p2.alvos_atingidos_neste_ataque == set()
+
+
+def test_combat_helper_cria_contexto_sword_clash_com_defaults_e_pixels(monkeypatch):
+    sim = _make_combat_harness()
+    p1 = SimpleNamespace(pos=[2.0, 4.0], dados=SimpleNamespace(cor=(10, 20, 30)))
+    p2 = SimpleNamespace(pos=[4.0, 6.0], dados=SimpleNamespace())
+
+    monkeypatch.setattr("random.choice", lambda options: "CLANG!")
+
+    contexto = sim._criar_contexto_sword_clash(p1, p2)
+
+    assert contexto.mx == pytest.approx(3.0)
+    assert contexto.my == pytest.approx(5.0)
+    assert contexto.mx_px == pytest.approx(3.0 * PPM)
+    assert contexto.my_px == pytest.approx(5.0 * PPM)
+    assert contexto.cor1 == (10, 20, 30)
+    assert contexto.cor2 == (80, 180, 255)
+    assert contexto.texto == "CLANG!"
+
+
+def test_combat_helper_executa_sword_clash_orquestra_subetapas_em_ordem():
+    sim = _make_combat_harness()
+    sim.p1 = SimpleNamespace()
+    sim.p2 = SimpleNamespace()
+    contexto = SimpleNamespace(mx=1.0, my=2.0)
+    calls = []
+
+    sim._cancelar_estado_sword_clash = lambda a, b: calls.append(("cancelar", a, b))
+    sim._criar_contexto_sword_clash = lambda a, b: calls.append(("contexto", a, b)) or contexto
+    sim._aplicar_vfx_sword_clash = lambda current: calls.append(("vfx", current))
+    sim._aplicar_feedback_camera_audio_sword_clash = lambda current: calls.append(("feedback", current))
+    sim._emitir_particulas_sword_clash = lambda current: calls.append(("particulas", current))
+    sim._aplicar_hit_spark_sword_clash = lambda current: calls.append(("spark", current))
+
+    sim._executar_sword_clash()
+
+    assert calls == [
+        ("cancelar", sim.p1, sim.p2),
+        ("contexto", sim.p1, sim.p2),
+        ("vfx", contexto),
+        ("feedback", contexto),
+        ("particulas", contexto),
+        ("spark", contexto),
+    ]
+
+
+def test_combat_helper_coleta_fontes_clash_projeteis_de_projeteis_e_orbes():
+    sim = _make_combat_harness()
+    owner = SimpleNamespace(buffer_orbes=[
+        SimpleNamespace(ativo=True, estado="disparando"),
+        SimpleNamespace(ativo=True, estado="orbitando"),
+        SimpleNamespace(ativo=False, estado="disparando"),
+    ])
+    other = object()
+    proj_owner_ativo = SimpleNamespace(dono=owner, ativo=True)
+    proj_owner_inativo = SimpleNamespace(dono=owner, ativo=False)
+    proj_other = SimpleNamespace(dono=other, ativo=True)
+    sim.projeteis = [proj_owner_ativo, proj_owner_inativo, proj_other]
+
+    fontes = sim._coletar_fontes_clash_projeteis(owner)
+
+    assert fontes == [proj_owner_ativo, owner.buffer_orbes[0]]
+
+
+def test_combat_helper_cria_contexto_clash_projeteis_com_distancia_e_raio():
+    sim = _make_combat_harness()
+    proj1 = SimpleNamespace(x=0.0, y=0.0, raio=0.3)
+    proj2 = SimpleNamespace(x=0.4, y=0.0, raio=0.2)
+
+    contexto = sim._criar_contexto_clash_projeteis(proj1, proj2)
+
+    assert contexto.proj1 is proj1
+    assert contexto.proj2 is proj2
+    assert contexto.dist == pytest.approx(0.4)
+    assert contexto.raio_colisao == pytest.approx(0.8)
+
+
+def test_combat_helper_processa_clash_projeteis_entre_grupos_so_quando_colide():
+    sim = _make_combat_harness()
+    calls = []
+    proj1 = SimpleNamespace(x=0.0, y=0.0, raio=0.2, ativo=True)
+    proj2 = SimpleNamespace(x=0.1, y=0.0, raio=0.2, ativo=True)
+    proj_inativo = SimpleNamespace(x=0.0, y=0.0, raio=0.2, ativo=False)
+    proj_longe = SimpleNamespace(x=5.0, y=0.0, raio=0.2, ativo=True)
+
+    sim._executar_clash_magico = lambda a, b: calls.append((a, b))
+
+    sim._processar_clash_projeteis_entre_grupos([proj1, proj_inativo], [proj2, proj_longe])
+
+    assert calls == [(proj1, proj2)]
+
+
+def test_combat_helper_verifica_clash_projeteis_orquestra_grupos_dos_donos():
+    sim = _make_combat_harness()
+    sim.p1 = SimpleNamespace(buffer_orbes=[SimpleNamespace(ativo=True, estado="disparando", nome="orb1")])
+    sim.p2 = SimpleNamespace(buffer_orbes=[SimpleNamespace(ativo=True, estado="disparando", nome="orb2")])
+    proj1 = SimpleNamespace(dono=sim.p1, ativo=True, nome="proj1")
+    proj2 = SimpleNamespace(dono=sim.p2, ativo=True, nome="proj2")
+    sim.projeteis = [proj1, proj2]
+    calls = []
+
+    sim._processar_clash_projeteis_entre_grupos = lambda grupo1, grupo2: calls.append((grupo1, grupo2))
+
+    sim._verificar_clash_projeteis()
+
+    assert calls == [([proj1, sim.p1.buffer_orbes[0]], [proj2, sim.p2.buffer_orbes[0]])]
+
+
+def test_combat_helper_detecta_bloqueio_escudo_orbital_retorna_posicao():
+    sim = _make_combat_harness()
+    proj = SimpleNamespace(x=2.2, y=2.0, raio=0.2)
+    alvo = SimpleNamespace(
+        dados=SimpleNamespace(arma_obj=SimpleNamespace(tipo="Orbital")),
+        get_escudo_info=lambda: ((100.0, 100.0), 20.0, 0.0, 180.0),
+    )
+
+    resultado = sim._detectar_bloqueio_escudo_orbital(proj, alvo)
+
+    assert resultado == (100.0, 100.0)
+
+
+def test_combat_helper_detecta_parry_projetil_com_interceptacao(monkeypatch):
+    sim = _make_combat_harness()
+    proj = SimpleNamespace(x=1.0, y=0.0, raio=0.2)
+    alvo = SimpleNamespace(
+        atacando=True,
+        timer_animacao=0.2,
+        dados=SimpleNamespace(arma_obj=SimpleNamespace(tipo="Espada Reta")),
+        get_pos_ponteira_arma=lambda: ((0.0, 0.0), (100.0, 0.0)),
+    )
+
+    monkeypatch.setattr("simulacao.sim_combat.colisao_linha_circulo", lambda *args, **kwargs: True)
+
+    assert sim._detectar_parry_projetil(proj, alvo) is True
+
+
+def test_combat_helper_verifica_bloqueio_projetil_prioriza_escudo():
+    sim = _make_combat_harness()
+    calls = []
+    proj = SimpleNamespace(ativo=True, x=2.2, y=2.0, raio=0.2)
+    alvo = SimpleNamespace(
+        pos=[2.0, 2.0],
+        raio_fisico=1.0,
+        dados=SimpleNamespace(arma_obj=SimpleNamespace(tipo="Orbital")),
+        get_escudo_info=lambda: ((100.0, 100.0), 20.0, 0.0, 180.0),
+    )
+
+    sim._efeito_bloqueio = lambda current_proj, current_alvo, pos_escudo: calls.append((current_proj, current_alvo, pos_escudo))
+
+    assert sim._verificar_bloqueio_projetil(proj, alvo) is True
+    assert calls == [(proj, alvo, (100.0, 100.0))]
+
+
+def test_combat_helper_verifica_bloqueio_projetil_rota_dash_registra_esquiva():
+    sim = _make_combat_harness()
+    dodge_calls = []
+    choreo_calls = []
+    proj = SimpleNamespace(ativo=True, x=0.4, y=0.0, raio=0.2, dono="attacker")
+    alvo = SimpleNamespace(
+        pos=[0.0, 0.0],
+        raio_fisico=1.0,
+        dados=SimpleNamespace(arma_obj=None),
+        dash_timer=0.2,
+        atacando=False,
+        timer_animacao=0.0,
+    )
+    sim.choreographer = SimpleNamespace(registrar_esquiva=lambda *args: choreo_calls.append(args))
+    sim._efeito_desvio_dash = lambda current_proj, current_alvo: dodge_calls.append((current_proj, current_alvo))
+
+    assert sim._verificar_bloqueio_projetil(proj, alvo) is True
+    assert dodge_calls == [(proj, alvo)]
+    assert choreo_calls == [(alvo, "attacker")]
+
+
+def test_combat_helper_verifica_bloqueio_projetil_rota_parry():
+    sim = _make_combat_harness()
+    parry_calls = []
+    proj = SimpleNamespace(ativo=True, x=0.4, y=0.0, raio=0.2)
+    alvo = SimpleNamespace(
+        pos=[0.0, 0.0],
+        raio_fisico=1.0,
+        dados=SimpleNamespace(arma_obj=SimpleNamespace(tipo="Espada Reta")),
+        dash_timer=0.0,
+        atacando=True,
+        timer_animacao=0.2,
+    )
+
+    sim._detectar_bloqueio_escudo_orbital = lambda *args, **kwargs: None
+    sim._detectar_desvio_dash = lambda *args, **kwargs: False
+    sim._detectar_parry_projetil = lambda *args, **kwargs: True
+    sim._efeito_parry = lambda current_proj, current_alvo: parry_calls.append((current_proj, current_alvo))
+
+    assert sim._verificar_bloqueio_projetil(proj, alvo) is True
+    assert parry_calls == [(proj, alvo)]
+
+
+def test_combat_helper_cria_contexto_visual_bloqueio_e_parry():
+    sim = _make_combat_harness()
+    proj = SimpleNamespace(x=1.0, y=2.0)
+    lutador = SimpleNamespace(
+        pos=[0.0, 0.0],
+        dados=SimpleNamespace(cor_r=10, cor_g=20, cor_b=30),
+    )
+
+    contexto_bloqueio = sim._criar_contexto_visual_bloqueio(proj, lutador, (0.0, 0.0))
+    contexto_parry = sim._criar_contexto_visual_parry(proj, lutador)
+
+    assert contexto_bloqueio.proj_x_px == pytest.approx(1.0 * PPM)
+    assert contexto_bloqueio.proj_y_px == pytest.approx(2.0 * PPM)
+    assert contexto_bloqueio.cor_lutador == (10, 20, 30)
+    assert contexto_parry.proj_x_px == pytest.approx(1.0 * PPM)
+    assert contexto_parry.proj_y_px == pytest.approx(2.0 * PPM)
+    assert contexto_parry.cor_lutador == (10, 20, 30)
+
+
+def test_combat_helper_efeito_bloqueio_orquestra_subetapas():
+    sim = _make_combat_harness()
+    proj = SimpleNamespace()
+    bloqueador = SimpleNamespace()
+    contexto = SimpleNamespace(proj_x_px=10.0, proj_y_px=20.0, cor_lutador=(1, 2, 3), ang_impacto=0.5)
+    calls = []
+
+    sim._registrar_bloco_defensivo = lambda current: calls.append(("registrar", current))
+    sim._reproduzir_audio_bloqueio = lambda: calls.append(("audio",))
+    sim._criar_contexto_visual_bloqueio = lambda current_proj, current_lutador, pos_escudo: calls.append(("contexto", current_proj, current_lutador, pos_escudo)) or contexto
+    sim._adicionar_texto_feedback_defensivo = lambda *args: calls.append(("texto", args))
+    sim._emitir_particulas_bloqueio = lambda current: calls.append(("particulas", current))
+    sim._aplicar_feedback_temporal_defensivo = lambda current: calls.append(("tempo", current))
+
+    sim._efeito_bloqueio(proj, bloqueador, (0.0, 0.0))
+
+    assert calls == [
+        ("registrar", bloqueador),
+        ("audio",),
+        ("contexto", proj, bloqueador, (0.0, 0.0)),
+        ("texto", (10.0, 20.0, "BLOCK!", (100, 200, 255), 22, -30)),
+        ("particulas", contexto),
+        ("tempo", DefensiveTempoFeedback(shake_intensity=5.0, shake_duration=0.06, hit_stop=0.03, time_scale=None, slow_mo_timer=0.0)),
+    ]
+
+
+def test_combat_helper_efeito_parry_orquestra_contexto():
+    sim = _make_combat_harness()
+    proj = SimpleNamespace()
+    parryer = SimpleNamespace()
+    contexto = SimpleNamespace(proj_x_px=10.0, proj_y_px=20.0, cor_lutador=(1, 2, 3), ang_impacto=0.5)
+    calls = []
+
+    sim._registrar_bloco_defensivo = lambda current: calls.append(("registrar", current))
+    sim._criar_contexto_visual_parry = lambda current_proj, current_parryer: calls.append(("contexto", current_proj, current_parryer)) or contexto
+    sim._adicionar_texto_feedback_defensivo = lambda *args: calls.append(("texto", args))
+    sim._aplicar_feedback_temporal_defensivo = lambda current: calls.append(("tempo", current))
+
+    sim._efeito_parry(proj, parryer)
+
+    assert calls == [
+        ("registrar", parryer),
+        ("contexto", proj, parryer),
+        ("texto", (10.0, 20.0, "PARRY!", AMARELO_FAISCA, 28, -40)),
+        ("tempo", DefensiveTempoFeedback(shake_intensity=8.0, shake_duration=0.1, hit_stop=0.06, time_scale=0.4, slow_mo_timer=0.25)),
+    ]
+
+
+def test_combat_helper_cria_contexto_visual_desvio_dash_com_trilha():
+    sim = _make_combat_harness()
+    desviador = SimpleNamespace(
+        pos=[2.0, 3.0],
+        pos_historico=[
+            (0.0, 0.0),
+            (0.5, 0.5),
+            (1.0, 1.0),
+            (1.5, 2.0),
+        ],
+        dados=SimpleNamespace(cor_r=10, cor_g=20, cor_b=30),
+    )
+
+    contexto = sim._criar_contexto_visual_desvio_dash(desviador)
+
+    assert contexto.pos_x_px == pytest.approx(2.0 * PPM)
+    assert contexto.pos_y_px == pytest.approx(3.0 * PPM)
+    assert contexto.cor_lutador == (10, 20, 30)
+    assert contexto.trilha_posicoes == [
+        (0.0 * PPM, 0.0 * PPM),
+        (0.5 * PPM, 0.5 * PPM),
+        (1.0 * PPM, 1.0 * PPM),
+        (1.5 * PPM, 2.0 * PPM),
+    ]
+
+
+def test_combat_helper_aplica_trail_desvio_dash_somente_com_historico():
+    sim = _make_combat_harness()
+    contexto_com_trilha = SimpleNamespace(
+        trilha_posicoes=[(1.0, 2.0), (3.0, 4.0)],
+        cor_lutador=(10, 20, 30),
+    )
+    contexto_sem_trilha = SimpleNamespace(
+        trilha_posicoes=[],
+        cor_lutador=(10, 20, 30),
+    )
+
+    sim._aplicar_trail_desvio_dash(contexto_com_trilha)
+    sim._aplicar_trail_desvio_dash(contexto_sem_trilha)
+
+    assert len(sim.dash_trails) == 1
+
+
+def test_combat_helper_efeito_desvio_dash_orquestra_subetapas():
+    sim = _make_combat_harness()
+    proj = SimpleNamespace()
+    desviador = SimpleNamespace()
+    contexto = SimpleNamespace()
+    calls = []
+
+    sim._registrar_esquiva_stats = lambda current: calls.append(("stats", current))
+    sim._criar_contexto_visual_desvio_dash = lambda current: calls.append(("contexto", current)) or contexto
+    sim._aplicar_trail_desvio_dash = lambda current: calls.append(("trail", current))
+    sim._aplicar_feedback_desvio_dash = lambda current: calls.append(("feedback", current))
+
+    sim._efeito_desvio_dash(proj, desviador)
+
+    assert calls == [
+        ("stats", desviador),
+        ("contexto", desviador),
+        ("trail", contexto),
+        ("feedback", contexto),
+    ]
+
+
+def test_combat_helper_aplica_feedback_desvio_dash_usa_helpers_compartilhados():
+    sim = _make_combat_harness()
+    contexto = SimpleNamespace(pos_x_px=20.0, pos_y_px=40.0)
+    calls = []
+
+    sim._adicionar_texto_feedback_defensivo = lambda *args: calls.append(("texto", args))
+    sim._aplicar_feedback_temporal_defensivo = lambda current: calls.append(("tempo", current))
+
+    sim._aplicar_feedback_desvio_dash(contexto)
+
+    assert calls == [
+        ("texto", (20.0, 40.0, "DODGE!", (150, 255, 150), 24, -50)),
+        ("tempo", DefensiveTempoFeedback(shake_intensity=0.0, shake_duration=0.0, hit_stop=0.0, time_scale=0.5, slow_mo_timer=0.3)),
+    ]
+
+
+def test_combat_helper_adiciona_texto_feedback_defensivo_com_offset():
+    sim = _make_combat_harness()
+
+    sim._adicionar_texto_feedback_defensivo(10.0, 20.0, "TXT", (1, 2, 3), 18, -7)
+
+    assert len(sim.textos) == 1
+    assert sim.textos[0].x == pytest.approx(10.0)
+    assert sim.textos[0].y == pytest.approx(13.0)
+
+
+def test_combat_helper_aplica_feedback_temporal_defensivo_completo():
+    sim = _make_combat_harness()
+    shake_calls = []
+    sim.cam = SimpleNamespace(
+        x=0.0,
+        aplicar_shake=lambda *args: shake_calls.append(args),
+        zoom_punch=lambda *args, **kwargs: None,
+    )
+
+    sim._aplicar_feedback_temporal_defensivo(
+        DefensiveTempoFeedback(
+            shake_intensity=7.0,
+            shake_duration=0.09,
+            hit_stop=0.04,
+            time_scale=0.6,
+            slow_mo_timer=0.2,
+        )
+    )
+
+    assert shake_calls == [(7.0, 0.09)]
+    assert sim.hit_stop_timer == pytest.approx(0.04)
+    assert sim.time_scale == pytest.approx(0.6)
+    assert sim.slow_mo_timer == pytest.approx(0.2)
+
+
 def test_lutador_ai_alias_points_to_brain():
     fighter = _make_fighter("Alias")
 
@@ -619,14 +1085,14 @@ def test_lutador_ai_alias_points_to_brain():
 
 def test_block_and_parry_callbacks_reach_brain():
     fighter = _make_fighter("Defensor")
-    sim = _make_sim_stub()
+    sim = _make_combat_harness()
     proj = SimpleNamespace(x=1.0, y=1.0)
     calls = []
 
     fighter.brain.on_bloqueio_sucesso = lambda: calls.append("ok")
 
-    SimuladorCombat._efeito_bloqueio(sim, proj, fighter, (0.0, 0.0))
-    SimuladorCombat._efeito_parry(sim, proj, fighter)
+    sim._efeito_bloqueio(proj, fighter, (0.0, 0.0))
+    sim._efeito_parry(proj, fighter)
 
     assert calls == ["ok", "ok"]
 

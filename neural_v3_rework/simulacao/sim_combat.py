@@ -96,6 +96,60 @@ class BodyCollisionContext:
     soma_raios: float
 
 
+@dataclass
+class MagicProjectileClashContext:
+    mx: float
+    my: float
+    mx_px: float
+    my_px: float
+    cor1: tuple[int, int, int]
+    cor2: tuple[int, int, int]
+
+
+@dataclass
+class SwordClashContext:
+    mx: float
+    my: float
+    mx_px: float
+    my_px: float
+    cor1: tuple[int, int, int]
+    cor2: tuple[int, int, int]
+    texto: str
+
+
+@dataclass
+class ProjectileDefenseVisualContext:
+    proj_x_px: float
+    proj_y_px: float
+    cor_lutador: tuple[int, int, int]
+    ang_impacto: float
+
+
+@dataclass
+class DashDodgeVisualContext:
+    pos_x_px: float
+    pos_y_px: float
+    cor_lutador: tuple[int, int, int]
+    trilha_posicoes: list[tuple[float, float]]
+
+
+@dataclass
+class DefensiveTempoFeedback:
+    shake_intensity: float = 0.0
+    shake_duration: float = 0.0
+    hit_stop: float = 0.0
+    time_scale: float | None = None
+    slow_mo_timer: float = 0.0
+
+
+@dataclass
+class ProjectileClashContext:
+    proj1: object
+    proj2: object
+    dist: float
+    raio_colisao: float
+
+
 class SimuladorCombat:
     """Mixin de combate: detecÃ§Ã£o de hits, clashes, bloqueios e fÃ­sica."""
 
@@ -782,157 +836,190 @@ class SimuladorCombat:
         self._aplicar_empurrao_clash(p1, p2, contexto)
         self._aplicar_feedback_camera_audio_clash(contexto)
 
-    
-    def _executar_clash_magico(self, proj1, proj2):
-        """Executa efeito de clash entre dois projÃ©teis/magias"""
-        # Desativa ambos
+    def _desativar_projeteis_clash_magico(self, proj1, proj2):
         proj1.ativo = False
         proj2.ativo = False
-        
-        # Ponto mÃ©dio do clash
+
+    def _criar_contexto_clash_magico(self, proj1, proj2):
         mx = (proj1.x + proj2.x) / 2
         my = (proj1.y + proj2.y) / 2
-        
-        # Cores dos projÃ©teis
         cor1 = getattr(proj1, 'cor', (255, 100, 100))
         cor2 = getattr(proj2, 'cor', (100, 100, 255))
-        
-        # Cria efeito de clash mÃ¡gico
-        self.magic_clashes.append(MagicClash(mx * PPM, my * PPM, cor1, cor2, tamanho=1.5))
-        
-        # Flash de impacto duplo
-        self.impact_flashes.append(ImpactFlash(mx * PPM, my * PPM, cor1, 1.5, "clash"))
-        
-        # Shockwave grande
-        self.shockwaves.append(Shockwave(mx * PPM, my * PPM, BRANCO, tamanho=2.0))
-        
-        # Texto de CLASH
-        self.textos.append(FloatingText(mx * PPM, my * PPM - 40, "CLASH!", AMARELO_FAISCA, 35))
-        
-        # SOM DE CLASH
-        listener_x = (self.p1.pos[0] + self.p2.pos[0]) / 2
-        self.audio.play_positional("clash_magic", mx, listener_x, volume=1.0)
-        
-        # Camera shake e hit stop dramÃ¡ticos
+        return MagicProjectileClashContext(
+            mx=mx,
+            my=my,
+            mx_px=mx * PPM,
+            my_px=my * PPM,
+            cor1=cor1,
+            cor2=cor2,
+        )
+
+    def _aplicar_vfx_clash_magico(self, contexto):
+        self.magic_clashes.append(MagicClash(contexto.mx_px, contexto.my_px, contexto.cor1, contexto.cor2, tamanho=1.5))
+        self.impact_flashes.append(ImpactFlash(contexto.mx_px, contexto.my_px, contexto.cor1, 1.5, "clash"))
+        self.shockwaves.append(Shockwave(contexto.mx_px, contexto.my_px, BRANCO, tamanho=2.0))
+        self.textos.append(FloatingText(contexto.mx_px, contexto.my_px - 40, "CLASH!", AMARELO_FAISCA, 35))
+
+    def _aplicar_feedback_camera_audio_clash_magico(self, contexto):
+        audio = getattr(self, 'audio', None)
+        if audio:
+            p1 = getattr(self, 'p1', None)
+            p2 = getattr(self, 'p2', None)
+            listener_x = (p1.pos[0] + p2.pos[0]) / 2 if p1 and p2 else contexto.mx
+            audio.play_positional("clash_magic", contexto.mx, listener_x, volume=1.0)
+
         self.cam.aplicar_shake(25.0, 0.25)
         self.hit_stop_timer = 0.15
-        
-        # PartÃ­culas extras (A04: rate-limited)
+
+    def _emitir_particulas_clash_magico(self, contexto):
         _slots = max(0, 600 - len(self.particulas))
         _n_magico = min(BUDGET_PARTICULAS_CLASH_MAGICO, _slots)
         for _ in range(_n_magico):
             ang = random.uniform(0, math.pi * 2)
             vel = random.uniform(80, 200)
-            cor = random.choice([cor1, cor2])
+            cor = random.choice([contexto.cor1, contexto.cor2])
             self.particulas.append(Particula(
-                mx * PPM, my * PPM, cor,
+                contexto.mx_px, contexto.my_px, cor,
                 math.cos(ang) * vel / 60, math.sin(ang) * vel / 60,
                 random.randint(4, 8), 0.4
             ))
+
+    
+    def _executar_clash_magico(self, proj1, proj2):
+        """Executa efeito de clash entre dois projÃ©teis/magias"""
+        self._desativar_projeteis_clash_magico(proj1, proj2)
+        contexto = self._criar_contexto_clash_magico(proj1, proj2)
+        self._aplicar_vfx_clash_magico(contexto)
+        self._aplicar_feedback_camera_audio_clash_magico(contexto)
+        self._emitir_particulas_clash_magico(contexto)
+
+    def _cancelar_estado_sword_clash(self, p1, p2):
+        p1.atacando = False
+        p2.atacando = False
+        p1.timer_animacao = 0
+        p2.timer_animacao = 0
+        p1.cooldown_ataque = 0.3
+        p2.cooldown_ataque = 0.3
+        p1.alvos_atingidos_neste_ataque.clear()
+        p2.alvos_atingidos_neste_ataque.clear()
+
+    def _criar_contexto_sword_clash(self, p1, p2):
+        mx = (p1.pos[0] + p2.pos[0]) / 2
+        my = (p1.pos[1] + p2.pos[1]) / 2
+        cor1 = p1.dados.cor if hasattr(p1, 'dados') and hasattr(p1.dados, 'cor') else (255, 180, 80)
+        cor2 = p2.dados.cor if hasattr(p2, 'dados') and hasattr(p2.dados, 'cor') else (80, 180, 255)
+        textos_clash = ["CLASH!", "CLANG!", "STEEL!", "IMPACTO!"]
+        return SwordClashContext(
+            mx=mx,
+            my=my,
+            mx_px=mx * PPM,
+            my_px=my * PPM,
+            cor1=cor1,
+            cor2=cor2,
+            texto=random.choice(textos_clash),
+        )
+
+    def _aplicar_vfx_sword_clash(self, contexto):
+        self.impact_flashes.append(ImpactFlash(contexto.mx_px, contexto.my_px, AMARELO_FAISCA, 2.0, "clash"))
+        self.shockwaves.append(Shockwave(contexto.mx_px, contexto.my_px, BRANCO, tamanho=2.5))
+        self.textos.append(FloatingText(contexto.mx_px, contexto.my_px - 50, contexto.texto, AMARELO_FAISCA, 40))
+
+    def _aplicar_feedback_camera_audio_sword_clash(self, contexto):
+        audio = getattr(self, 'audio', None)
+        p1 = getattr(self, 'p1', None)
+        p2 = getattr(self, 'p2', None)
+        if audio and p1 and p2:
+            listener_x = (p1.pos[0] + p2.pos[0]) / 2
+            audio.play_positional("clash_swords", contexto.mx, listener_x, volume=1.0)
+
+        self.cam.aplicar_shake(12.0, 0.15)
+        self.hit_stop_timer = 0.12
+
+    def _emitir_particulas_sword_clash(self, contexto):
+        for _ in range(40):
+            ang = random.uniform(0, math.pi * 2)
+            vel = random.uniform(100, 250)
+            cor = random.choice([AMARELO_FAISCA, BRANCO, contexto.cor1, contexto.cor2, (255, 200, 100)])
+            self.particulas.append(Particula(
+                contexto.mx_px, contexto.my_px, cor,
+                math.cos(ang) * vel / 60, math.sin(ang) * vel / 60,
+                random.randint(3, 7), random.uniform(0.3, 0.6)
+            ))
+
+    def _aplicar_hit_spark_sword_clash(self, contexto):
+        direcao_faiscas = random.uniform(0, math.pi * 2)
+        self.hit_sparks.append(HitSpark(contexto.mx_px, contexto.my_px, AMARELO_FAISCA, direcao_faiscas, 1.5))
 
     
     def _executar_sword_clash(self):
         """Executa efeito de clash de espadas entre dois lutadores (momento cinematogrÃ¡fico)"""
         if not self.p1 or not self.p2:
             return
-        
-        # === CANCELA OS ATAQUES DE AMBOS (evita que alguÃ©m tome dano) ===
-        self.p1.atacando = False
-        self.p2.atacando = False
-        self.p1.timer_animacao = 0
-        self.p2.timer_animacao = 0
-        # Reseta cooldown de ataque para que possam atacar novamente apÃ³s o clash
-        self.p1.cooldown_ataque = 0.3
-        self.p2.cooldown_ataque = 0.3
-        # Limpa alvos atingidos para evitar hits fantasmas
-        self.p1.alvos_atingidos_neste_ataque.clear()
-        self.p2.alvos_atingidos_neste_ataque.clear()
-        
-        # Ponto mÃ©dio do clash (entre os dois lutadores)
-        mx = (self.p1.pos[0] + self.p2.pos[0]) / 2
-        my = (self.p1.pos[1] + self.p2.pos[1]) / 2
-        
-        # Cores das armas/lutadores
-        cor1 = self.p1.dados.cor if hasattr(self.p1, 'dados') and hasattr(self.p1.dados, 'cor') else (255, 180, 80)
-        cor2 = self.p2.dados.cor if hasattr(self.p2, 'dados') and hasattr(self.p2.dados, 'cor') else (80, 180, 255)
-        
-        # === EFEITOS VISUAIS ===
-        # Flash de impacto principal
-        self.impact_flashes.append(ImpactFlash(mx * PPM, my * PPM, AMARELO_FAISCA, 2.0, "clash"))
-        
-        # Shockwave dramÃ¡tico
-        self.shockwaves.append(Shockwave(mx * PPM, my * PPM, BRANCO, tamanho=2.5))
-        
-        # Texto Ã©pico
-        textos_clash = ["CLASH!", "CLANG!", "âš” CLASH âš”", "STEEL!", "IMPACTO!"]
-        texto = random.choice(textos_clash)
-        self.textos.append(FloatingText(mx * PPM, my * PPM - 50, texto, AMARELO_FAISCA, 40))
-        
-        # === SOM DE CLASH DE ESPADAS ===
-        listener_x = (self.p1.pos[0] + self.p2.pos[0]) / 2
-        self.audio.play_positional("clash_swords", mx, listener_x, volume=1.0)
-        
-        # === CAMERA SHAKE E HIT STOP DRAMÃTICOS v15.0 ===
-        self.cam.aplicar_shake(12.0, 0.15)
-        self.hit_stop_timer = 0.12  # Pausa dramÃ¡tica
-        
-        # === PARTÃCULAS DE FAÃSCAS ===
-        for _ in range(40):
-            ang = random.uniform(0, math.pi * 2)
-            vel = random.uniform(100, 250)
-            cor = random.choice([AMARELO_FAISCA, BRANCO, cor1, cor2, (255, 200, 100)])
-            self.particulas.append(Particula(
-                mx * PPM, my * PPM, cor,
-                math.cos(ang) * vel / 60, math.sin(ang) * vel / 60,
-                random.randint(3, 7), random.uniform(0.3, 0.6)
-            ))
-        
-        # === EFEITO ADICIONAL - Hit Sparks nas armas ===
-        # DireÃ§Ã£o aleatÃ³ria para as faÃ­scas
-        direcao_faiscas = random.uniform(0, math.pi * 2)
-        self.hit_sparks.append(HitSpark(mx * PPM, my * PPM, AMARELO_FAISCA, direcao_faiscas, 1.5))
-        
-        _log.debug(f"[SWORD CLASH] Ã‰pico clash de espadas em ({mx:.1f}, {my:.1f})!")
+
+        self._cancelar_estado_sword_clash(self.p1, self.p2)
+        contexto = self._criar_contexto_sword_clash(self.p1, self.p2)
+        self._aplicar_vfx_sword_clash(contexto)
+        self._aplicar_feedback_camera_audio_sword_clash(contexto)
+        self._emitir_particulas_sword_clash(contexto)
+        self._aplicar_hit_spark_sword_clash(contexto)
+
+        _log.debug(f"[SWORD CLASH] Ã‰pico clash de espadas em ({contexto.mx:.1f}, {contexto.my:.1f})!")
 
 
     # =========================================================================
     # SISTEMA DE CLASH DE PROJÃ‰TEIS v7.0
     # =========================================================================
+
+    def _coletar_projeteis_ativos_do_dono(self, dono):
+        return [p for p in getattr(self, 'projeteis', []) if getattr(p, 'dono', None) == dono and getattr(p, 'ativo', True)]
+
+    def _coletar_orbes_disparando(self, lutador):
+        if not hasattr(lutador, 'buffer_orbes'):
+            return []
+        return [o for o in lutador.buffer_orbes if getattr(o, 'ativo', True) and getattr(o, 'estado', None) == "disparando"]
+
+    def _coletar_fontes_clash_projeteis(self, lutador):
+        return self._coletar_projeteis_ativos_do_dono(lutador) + self._coletar_orbes_disparando(lutador)
+
+    def _projeteis_ativos_para_clash(self, proj1, proj2):
+        return getattr(proj1, 'ativo', True) and getattr(proj2, 'ativo', True)
+
+    def _criar_contexto_clash_projeteis(self, proj1, proj2):
+        dx = proj1.x - proj2.x
+        dy = proj1.y - proj2.y
+        dist = math.hypot(dx, dy)
+        r1 = getattr(proj1, 'raio', 0.2)
+        r2 = getattr(proj2, 'raio', 0.2)
+        return ProjectileClashContext(
+            proj1=proj1,
+            proj2=proj2,
+            dist=dist,
+            raio_colisao=r1 + r2 + 0.3,
+        )
+
+    def _projeteis_colidem_para_clash(self, contexto):
+        return contexto.dist < contexto.raio_colisao
+
+    def _processar_clash_projeteis_entre_grupos(self, grupo1, grupo2):
+        for proj1 in grupo1:
+            for proj2 in grupo2:
+                if not self._projeteis_ativos_para_clash(proj1, proj2):
+                    continue
+
+                contexto = self._criar_contexto_clash_projeteis(proj1, proj2)
+                if self._projeteis_colidem_para_clash(contexto):
+                    self._executar_clash_magico(contexto.proj1, contexto.proj2)
     
     def _verificar_clash_projeteis(self):
         """Verifica colisÃ£o entre projÃ©teis de diferentes donos"""
-        projs_p1 = [p for p in self.projeteis if p.dono == self.p1 and p.ativo]
-        projs_p2 = [p for p in self.projeteis if p.dono == self.p2 and p.ativo]
-        
-        # TambÃ©m checa orbes mÃ¡gicos
-        orbes_p1 = []
-        orbes_p2 = []
-        if hasattr(self.p1, 'buffer_orbes'):
-            orbes_p1 = [o for o in self.p1.buffer_orbes if o.ativo and o.estado == "disparando"]
-        if hasattr(self.p2, 'buffer_orbes'):
-            orbes_p2 = [o for o in self.p2.buffer_orbes if o.ativo and o.estado == "disparando"]
-        
-        # Combina projÃ©teis e orbes
-        todos_p1 = projs_p1 + orbes_p1
-        todos_p2 = projs_p2 + orbes_p2
-        
-        for p1 in todos_p1:
-            for p2 in todos_p2:
-                if not (getattr(p1, 'ativo', True) and getattr(p2, 'ativo', True)):
-                    continue
-                
-                # DistÃ¢ncia entre projÃ©teis
-                dx = p1.x - p2.x
-                dy = p1.y - p2.y
-                dist = math.hypot(dx, dy)
-                
-                # Raio de colisÃ£o (soma dos raios)
-                r1 = getattr(p1, 'raio', 0.2)
-                r2 = getattr(p2, 'raio', 0.2)
-                
-                if dist < r1 + r2 + 0.3:  # Margem extra para visual
-                    # CLASH DETECTADO!
-                    self._executar_clash_magico(p1, p2)
+        p1 = getattr(self, 'p1', None)
+        p2 = getattr(self, 'p2', None)
+        if not p1 or not p2:
+            return
+
+        grupo_p1 = self._coletar_fontes_clash_projeteis(p1)
+        grupo_p2 = self._coletar_fontes_clash_projeteis(p2)
+        self._processar_clash_projeteis_entre_grupos(grupo_p1, grupo_p2)
 
     
     # =========================================================================
@@ -943,154 +1030,193 @@ class SimuladorCombat:
         """Verifica se o alvo pode bloquear ou desviar do projÃ©til"""
         if not proj.ativo:
             return False
-        
-        # DistÃ¢ncia do projÃ©til ao alvo
-        dx = alvo.pos[0] - proj.x
-        dy = alvo.pos[1] - proj.y
-        dist = math.hypot(dx, dy)
-        
-        # SÃ³ verifica se projÃ©til estÃ¡ perto
-        if dist > alvo.raio_fisico + 1.5:
+
+        dist = self._calcular_distancia_projetil_alvo(proj, alvo)
+        if not self._projetil_esta_perto_para_defesa(dist, alvo):
             return False
-        
-        # === BLOQUEIO COM ESCUDO ORBITAL ===
-        if alvo.dados.arma_obj and "Orbital" in alvo.dados.arma_obj.tipo:
-            escudo_info = alvo.get_escudo_info()
-            if escudo_info:
-                # Verifica se projÃ©til estÃ¡ na Ã¡rea do escudo
-                escudo_pos, escudo_raio, escudo_ang, escudo_arco = escudo_info
-                dx_e = proj.x * PPM - escudo_pos[0]
-                dy_e = proj.y * PPM - escudo_pos[1]
-                dist_escudo = math.hypot(dx_e, dy_e)
-                
-                if dist_escudo < escudo_raio + proj.raio * PPM:
-                    # Verifica Ã¢ngulo
-                    ang_proj = math.degrees(math.atan2(dy_e, dx_e))
-                    diff_ang = abs(normalizar_angulo(ang_proj - escudo_ang))
-                    
-                    if diff_ang <= escudo_arco / 2:
-                        # BLOQUEADO!
-                        self._efeito_bloqueio(proj, alvo, escudo_pos)
-                        return True
-        
-        # === DESVIO COM DASH ===
-        if hasattr(alvo, 'dash_timer') and alvo.dash_timer > 0:
-            # Durante dash, chance de desviar
-            if dist < alvo.raio_fisico + 0.5:
-                # Dash evasivo bem-sucedido!
-                self._efeito_desvio_dash(proj, alvo)
-                # Sprint1: registrar_esquiva nunca era chamado â€” cadeia pÃ³s-esquiva
-                # (janela de contra-ataque, on_esquiva_sucesso) estava completamente morta.
-                if self.choreographer:
-                    self.choreographer.registrar_esquiva(alvo, proj.dono if hasattr(proj, 'dono') else None)
-                return True
-        
-        # === BLOQUEIO DURANTE ATAQUE (timing perfeito) ===
-        if alvo.atacando and alvo.timer_animacao > 0.15:  # Frame inicial do ataque
-            if alvo.dados.arma_obj and "Reta" in alvo.dados.arma_obj.tipo:
-                # Verifica se arma intercepta projÃ©til
-                linha_arma = alvo.get_pos_ponteira_arma()
-                if linha_arma:
-                    from nucleo.physics import colisao_linha_circulo
-                    if colisao_linha_circulo(linha_arma[0], linha_arma[1], 
-                                            (proj.x * PPM, proj.y * PPM), 
-                                            proj.raio * PPM + 5):
-                        # PARRY!
-                        self._efeito_parry(proj, alvo)
-                        return True
+
+        pos_escudo = self._detectar_bloqueio_escudo_orbital(proj, alvo)
+        if pos_escudo:
+            self._efeito_bloqueio(proj, alvo, pos_escudo)
+            return True
+
+        if self._detectar_desvio_dash(proj, alvo, dist):
+            self._efeito_desvio_dash(proj, alvo)
+            choreographer = getattr(self, 'choreographer', None)
+            if choreographer:
+                choreographer.registrar_esquiva(alvo, proj.dono if hasattr(proj, 'dono') else None)
+            return True
+
+        if self._detectar_parry_projetil(proj, alvo):
+            self._efeito_parry(proj, alvo)
+            return True
         
         return False
+
+    def _calcular_distancia_projetil_alvo(self, proj, alvo):
+        dx = alvo.pos[0] - proj.x
+        dy = alvo.pos[1] - proj.y
+        return math.hypot(dx, dy)
+
+    def _projetil_esta_perto_para_defesa(self, dist, alvo):
+        return dist <= alvo.raio_fisico + 1.5
+
+    def _detectar_bloqueio_escudo_orbital(self, proj, alvo):
+        if not alvo.dados.arma_obj or "Orbital" not in alvo.dados.arma_obj.tipo:
+            return None
+
+        escudo_info = alvo.get_escudo_info()
+        if not escudo_info:
+            return None
+
+        escudo_pos, escudo_raio, escudo_ang, escudo_arco = escudo_info
+        dx_escudo = proj.x * PPM - escudo_pos[0]
+        dy_escudo = proj.y * PPM - escudo_pos[1]
+        dist_escudo = math.hypot(dx_escudo, dy_escudo)
+        if dist_escudo >= escudo_raio + proj.raio * PPM:
+            return None
+
+        ang_proj = math.degrees(math.atan2(dy_escudo, dx_escudo))
+        diff_ang = abs(normalizar_angulo(ang_proj - escudo_ang))
+        if diff_ang <= escudo_arco / 2:
+            return escudo_pos
+        return None
+
+    def _detectar_desvio_dash(self, proj, alvo, dist):
+        return hasattr(alvo, 'dash_timer') and alvo.dash_timer > 0 and dist < alvo.raio_fisico + 0.5
+
+    def _detectar_parry_projetil(self, proj, alvo):
+        if not alvo.atacando or alvo.timer_animacao <= 0.15:
+            return False
+        if not alvo.dados.arma_obj or "Reta" not in alvo.dados.arma_obj.tipo:
+            return False
+
+        linha_arma = alvo.get_pos_ponteira_arma()
+        if not linha_arma:
+            return False
+
+        return colisao_linha_circulo(
+            linha_arma[0],
+            linha_arma[1],
+            (proj.x * PPM, proj.y * PPM),
+            proj.raio * PPM + 5,
+        )
 
     
     def _efeito_bloqueio(self, proj, bloqueador, pos_escudo):
         """Efeito visual de bloqueio"""
-        # === v14.0 MATCH STATS â€” record block ===
-        if hasattr(self, 'stats_collector'):
-            self.stats_collector.record_block(bloqueador.dados.nome)
-        # === ÃUDIO v10.0 - SOM DE BLOQUEIO ===
-        if self.audio:
-            listener_x = self.cam.x / PPM
-            self.audio.play_special("shield_block", volume=0.7)
-        
-        # CB-01: notifica IA do bloqueio bem-sucedido (abre janela pos_bloqueio)
-        if hasattr(bloqueador, 'brain') and bloqueador.brain:
-            if hasattr(bloqueador.brain, 'on_bloqueio_sucesso'):
-                bloqueador.brain.on_bloqueio_sucesso()
-        
-        # DireÃ§Ã£o do impacto
-        ang = math.atan2(proj.y * PPM - pos_escudo[1], proj.x * PPM - pos_escudo[0])
-        
-        # Cor do bloqueador
-        cor = (bloqueador.dados.cor_r, bloqueador.dados.cor_g, bloqueador.dados.cor_b)
-        
-        # Efeito de bloqueio
-        self.block_effects.append(BlockEffect(proj.x * PPM, proj.y * PPM, cor, ang))
-        
-        # Texto
-        self.textos.append(FloatingText(proj.x * PPM, proj.y * PPM - 30, "BLOCK!", (100, 200, 255), 22))
-        
-        # PartÃ­culas metÃ¡licas
-        for _ in range(12):
-            vx = math.cos(ang + random.uniform(-0.5, 0.5)) * random.uniform(3, 8)
-            vy = math.sin(ang + random.uniform(-0.5, 0.5)) * random.uniform(3, 8)
-            self.particulas.append(Particula(proj.x * PPM, proj.y * PPM, AMARELO_FAISCA, vx, vy, 3, 0.3))
-        
-        # Shake leve
-        self.cam.aplicar_shake(5.0, 0.06)
-        self.hit_stop_timer = 0.03
+        self._registrar_bloco_defensivo(bloqueador)
+        self._reproduzir_audio_bloqueio()
+        contexto = self._criar_contexto_visual_bloqueio(proj, bloqueador, pos_escudo)
+        self.block_effects.append(BlockEffect(contexto.proj_x_px, contexto.proj_y_px, contexto.cor_lutador, contexto.ang_impacto))
+        self._adicionar_texto_feedback_defensivo(contexto.proj_x_px, contexto.proj_y_px, "BLOCK!", (100, 200, 255), 22, -30)
+        self._emitir_particulas_bloqueio(contexto)
+        self._aplicar_feedback_temporal_defensivo(DefensiveTempoFeedback(
+            shake_intensity=5.0,
+            shake_duration=0.06,
+            hit_stop=0.03,
+        ))
 
     
     def _efeito_desvio_dash(self, proj, desviador):
         """Efeito visual de desvio com dash"""
-        # === v14.0 MATCH STATS â€” record dodge ===
-        if hasattr(self, 'stats_collector'):
-            self.stats_collector.record_dodge(desviador.dados.nome)
-        # Trail do dash
-        if hasattr(desviador, 'pos_historico') and len(desviador.pos_historico) > 2:
-            posicoes = [(p[0] * PPM, p[1] * PPM) for p in desviador.pos_historico[-8:]]
-            cor = (desviador.dados.cor_r, desviador.dados.cor_g, desviador.dados.cor_b)
-            self.dash_trails.append(DashTrail(posicoes, cor))
-        
-        # Texto
-        self.textos.append(FloatingText(desviador.pos[0] * PPM, desviador.pos[1] * PPM - 50, "DODGE!", (150, 255, 150), 24))
-        
-        # Pequeno slow-mo para drama
-        self.time_scale = 0.5
-        self.slow_mo_timer = 0.3
+        self._registrar_esquiva_stats(desviador)
+        contexto = self._criar_contexto_visual_desvio_dash(desviador)
+        self._aplicar_trail_desvio_dash(contexto)
+        self._aplicar_feedback_desvio_dash(contexto)
 
     
     def _efeito_parry(self, proj, parryer):
         """Efeito visual de parry (defesa com ataque)"""
-        # === v14.0 MATCH STATS â€” parry counts as block ===
+        self._registrar_bloco_defensivo(parryer)
+        contexto = self._criar_contexto_visual_parry(proj, parryer)
+        self.impact_flashes.append(ImpactFlash(contexto.proj_x_px, contexto.proj_y_px, AMARELO_FAISCA, 1.8, "clash"))
+        self._adicionar_texto_feedback_defensivo(contexto.proj_x_px, contexto.proj_y_px, "PARRY!", AMARELO_FAISCA, 28, -40)
+        self.shockwaves.append(Shockwave(contexto.proj_x_px, contexto.proj_y_px, AMARELO_FAISCA, tamanho=1.5))
+        self.hit_sparks.append(HitSpark(contexto.proj_x_px, contexto.proj_y_px, AMARELO_FAISCA, contexto.ang_impacto, 1.5))
+        self._aplicar_feedback_temporal_defensivo(DefensiveTempoFeedback(
+            shake_intensity=8.0,
+            shake_duration=0.1,
+            hit_stop=0.06,
+            time_scale=0.4,
+            slow_mo_timer=0.25,
+        ))
+
+    def _registrar_bloco_defensivo(self, lutador):
         if hasattr(self, 'stats_collector'):
-            self.stats_collector.record_block(parryer.dados.nome)
-        # CB-01: notifica IA do parry (tambÃ©m conta como bloqueio â€” abre janela pos_bloqueio)
-        if hasattr(parryer, 'brain') and parryer.brain:
-            if hasattr(parryer.brain, 'on_bloqueio_sucesso'):
-                parryer.brain.on_bloqueio_sucesso()
-        
-        # Cor do parryer
-        cor = (parryer.dados.cor_r, parryer.dados.cor_g, parryer.dados.cor_b)
-        
-        # Flash de impacto especial
-        self.impact_flashes.append(ImpactFlash(proj.x * PPM, proj.y * PPM, AMARELO_FAISCA, 1.8, "clash"))
-        
-        # Texto PARRY!
-        self.textos.append(FloatingText(proj.x * PPM, proj.y * PPM - 40, "PARRY!", AMARELO_FAISCA, 28))
-        
-        # Shockwave dourada
-        self.shockwaves.append(Shockwave(proj.x * PPM, proj.y * PPM, AMARELO_FAISCA, tamanho=1.5))
-        
-        # Hit sparks dramÃ¡ticas
-        ang = math.atan2(proj.y - parryer.pos[1], proj.x - parryer.pos[0])
-        self.hit_sparks.append(HitSpark(proj.x * PPM, proj.y * PPM, AMARELO_FAISCA, ang, 1.5))
-        
-        # Camera e timing
-        self.cam.aplicar_shake(8.0, 0.1)
-        self.hit_stop_timer = 0.06
-        # Sprint1: parry Ã© o momento defensivo mais dramÃ¡tico mas nunca tinha slow-mo.
-        # Um micro slow-mo (0.4Ã— por 0.25s) realÃ§a o clÃ­max sem parecer morte.
-        self.time_scale = 0.4
-        self.slow_mo_timer = 0.25
+            self.stats_collector.record_block(lutador.dados.nome)
+
+        brain = getattr(lutador, 'brain', None)
+        if brain and hasattr(brain, 'on_bloqueio_sucesso'):
+            brain.on_bloqueio_sucesso()
+
+    def _reproduzir_audio_bloqueio(self):
+        audio = getattr(self, 'audio', None)
+        if audio:
+            audio.play_special("shield_block", volume=0.7)
+
+    def _obter_cor_lutador_rgb(self, lutador):
+        return (lutador.dados.cor_r, lutador.dados.cor_g, lutador.dados.cor_b)
+
+    def _criar_contexto_visual_bloqueio(self, proj, bloqueador, pos_escudo):
+        return ProjectileDefenseVisualContext(
+            proj_x_px=proj.x * PPM,
+            proj_y_px=proj.y * PPM,
+            cor_lutador=self._obter_cor_lutador_rgb(bloqueador),
+            ang_impacto=math.atan2(proj.y * PPM - pos_escudo[1], proj.x * PPM - pos_escudo[0]),
+        )
+
+    def _criar_contexto_visual_parry(self, proj, parryer):
+        return ProjectileDefenseVisualContext(
+            proj_x_px=proj.x * PPM,
+            proj_y_px=proj.y * PPM,
+            cor_lutador=self._obter_cor_lutador_rgb(parryer),
+            ang_impacto=math.atan2(proj.y - parryer.pos[1], proj.x - parryer.pos[0]),
+        )
+
+    def _emitir_particulas_bloqueio(self, contexto):
+        for _ in range(12):
+            vx = math.cos(contexto.ang_impacto + random.uniform(-0.5, 0.5)) * random.uniform(3, 8)
+            vy = math.sin(contexto.ang_impacto + random.uniform(-0.5, 0.5)) * random.uniform(3, 8)
+            self.particulas.append(Particula(contexto.proj_x_px, contexto.proj_y_px, AMARELO_FAISCA, vx, vy, 3, 0.3))
+
+    def _registrar_esquiva_stats(self, desviador):
+        if hasattr(self, 'stats_collector'):
+            self.stats_collector.record_dodge(desviador.dados.nome)
+
+    def _criar_contexto_visual_desvio_dash(self, desviador):
+        trilha_posicoes = []
+        if hasattr(desviador, 'pos_historico') and len(desviador.pos_historico) > 2:
+            trilha_posicoes = [(p[0] * PPM, p[1] * PPM) for p in desviador.pos_historico[-8:]]
+
+        return DashDodgeVisualContext(
+            pos_x_px=desviador.pos[0] * PPM,
+            pos_y_px=desviador.pos[1] * PPM,
+            cor_lutador=self._obter_cor_lutador_rgb(desviador),
+            trilha_posicoes=trilha_posicoes,
+        )
+
+    def _aplicar_trail_desvio_dash(self, contexto):
+        if contexto.trilha_posicoes:
+            self.dash_trails.append(DashTrail(contexto.trilha_posicoes, contexto.cor_lutador))
+
+    def _aplicar_feedback_desvio_dash(self, contexto):
+        self._adicionar_texto_feedback_defensivo(contexto.pos_x_px, contexto.pos_y_px, "DODGE!", (150, 255, 150), 24, -50)
+        self._aplicar_feedback_temporal_defensivo(DefensiveTempoFeedback(
+            time_scale=0.5,
+            slow_mo_timer=0.3,
+        ))
+
+    def _adicionar_texto_feedback_defensivo(self, x_px, y_px, texto, cor, tamanho, offset_y):
+        self.textos.append(FloatingText(x_px, y_px + offset_y, texto, cor, tamanho))
+
+    def _aplicar_feedback_temporal_defensivo(self, contexto):
+        if contexto.shake_intensity > 0 and contexto.shake_duration > 0:
+            self.cam.aplicar_shake(contexto.shake_intensity, contexto.shake_duration)
+        if contexto.hit_stop > 0:
+            self.hit_stop_timer = contexto.hit_stop
+        if contexto.time_scale is not None:
+            self.time_scale = contexto.time_scale
+            self.slow_mo_timer = contexto.slow_mo_timer
 
 
