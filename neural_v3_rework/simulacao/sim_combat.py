@@ -65,6 +65,13 @@ class AttackKnockbackResolution:
 
 
 @dataclass
+class PreparedHitResolution:
+    dano: float
+    resultado_hit: dict | None
+    knockback: AttackKnockbackResolution
+
+
+@dataclass
 class AttackPreparationContext:
     arma: object | None
     vetor_impacto: AttackImpactVector
@@ -143,6 +150,13 @@ class DefensiveTempoFeedback:
 
 
 @dataclass
+class DamageTextFeedback:
+    cor: tuple[int, int, int]
+    tamanho: int
+    critico: bool = False
+
+
+@dataclass
 class ProjectileClashContext:
     proj1: object
     proj2: object
@@ -205,73 +219,107 @@ class SimuladorCombat:
             arma._aviso_quebrada_exibido = True
         return dano
 
-    def _aplicar_mecanicas_corrente(self, atacante, defensor, arma, dano, vetor_impacto):
-        if not arma or arma.tipo != "Corrente":
-            return ChainAttackResolution(dano=dano)
+    def _resolver_corrente_mangual(self, atacante, chain_result):
+        momentum = getattr(atacante, 'chain_momentum', 0)
+        chain_result.dano *= (1.0 + momentum * 0.6)
+        chain_result.knockback_mult = 1.0 + momentum * 0.8
+        atacante.chain_momentum = min(1.0, momentum + 0.25)
+        if momentum >= 0.7:
+            chain_result.label = "MOMENTUM!"
+        return chain_result
 
-        chain_estilo = getattr(arma, 'estilo', '')
-        chain_result = ChainAttackResolution(dano=dano)
-        dist_hit = math.hypot(vetor_impacto.vx, vetor_impacto.vy)
-
-        if "Mangual" in chain_estilo or "Flail" in chain_estilo:
-            momentum = getattr(atacante, 'chain_momentum', 0)
-            chain_result.dano *= (1.0 + momentum * 0.6)
-            chain_result.knockback_mult = 1.0 + momentum * 0.8
-            atacante.chain_momentum = min(1.0, momentum + 0.25)
-            if momentum >= 0.7:
-                chain_result.label = "MOMENTUM!"
+    def _resolver_corrente_kusarigama(self, atacante, defensor, arma, chain_result):
+        mode = getattr(atacante, 'chain_mode', 0)
+        if mode == 0:
+            chain_result.dano *= 0.75
+            from nucleo.combat import DotEffect
+            dot = DotEffect("SANGRANDO", defensor, arma.dano * 0.3, 3.0, (180, 40, 40))
+            defensor.dots_ativos.append(dot)
+            chain_result.label = "CORTE!"
             return chain_result
+
+        defensor.stun_timer = max(defensor.stun_timer, 0.4)
+        chain_result.knockback_mult = 1.3
+        chain_result.label = "STUN!"
+        return chain_result
+
+    def _resolver_corrente_chicote(self, atacante, defensor, dist_hit, chain_result):
+        alcance_total = getattr(atacante, 'raio_fisico', 0.5) * 6.0
+        ratio_dist = dist_hit / max(alcance_total, 0.1)
+        if ratio_dist >= 0.65:
+            chain_result.dano *= 2.0
+            chain_result.label = "CRACK!"
+            if defensor.atacando:
+                defensor.atacando = False
+                defensor.cooldown_ataque = 0.3
+        else:
+            chain_result.dano *= 0.6
+        chain_result.knockback_mult = 0.5
+        return chain_result
+
+    def _resolver_corrente_meteor_hammer(self, atacante, chain_result):
+        spin_speed = getattr(atacante, 'chain_spin_speed', 0)
+        chain_result.dano *= (1.0 + min(spin_speed, 3.0) * 0.33)
+        chain_result.knockback_mult = 0.8
+        if spin_speed >= 2.0:
+            chain_result.label = "ORBITA!"
+        return chain_result
+
+    def _resolver_corrente_com_peso(self, atacante, defensor, chain_result):
+        defensor.slow_timer = max(defensor.slow_timer, 1.5)
+        defensor.slow_fator = min(defensor.slow_fator, 0.6)
+        pull_force = 4.0
+        pull_dx = atacante.pos[0] - defensor.pos[0]
+        pull_dy = atacante.pos[1] - defensor.pos[1]
+        pull_mag = math.hypot(pull_dx, pull_dy) or 1
+        defensor.vel[0] += (pull_dx / pull_mag) * pull_force
+        defensor.vel[1] += (pull_dy / pull_mag) * pull_force
+        chain_result.knockback_mult = 0.3
+        chain_result.label = "PUXÃƒO!"
+        return chain_result
+
+    def _arma_usa_mecanica_corrente(self, arma):
+        return bool(arma and arma.tipo == "Corrente")
+
+    def _criar_resultado_base_corrente(self, dano):
+        return ChainAttackResolution(dano=dano)
+
+    def _calcular_distancia_hit_corrente(self, vetor_impacto):
+        return math.hypot(vetor_impacto.vx, vetor_impacto.vy)
+
+    def _resolver_corrente_por_estilo(self, atacante, defensor, arma, chain_estilo, chain_result, dist_hit):
+        if "Mangual" in chain_estilo or "Flail" in chain_estilo:
+            return self._resolver_corrente_mangual(atacante, chain_result)
 
         if chain_estilo == "Kusarigama":
-            mode = getattr(atacante, 'chain_mode', 0)
-            if mode == 0:
-                chain_result.dano *= 0.75
-                from nucleo.combat import DotEffect
-                dot = DotEffect("SANGRANDO", defensor, arma.dano * 0.3, 3.0, (180, 40, 40))
-                defensor.dots_ativos.append(dot)
-                chain_result.label = "CORTE!"
-            else:
-                defensor.stun_timer = max(defensor.stun_timer, 0.4)
-                chain_result.knockback_mult = 1.3
-                chain_result.label = "STUN!"
-            return chain_result
+            return self._resolver_corrente_kusarigama(atacante, defensor, arma, chain_result)
 
         if chain_estilo == "Chicote":
-            alcance_total = getattr(atacante, 'raio_fisico', 0.5) * 6.0
-            ratio_dist = dist_hit / max(alcance_total, 0.1)
-            if ratio_dist >= 0.65:
-                chain_result.dano *= 2.0
-                chain_result.label = "CRACK!"
-                if defensor.atacando:
-                    defensor.atacando = False
-                    defensor.cooldown_ataque = 0.3
-            else:
-                chain_result.dano *= 0.6
-            chain_result.knockback_mult = 0.5
-            return chain_result
+            return self._resolver_corrente_chicote(atacante, defensor, dist_hit, chain_result)
 
         if chain_estilo == "Meteor Hammer":
-            spin_speed = getattr(atacante, 'chain_spin_speed', 0)
-            chain_result.dano *= (1.0 + min(spin_speed, 3.0) * 0.33)
-            chain_result.knockback_mult = 0.8
-            if spin_speed >= 2.0:
-                chain_result.label = "ORBITA!"
-            return chain_result
+            return self._resolver_corrente_meteor_hammer(atacante, chain_result)
 
         if "Corrente com Peso" in chain_estilo:
-            defensor.slow_timer = max(defensor.slow_timer, 1.5)
-            defensor.slow_fator = min(defensor.slow_fator, 0.6)
-            pull_force = 4.0
-            pull_dx = atacante.pos[0] - defensor.pos[0]
-            pull_dy = atacante.pos[1] - defensor.pos[1]
-            pull_mag = math.hypot(pull_dx, pull_dy) or 1
-            defensor.vel[0] += (pull_dx / pull_mag) * pull_force
-            defensor.vel[1] += (pull_dy / pull_mag) * pull_force
-            chain_result.knockback_mult = 0.3
-            chain_result.label = "PUXÃƒO!"
-            return chain_result
+            return self._resolver_corrente_com_peso(atacante, defensor, chain_result)
 
         return chain_result
+
+    def _aplicar_mecanicas_corrente(self, atacante, defensor, arma, dano, vetor_impacto):
+        if not self._arma_usa_mecanica_corrente(arma):
+            return self._criar_resultado_base_corrente(dano)
+
+        chain_estilo = getattr(arma, 'estilo', '')
+        chain_result = self._criar_resultado_base_corrente(dano)
+        dist_hit = self._calcular_distancia_hit_corrente(vetor_impacto)
+        return self._resolver_corrente_por_estilo(
+            atacante,
+            defensor,
+            arma,
+            chain_estilo,
+            chain_result,
+            dist_hit,
+        )
 
     def _determinar_tipo_golpe(self, atacante, dano, is_critico):
         classe_atacante = getattr(atacante, 'classe_nome', "Guerreiro")
@@ -290,34 +338,73 @@ class SimuladorCombat:
         if hasattr(self, 'stats_collector'):
             self.stats_collector.record_attack_attempt(atacante.dados.nome)
 
-    def _preparar_contexto_ataque_melee(self, atacante, defensor):
-        arma = atacante.dados.arma_obj
+    def _pode_iniciar_ataque_melee(self, atacante, defensor, arma):
         if not self._arma_usa_hitbox_direta(arma):
-            return None
-
+            return False
         if self._ja_acertou_alvo_neste_ataque(atacante, defensor):
-            return None
+            return False
+        return True
 
+    def _confirmar_hit_ataque_melee(self, atacante, defensor):
         acertou, _ = verificar_hit(atacante, defensor)
         self._registrar_tentativa_ataque_stats(atacante)
         if not acertou:
-            return None
-
+            return False
         self._marcar_alvo_atingido_neste_ataque(atacante, defensor)
+        return True
 
+    def _criar_contexto_base_ataque_melee(self, atacante, defensor, arma):
         vetor_impacto = self._calcular_vetor_impacto(atacante, defensor)
         dano, is_critico = self._calcular_dano_ataque_melee(atacante, arma)
-        dano = self._aplicar_desgaste_durabilidade_arma(atacante, arma, dano, is_critico)
-        chain_result = self._aplicar_mecanicas_corrente(atacante, defensor, arma, dano, vetor_impacto)
-
         return AttackPreparationContext(
             arma=arma,
             vetor_impacto=vetor_impacto,
-            dano=chain_result.dano,
+            dano=dano,
             is_critico=is_critico,
+        )
+
+    def _aplicar_desgaste_contexto_ataque_melee(self, atacante, contexto):
+        return self._aplicar_desgaste_durabilidade_arma(
+            atacante,
+            contexto.arma,
+            contexto.dano,
+            contexto.is_critico,
+        )
+
+    def _resolver_corrente_contexto_ataque_melee(self, atacante, defensor, contexto, dano):
+        return self._aplicar_mecanicas_corrente(
+            atacante,
+            defensor,
+            contexto.arma,
+            dano,
+            contexto.vetor_impacto,
+        )
+
+    def _reempacotar_contexto_modificado_ataque_melee(self, contexto, chain_result):
+        return AttackPreparationContext(
+            arma=contexto.arma,
+            vetor_impacto=contexto.vetor_impacto,
+            dano=chain_result.dano,
+            is_critico=contexto.is_critico,
             chain_kb_mult=chain_result.knockback_mult,
             chain_label=chain_result.label,
         )
+
+    def _aplicar_modificadores_contexto_ataque_melee(self, atacante, defensor, contexto):
+        dano = self._aplicar_desgaste_contexto_ataque_melee(atacante, contexto)
+        chain_result = self._resolver_corrente_contexto_ataque_melee(atacante, defensor, contexto, dano)
+        return self._reempacotar_contexto_modificado_ataque_melee(contexto, chain_result)
+
+    def _preparar_contexto_ataque_melee(self, atacante, defensor):
+        arma = atacante.dados.arma_obj
+        if not self._pode_iniciar_ataque_melee(atacante, defensor, arma):
+            return None
+
+        if not self._confirmar_hit_ataque_melee(atacante, defensor):
+            return None
+
+        contexto_base = self._criar_contexto_base_ataque_melee(atacante, defensor, arma)
+        return self._aplicar_modificadores_contexto_ataque_melee(atacante, defensor, contexto_base)
 
     def _registrar_hit_match_stats(self, atacante, defensor, dano, arma, is_critico, fatal=False):
         if not hasattr(self, 'stats_collector'):
@@ -357,56 +444,124 @@ class SimuladorCombat:
                 random.randint(4, 8), 0.4
             ))
 
-    def _processar_hit_game_feel(self, atacante, defensor, dano, tipo_golpe, is_critico, vetor_impacto):
-        if not self.game_feel:
-            return GameFeelHitResolution(dano=dano)
-
-        progresso_anim = 0.0
+    def _calcular_progresso_animacao_defensiva(self, defensor):
         if hasattr(defensor, 'timer_animacao') and defensor.atacando:
-            progresso_anim = 1.0 - (defensor.timer_animacao / 0.25)
+            return 1.0 - (defensor.timer_animacao / 0.25)
+        return 0.0
 
+    def _verificar_super_armor_hit_game_feel(self, defensor, progresso_animacao):
         self.game_feel.verificar_super_armor(
             defensor,
-            progresso_anim,
+            progresso_animacao,
             getattr(defensor.brain, 'acao_atual', "")
         )
 
-        resultado_hit = self.game_feel.processar_hit(
+    def _montar_knockback_game_feel(self, vetor_impacto):
+        return (
+            vetor_impacto.vx / vetor_impacto.mag * 15,
+            vetor_impacto.vy / vetor_impacto.mag * 15,
+        )
+
+    def _processar_hit_via_game_feel(self, atacante, defensor, dano, tipo_golpe, is_critico, vetor_impacto):
+        return self.game_feel.processar_hit(
             atacante=atacante,
             alvo=defensor,
             dano=dano,
             posicao=(vetor_impacto.dx_px, vetor_impacto.dy_px),
             tipo_golpe=tipo_golpe,
             is_critico=is_critico,
-            knockback=(vetor_impacto.vx / vetor_impacto.mag * 15, vetor_impacto.vy / vetor_impacto.mag * 15)
+            knockback=self._montar_knockback_game_feel(vetor_impacto),
         )
 
+    def _aplicar_feedback_resultado_game_feel(self, resultado_hit, vetor_impacto):
         if resultado_hit["super_armor_ativa"]:
             self._aplicar_feedback_visual_super_armor(vetor_impacto)
 
+    def _criar_resolucao_hit_game_feel(self, dano, resultado_hit=None):
         return GameFeelHitResolution(
-            dano=resultado_hit["dano_final"],
+            dano=dano,
             resultado_hit=resultado_hit,
         )
 
+    def _resolver_hit_sem_game_feel(self, dano):
+        return self._criar_resolucao_hit_game_feel(dano)
+
+    def _resolver_hit_com_game_feel(self, atacante, defensor, dano, tipo_golpe, is_critico, vetor_impacto):
+        progresso_anim = self._calcular_progresso_animacao_defensiva(defensor)
+        self._verificar_super_armor_hit_game_feel(defensor, progresso_anim)
+        resultado_hit = self._processar_hit_via_game_feel(
+            atacante,
+            defensor,
+            dano,
+            tipo_golpe,
+            is_critico,
+            vetor_impacto,
+        )
+        self._aplicar_feedback_resultado_game_feel(resultado_hit, vetor_impacto)
+        return self._criar_resolucao_hit_game_feel(resultado_hit["dano_final"], resultado_hit)
+
+    def _processar_hit_game_feel(self, atacante, defensor, dano, tipo_golpe, is_critico, vetor_impacto):
+        if not self.game_feel:
+            return self._resolver_hit_sem_game_feel(dano)
+        return self._resolver_hit_com_game_feel(
+            atacante,
+            defensor,
+            dano,
+            tipo_golpe,
+            is_critico,
+            vetor_impacto,
+        )
+
+    def _emitir_hit_spark_ataque(self, vetor_impacto):
+        self.hit_sparks.append(HitSpark(
+            vetor_impacto.dx_px,
+            vetor_impacto.dy_px,
+            AMARELO_FAISCA,
+            vetor_impacto.direcao_impacto,
+            1.2,
+        ))
+
+    def _obter_cor_impacto_arma(self, arma):
+        if hasattr(arma, 'r'):
+            return (arma.r, arma.g, arma.b)
+        return BRANCO
+
+    def _emitir_impact_flash_ataque(self, arma, vetor_impacto):
+        self.impact_flashes.append(ImpactFlash(
+            vetor_impacto.dx_px,
+            vetor_impacto.dy_px,
+            self._obter_cor_impacto_arma(arma),
+            1.0,
+            "normal",
+        ))
+
+    def _obter_cor_chain_label_ataque(self, chain_label):
+        return {
+            "MOMENTUM!": (255, 180, 50),
+            "CORTE!": (180, 40, 40),
+            "STUN!": (100, 100, 255),
+            "CRACK!": (255, 255, 100),
+            "ORBITA!": (200, 100, 255),
+            "PUXÃƒO!": (100, 255, 100),
+            "PUXÃO!": (100, 255, 100),
+        }.get(chain_label, (255, 255, 255))
+
+    def _emitir_texto_chain_ataque(self, chain_label, vetor_impacto):
+        if not chain_label:
+            return
+
+        self.textos.append(FloatingText(
+            vetor_impacto.dx_px,
+            vetor_impacto.dy_px - 45,
+            chain_label,
+            self._obter_cor_chain_label_ataque(chain_label),
+            20,
+        ))
+
     def _aplicar_feedback_impacto_ataque(self, arma, chain_label, vetor_impacto):
-        self.hit_sparks.append(HitSpark(vetor_impacto.dx_px, vetor_impacto.dy_px, AMARELO_FAISCA, vetor_impacto.direcao_impacto, 1.2))
-
-        cor_arma = (arma.r, arma.g, arma.b) if hasattr(arma, 'r') else BRANCO
-        self.impact_flashes.append(ImpactFlash(vetor_impacto.dx_px, vetor_impacto.dy_px, cor_arma, 1.0, "normal"))
-
-        if chain_label:
-            cor_chain = {
-                "MOMENTUM!": (255, 180, 50),
-                "CORTE!": (180, 40, 40),
-                "STUN!": (100, 100, 255),
-                "CRACK!": (255, 255, 100),
-                "ORBITA!": (200, 100, 255),
-                "PUXÃƒO!": (100, 255, 100),
-            }.get(chain_label, (255, 255, 255))
-            self.textos.append(FloatingText(
-                vetor_impacto.dx_px, vetor_impacto.dy_px - 45, chain_label, cor_chain, 20
-            ))
+        self._emitir_hit_spark_ataque(vetor_impacto)
+        self._emitir_impact_flash_ataque(arma, vetor_impacto)
+        self._emitir_texto_chain_ataque(chain_label, vetor_impacto)
 
     def _calcular_knockback_ataque(self, atacante, defensor, dano, chain_kb_mult, resultado_hit, vetor_impacto):
         pos_impacto = vetor_impacto.posicao_mundo
@@ -424,69 +579,53 @@ class SimuladorCombat:
             kb_y=kb_y,
         )
 
-    def _aplicar_feedback_attack_animation(self, atacante, defensor, dano, is_critico, pos_impacto, vetor_impacto):
-        attack_anims = getattr(self, 'attack_anims', None)
-        if not attack_anims:
-            return
-
-        impact_result = attack_anims.criar_attack_impact(
+    def _criar_resultado_attack_animation(self, attack_anims, atacante, defensor, dano, is_critico, pos_impacto, vetor_impacto):
+        return attack_anims.criar_attack_impact(
             atacante=atacante,
             alvo=defensor,
             dano=dano,
             posicao=pos_impacto,
             direcao=vetor_impacto.direcao_impacto,
             tipo_dano="physical",
-            is_critico=is_critico
+            is_critico=is_critico,
         )
 
-        if not self.game_feel:
-            self.cam.aplicar_shake(impact_result['shake_intensity'], impact_result['shake_duration'])
-            if impact_result['zoom_punch'] > 0:
-                self.cam.zoom_punch(impact_result['zoom_punch'], 0.15)
+    def _aplicar_feedback_camera_attack_animation(self, impact_result):
+        if self.game_feel:
+            return
 
-    def _finalizar_hit_fatal(self, atacante, defensor, arma, dano, is_critico, vetor_impacto):
-        self._registrar_hit_match_stats(atacante, defensor, dano, arma, is_critico, fatal=True)
+        self.cam.aplicar_shake(impact_result['shake_intensity'], impact_result['shake_duration'])
+        if impact_result['zoom_punch'] > 0:
+            self.cam.zoom_punch(impact_result['zoom_punch'], 0.15)
 
-        if hasattr(atacante, 'aplicar_passiva_em_hit'):
-            atacante.aplicar_passiva_em_hit(dano, defensor)
+    def _aplicar_feedback_attack_animation(self, atacante, defensor, dano, is_critico, pos_impacto, vetor_impacto):
+        attack_anims = getattr(self, 'attack_anims', None)
+        if not attack_anims:
+            return
 
-        if self.audio:
-            self.audio.play_special("ko", volume=1.0)
-
-        self.spawn_particulas(
-            defensor.pos[0],
-            defensor.pos[1],
-            vetor_impacto.vx / vetor_impacto.mag,
-            vetor_impacto.vy / vetor_impacto.mag,
-            VERMELHO_SANGUE,
-            50,
+        impact_result = self._criar_resultado_attack_animation(
+            attack_anims,
+            atacante=atacante,
+            defensor=defensor,
+            dano=dano,
+            is_critico=is_critico,
+            pos_impacto=pos_impacto,
+            vetor_impacto=vetor_impacto,
         )
-        self._criar_knockback_visual(defensor, vetor_impacto.direcao_impacto, dano * 1.5)
+        self._aplicar_feedback_camera_attack_animation(impact_result)
+        return impact_result
 
-        if not self.game_feel:
-            self.cam.aplicar_shake(18.0, 0.3)
-            self.cam.zoom_punch(0.15, 0.15)
-            self.hit_stop_timer = 0.25
-        else:
-            self.cam.zoom_punch(0.18, 0.18)
-
-        self.shockwaves.append(Shockwave(vetor_impacto.dx_px, vetor_impacto.dy_px, VERMELHO_SANGUE, 2.0))
-        self.textos.append(FloatingText(vetor_impacto.dx_px, vetor_impacto.dy_px - 50, "FATAL!", VERMELHO_SANGUE, 45))
-        self.ativar_slow_motion()
-        self.vencedor = atacante.dados.nome
-        return True
-
-    def _finalizar_hit_normal(self, atacante, defensor, arma, dano, is_critico, forca_atacante, resultado_hit, vetor_impacto):
-        self._registrar_hit_match_stats(atacante, defensor, dano, arma, is_critico)
-
+    def _reproduzir_audio_hit_normal(self, dano, defensor, is_critico, resultado_hit):
         if self.audio:
             listener_x = self.cam.x / PPM
             is_counter = resultado_hit and resultado_hit.get("counter_hit", False)
             self.audio.play_impact(dano, defensor.pos[0], listener_x, is_critico, is_counter)
 
+    def _aplicar_knockback_visual_hit_normal(self, defensor, dano, forca_atacante, vetor_impacto):
         if dano > 8 or forca_atacante > 12:
             self._criar_knockback_visual(defensor, vetor_impacto.direcao_impacto, dano)
 
+    def _emitir_particulas_hit_normal(self, defensor, dano, vetor_impacto):
         qtd_part = max(5, min(25, int(dano / 3)))
         self.spawn_particulas(
             defensor.pos[0],
@@ -497,34 +636,214 @@ class SimuladorCombat:
             qtd_part,
         )
 
-        if not self.game_feel:
-            if dano > 8:
-                shake_intensity = min(12.0, 2.0 + dano * 0.15)
-                self.cam.aplicar_shake(shake_intensity, 0.08)
-            self.hit_stop_timer = min(0.08, 0.015 + dano * 0.001)
-            if dano > 25:
-                self.cam.zoom_punch(0.05, 0.08)
+    def _aplicar_feedback_temporal_hit_normal(self, dano):
+        if self.game_feel:
+            return
 
+        if dano > 8:
+            shake_intensity = min(12.0, 2.0 + dano * 0.15)
+            self.cam.aplicar_shake(shake_intensity, 0.08)
+        self.hit_stop_timer = min(0.08, 0.015 + dano * 0.001)
+        if dano > 25:
+            self.cam.zoom_punch(0.05, 0.08)
+
+    def _aplicar_shockwave_hit_normal(self, dano, forca_atacante, vetor_impacto):
         tier = get_impact_tier(forca_atacante)
         if dano > 10 or forca_atacante >= 14:
             self.shockwaves.append(Shockwave(vetor_impacto.dx_px, vetor_impacto.dy_px, BRANCO, 0.6 * tier['shockwave_size']))
 
+    def _determinar_feedback_texto_dano(self, dano, is_critico):
         if is_critico:
-            cor_txt = (255, 50, 50)
-            tamanho_txt = 32
-            self.textos.append(FloatingText(vetor_impacto.dx_px, vetor_impacto.dy_px - 50, "CRÃTICO!", (255, 200, 0), 24))
-        elif dano > 25:
-            cor_txt = (255, 100, 100)
-            tamanho_txt = 28
-        elif dano > 15:
-            cor_txt = (255, 200, 100)
-            tamanho_txt = 24
-        else:
-            cor_txt = BRANCO
-            tamanho_txt = 20
+            return DamageTextFeedback(cor=(255, 50, 50), tamanho=32, critico=True)
+        if dano > 25:
+            return DamageTextFeedback(cor=(255, 100, 100), tamanho=28)
+        if dano > 15:
+            return DamageTextFeedback(cor=(255, 200, 100), tamanho=24)
+        return DamageTextFeedback(cor=BRANCO, tamanho=20)
 
-        self.textos.append(FloatingText(vetor_impacto.dx_px, vetor_impacto.dy_px - 30, int(dano), cor_txt, tamanho_txt))
+    def _adicionar_textos_hit_normal(self, dano, is_critico, vetor_impacto):
+        feedback = self._determinar_feedback_texto_dano(dano, is_critico)
+        if feedback.critico:
+            self.textos.append(FloatingText(vetor_impacto.dx_px, vetor_impacto.dy_px - 50, "CRÃTICO!", (255, 200, 0), 24))
+
+        self.textos.append(FloatingText(
+            vetor_impacto.dx_px,
+            vetor_impacto.dy_px - 30,
+            int(dano),
+            feedback.cor,
+            feedback.tamanho,
+        ))
+
+    def _aplicar_passiva_hit_fatal(self, atacante, dano, defensor):
+        if hasattr(atacante, 'aplicar_passiva_em_hit'):
+            atacante.aplicar_passiva_em_hit(dano, defensor)
+
+    def _reproduzir_audio_hit_fatal(self):
+        if self.audio:
+            self.audio.play_special("ko", volume=1.0)
+
+    def _emitir_particulas_hit_fatal(self, defensor, vetor_impacto):
+        self.spawn_particulas(
+            defensor.pos[0],
+            defensor.pos[1],
+            vetor_impacto.vx / vetor_impacto.mag,
+            vetor_impacto.vy / vetor_impacto.mag,
+            VERMELHO_SANGUE,
+            50,
+        )
+
+    def _aplicar_knockback_visual_hit_fatal(self, defensor, dano, vetor_impacto):
+        self._criar_knockback_visual(defensor, vetor_impacto.direcao_impacto, dano * 1.5)
+
+    def _aplicar_feedback_temporal_hit_fatal(self):
+        if not self.game_feel:
+            self.cam.aplicar_shake(18.0, 0.3)
+            self.cam.zoom_punch(0.15, 0.15)
+            self.hit_stop_timer = 0.25
+            return
+
+        self.cam.zoom_punch(0.18, 0.18)
+
+    def _adicionar_feedback_visual_hit_fatal(self, atacante, vetor_impacto):
+        self.shockwaves.append(Shockwave(vetor_impacto.dx_px, vetor_impacto.dy_px, VERMELHO_SANGUE, 2.0))
+        self.textos.append(FloatingText(vetor_impacto.dx_px, vetor_impacto.dy_px - 50, "FATAL!", VERMELHO_SANGUE, 45))
+        self.ativar_slow_motion()
+        self.vencedor = atacante.dados.nome
+
+    def _finalizar_hit_fatal(self, atacante, defensor, arma, dano, is_critico, vetor_impacto):
+        self._registrar_hit_match_stats(atacante, defensor, dano, arma, is_critico, fatal=True)
+        self._aplicar_passiva_hit_fatal(atacante, dano, defensor)
+        self._reproduzir_audio_hit_fatal()
+        self._emitir_particulas_hit_fatal(defensor, vetor_impacto)
+        self._aplicar_knockback_visual_hit_fatal(defensor, dano, vetor_impacto)
+        self._aplicar_feedback_temporal_hit_fatal()
+        self._adicionar_feedback_visual_hit_fatal(atacante, vetor_impacto)
+        return True
+
+    def _finalizar_hit_normal(self, atacante, defensor, arma, dano, is_critico, forca_atacante, resultado_hit, vetor_impacto):
+        self._registrar_hit_match_stats(atacante, defensor, dano, arma, is_critico)
+        self._reproduzir_audio_hit_normal(dano, defensor, is_critico, resultado_hit)
+        self._aplicar_knockback_visual_hit_normal(defensor, dano, forca_atacante, vetor_impacto)
+        self._emitir_particulas_hit_normal(defensor, dano, vetor_impacto)
+        self._aplicar_feedback_temporal_hit_normal(dano)
+        self._aplicar_shockwave_hit_normal(dano, forca_atacante, vetor_impacto)
+        self._adicionar_textos_hit_normal(dano, is_critico, vetor_impacto)
         return False
+
+    def _executar_feedback_pre_hit(self, atacante, defensor, ataque):
+        self._reproduzir_audio_ataque(atacante, ataque.arma, ataque.dano, ataque.is_critico)
+        self._notificar_coreografia_hit(atacante, defensor, ataque.dano)
+        tipo_golpe = self._determinar_tipo_golpe(atacante, ataque.dano, ataque.is_critico)
+        return self._processar_hit_game_feel(
+            atacante,
+            defensor,
+            ataque.dano,
+            tipo_golpe,
+            ataque.is_critico,
+            ataque.vetor_impacto,
+        )
+
+    def _aplicar_feedback_visual_hit_preparado(self, ataque):
+        self._aplicar_feedback_impacto_ataque(ataque.arma, ataque.chain_label, ataque.vetor_impacto)
+
+    def _calcular_knockback_hit_preparado(self, atacante, defensor, ataque, dano, resultado_hit):
+        return self._calcular_knockback_ataque(
+            atacante,
+            defensor,
+            dano,
+            ataque.chain_kb_mult,
+            resultado_hit,
+            ataque.vetor_impacto,
+        )
+
+    def _aplicar_animacao_hit_preparado(self, atacante, defensor, ataque, dano, knockback):
+        self._aplicar_feedback_attack_animation(
+            atacante,
+            defensor,
+            dano,
+            ataque.is_critico,
+            knockback.posicao_impacto,
+            ataque.vetor_impacto,
+        )
+
+    def _resolver_impacto_hit_preparado(self, atacante, defensor, ataque, dano, resultado_hit):
+        self._aplicar_feedback_visual_hit_preparado(ataque)
+        knockback = self._calcular_knockback_hit_preparado(atacante, defensor, ataque, dano, resultado_hit)
+        self._aplicar_animacao_hit_preparado(atacante, defensor, ataque, dano, knockback)
+        return knockback
+
+    def _aplicar_dano_hit_preparado(self, atacante, defensor, dano, knockback):
+        return defensor.tomar_dano(
+            dano,
+            knockback.kb_x,
+            knockback.kb_y,
+            "NORMAL",
+            atacante=atacante,
+        )
+
+    def _finalizar_hit_preparado_fatal(self, atacante, defensor, ataque, dano):
+        return self._finalizar_hit_fatal(
+            atacante,
+            defensor,
+            ataque.arma,
+            dano,
+            ataque.is_critico,
+            ataque.vetor_impacto,
+        )
+
+    def _finalizar_hit_preparado_normal(self, atacante, defensor, ataque, dano, resultado_hit):
+        return self._finalizar_hit_normal(
+            atacante,
+            defensor,
+            ataque.arma,
+            dano,
+            ataque.is_critico,
+            atacante.dados.forca,
+            resultado_hit,
+            ataque.vetor_impacto,
+        )
+
+    def _finalizar_desfecho_hit_preparado(self, atacante, defensor, ataque, dano, resultado_hit, fatal):
+        if fatal:
+            return self._finalizar_hit_preparado_fatal(atacante, defensor, ataque, dano)
+        return self._finalizar_hit_preparado_normal(atacante, defensor, ataque, dano, resultado_hit)
+
+    def _aplicar_dano_e_finalizar_hit_preparado(self, atacante, defensor, ataque, dano, resultado_hit, knockback):
+        fatal = self._aplicar_dano_hit_preparado(atacante, defensor, dano, knockback)
+        return self._finalizar_desfecho_hit_preparado(
+            atacante,
+            defensor,
+            ataque,
+            dano,
+            resultado_hit,
+            fatal,
+        )
+
+    def _construir_resolucao_hit_preparado(self, atacante, defensor, ataque):
+        game_feel_resolution = self._executar_feedback_pre_hit(atacante, defensor, ataque)
+        knockback = self._resolver_impacto_hit_preparado(
+            atacante,
+            defensor,
+            ataque,
+            game_feel_resolution.dano,
+            game_feel_resolution.resultado_hit,
+        )
+        return PreparedHitResolution(
+            dano=game_feel_resolution.dano,
+            resultado_hit=game_feel_resolution.resultado_hit,
+            knockback=knockback,
+        )
+
+    def _resolver_hit_preparado(self, atacante, defensor, ataque):
+        resolucao = self._construir_resolucao_hit_preparado(atacante, defensor, ataque)
+        return self._aplicar_dano_e_finalizar_hit_preparado(
+            atacante,
+            defensor,
+            ataque,
+            resolucao.dano,
+            resolucao.resultado_hit,
+            resolucao.knockback,
+        )
 
     def _obter_lutadores_combate(self):
         fighters = getattr(self, 'fighters', None)
@@ -582,17 +901,29 @@ class SimuladorCombat:
             return False
         return colisao_linha_linha(l1[0], l1[1], l2[0], l2[1])
 
-    def _criar_contexto_visual_clash(self, p1, p2):
+    def _calcular_centro_visual_clash(self, p1, p2):
         mx = (p1.pos[0] + p2.pos[0]) / 2 * PPM
         my = (p1.pos[1] + p2.pos[1]) / 2 * PPM
-        arma1 = getattr(getattr(p1, 'dados', None), 'arma_obj', None)
-        arma2 = getattr(getattr(p2, 'dados', None), 'arma_obj', None)
-        cor1 = (arma1.r, arma1.g, arma1.b) if arma1 and hasattr(arma1, 'r') else (255, 255, 255)
-        cor2 = (arma2.r, arma2.g, arma2.b) if arma2 and hasattr(arma2, 'r') else (255, 255, 255)
+        return mx, my
+
+    def _obter_cor_arma_clash(self, lutador):
+        arma = getattr(getattr(lutador, 'dados', None), 'arma_obj', None)
+        if arma and hasattr(arma, 'r'):
+            return (arma.r, arma.g, arma.b)
+        return (255, 255, 255)
+
+    def _calcular_vetor_visual_clash(self, p1, p2):
         ang_p1_p2 = math.atan2(p2.pos[1] - p1.pos[1], p2.pos[0] - p1.pos[0])
         vec_x = p1.pos[0] - p2.pos[0]
         vec_y = p1.pos[1] - p2.pos[1]
         mag = math.hypot(vec_x, vec_y) or 1
+        return ang_p1_p2, vec_x, vec_y, mag
+
+    def _criar_contexto_visual_clash(self, p1, p2):
+        mx, my = self._calcular_centro_visual_clash(p1, p2)
+        cor1 = self._obter_cor_arma_clash(p1)
+        cor2 = self._obter_cor_arma_clash(p2)
+        ang_p1_p2, vec_x, vec_y, mag = self._calcular_vetor_visual_clash(p1, p2)
         return ClashVisualContext(
             mx=mx,
             my=my,
@@ -655,61 +986,7 @@ class SimuladorCombat:
         ataque = self._preparar_contexto_ataque_melee(atacante, defensor)
         if not ataque:
             return False
-
-        arma = ataque.arma
-        vetor_impacto = ataque.vetor_impacto
-        dano = ataque.dano
-        is_critico = ataque.is_critico
-
-        self._reproduzir_audio_ataque(atacante, arma, dano, is_critico)
-        self._notificar_coreografia_hit(atacante, defensor, dano)
-
-        tipo_golpe = self._determinar_tipo_golpe(atacante, dano, is_critico)
-
-        game_feel_resolution = self._processar_hit_game_feel(
-            atacante,
-            defensor,
-            dano,
-            tipo_golpe,
-            is_critico,
-            vetor_impacto,
-        )
-        dano = game_feel_resolution.dano
-        resultado_hit = game_feel_resolution.resultado_hit
-
-        forca_atacante = atacante.dados.forca
-        self._aplicar_feedback_impacto_ataque(arma, ataque.chain_label, vetor_impacto)
-
-        knockback = self._calcular_knockback_ataque(
-            atacante,
-            defensor,
-            dano,
-            ataque.chain_kb_mult,
-            resultado_hit,
-            vetor_impacto,
-        )
-        self._aplicar_feedback_attack_animation(
-            atacante,
-            defensor,
-            dano,
-            is_critico,
-            knockback.posicao_impacto,
-            vetor_impacto,
-        )
-
-        if defensor.tomar_dano(dano, knockback.kb_x, knockback.kb_y, "NORMAL", atacante=atacante):
-            return self._finalizar_hit_fatal(atacante, defensor, arma, dano, is_critico, vetor_impacto)
-
-        return self._finalizar_hit_normal(
-            atacante,
-            defensor,
-            arma,
-            dano,
-            is_critico,
-            forca_atacante,
-            resultado_hit,
-            vetor_impacto,
-        )
+        return self._resolver_hit_preparado(atacante, defensor, ataque)
 
 
     def verificar_colisoes_combate(self):
@@ -721,21 +998,34 @@ class SimuladorCombat:
         self._processar_clashes_combate(fighters)
         self._processar_ataques_combate(fighters)
 
-    def _criar_contexto_colisao_corpos(self, p1, p2):
+    def _coletar_metricas_colisao_corpos(self, p1, p2):
         dx = p2.pos[0] - p1.pos[0]
         dy = p2.pos[1] - p1.pos[1]
         soma_raios = p1.raio_fisico + p2.raio_fisico
         dist2 = dx * dx + dy * dy
-        soma2 = soma_raios * soma_raios
-        if dist2 >= soma2 or abs(p1.z - p2.z) >= 1.0:
-            return None
+        return dx, dy, soma_raios, dist2
 
+    def _corpos_podem_colidir(self, p1, p2, dist2, soma_raios):
+        if dist2 >= soma_raios * soma_raios:
+            return False
+        if abs(p1.z - p2.z) >= 1.0:
+            return False
+        return True
+
+    def _calcular_normal_colisao_corpos(self, dx, dy, dist2):
         dist = math.sqrt(dist2)
         if dist > 0.001:
-            nx, ny = dx / dist, dy / dist
-        else:
-            ang = random.uniform(0, math.pi * 2)
-            nx, ny = math.cos(ang), math.sin(ang)
+            return dist, dx / dist, dy / dist
+
+        ang = random.uniform(0, math.pi * 2)
+        return dist, math.cos(ang), math.sin(ang)
+
+    def _criar_contexto_colisao_corpos(self, p1, p2):
+        dx, dy, soma_raios, dist2 = self._coletar_metricas_colisao_corpos(p1, p2)
+        if not self._corpos_podem_colidir(p1, p2, dist2, soma_raios):
+            return None
+
+        dist, nx, ny = self._calcular_normal_colisao_corpos(dx, dy, dist2)
 
         return BodyCollisionContext(
             p1=p1,
@@ -777,6 +1067,11 @@ class SimuladorCombat:
 
         return houve_colisao
 
+    def _executar_passes_fisica_corpos(self, vivos, fator_repulsao, max_iteracoes=3):
+        for _ in range(max_iteracoes):
+            if not self._resolver_iteracao_fisica_corpos(vivos, fator_repulsao):
+                break
+
 
     def resolver_fisica_corpos(self, dt):
         """
@@ -794,10 +1089,7 @@ class SimuladorCombat:
             return
 
         fator_repulsao = 6.0
-
-        for _ in range(3):
-            if not self._resolver_iteracao_fisica_corpos(vivos, fator_repulsao):
-                break
+        self._executar_passes_fisica_corpos(vivos, fator_repulsao)
 
 
     def checar_clash_geral(self, p1, p2):
@@ -1026,29 +1318,50 @@ class SimuladorCombat:
     # SISTEMA DE BLOQUEIO E DESVIO v7.0
     # =========================================================================
     
-    def _verificar_bloqueio_projetil(self, proj, alvo):
-        """Verifica se o alvo pode bloquear ou desviar do projÃ©til"""
+    def _preparar_janela_defesa_projetil(self, proj, alvo):
         if not proj.ativo:
-            return False
+            return None
 
         dist = self._calcular_distancia_projetil_alvo(proj, alvo)
         if not self._projetil_esta_perto_para_defesa(dist, alvo):
+            return None
+        return dist
+
+    def _tentar_bloqueio_escudo_projetil(self, proj, alvo):
+        pos_escudo = self._detectar_bloqueio_escudo_orbital(proj, alvo)
+        if not pos_escudo:
+            return False
+        self._efeito_bloqueio(proj, alvo, pos_escudo)
+        return True
+
+    def _tentar_desvio_dash_projetil(self, proj, alvo, dist):
+        if not self._detectar_desvio_dash(proj, alvo, dist):
+            return False
+        self._efeito_desvio_dash(proj, alvo)
+        choreographer = getattr(self, 'choreographer', None)
+        if choreographer:
+            choreographer.registrar_esquiva(alvo, proj.dono if hasattr(proj, 'dono') else None)
+        return True
+
+    def _tentar_parry_projetil(self, proj, alvo):
+        if not self._detectar_parry_projetil(proj, alvo):
+            return False
+        self._efeito_parry(proj, alvo)
+        return True
+
+    def _verificar_bloqueio_projetil(self, proj, alvo):
+        """Verifica se o alvo pode bloquear ou desviar do projÃ©til"""
+        dist = self._preparar_janela_defesa_projetil(proj, alvo)
+        if dist is None:
             return False
 
-        pos_escudo = self._detectar_bloqueio_escudo_orbital(proj, alvo)
-        if pos_escudo:
-            self._efeito_bloqueio(proj, alvo, pos_escudo)
+        if self._tentar_bloqueio_escudo_projetil(proj, alvo):
             return True
 
-        if self._detectar_desvio_dash(proj, alvo, dist):
-            self._efeito_desvio_dash(proj, alvo)
-            choreographer = getattr(self, 'choreographer', None)
-            if choreographer:
-                choreographer.registrar_esquiva(alvo, proj.dono if hasattr(proj, 'dono') else None)
+        if self._tentar_desvio_dash_projetil(proj, alvo, dist):
             return True
 
-        if self._detectar_parry_projetil(proj, alvo):
-            self._efeito_parry(proj, alvo)
+        if self._tentar_parry_projetil(proj, alvo):
             return True
         
         return False
@@ -1061,8 +1374,25 @@ class SimuladorCombat:
     def _projetil_esta_perto_para_defesa(self, dist, alvo):
         return dist <= alvo.raio_fisico + 1.5
 
+    def _alvo_tem_escudo_orbital(self, alvo):
+        return bool(alvo.dados.arma_obj and "Orbital" in alvo.dados.arma_obj.tipo)
+
+    def _calcular_metricas_escudo_orbital(self, proj, escudo_pos):
+        dx_escudo = proj.x * PPM - escudo_pos[0]
+        dy_escudo = proj.y * PPM - escudo_pos[1]
+        dist_escudo = math.hypot(dx_escudo, dy_escudo)
+        return dx_escudo, dy_escudo, dist_escudo
+
+    def _projetil_atinge_raio_escudo_orbital(self, proj, escudo_raio, dist_escudo):
+        return dist_escudo < escudo_raio + proj.raio * PPM
+
+    def _projetil_esta_no_arco_escudo_orbital(self, dx_escudo, dy_escudo, escudo_ang, escudo_arco):
+        ang_proj = math.degrees(math.atan2(dy_escudo, dx_escudo))
+        diff_ang = abs(normalizar_angulo(ang_proj - escudo_ang))
+        return diff_ang <= escudo_arco / 2
+
     def _detectar_bloqueio_escudo_orbital(self, proj, alvo):
-        if not alvo.dados.arma_obj or "Orbital" not in alvo.dados.arma_obj.tipo:
+        if not self._alvo_tem_escudo_orbital(alvo):
             return None
 
         escudo_info = alvo.get_escudo_info()
@@ -1070,15 +1400,11 @@ class SimuladorCombat:
             return None
 
         escudo_pos, escudo_raio, escudo_ang, escudo_arco = escudo_info
-        dx_escudo = proj.x * PPM - escudo_pos[0]
-        dy_escudo = proj.y * PPM - escudo_pos[1]
-        dist_escudo = math.hypot(dx_escudo, dy_escudo)
-        if dist_escudo >= escudo_raio + proj.raio * PPM:
+        dx_escudo, dy_escudo, dist_escudo = self._calcular_metricas_escudo_orbital(proj, escudo_pos)
+        if not self._projetil_atinge_raio_escudo_orbital(proj, escudo_raio, dist_escudo):
             return None
 
-        ang_proj = math.degrees(math.atan2(dy_escudo, dx_escudo))
-        diff_ang = abs(normalizar_angulo(ang_proj - escudo_ang))
-        if diff_ang <= escudo_arco / 2:
+        if self._projetil_esta_no_arco_escudo_orbital(dx_escudo, dy_escudo, escudo_ang, escudo_arco):
             return escudo_pos
         return None
 

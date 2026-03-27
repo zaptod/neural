@@ -137,13 +137,29 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
 
     def __init__(self, parent):
         self.parent = parent
+        self._initialize_runtime_decision_state()
+        self._initialize_emotional_state()
+        self._initialize_combat_memory_state(parent)
+        self._initialize_personality_state()
+        self._initialize_internal_cooldowns_and_skill_state()
+        self._initialize_choreography_state()
+        self._initialize_human_behavior_state()
+        self._initialize_spatial_and_weapon_awareness_state()
+        self._initialize_multi_combat_state()
+        self._initialize_update_group_timers()
+
+        # Gera personalidade Ãºnica
+        self._gerar_personalidade()
+
+    def _initialize_runtime_decision_state(self) -> None:
         self.timer_decisao = 0.0
         self.acao_atual = "NEUTRO"
         self._tempo_sem_decisao = 0.0
         self.dir_circular = random.choice([-1, 1])
         self._dir_circular_cd = 0.0  # Cooldown antes de permitir nova mudanÃ§a de dir_circular
         self.circular_consecutivo = 0  # Conta decisÃµes CIRCULAR seguidas
-        
+
+    def _initialize_emotional_state(self) -> None:
         # === EMOÃ‡Ã•ES (0.0 a 1.0) ===
         self.medo = 0.0
         self.raiva = 0.0
@@ -152,11 +168,12 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self.adrenalina = 0.0
         self.excitacao = 0.0
         self.tedio = 0.0
-        
+
         # === HUMOR ATUAL ===
         self.humor = "CALMO"
         self.humor_timer = 0.0
-        
+
+    def _initialize_combat_memory_state(self, parent) -> None:
         # === MEMÃ“RIA DE COMBATE ===
         self.hits_recebidos_total = 0
         self.hits_dados_total = 0
@@ -171,7 +188,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self.max_combo = 0
         self.tempo_combate = 0.0
         self._tempo_sem_ataque_efetivo = 0.0  # Stall detection: tempo em aÃ§Ã£o ofensiva sem p.atacando
-        
+
+    def _initialize_personality_state(self) -> None:
         # === PERSONALIDADE GERADA ===
         self.arquetipo = "GUERREIRO"
         self.estilo_luta = "BALANCED"
@@ -201,7 +219,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         # a decisÃ£o e qual aÃ§Ã£o resultou.  Ãštil para depurar comportamentos inesperados.
         # Ativar via: ai_instance.DEBUG_AI_DECISIONS = True
         self.DEBUG_AI_DECISIONS = False
-        
+
+    def _initialize_internal_cooldowns_and_skill_state(self) -> None:
         # === COOLDOWNS INTERNOS ===
         self.cd_dash = 0.0
         self.cd_pulo = 0.0
@@ -232,7 +251,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self.modo_defensivo = False
         self.modo_burst = False
         self.executando_quirk = False
-        
+
+    def _initialize_choreography_state(self) -> None:
         # === SISTEMA DE COREOGRAFIA v5.0 ===
         self.momento_cinematografico = None
         self.acao_sincronizada = None
@@ -258,9 +278,10 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         }
         self.reacao_pendente = None
         self.tempo_reacao = 0.0
-        
+
+    def _initialize_human_behavior_state(self) -> None:
         # === SISTEMA HUMANO v8.0 - NOVIDADES ===
-        
+
         # AntecipaÃ§Ã£o e leitura do oponente
         self.leitura_oponente = {
             "ataque_iminente": False,
@@ -352,7 +373,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         # HistÃ³rico de aÃ§Ãµes para nÃ£o repetir muito
         self.historico_acoes = []
         self.repeticao_contador = {}
-        
+
+    def _initialize_spatial_and_weapon_awareness_state(self) -> None:
         # === SISTEMA DE RECONHECIMENTO ESPACIAL v9.0 ===
         # Awareness de paredes e obstÃ¡culos
         self.consciencia_espacial = {
@@ -420,7 +442,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             "last_analysis_time": 0.0,          # Quando Ãºltima anÃ¡lise foi feita
             "enemy_weapon_changed": False,      # Se arma do inimigo mudou
         }
-        
+
+    def _initialize_multi_combat_state(self) -> None:
         # === SISTEMA MULTI-COMBATENTE v13.0 ===
         self.multi_awareness = {
             "inimigos": [],           # Lista de {lutador, distancia, angulo, ameaca}
@@ -454,7 +477,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             "callouts": [],
             "ally_intents": {},
         }
-        
+
+    def _initialize_update_group_timers(self) -> None:
         # A02: throttle timers por grupo de custo
         # Grupo TÃTICO  (10hz): leitura de oponente, janelas, momentum, estados, combo
         # Grupo EMOCIONAL (4hz): emoÃ§Ãµes, humor, modos especiais, baiting
@@ -466,9 +490,6 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self._I_TATICO      = 0.10   # 10hz
         self._I_EMOCIONAL   = 0.25   # 4hz
         self._I_ESTRATEGICO = 0.50   # 2hz
-
-        # Gera personalidade Ãºnica
-        self._gerar_personalidade()
 
 
     # =========================================================================
@@ -684,73 +705,99 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         self._atualizar_relacao_dominante_bucket(bucket)
 
     def _decair_memoria_curta_oponentes(self, dt):
-        memoria = getattr(self, "memoria_oponente", None)
-        if not isinstance(memoria, dict):
+        memoria, buckets = self._obter_buckets_memoria_curta_oponentes()
+        if buckets is None:
             return
-        buckets = memoria.get("adaptacao_por_oponente", {})
-        if not isinstance(buckets, dict):
-            return
-
-        _, decaimento, _ = self._modificadores_personalidade_adaptativa()
-        taxa_base = max(0.02, dt * 0.28 * decaimento)
+        taxa_base = self._calcular_taxa_decaimento_memoria_curta(dt)
         remover = []
         for chave, bucket in buckets.items():
-            if not isinstance(bucket, dict):
+            if not self._bucket_memoria_curta_eh_valido(bucket):
                 remover.append(chave)
                 continue
-            for campo, valor in list(bucket.items()):
-                if campo == "ultimo_evento":
-                    continue
-                if campo == "padroes":
-                    if not isinstance(valor, dict):
-                        bucket[campo] = {}
-                        continue
-                    remover_padroes = []
-                    for nome_padrao, score_padrao in list(valor.items()):
-                        if not isinstance(score_padrao, (int, float)):
-                            remover_padroes.append(nome_padrao)
-                            continue
-                        if abs(score_padrao) <= taxa_base:
-                            remover_padroes.append(nome_padrao)
-                        elif score_padrao > 0:
-                            valor[nome_padrao] = score_padrao - taxa_base
-                        else:
-                            valor[nome_padrao] = score_padrao + taxa_base
-                    for nome_padrao in remover_padroes:
-                        valor.pop(nome_padrao, None)
-                    continue
-                if not isinstance(valor, (int, float)):
-                    continue
-                taxa_campo = taxa_base
-                if campo.startswith("relacao_"):
-                    taxa_campo = taxa_base * 0.45
-                if abs(valor) <= taxa_campo:
-                    bucket[campo] = 0.0
-                elif valor > 0:
-                    bucket[campo] = valor - taxa_campo
-                else:
-                    bucket[campo] = valor + taxa_campo
-            padroes_bucket = bucket.get("padroes", {})
-            if isinstance(padroes_bucket, dict) and padroes_bucket:
-                bucket["padrao_dominante"] = max(padroes_bucket.items(), key=lambda item: item[1])[0]
-            else:
-                bucket["padrao_dominante"] = None
-            self._atualizar_relacao_dominante_bucket(bucket)
-            if all(abs(bucket.get(campo, 0.0)) < 0.04 for campo in (
-                "vies_skill", "vies_agressao", "vies_cautela", "vies_pressao", "vies_contra_ataque"
-            )) and all(bucket.get(campo, 0.0) < 0.05 for campo in (
-                "relacao_respeito", "relacao_vinganca", "relacao_obsessao", "relacao_caca"
-            )):
+            self._decair_bucket_memoria_curta_oponente(bucket, taxa_base)
+            self._atualizar_resumo_bucket_memoria_curta_oponente(bucket)
+            if self._bucket_memoria_curta_deve_limpar_evento(bucket):
                 bucket["ultimo_evento"] = None
-            bucket_inerte = all(abs(bucket.get(campo, 0.0)) < 0.01 for campo in (
-                "vies_skill", "vies_agressao", "vies_cautela", "vies_pressao", "vies_contra_ataque"
-            )) and all(bucket.get(campo, 0.0) < 0.03 for campo in (
-                "relacao_respeito", "relacao_vinganca", "relacao_obsessao", "relacao_caca"
-            )) and not bucket.get("padroes")
-            if bucket_inerte and memoria.get("id_atual") != chave:
+            if self._bucket_memoria_curta_esta_inerte(bucket) and memoria.get("id_atual") != chave:
                 remover.append(chave)
         for chave in remover:
             buckets.pop(chave, None)
+
+    def _obter_buckets_memoria_curta_oponentes(self):
+        memoria = getattr(self, "memoria_oponente", None)
+        if not isinstance(memoria, dict):
+            return None, None
+        buckets = memoria.get("adaptacao_por_oponente", {})
+        if not isinstance(buckets, dict):
+            return memoria, None
+        return memoria, buckets
+
+    def _calcular_taxa_decaimento_memoria_curta(self, dt):
+        _, decaimento, _ = self._modificadores_personalidade_adaptativa()
+        return max(0.02, dt * 0.28 * decaimento)
+
+    def _bucket_memoria_curta_eh_valido(self, bucket) -> bool:
+        return isinstance(bucket, dict)
+
+    def _decair_bucket_memoria_curta_oponente(self, bucket, taxa_base) -> None:
+        for campo, valor in list(bucket.items()):
+            if campo == "ultimo_evento":
+                continue
+            if campo == "padroes":
+                self._decair_padroes_bucket_memoria_curta(valor, bucket, taxa_base)
+                continue
+            self._decair_campo_bucket_memoria_curta(bucket, campo, valor, taxa_base)
+
+    def _decair_padroes_bucket_memoria_curta(self, valor, bucket, taxa_base) -> None:
+        if not isinstance(valor, dict):
+            bucket["padroes"] = {}
+            return
+        remover_padroes = []
+        for nome_padrao, score_padrao in list(valor.items()):
+            if not isinstance(score_padrao, (int, float)):
+                remover_padroes.append(nome_padrao)
+                continue
+            if abs(score_padrao) <= taxa_base:
+                remover_padroes.append(nome_padrao)
+            elif score_padrao > 0:
+                valor[nome_padrao] = score_padrao - taxa_base
+            else:
+                valor[nome_padrao] = score_padrao + taxa_base
+        for nome_padrao in remover_padroes:
+            valor.pop(nome_padrao, None)
+
+    def _decair_campo_bucket_memoria_curta(self, bucket, campo, valor, taxa_base) -> None:
+        if not isinstance(valor, (int, float)):
+            return
+        taxa_campo = taxa_base * 0.45 if campo.startswith("relacao_") else taxa_base
+        if abs(valor) <= taxa_campo:
+            bucket[campo] = 0.0
+        elif valor > 0:
+            bucket[campo] = valor - taxa_campo
+        else:
+            bucket[campo] = valor + taxa_campo
+
+    def _atualizar_resumo_bucket_memoria_curta_oponente(self, bucket) -> None:
+        padroes_bucket = bucket.get("padroes", {})
+        if isinstance(padroes_bucket, dict) and padroes_bucket:
+            bucket["padrao_dominante"] = max(padroes_bucket.items(), key=lambda item: item[1])[0]
+        else:
+            bucket["padrao_dominante"] = None
+        self._atualizar_relacao_dominante_bucket(bucket)
+
+    def _bucket_memoria_curta_deve_limpar_evento(self, bucket) -> bool:
+        return all(abs(bucket.get(campo, 0.0)) < 0.04 for campo in (
+            "vies_skill", "vies_agressao", "vies_cautela", "vies_pressao", "vies_contra_ataque"
+        )) and all(bucket.get(campo, 0.0) < 0.05 for campo in (
+            "relacao_respeito", "relacao_vinganca", "relacao_obsessao", "relacao_caca"
+        ))
+
+    def _bucket_memoria_curta_esta_inerte(self, bucket) -> bool:
+        return all(abs(bucket.get(campo, 0.0)) < 0.01 for campo in (
+            "vies_skill", "vies_agressao", "vies_cautela", "vies_pressao", "vies_contra_ataque"
+        )) and all(bucket.get(campo, 0.0) < 0.03 for campo in (
+            "relacao_respeito", "relacao_vinganca", "relacao_obsessao", "relacao_caca"
+        )) and not bucket.get("padroes")
 
     def _obter_vies_oponente(self, oponente=None):
         memoria = getattr(self, "memoria_oponente", {})
@@ -781,26 +828,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         relacao = self._obter_relacao_oponente(oponente)
         if not relacao:
             return {"dominante": None, "intensidade": 0.0, "perfil": "neutro"}
-
-        dominante = relacao.get("dominante")
-        intensidade = max(
-            relacao.get("respeito", 0.0),
-            relacao.get("vinganca", 0.0),
-            relacao.get("obsessao", 0.0),
-            relacao.get("caca", 0.0),
-        )
-        if intensidade < 0.16:
-            dominante = None
-
-        perfil = "neutro"
-        if dominante == "respeito":
-            perfil = "duelo"
-        elif dominante == "vinganca":
-            perfil = "revanche"
-        elif dominante == "obsessao":
-            perfil = "rival"
-        elif dominante == "caca":
-            perfil = "predacao"
+        dominante, intensidade = self._resolver_dominante_e_intensidade_rivalidade(relacao)
+        perfil = self._mapear_perfil_rivalidade(dominante)
 
         return {
             "dominante": dominante,
@@ -811,6 +840,27 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             "obsessao": relacao.get("obsessao", 0.0),
             "caca": relacao.get("caca", 0.0),
         }
+
+    def _resolver_dominante_e_intensidade_rivalidade(self, relacao):
+        dominante = relacao.get("dominante")
+        intensidade = max(
+            relacao.get("respeito", 0.0),
+            relacao.get("vinganca", 0.0),
+            relacao.get("obsessao", 0.0),
+            relacao.get("caca", 0.0),
+        )
+        if intensidade < 0.16:
+            dominante = None
+        return dominante, intensidade
+
+    def _mapear_perfil_rivalidade(self, dominante):
+        perfis = {
+            "respeito": "duelo",
+            "vinganca": "revanche",
+            "obsessao": "rival",
+            "caca": "predacao",
+        }
+        return perfis.get(dominante, "neutro")
 
     def _calcular_postura_risco_adaptativa(self, distancia, inimigo=None):
         memoria = getattr(self, "memoria_adaptativa", {})
@@ -853,6 +903,15 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
 
     def _preferir_skills_neste_frame(self, distancia, inimigo):
         """Arbitra se skills devem ter prioridade sobre ataque básico neste frame."""
+        contexto = self._coletar_contexto_preferencia_skills(distancia, inimigo)
+        prefer_skills = self._resolver_baseline_preferencia_skills(contexto)
+        prefer_skills = self._aplicar_familia_preferencia_skills(contexto, prefer_skills)
+        prefer_skills = self._aplicar_tatica_time_preferencia_skills(contexto, prefer_skills)
+        prefer_skills = self._aplicar_janelas_e_pacotes_preferencia_skills(contexto, prefer_skills)
+        prefer_skills = self._aplicar_adaptacao_preferencia_skills(contexto, prefer_skills)
+        return prefer_skills
+
+    def _coletar_contexto_preferencia_skills(self, distancia, inimigo):
         p = self.parent
         arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
         familia = resolver_familia_arma(arma)
@@ -875,76 +934,140 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             - vies_oponente.get("vies_agressao", 0.0) * 0.12
         )
         postura_risco = self._calcular_postura_risco_adaptativa(distancia, inimigo)
+        return {
+            "parent": p,
+            "arma": arma,
+            "familia": familia,
+            "pacote_id": pacote_id,
+            "mana_pct": mana_pct,
+            "team_role": team_role,
+            "team_tactic": team_tactic,
+            "hp_pct": hp_pct,
+            "alcance_ideal": alcance_ideal,
+            "vies_skill_adaptativo": vies_skill_adaptativo,
+            "postura_risco": postura_risco,
+            "distancia": distancia,
+            "inimigo": inimigo,
+        }
 
+    def _resolver_baseline_preferencia_skills(self, contexto) -> bool:
         prefer_skills = False
         if self.skill_strategy is not None:
             role = self.skill_strategy.role_principal.value
             if role in ["artillery", "burst_mage", "control_mage", "summoner", "buffer", "channeler"]:
                 prefer_skills = True
 
-        if team_role in {"ARTILLERY", "CONTROLLER", "SUPPORT"}:
+        if contexto["team_role"] in {"ARTILLERY", "CONTROLLER", "SUPPORT"}:
             prefer_skills = True
 
-        if mana_pct < 0.16 and team_role not in {"SUPPORT", "CONTROLLER"}:
+        if contexto["mana_pct"] < 0.16 and contexto["team_role"] not in {"SUPPORT", "CONTROLLER"}:
             prefer_skills = False
+        return prefer_skills
 
+    def _aplicar_familia_preferencia_skills(self, contexto, prefer_skills: bool) -> bool:
+        familia = contexto["familia"]
         if familia == "foco":
-            orbes_orbitando = len([
-                o for o in getattr(p, 'buffer_orbes', [])
-                if getattr(o, 'ativo', False) and getattr(o, 'estado', '') == "orbitando"
-            ])
-            if "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos or "PRUDENTE" in self.tracos:
-                prefer_skills = True
-            if orbes_orbitando >= 2:
-                prefer_skills = True
-            if distancia < max(2.1, alcance_ideal * 0.62) and ("BERSERKER" in self.tracos or "FURIOSO" in self.tracos):
-                prefer_skills = False
+            return self._resolver_preferencia_skills_foco(contexto, prefer_skills)
+        if familia == "orbital":
+            return self._resolver_preferencia_skills_orbital(contexto, prefer_skills)
+        if familia == "hibrida":
+            return self._resolver_preferencia_skills_hibrida(contexto, prefer_skills)
+        if familia == "corrente":
+            return self._resolver_preferencia_skills_corrente(contexto, prefer_skills)
+        return prefer_skills
 
-        elif familia == "orbital":
-            burst_pronto = getattr(p, 'orbital_burst_cd', 999.0) <= 0.0
-            if burst_pronto and distancia <= max(3.2, alcance_ideal * 1.12):
-                prefer_skills = False
-            elif "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos:
-                prefer_skills = True
-            if pacote_id == "bastiao_prismatico":
-                if mana_pct < 0.44 or burst_pronto:
-                    prefer_skills = False
-            elif pacote_id == "artilheiro_de_orbita":
-                if distancia < max(2.9, alcance_ideal * 0.78) or mana_pct < 0.28:
-                    prefer_skills = False
-                else:
-                    prefer_skills = True
+    def _resolver_preferencia_skills_foco(self, contexto, prefer_skills: bool) -> bool:
+        p = contexto["parent"]
+        distancia = contexto["distancia"]
+        alcance_ideal = contexto["alcance_ideal"]
+        orbes_orbitando = len([
+            o for o in getattr(p, 'buffer_orbes', [])
+            if getattr(o, 'ativo', False) and getattr(o, 'estado', '') == "orbitando"
+        ])
+        if "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos or "PRUDENTE" in self.tracos:
+            prefer_skills = True
+        if orbes_orbitando >= 2:
+            prefer_skills = True
+        if distancia < max(2.1, alcance_ideal * 0.62) and ("BERSERKER" in self.tracos or "FURIOSO" in self.tracos):
+            prefer_skills = False
+        return prefer_skills
 
-        elif familia == "hibrida":
-            forma_atual = int(getattr(p, 'transform_forma', getattr(arma, 'forma_atual', 0)) or 0)
-            bonus_troca = getattr(p, 'transform_bonus_timer', 0.0) > 0.0
-            if forma_atual == 1 and distancia > max(2.2, alcance_ideal * 0.92):
-                prefer_skills = True
-            elif forma_atual == 0 and distancia <= max(2.0, alcance_ideal * 0.95):
+    def _resolver_preferencia_skills_orbital(self, contexto, prefer_skills: bool) -> bool:
+        p = contexto["parent"]
+        distancia = contexto["distancia"]
+        alcance_ideal = contexto["alcance_ideal"]
+        pacote_id = contexto["pacote_id"]
+        mana_pct = contexto["mana_pct"]
+        burst_pronto = getattr(p, 'orbital_burst_cd', 999.0) <= 0.0
+        if burst_pronto and distancia <= max(3.2, alcance_ideal * 1.12):
+            prefer_skills = False
+        elif "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos:
+            prefer_skills = True
+        if pacote_id == "bastiao_prismatico":
+            if mana_pct < 0.44 or burst_pronto:
                 prefer_skills = False
-            if bonus_troca and ("BERSERKER" in self.tracos or "IMPRUDENTE" in self.tracos):
+        elif pacote_id == "artilheiro_de_orbita":
+            if distancia < max(2.9, alcance_ideal * 0.78) or mana_pct < 0.28:
                 prefer_skills = False
-            elif "CALCULISTA" in self.tracos or "ADAPTAVEL" in self.tracos:
+            else:
                 prefer_skills = True
+        return prefer_skills
 
-        elif familia == "corrente":
-            metricas = obter_metricas_arma(arma, p)
-            alcance_max = metricas["alcance_max"]
-            alcance_min = metricas["alcance_min"]
-            centro_sweet_spot = max(alcance_min + 0.4, (alcance_max + alcance_min) / 2.0)
-            em_sweet_spot = abs(distancia - centro_sweet_spot) <= max(0.55, alcance_max * 0.20)
-            if em_sweet_spot:
-                prefer_skills = False
-            elif "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos:
-                prefer_skills = True
+    def _resolver_preferencia_skills_hibrida(self, contexto, prefer_skills: bool) -> bool:
+        p = contexto["parent"]
+        arma = contexto["arma"]
+        distancia = contexto["distancia"]
+        alcance_ideal = contexto["alcance_ideal"]
+        forma_atual = int(getattr(p, 'transform_forma', getattr(arma, 'forma_atual', 0)) or 0)
+        bonus_troca = getattr(p, 'transform_bonus_timer', 0.0) > 0.0
+        if forma_atual == 1 and distancia > max(2.2, alcance_ideal * 0.92):
+            prefer_skills = True
+        elif forma_atual == 0 and distancia <= max(2.0, alcance_ideal * 0.95):
+            prefer_skills = False
+        if bonus_troca and ("BERSERKER" in self.tracos or "IMPRUDENTE" in self.tracos):
+            prefer_skills = False
+        elif "CALCULISTA" in self.tracos or "ADAPTAVEL" in self.tracos:
+            prefer_skills = True
+        return prefer_skills
 
+    def _resolver_preferencia_skills_corrente(self, contexto, prefer_skills: bool) -> bool:
+        p = contexto["parent"]
+        arma = contexto["arma"]
+        distancia = contexto["distancia"]
+        metricas = obter_metricas_arma(arma, p)
+        alcance_max = metricas["alcance_max"]
+        alcance_min = metricas["alcance_min"]
+        centro_sweet_spot = max(alcance_min + 0.4, (alcance_max + alcance_min) / 2.0)
+        em_sweet_spot = abs(distancia - centro_sweet_spot) <= max(0.55, alcance_max * 0.20)
+        if em_sweet_spot:
+            prefer_skills = False
+        elif "CALCULISTA" in self.tracos or "PACIENTE" in self.tracos:
+            prefer_skills = True
+        return prefer_skills
+
+    def _aplicar_tatica_time_preferencia_skills(self, contexto, prefer_skills: bool) -> bool:
+        team_tactic = contexto["team_tactic"]
+        familia = contexto["familia"]
+        hp_pct = contexto["hp_pct"]
+        mana_pct = contexto["mana_pct"]
+        distancia = contexto["distancia"]
+        alcance_ideal = contexto["alcance_ideal"]
+        pacote_id = contexto["pacote_id"]
         if team_tactic == "FULL_AGGRO" and familia in {"corrente", "orbital", "hibrida"} and hp_pct > 0.35:
             prefer_skills = False
         elif team_tactic == "KITE_AND_POKE" and familia in {"foco", "disparo", "arremesso"}:
             prefer_skills = True
         elif pacote_id == "artilheiro_de_orbita" and team_tactic == "KITE_AND_POKE":
             prefer_skills = mana_pct > 0.24 and distancia >= max(2.9, alcance_ideal * 0.76)
+        return prefer_skills
 
+    def _aplicar_janelas_e_pacotes_preferencia_skills(self, contexto, prefer_skills: bool) -> bool:
+        familia = contexto["familia"]
+        pacote_id = contexto["pacote_id"]
+        team_role = contexto["team_role"]
+        hp_pct = contexto["hp_pct"]
+        distancia = contexto["distancia"]
+        alcance_ideal = contexto["alcance_ideal"]
         if self.janela_ataque.get("aberta", False) and self.janela_ataque.get("qualidade", 0.0) > 0.75:
             if familia in {"corrente", "orbital", "hibrida"}:
                 prefer_skills = False
@@ -956,7 +1079,13 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         ):
             if distancia <= max(2.8, alcance_ideal * 1.02) or hp_pct > 0.45:
                 prefer_skills = False
+        return prefer_skills
 
+    def _aplicar_adaptacao_preferencia_skills(self, contexto, prefer_skills: bool) -> bool:
+        vies_skill_adaptativo = contexto["vies_skill_adaptativo"]
+        postura_risco = contexto["postura_risco"]
+        familia = contexto["familia"]
+        hp_pct = contexto["hp_pct"]
         if vies_skill_adaptativo > 0.18:
             prefer_skills = True
         elif vies_skill_adaptativo < -0.20 and familia in {"lamina", "dupla", "corrente", "orbital", "hibrida"}:
@@ -966,7 +1095,6 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             prefer_skills = False
         elif postura_risco < -0.24 and familia in {"foco", "disparo", "orbital"}:
             prefer_skills = True
-
         return prefer_skills
     
     def processar(self, dt, distancia, inimigo, todos_lutadores=None):
@@ -978,16 +1106,25 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             inimigo: Inimigo principal (mais prÃ³ximo)
             todos_lutadores: Lista de TODOS os lutadores (None = modo 1v1 legado)
         """
-        p = self.parent
+        self._prepare_processar_frame(dt, distancia, inimigo)
+        self._prepare_processar_random_and_debug(distancia)
+        self._update_processar_team_and_awareness(dt, distancia, inimigo, todos_lutadores)
+        self._update_processar_runtime_groups(dt, distancia, inimigo)
+        if self._run_processar_interruptions(dt, distancia, inimigo):
+            return
+        if self._resolve_processar_combat_priority(dt, distancia, inimigo):
+            return
+        self._finalize_processar_frame(dt, distancia, inimigo)
+
+    def _prepare_processar_frame(self, dt, distancia, inimigo) -> None:
         self.tempo_combate += dt
         self._tempo_sem_decisao += dt
-        # BUG-C2 fix: registra o inimigo principal como alvo atual logo no inÃ­cio
-        # do frame para que _score_alvo (priorizaÃ§Ã£o de times) possa lÃª-lo.
         self._alvo_atual = inimigo
         self._garantir_memoria_curta_oponente(inimigo)
+        self._try_break_processar_indecision(distancia, inimigo)
 
-        # Anti-indecisÃ£o: se a IA ficar muito tempo sem recalcular estratÃ©gia
-        # e estiver em aÃ§Ã£o passiva, forÃ§a uma nova decisÃ£o para quebrar stalls.
+    def _try_break_processar_indecision(self, distancia, inimigo) -> None:
+        p = self.parent
         if (
             self._tempo_sem_decisao > 0.9
             and not p.atacando
@@ -997,154 +1134,147 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             self._calcular_timer_decisao()
             self._registrar_acao()
             self._tempo_sem_decisao = 0.0
-        
-        # QC-03: gera um pool de valores aleatÃ³rios uma vez por frame.
-        # As funÃ§Ãµes do cascade (_aplicar_modificadores_*, _comportamento_estilo, etc.)
-        # consomem esses valores em sequÃªncia em vez de chamar random.random() cada uma.
-        # Isso reduz de ~15-25 chamadas/frame para 1, tornando o comportamento
-        # mais fÃ¡cil de reproduzir em debug e mais eficiente em batalhas multi-combatente.
+
+    def _prepare_processar_random_and_debug(self, distancia) -> None:
         self._rand_pool = [random.random() for _ in range(AI_RAND_POOL_SIZE)]
         self._rand_idx = 0
+        self._emit_processar_debug_snapshot(distancia)
 
-        # F01 Sprint 9: modo debug da IA â€” ligar em utilitarios/config.py: DEBUG_AI = True
-        # Filtrar por nome: DEBUG_AI_FIGHTER = "NomeDoLutador"
-        if DEBUG_AI:
-            _nome = p.dados.nome if hasattr(p, 'dados') and hasattr(p.dados, 'nome') else '?'
-            if DEBUG_AI_FIGHTER is None or _nome == DEBUG_AI_FIGHTER:
-                _ultima_skill = getattr(self, '_ultima_skill_usada', 'none')
-                _log.debug(
-                    "[AI:%s] dist=%.1f | acao=%-18s | skill=%-20s | humor=%-12s | "
-                    "hp=%3.0f%% | mana=%3.0f%% | momentum=%+.2f | raiva=%.2f | medo=%.2f",
-                    _nome, distancia, self.acao_atual,
-                    _ultima_skill, getattr(self, 'humor', '?'),
-                    p.vida / max(p.vida_max, 1) * 100,
-                    p.mana / max(p.mana_max, 1) * 100,
-                    getattr(self, 'momentum', 0.0),
-                    getattr(self, 'raiva', 0.0),
-                    getattr(self, 'medo', 0.0),
-                )
+    def _emit_processar_debug_snapshot(self, distancia) -> None:
+        p = self.parent
+        if not DEBUG_AI:
+            return
+        _nome = p.dados.nome if hasattr(p, 'dados') and hasattr(p.dados, 'nome') else '?'
+        if DEBUG_AI_FIGHTER is not None and _nome != DEBUG_AI_FIGHTER:
+            return
+        _ultima_skill = getattr(self, '_ultima_skill_usada', 'none')
+        _log.debug(
+            "[AI:%s] dist=%.1f | acao=%-18s | skill=%-20s | humor=%-12s | "
+            "hp=%3.0f%% | mana=%3.0f%% | momentum=%+.2f | raiva=%.2f | medo=%.2f",
+            _nome, distancia, self.acao_atual,
+            _ultima_skill, getattr(self, 'humor', '?'),
+            p.vida / max(p.vida_max, 1) * 100,
+            p.mana / max(p.mana_max, 1) * 100,
+            getattr(self, 'momentum', 0.0),
+            getattr(self, 'raiva', 0.0),
+            getattr(self, 'medo', 0.0),
+        )
 
-        # v13.0: Atualiza consciÃªncia multi-combatente
+    def _update_processar_team_and_awareness(self, dt, distancia, inimigo, todos_lutadores) -> None:
         if todos_lutadores is not None:
             self._atualizar_multi_awareness(dt, inimigo, todos_lutadores)
-        
-        # v13.0: Aplica ordens do TeamCoordinator ao comportamento
         self._aplicar_team_orders(dt, distancia, inimigo, todos_lutadores)
-        
-        # A02: mÃ©todos de atualizaÃ§Ã£o divididos em 3 grupos de throttle.
-        # _atualizar_cooldowns e _detectar_dano sÃ£o baratos e frame-critical â€” sempre rodam.
+
+    def _update_processar_runtime_groups(self, dt, distancia, inimigo) -> None:
         self._atualizar_cooldowns(dt)
         self._detectar_dano()
-
-        # GRUPO EMOCIONAL â€” 4hz (a cada 0.25s): emoÃ§Ãµes, humor, modos especiais
-        self._t_emocional += dt
-        if self._t_emocional >= self._I_EMOCIONAL:
-            self._t_emocional = 0.0
-            self._atualizar_emocoes(dt, distancia, inimigo)
-            self._atualizar_humor(dt)
-            self._processar_modos_especiais(dt, distancia, inimigo)
-
-        # GRUPO TÃTICO â€” 10hz (a cada 0.10s): leitura, janelas, momentum, estados, combo
-        self._t_tatico += dt
-        if self._t_tatico >= self._I_TATICO:
-            self._t_tatico = 0.0
-            # === NOVOS SISTEMAS v8.0 ===
-            self._atualizar_leitura_oponente(dt, distancia, inimigo)
-            self._atualizar_janelas_oportunidade(dt, distancia, inimigo)
-            self._atualizar_momentum(dt, distancia, inimigo)
-            self._atualizar_estados_humanos(dt, distancia, inimigo)
-            self._atualizar_combo_state(dt)
-
-        # GRUPO ESTRATÃ‰GICO â€” 2hz (a cada 0.50s): ritmo
-        # (consciÃªncia espacial e percepÃ§Ã£o de armas tÃªm throttle prÃ³prio interno)
-        self._t_estrategico += dt
-        if self._t_estrategico >= self._I_ESTRATEGICO:
-            self._t_estrategico = 0.0
-            # === NOVOS SISTEMAS v11.0 ===
-            self._atualizar_ritmo(dt)
-
-        # === SISTEMA ESPACIAL v9.0 === (throttle interno: AI_INTERVALO_ESPACIAL=0.20s)
+        self._run_processar_emotional_group(dt, distancia, inimigo)
+        self._run_processar_tactical_group(dt, distancia, inimigo)
+        self._run_processar_strategic_group(dt)
         self._atualizar_consciencia_espacial(dt, distancia, inimigo)
-
-        # === SISTEMA DE PERCEPÃ‡ÃƒO DE ARMAS v10.0 === (throttle interno: 0.50s)
         self._atualizar_percepcao_armas(dt, distancia, inimigo)
-        if self._processar_instintos(dt, distancia, inimigo):
-            return  # Instinto tomou controle
-        
-        # HesitaÃ§Ã£o humana - Ã s vezes congela brevemente
-        if self._verificar_hesitacao(dt, distancia, inimigo):
+
+    def _run_processar_emotional_group(self, dt, distancia, inimigo) -> None:
+        self._t_emocional += dt
+        if self._t_emocional < self._I_EMOCIONAL:
             return
-        
-        # Sistema de Coreografia
+        self._t_emocional = 0.0
+        self._atualizar_emocoes(dt, distancia, inimigo)
+        self._atualizar_humor(dt)
+        self._processar_modos_especiais(dt, distancia, inimigo)
+
+    def _run_processar_tactical_group(self, dt, distancia, inimigo) -> None:
+        self._t_tatico += dt
+        if self._t_tatico < self._I_TATICO:
+            return
+        self._t_tatico = 0.0
+        self._atualizar_leitura_oponente(dt, distancia, inimigo)
+        self._atualizar_janelas_oportunidade(dt, distancia, inimigo)
+        self._atualizar_momentum(dt, distancia, inimigo)
+        self._atualizar_estados_humanos(dt, distancia, inimigo)
+        self._atualizar_combo_state(dt)
+
+    def _run_processar_strategic_group(self, dt) -> None:
+        self._t_estrategico += dt
+        if self._t_estrategico < self._I_ESTRATEGICO:
+            return
+        self._t_estrategico = 0.0
+        self._atualizar_ritmo(dt)
+
+    def _run_processar_interruptions(self, dt, distancia, inimigo) -> bool:
+        if self._processar_instintos(dt, distancia, inimigo):
+            return True
+        if self._verificar_hesitacao(dt, distancia, inimigo):
+            return True
         self._observar_oponente(inimigo, distancia)
-        
+        if self._try_execute_processar_choreography(distancia, inimigo):
+            return True
+        if self._processar_baiting(dt, distancia, inimigo):
+            return True
+        if self._processar_reacao_oponente(dt, distancia, inimigo):
+            return True
+        if self._processar_desvio_inteligente(dt, distancia, inimigo):
+            return True
+        if self._processar_quirks(dt, distancia, inimigo):
+            return True
+        if self._processar_reacoes(dt, distancia, inimigo):
+            return True
+        return False
+
+    def _try_execute_processar_choreography(self, distancia, inimigo) -> bool:
+        p = self.parent
         choreographer = CombatChoreographer.get_instance()
         acao_sync = choreographer.get_acao_sincronizada(p) if choreographer else None
-        
-        # Sprint1: O choreographer fazia early-return ANTES de _processar_desvio_inteligente
-        # e _processar_reacao_oponente. Durante momentos como STANDOFF ou BREATHER,
-        # a IA ficava "congelada" na aÃ§Ã£o coreografada mesmo com o inimigo atacando.
-        # Fix: se hÃ¡ ataque iminente, o choreographer perde prioridade.
         ataque_iminente = self.leitura_oponente.get("ataque_iminente", False)
         if acao_sync and not ataque_iminente:
             if self._executar_acao_sincronizada(acao_sync, distancia, inimigo):
-                return
-        
-        # Processa baiting (fintas)
-        if self._processar_baiting(dt, distancia, inimigo):
-            return
-        
-        if self._processar_reacao_oponente(dt, distancia, inimigo):
-            return
-        
-        # === SISTEMA DE DESVIO INTELIGENTE v8.0 ===
-        if self._processar_desvio_inteligente(dt, distancia, inimigo):
-            return
-        
-        if self._processar_quirks(dt, distancia, inimigo):
-            return
-        
-        if self._processar_reacoes(dt, distancia, inimigo):
-            return
-        
-        # === PRIORIZAÃ‡ÃƒO DE SKILLS PARA MAGOS ===
-        # Se o personagem Ã© um caster (role de mago), prioriza skills sobre ataques bÃ¡sicos
+                return True
+        return False
+
+    def _resolve_processar_combat_priority(self, dt, distancia, inimigo) -> bool:
         usa_skills_primeiro = self._preferir_skills_neste_frame(distancia, inimigo)
-        team_role = self.team_orders.get("role", "STRIKER")
-        
-        # v13.0: TEAM TACTICAL OVERRIDE â€” certas tÃ¡ticas de time alteram comportamento
+        if self._apply_processar_retreat_regroup_override(dt, distancia, inimigo):
+            return True
+        ff_suppressed = self._should_suppress_processar_line_attacks()
+        if usa_skills_primeiro:
+            return self._execute_processar_skill_first_priority(dt, distancia, inimigo, ff_suppressed)
+        return self._execute_processar_attack_first_priority(dt, distancia, inimigo, ff_suppressed)
+
+    def _apply_processar_retreat_regroup_override(self, dt, distancia, inimigo) -> bool:
         team_tactic = self.team_orders.get("tactic", "FOCUS_FIRE")
         if team_tactic == "RETREAT_REGROUP" and self.team_orders.get("is_weakest", False):
-            # Sou o mais fraco e time estÃ¡ recuando: prioriza sobrevivÃªncia
             if self._processar_skills(dt, distancia, inimigo):
-                return  # Tenta usar skill defensiva/cura
+                return True
             self.acao_atual = "RECUAR"
-            return
-        
-        # v13.0: Se friendly fire risk alto, suprime apenas ataques em linha.
-        ff_suppressed = False
+            return True
+        return False
+
+    def _should_suppress_processar_line_attacks(self) -> bool:
+        p = self.parent
         arma = getattr(getattr(p, 'dados', None), 'arma_obj', None)
         if self.multi_awareness.get("aliado_no_caminho", False) and arma_dispara_em_linha(arma):
-            if random.random() < 0.7:
-                ff_suppressed = True
-        
-        if usa_skills_primeiro:
-            # Magos: Skills primeiro, depois ataque bÃ¡sico
-            if self._processar_skills(dt, distancia, inimigo):
-                self._broadcast_team_intent(inimigo)
-                return
-            if not ff_suppressed and self._avaliar_e_executar_ataque(dt, distancia, inimigo):
-                self._broadcast_team_intent(inimigo)
-                return
-        else:
-            # Melee: Ataque primeiro, skills como suporte
-            if not ff_suppressed and self._avaliar_e_executar_ataque(dt, distancia, inimigo):
-                self._broadcast_team_intent(inimigo)
-                return
-            if self._processar_skills(dt, distancia, inimigo):
-                self._broadcast_team_intent(inimigo)
-                return
-        
+            return random.random() < 0.7
+        return False
+
+    def _execute_processar_skill_first_priority(self, dt, distancia, inimigo, ff_suppressed: bool) -> bool:
+        if self._processar_skills(dt, distancia, inimigo):
+            self._broadcast_team_intent(inimigo)
+            return True
+        if not ff_suppressed and self._avaliar_e_executar_ataque(dt, distancia, inimigo):
+            self._broadcast_team_intent(inimigo)
+            return True
+        return False
+
+    def _execute_processar_attack_first_priority(self, dt, distancia, inimigo, ff_suppressed: bool) -> bool:
+        if not ff_suppressed and self._avaliar_e_executar_ataque(dt, distancia, inimigo):
+            self._broadcast_team_intent(inimigo)
+            return True
+        if self._processar_skills(dt, distancia, inimigo):
+            self._broadcast_team_intent(inimigo)
+            return True
+        return False
+
+    def _finalize_processar_frame(self, dt, distancia, inimigo) -> None:
         self.timer_decisao -= dt
         if self.timer_decisao <= 0:
             self._decidir_movimento(distancia, inimigo)
@@ -1162,121 +1292,134 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         Calcula ameaÃ§as de flanqueio, posiÃ§Ã£o de aliados, riscos de friendly fire,
         e seleciona o melhor alvo estratÃ©gico.
         """
-        p = self.parent
+        self._limpar_multi_awareness_contatos()
+        self._coletar_entidades_multi_awareness(todos_lutadores)
+        self._atualizar_resumo_multi_awareness()
+        self._calcular_ameaca_flanqueio_multi_awareness()
+        self._calcular_concentracao_inimiga_multi_awareness()
+        self._detectar_aliado_perto_do_alvo_multi_awareness(inimigo_principal)
+        self._detectar_aliado_no_caminho_multi_awareness(inimigo_principal)
+        self._selecionar_melhor_alvo_multi_awareness(inimigo_principal)
+
+    def _limpar_multi_awareness_contatos(self) -> None:
         ma = self.multi_awareness
-        
         ma["inimigos"] = []
         ma["aliados"] = []
-        
-        for f in todos_lutadores:
-            if f is p or f.morto:
+
+    def _coletar_entidades_multi_awareness(self, todos_lutadores) -> None:
+        p = self.parent
+        for lutador in todos_lutadores:
+            if lutador is p or lutador.morto:
                 continue
-            
-            dx = f.pos[0] - p.pos[0]
-            dy = f.pos[1] - p.pos[1]
-            dist = math.hypot(dx, dy)
-            angulo = math.degrees(math.atan2(dy, dx))
-            
-            if f.team_id != p.team_id:
-                # Inimigo
-                vida_pct = f.vida / max(f.vida_max, 1)
-                ameaca = self._calcular_ameaca_lutador(f, dist, vida_pct)
-                ma["inimigos"].append({
-                    "lutador": f,
-                    "distancia": dist,
-                    "angulo": angulo,
-                    "ameaca": ameaca,
-                    "vida_pct": vida_pct,
-                })
+            if lutador.team_id != p.team_id:
+                self._registrar_inimigo_multi_awareness(lutador)
             else:
-                # Aliado
-                vida_pct = f.vida / max(f.vida_max, 1)
-                ma["aliados"].append({
-                    "lutador": f,
-                    "distancia": dist,
-                    "angulo": angulo,
-                    "vida_pct": vida_pct,
-                })
-        
+                self._registrar_aliado_multi_awareness(lutador)
+
+    def _criar_info_lutador_multi_awareness(self, lutador) -> dict:
+        p = self.parent
+        dx = lutador.pos[0] - p.pos[0]
+        dy = lutador.pos[1] - p.pos[1]
+        return {
+            "lutador": lutador,
+            "distancia": math.hypot(dx, dy),
+            "angulo": math.degrees(math.atan2(dy, dx)),
+            "vida_pct": lutador.vida / max(lutador.vida_max, 1),
+        }
+
+    def _registrar_inimigo_multi_awareness(self, lutador) -> None:
+        info = self._criar_info_lutador_multi_awareness(lutador)
+        info["ameaca"] = self._calcular_ameaca_lutador(lutador, info["distancia"], info["vida_pct"])
+        self.multi_awareness["inimigos"].append(info)
+
+    def _registrar_aliado_multi_awareness(self, lutador) -> None:
+        self.multi_awareness["aliados"].append(self._criar_info_lutador_multi_awareness(lutador))
+
+    def _atualizar_resumo_multi_awareness(self) -> None:
+        ma = self.multi_awareness
         num_ini = len(ma["inimigos"])
         num_ali = len(ma["aliados"])
         ma["num_inimigos_vivos"] = max(num_ini, 1)
         ma["num_aliados_vivos"] = num_ali
         ma["modo_multialvo"] = num_ini > 1
         ma["em_desvantagem_numerica"] = num_ini > (num_ali + 1)
-        
-        # --- AmeaÃ§a de flanqueio ---
-        if num_ini >= 2:
-            angulos = sorted([e["angulo"] for e in ma["inimigos"]])
-            max_spread = 0
-            for i in range(len(angulos)):
-                for j in range(i + 1, len(angulos)):
-                    diff = abs(angulos[j] - angulos[i])
-                    if diff > 180:
-                        diff = 360 - diff
-                    max_spread = max(max_spread, diff)
-            # Se inimigos estÃ£o em Ã¢ngulos opostos (>120Â°), flanqueio alto
-            ma["ameaca_flanqueio"] = min(1.0, max_spread / 180.0)
-        else:
+
+    def _calcular_ameaca_flanqueio_multi_awareness(self) -> None:
+        ma = self.multi_awareness
+        if len(ma["inimigos"]) < 2:
             ma["ameaca_flanqueio"] = 0.0
-        
-        # --- ConcentraÃ§Ã£o inimiga (quÃ£o agrupados estÃ£o) ---
-        if num_ini >= 2:
-            posicoes = [(e["lutador"].pos[0], e["lutador"].pos[1]) for e in ma["inimigos"]]
-            cx = sum(x for x, y in posicoes) / num_ini
-            cy = sum(y for x, y in posicoes) / num_ini
-            spread = sum(math.hypot(x - cx, y - cy) for x, y in posicoes) / num_ini
-            # Menor spread = mais concentrados. Normaliza para 0-1 (0=espalhados, 1=juntos)
-            ma["concentracao_inimiga"] = max(0.0, 1.0 - spread / 10.0)
-        else:
+            return
+        angulos = sorted(inimigo["angulo"] for inimigo in ma["inimigos"])
+        max_spread = 0.0
+        for i in range(len(angulos)):
+            for j in range(i + 1, len(angulos)):
+                diff = abs(angulos[j] - angulos[i])
+                if diff > 180:
+                    diff = 360 - diff
+                max_spread = max(max_spread, diff)
+        ma["ameaca_flanqueio"] = min(1.0, max_spread / 180.0)
+
+    def _calcular_concentracao_inimiga_multi_awareness(self) -> None:
+        ma = self.multi_awareness
+        inimigos = ma["inimigos"]
+        if len(inimigos) < 2:
             ma["concentracao_inimiga"] = 0.0
-        
-        # --- Aliado perto do alvo principal ---
-        if ma["aliados"] and inimigo_principal:
-            for aliado in ma["aliados"]:
-                dist_aliado_alvo = math.hypot(
-                    aliado["lutador"].pos[0] - inimigo_principal.pos[0],
-                    aliado["lutador"].pos[1] - inimigo_principal.pos[1]
-                )
-                if dist_aliado_alvo < 3.0:
-                    ma["aliado_perto_alvo"] = True
-                    break
-            else:
-                ma["aliado_perto_alvo"] = False
-        else:
-            ma["aliado_perto_alvo"] = False
-        
-        # --- Aliado no caminho (risco de friendly fire) ---
+            return
+        posicoes = [(info["lutador"].pos[0], info["lutador"].pos[1]) for info in inimigos]
+        cx = sum(x for x, _ in posicoes) / len(posicoes)
+        cy = sum(y for _, y in posicoes) / len(posicoes)
+        spread = sum(math.hypot(x - cx, y - cy) for x, y in posicoes) / len(posicoes)
+        ma["concentracao_inimiga"] = max(0.0, 1.0 - spread / 10.0)
+
+    def _detectar_aliado_perto_do_alvo_multi_awareness(self, inimigo_principal) -> None:
+        ma = self.multi_awareness
+        ma["aliado_perto_alvo"] = False
+        if not ma["aliados"] or not inimigo_principal:
+            return
+        for aliado in ma["aliados"]:
+            dist_aliado_alvo = math.hypot(
+                aliado["lutador"].pos[0] - inimigo_principal.pos[0],
+                aliado["lutador"].pos[1] - inimigo_principal.pos[1],
+            )
+            if dist_aliado_alvo < 3.0:
+                ma["aliado_perto_alvo"] = True
+                return
+
+    def _detectar_aliado_no_caminho_multi_awareness(self, inimigo_principal) -> None:
+        p = self.parent
+        ma = self.multi_awareness
         ma["aliado_no_caminho"] = False
-        if ma["aliados"] and inimigo_principal:
-            dir_alvo = math.atan2(
-                inimigo_principal.pos[1] - p.pos[1],
-                inimigo_principal.pos[0] - p.pos[0]
+        if not ma["aliados"] or not inimigo_principal:
+            return
+        dir_alvo = math.atan2(
+            inimigo_principal.pos[1] - p.pos[1],
+            inimigo_principal.pos[0] - p.pos[0],
+        )
+        dist_alvo = math.hypot(
+            inimigo_principal.pos[0] - p.pos[0],
+            inimigo_principal.pos[1] - p.pos[1],
+        )
+        for aliado in ma["aliados"]:
+            if aliado["distancia"] > dist_alvo:
+                continue
+            dir_aliado = math.atan2(
+                aliado["lutador"].pos[1] - p.pos[1],
+                aliado["lutador"].pos[0] - p.pos[0],
             )
-            dist_alvo = math.hypot(
-                inimigo_principal.pos[0] - p.pos[0],
-                inimigo_principal.pos[1] - p.pos[1]
-            )
-            for aliado in ma["aliados"]:
-                if aliado["distancia"] > dist_alvo:
-                    continue  # Aliado atrÃ¡s do alvo, sem risco
-                dir_aliado = math.atan2(
-                    aliado["lutador"].pos[1] - p.pos[1],
-                    aliado["lutador"].pos[0] - p.pos[0]
-                )
-                diff_ang = abs(math.degrees(dir_alvo - dir_aliado))
-                if diff_ang > 180:
-                    diff_ang = 360 - diff_ang
-                if diff_ang < 25:  # Aliado dentro de cone de 25Â° da direÃ§Ã£o do ataque
-                    ma["aliado_no_caminho"] = True
-                    break
-        
-        # --- Melhor alvo estratÃ©gico ---
+            diff_ang = abs(math.degrees(dir_alvo - dir_aliado))
+            if diff_ang > 180:
+                diff_ang = 360 - diff_ang
+            if diff_ang < 25:
+                ma["aliado_no_caminho"] = True
+                return
+
+    def _selecionar_melhor_alvo_multi_awareness(self, inimigo_principal) -> None:
+        ma = self.multi_awareness
         if ma["inimigos"]:
-            melhor = max(ma["inimigos"], key=lambda e: self._score_alvo(e))
+            melhor = max(ma["inimigos"], key=self._score_alvo)
             ma["melhor_alvo"] = melhor["lutador"]
-        else:
-            ma["melhor_alvo"] = inimigo_principal
+            return
+        ma["melhor_alvo"] = inimigo_principal
 
     def _calcular_ameaca_lutador(self, lutador, distancia, vida_pct):
         """Calcula nÃ­vel de ameaÃ§a de um lutador (0-1).
@@ -1284,37 +1427,44 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         Considera: distÃ¢ncia, vida, se estÃ¡ atacando, tipo de arma.
         """
         ameaca = 0.5
-        
-        # Mais perto = mais perigoso
-        if distancia < 3.0:
-            ameaca += 0.3 * (1.0 - distancia / 3.0)
-        elif distancia > 8.0:
-            ameaca -= 0.2
-        
-        # Mais vida = mais perigoso
+        ameaca += self._calcular_modificador_distancia_ameaca(distancia)
         ameaca += vida_pct * 0.2
-        
-        # Se estÃ¡ atacando = mais perigoso
-        if getattr(lutador, 'atacando', False):
-            ameaca += 0.15
-        
-        # Se tem arma de longo alcance
-        arma = getattr(getattr(lutador, 'dados', None), 'arma_obj', None)
-        alcance = 0.0
-        if arma:
-            if WEAPON_ANALYSIS_AVAILABLE:
-                try:
-                    perfil = get_weapon_profile(arma)
-                except Exception:
-                    perfil = None
-                if perfil:
-                    alcance = getattr(perfil, 'alcance_maximo', 0.0)
-            if alcance <= 0:
-                alcance = obter_metricas_arma(arma, self.parent)["alcance_max"]
-            if alcance > 3.0:
-                ameaca += 0.1 if alcance < 6.0 else 0.15
+        ameaca += self._calcular_modificador_ataque_ameaca(lutador)
+        ameaca += self._calcular_modificador_alcance_ameaca(lutador)
         
         return max(0.0, min(1.0, ameaca))
+
+    def _calcular_modificador_distancia_ameaca(self, distancia):
+        if distancia < 3.0:
+            return 0.3 * (1.0 - distancia / 3.0)
+        if distancia > 8.0:
+            return -0.2
+        return 0.0
+
+    def _calcular_modificador_ataque_ameaca(self, lutador):
+        return 0.15 if getattr(lutador, 'atacando', False) else 0.0
+
+    def _calcular_modificador_alcance_ameaca(self, lutador):
+        alcance = self._resolver_alcance_ameaca_arma(lutador)
+        if alcance > 3.0:
+            return 0.1 if alcance < 6.0 else 0.15
+        return 0.0
+
+    def _resolver_alcance_ameaca_arma(self, lutador):
+        arma = getattr(getattr(lutador, 'dados', None), 'arma_obj', None)
+        if not arma:
+            return 0.0
+        alcance = 0.0
+        if WEAPON_ANALYSIS_AVAILABLE:
+            try:
+                perfil = get_weapon_profile(arma)
+            except Exception:
+                perfil = None
+            if perfil:
+                alcance = getattr(perfil, 'alcance_maximo', 0.0)
+        if alcance <= 0:
+            alcance = obter_metricas_arma(arma, self.parent)["alcance_max"]
+        return alcance
 
     def _score_alvo(self, info_inimigo):
         """Calcula score de prioridade para um alvo.
@@ -1322,73 +1472,91 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         Prioriza: inimigos com pouca vida, perto, e atacando aliados.
         Integra com team_orders para coordenaÃ§Ã£o de foco.
         """
+        f = info_inimigo["lutador"]
         score = 0.0
-        
-        # Prioridade 1: Inimigos com pouca vida (execute)
-        if info_inimigo["vida_pct"] < 0.25:
-            score += 3.0
-        elif info_inimigo["vida_pct"] < 0.5:
-            score += 1.5
-        
-        # Prioridade 2: Proximidade (preferir alvos perto)
-        if info_inimigo["distancia"] < 4.0:
-            score += 2.0 * (1.0 - info_inimigo["distancia"] / 4.0)
-        
-        # Prioridade 3: AmeaÃ§a alta
-        score += info_inimigo["ameaca"] * 1.5
-        vies_oponente = self._obter_vies_oponente(info_inimigo["lutador"])
+        score += self._score_execucao_alvo(info_inimigo)
+        score += self._score_proximidade_alvo(info_inimigo)
+        score += self._score_ameaca_e_memoria_alvo(info_inimigo)
+        score += self._score_interceptacao_alvo(f)
+        score += self._score_alvo_designado_time(f)
+        score += self._score_targeting_por_role_alvo(f)
+        score += self._score_penalidade_overkill_alvo(f)
+        return score
+
+    def _score_execucao_alvo(self, info_inimigo):
+        vida_pct = info_inimigo["vida_pct"]
+        if vida_pct < 0.25:
+            return 3.0
+        if vida_pct < 0.5:
+            return 1.5
+        return 0.0
+
+    def _score_proximidade_alvo(self, info_inimigo):
+        distancia = info_inimigo["distancia"]
+        if distancia < 4.0:
+            return 2.0 * (1.0 - distancia / 4.0)
+        return 0.0
+
+    def _score_ameaca_e_memoria_alvo(self, info_inimigo):
+        score = info_inimigo["ameaca"] * 1.5
+        alvo = info_inimigo["lutador"]
+        vies_oponente = self._obter_vies_oponente(alvo)
         score += vies_oponente.get("vies_pressao", 0.0) * 0.7
         score += vies_oponente.get("vies_agressao", 0.0) * 0.5
         score -= max(0.0, vies_oponente.get("vies_cautela", 0.0)) * 0.25
-        relacao = self._obter_relacao_oponente(info_inimigo["lutador"])
+        relacao = self._obter_relacao_oponente(alvo)
         score += relacao.get("obsessao", 0.0) * 1.10
         score += relacao.get("vinganca", 0.0) * 0.80
         score += relacao.get("caca", 0.0) * 0.65
         score += relacao.get("respeito", 0.0) * 0.25
+        return score
 
-        # Prioridade 4: Se estÃ¡ atacando um aliado nosso
-        f = info_inimigo["lutador"]
-        if getattr(f, 'brain', None):
-            brain = f.brain
-            # BUG-C2 fix: _alvo_atual agora Ã© sempre atribuÃ­do em processar().
-            # Verifica se o inimigo estÃ¡ focando um aliado nosso â€” bÃ´nus de score
-            # para incentivar interceptaÃ§Ã£o e proteÃ§Ã£o de aliados.
-            alvo_do_inimigo = getattr(brain, '_alvo_atual', None)
-            if alvo_do_inimigo and getattr(alvo_do_inimigo, 'team_id', -1) == self.parent.team_id:
-                score += 1.0
-        
-        # v13.0: Prioridade 5 â€” Alvo designado pelo TeamCoordinator
+    def _score_interceptacao_alvo(self, lutador):
+        if not getattr(lutador, 'brain', None):
+            return 0.0
+        alvo_do_inimigo = getattr(lutador.brain, '_alvo_atual', None)
+        if alvo_do_inimigo and getattr(alvo_do_inimigo, 'team_id', -1) == self.parent.team_id:
+            return 1.0
+        return 0.0
+
+    def _score_alvo_designado_time(self, lutador):
         primary_id = self.team_orders.get("primary_target_id", 0)
-        if primary_id and id(f) == primary_id:
-            score += 2.5  # Big bonus para o alvo do time
-        
-        # v13.0: Prioridade 6 â€” Role-based targeting
+        if primary_id and id(lutador) == primary_id:
+            return 2.5
+        return 0.0
+
+    def _score_targeting_por_role_alvo(self, lutador):
         team_role = self.team_orders.get("role", "STRIKER")
         if team_role == "FLANKER":
-            # Flankers preferem alvos que jÃ¡ estÃ£o sendo pressionados por aliados
-            ally_intents = self.team_orders.get("ally_intents", {})
-            for intent in ally_intents.values():
-                if intent.target_id == id(f):
-                    score += 1.0  # Aliado jÃ¡ estÃ¡ nesse, posso flanquear
-                    break
-        elif team_role == "SUPPORT":
-            # MED-3 fix: f.alvo nÃ£o existe em Lutador â€” substituÃ­do por
-            # f.brain._alvo_atual que Ã© atribuÃ­do em processar() (BUG-C2 fix).
-            # Suporte prefere alvos que ameaÃ§am aliados frÃ¡geis.
-            aliado_alvo = getattr(getattr(f, 'brain', None), '_alvo_atual', None)
-            if aliado_alvo and getattr(aliado_alvo, 'team_id', -1) == self.parent.team_id:
-                hp_aliado = aliado_alvo.vida / max(aliado_alvo.vida_max, 1)
-                if hp_aliado < 0.4:
-                    score += 2.0  # Proteger aliado ferido
-        
-        # v13.0: Penalidade se muitos aliados jÃ¡ focam esse alvo (evita overkill)
+            return self._score_flanker_targeting_alvo(lutador)
+        if team_role == "SUPPORT":
+            return self._score_support_targeting_alvo(lutador)
+        return 0.0
+
+    def _score_flanker_targeting_alvo(self, lutador):
         ally_intents = self.team_orders.get("ally_intents", {})
-        allies_on_target = sum(1 for i in ally_intents.values()
-                               if getattr(i, 'target_id', 0) == id(f))
+        for intent in ally_intents.values():
+            if intent.target_id == id(lutador):
+                return 1.0
+        return 0.0
+
+    def _score_support_targeting_alvo(self, lutador):
+        aliado_alvo = getattr(getattr(lutador, 'brain', None), '_alvo_atual', None)
+        if aliado_alvo and getattr(aliado_alvo, 'team_id', -1) == self.parent.team_id:
+            hp_aliado = aliado_alvo.vida / max(aliado_alvo.vida_max, 1)
+            if hp_aliado < 0.4:
+                return 2.0
+        return 0.0
+
+    def _score_penalidade_overkill_alvo(self, lutador):
+        ally_intents = self.team_orders.get("ally_intents", {})
+        allies_on_target = sum(
+            1 for intent in ally_intents.values()
+            if getattr(intent, 'target_id', 0) == id(lutador)
+        )
         if allies_on_target >= 2:
-            score -= 0.5 * (allies_on_target - 1)  # Penaliza overkill
-        
-        return score
+            return -0.5 * (allies_on_target - 1)
+        return 0.0
 
     # =========================================================================
     # SISTEMA DE COORDENAÃ‡ÃƒO DE TIME v13.0
@@ -1401,16 +1569,25 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         Integra com: personalidade, classe, emoÃ§Ãµes, spatial.
         """
         orders = self.team_orders
-        if not orders or orders.get("alive_count", 1) <= 1:
-            return  # Solo ou sem ordens
-        
-        p = self.parent
+        if self._team_orders_estao_inativos(orders):
+            return
         role = orders.get("role", "STRIKER")
         tactic = orders.get("tactic", "FOCUS_FIRE")
         package_role = orders.get("package_role", "")
         modo_horda = bool(orders.get("modo_horda", False))
-        
-        # â”€â”€ ROLE-BASED AGGRESSION MODIFIERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+        self._aplicar_agressividade_por_role_team_orders(dt, role)
+        self._aplicar_ajustes_emocionais_por_tatica_team_orders(dt, role, tactic, orders)
+        self._aplicar_ajustes_modo_horda_team_orders(dt, package_role, modo_horda, orders)
+        self._aplicar_ajustes_desvantagem_numerica_team_orders(dt, orders)
+        self._aplicar_resposta_a_callouts_team_orders(role, orders)
+        self._aplicar_sinergias_team_orders(role, orders)
+        self._aplicar_posicionamento_relativo_team_orders(role, orders)
+
+    def _team_orders_estao_inativos(self, orders) -> bool:
+        return not orders or orders.get("alive_count", 1) <= 1
+
+    def _aplicar_agressividade_por_role_team_orders(self, dt, role) -> None:
         role_agg_mod = {
             "VANGUARD":   0.10,    # Moderadamente agressivo, engaja
             "STRIKER":    0.15,    # Agressivo, busca dano
@@ -1428,8 +1605,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
         target_mod = role_agg_mod.get(role, 0.0)
         lerp_rate = min(1.0, 1.5 * dt)  # ~1.5 unidades/s de convergÃªncia
         self._agressividade_temp_mod += (target_mod - self._agressividade_temp_mod) * lerp_rate
-        
-        # â”€â”€ TACTIC-BASED EMOTIONAL ADJUSTMENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    def _aplicar_ajustes_emocionais_por_tatica_team_orders(self, dt, role, tactic, orders) -> None:
         if tactic == "FULL_AGGRO":
             self.confianca = min(1.0, self.confianca + 0.02 * dt * 60)
             self.raiva = min(1.0, self.raiva + 0.01 * dt * 60)
@@ -1442,6 +1619,7 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
                 # Protetores mantÃªm calma
                 self.medo = max(0, self.medo - 0.01 * dt * 60)
 
+    def _aplicar_ajustes_modo_horda_team_orders(self, dt, package_role, modo_horda, orders) -> None:
         if modo_horda:
             pressure_ratio = min(1.0, max(0.0, (orders.get("enemy_alive_count", 0) - orders.get("alive_count", 1)) / 6.0))
             if package_role == "defensor":
@@ -1456,8 +1634,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             elif package_role == "assassino":
                 self._agressividade_temp_mod -= 0.03 * dt * 60
                 self.hesitacao = min(0.30, self.hesitacao + 0.006 * dt * 60)
-        
-        # â”€â”€ DESVANTAGEM NUMÃ‰RICA AWARENESS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    def _aplicar_ajustes_desvantagem_numerica_team_orders(self, dt, orders) -> None:
         if orders.get("em_desvantagem", False):
             # Time em desvantagem: aumenta cautela de todos exceto berserkers
             if "BERSERKER" not in self.tracos and "DETERMINADO" not in self.tracos:
@@ -1465,8 +1643,8 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             # Mas se eu sou o carry, pressiona mais (Ã© a Ãºltima esperanÃ§a)
             if orders.get("is_carry", False):
                 self.adrenalina = min(1.0, self.adrenalina + 0.03 * dt * 60)
-        
-        # â”€â”€ RESPOND TO CALLOUTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    def _aplicar_resposta_a_callouts_team_orders(self, role, orders) -> None:
         for callout in orders.get("callouts", []):
             if callout.get("type") == "HELP":
                 # Aliado pediu ajuda â€” se sou vanguard/support, priorizo
@@ -1475,8 +1653,9 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
             elif callout.get("type") == "TARGET":
                 # Aliado marcou alvo â€” aumento prioridade mental
                 pass  # JÃ¡ handled pelo scoring do _score_alvo
-        
-        # â”€â”€ SYNERGY AWARENESS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    def _aplicar_sinergias_team_orders(self, role, orders) -> None:
+        p = self.parent
         synergies = orders.get("synergies", [])
         for syn in synergies:
             if syn.tipo == "cc_burst" and role == "STRIKER":
@@ -1499,8 +1678,9 @@ class AIBrain(PersonalityMixin, PerceptionMixin, EvasionMixin, CombatMixin, Skil
                 else:
                     # Olho pro mais fraco do time para curar
                     self._agressividade_temp_mod -= 0.1
-        
-        # â”€â”€ POSITION RELATIVE TO TEAM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+    def _aplicar_posicionamento_relativo_team_orders(self, role, orders) -> None:
+        p = self.parent
         team_center = orders.get("team_center", (0, 0))
         dist_to_center = math.hypot(p.pos[0] - team_center[0], p.pos[1] - team_center[1])
         
