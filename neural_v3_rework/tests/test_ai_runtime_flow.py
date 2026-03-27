@@ -8,7 +8,8 @@ import pytest
 from ia.skill_strategy import SkillProfile
 from nucleo.entities import Lutador
 from modelos import Arma, Personagem
-from simulacao.sim_combat import SimuladorCombat
+from simulacao.sim_combat import AttackImpactVector, SimuladorCombat
+from utilitarios.config import PPM
 
 
 def _make_fighter(nome, weapon_type="Espada Reta", family=None, team_id=0, x=0.0, y=0.0):
@@ -59,6 +60,549 @@ def _make_sim_stub():
         time_scale=1.0,
         slow_mo_timer=0.0,
     )
+
+
+def _make_combat_harness():
+    sim = SimuladorCombat()
+    sim.audio = None
+    sim.cam = SimpleNamespace(
+        x=0.0,
+        aplicar_shake=lambda *args, **kwargs: None,
+        zoom_punch=lambda *args, **kwargs: None,
+    )
+    sim.block_effects = []
+    sim.textos = []
+    sim.particulas = []
+    sim.impact_flashes = []
+    sim.magic_clashes = []
+    sim.shockwaves = []
+    sim.hit_sparks = []
+    sim.hit_stop_timer = 0.0
+    sim.time_scale = 1.0
+    sim.slow_mo_timer = 0.0
+    sim.game_feel = None
+    sim.choreographer = None
+    sim.attack_anims = None
+    sim.vencedor = None
+    sim.spawn_particulas = lambda *args, **kwargs: None
+    sim._criar_knockback_visual = lambda *args, **kwargs: None
+    sim.ativar_slow_motion = lambda: None
+    return sim
+
+
+class _StatsCollectorSpy:
+    def __init__(self):
+        self.attempts = []
+        self.hits = []
+        self.deaths = []
+
+    def record_attack_attempt(self, *args, **kwargs):
+        self.attempts.append((args, kwargs))
+
+    def record_hit(self, *args, **kwargs):
+        self.hits.append((args, kwargs))
+
+    def record_death(self, *args, **kwargs):
+        self.deaths.append((args, kwargs))
+
+
+def test_combat_helper_blocks_direct_hitbox_for_ranged_types():
+    sim = _make_sim_stub()
+
+    assert SimuladorCombat._arma_usa_hitbox_direta(sim, SimpleNamespace(tipo="Arremesso")) is False
+    assert SimuladorCombat._arma_usa_hitbox_direta(sim, SimpleNamespace(tipo="Arco")) is False
+    assert SimuladorCombat._arma_usa_hitbox_direta(sim, SimpleNamespace(tipo="MÃ¡gica")) is False
+    assert SimuladorCombat._arma_usa_hitbox_direta(sim, SimpleNamespace(tipo="Reta")) is True
+
+
+def test_combat_helper_tracks_repeated_targets_inside_same_attack():
+    sim = _make_sim_stub()
+    defensor = object()
+    atacante = SimpleNamespace(alvos_atingidos_neste_ataque=set())
+
+    assert SimuladorCombat._ja_acertou_alvo_neste_ataque(sim, atacante, defensor) is False
+
+    SimuladorCombat._marcar_alvo_atingido_neste_ataque(sim, atacante, defensor)
+
+    assert SimuladorCombat._ja_acertou_alvo_neste_ataque(sim, atacante, defensor) is True
+
+
+def test_combat_helper_breaks_weapon_and_applies_damage_penalty_once():
+    sim = _make_sim_stub()
+    atacante = SimpleNamespace(pos=[2.0, 3.0])
+    arma = SimpleNamespace(durabilidade=0.25)
+
+    dano = SimuladorCombat._aplicar_desgaste_durabilidade_arma(sim, atacante, arma, 20.0, is_critico=False)
+
+    assert dano == pytest.approx(10.0)
+    assert arma.durabilidade == 0.0
+    assert arma._aviso_quebrada_exibido is True
+    assert len(sim.textos) == 1
+
+
+def test_combat_helper_chicote_sweet_spot_applies_crack_and_interrupt():
+    sim = _make_sim_stub()
+    atacante = SimpleNamespace(pos=[0.0, 0.0], raio_fisico=1.0)
+    defensor = SimpleNamespace(
+        pos=[4.5, 0.0],
+        atacando=True,
+        cooldown_ataque=0.0,
+        stun_timer=0.0,
+        slow_timer=0.0,
+        slow_fator=1.0,
+        vel=[0.0, 0.0],
+        dots_ativos=[],
+    )
+    arma = SimpleNamespace(tipo="Corrente", estilo="Chicote", dano=8)
+
+    vetor = SimuladorCombat._calcular_vetor_impacto(sim, atacante, defensor)
+    resultado = SimuladorCombat._aplicar_mecanicas_corrente(sim, atacante, defensor, arma, 12.0, vetor)
+
+    assert resultado.dano == pytest.approx(24.0)
+    assert resultado.knockback_mult == pytest.approx(0.5)
+    assert resultado.label == "CRACK!"
+    assert defensor.atacando is False
+    assert defensor.cooldown_ataque == pytest.approx(0.3)
+
+
+def test_combat_helper_tipo_golpe_uses_class_profile():
+    sim = _make_sim_stub()
+    bruto = SimpleNamespace(classe_nome="Berserker")
+    agil = SimpleNamespace(classe_nome="Assassino")
+
+    assert SimuladorCombat._determinar_tipo_golpe(sim, bruto, 18.0, False) == "MEDIO"
+    assert SimuladorCombat._determinar_tipo_golpe(sim, bruto, 40.0, False) == "DEVASTADOR"
+    assert SimuladorCombat._determinar_tipo_golpe(sim, agil, 12.0, False) == "LEVE"
+    assert SimuladorCombat._determinar_tipo_golpe(sim, agil, 12.0, True) == "DEVASTADOR"
+
+
+def test_combat_helper_prepara_contexto_melee_com_tentativa_e_marcacao(monkeypatch):
+    sim = _make_combat_harness()
+    sim.stats_collector = _StatsCollectorSpy()
+
+    atacante = SimpleNamespace(
+        pos=[0.0, 0.0],
+        dados=SimpleNamespace(
+            nome="Atacante",
+            forca=6.0,
+            arma_obj=SimpleNamespace(tipo="Reta", dano=10.0),
+        ),
+        alvos_atingidos_neste_ataque=set(),
+    )
+    defensor = SimpleNamespace(pos=[2.0, 0.0])
+
+    monkeypatch.setattr("simulacao.sim_combat.verificar_hit", lambda *args, **kwargs: (True, "ok"))
+
+    contexto = sim._preparar_contexto_ataque_melee(atacante, defensor)
+
+    assert contexto is not None
+    assert contexto.arma is atacante.dados.arma_obj
+    assert contexto.dano > 0
+    assert contexto.chain_kb_mult == pytest.approx(1.0)
+    assert sim.stats_collector.attempts == [(("Atacante",), {})]
+    assert id(defensor) in atacante.alvos_atingidos_neste_ataque
+
+
+def test_combat_helper_prepara_contexto_melee_retorna_none_em_miss_mas_registra_tentativa(monkeypatch):
+    sim = _make_combat_harness()
+    sim.stats_collector = _StatsCollectorSpy()
+
+    atacante = SimpleNamespace(
+        pos=[0.0, 0.0],
+        dados=SimpleNamespace(
+            nome="Atacante",
+            forca=6.0,
+            arma_obj=SimpleNamespace(tipo="Reta", dano=10.0),
+        ),
+        alvos_atingidos_neste_ataque=set(),
+    )
+    defensor = SimpleNamespace(pos=[2.0, 0.0])
+
+    monkeypatch.setattr("simulacao.sim_combat.verificar_hit", lambda *args, **kwargs: (False, "fora"))
+
+    contexto = sim._preparar_contexto_ataque_melee(atacante, defensor)
+
+    assert contexto is None
+    assert sim.stats_collector.attempts == [(("Atacante",), {})]
+    assert atacante.alvos_atingidos_neste_ataque == set()
+
+
+def test_combat_helper_finaliza_hit_fatal_com_encerramento_isolado():
+    sim = _make_combat_harness()
+    sim.stats_collector = _StatsCollectorSpy()
+
+    particle_calls = []
+    knockback_calls = []
+    passive_calls = []
+    slow_motion_calls = []
+
+    sim.spawn_particulas = lambda *args, **kwargs: particle_calls.append((args, kwargs))
+    sim._criar_knockback_visual = lambda *args, **kwargs: knockback_calls.append((args, kwargs))
+    sim.ativar_slow_motion = lambda: slow_motion_calls.append(True)
+
+    atacante = SimpleNamespace(
+        dados=SimpleNamespace(nome="Atacante"),
+        aplicar_passiva_em_hit=lambda dano, alvo: passive_calls.append((dano, alvo)),
+    )
+    defensor = SimpleNamespace(
+        pos=[2.0, 1.0],
+        dados=SimpleNamespace(nome="Defensor"),
+    )
+    arma = SimpleNamespace(nome="Espada Teste", elemento="FOGO")
+    vetor = AttackImpactVector(
+        dx_px=120,
+        dy_px=80,
+        vx=1.0,
+        vy=0.5,
+        mag=1.1180339887,
+        direcao_impacto=0.5,
+        posicao_mundo=(2.0, 1.0),
+    )
+
+    resultado = sim._finalizar_hit_fatal(atacante, defensor, arma, 30.0, True, vetor)
+
+    assert resultado is True
+    assert sim.vencedor == "Atacante"
+    assert len(sim.stats_collector.hits) == 1
+    assert len(sim.stats_collector.deaths) == 1
+    assert len(passive_calls) == 1
+    assert particle_calls[0][0][-1] == 50
+    assert len(knockback_calls) == 1
+    assert slow_motion_calls == [True]
+    assert sim.hit_stop_timer == pytest.approx(0.25)
+    assert len(sim.shockwaves) == 1
+    assert len(sim.textos) == 1
+
+
+def test_combat_helper_finaliza_hit_normal_com_feedback_isolado():
+    sim = _make_combat_harness()
+    sim.stats_collector = _StatsCollectorSpy()
+
+    particle_calls = []
+    knockback_calls = []
+
+    sim.spawn_particulas = lambda *args, **kwargs: particle_calls.append((args, kwargs))
+    sim._criar_knockback_visual = lambda *args, **kwargs: knockback_calls.append((args, kwargs))
+
+    atacante = SimpleNamespace(dados=SimpleNamespace(nome="Atacante"))
+    defensor = SimpleNamespace(
+        pos=[3.0, 1.5],
+        dados=SimpleNamespace(nome="Defensor"),
+    )
+    arma = SimpleNamespace(nome="Machado Teste", elemento="")
+    vetor = AttackImpactVector(
+        dx_px=150,
+        dy_px=90,
+        vx=1.0,
+        vy=0.0,
+        mag=1.0,
+        direcao_impacto=0.0,
+        posicao_mundo=(3.0, 1.5),
+    )
+
+    resultado = sim._finalizar_hit_normal(
+        atacante,
+        defensor,
+        arma,
+        27.0,
+        False,
+        15.0,
+        None,
+        vetor,
+    )
+
+    assert resultado is False
+    assert len(sim.stats_collector.hits) == 1
+    assert sim.stats_collector.deaths == []
+    assert len(knockback_calls) == 1
+    assert particle_calls[0][0][-1] == 9
+    assert sim.hit_stop_timer == pytest.approx(0.042)
+    assert len(sim.shockwaves) == 1
+    assert len(sim.textos) == 1
+
+
+def test_combat_helper_processa_game_feel_e_super_armor_em_helper_isolado():
+    sim = _make_combat_harness()
+    calls = []
+
+    class _GameFeelSpy:
+        def verificar_super_armor(self, defensor, progresso_animacao, acao_atual):
+            calls.append(("armor", progresso_animacao, acao_atual))
+
+        def processar_hit(self, **kwargs):
+            calls.append(("hit", kwargs))
+            return {
+                "dano_final": 18.0,
+                "super_armor_ativa": True,
+                "sofreu_stagger": False,
+            }
+
+    sim.game_feel = _GameFeelSpy()
+    atacante = SimpleNamespace()
+    defensor = SimpleNamespace(
+        atacando=True,
+        timer_animacao=0.125,
+        brain=SimpleNamespace(acao_atual="DEFENDER"),
+    )
+    vetor = AttackImpactVector(
+        dx_px=110,
+        dy_px=70,
+        vx=2.0,
+        vy=0.0,
+        mag=2.0,
+        direcao_impacto=0.0,
+        posicao_mundo=(1.1, 0.7),
+    )
+
+    resultado = sim._processar_hit_game_feel(atacante, defensor, 12.0, "MEDIO", False, vetor)
+
+    assert resultado.dano == pytest.approx(18.0)
+    assert resultado.resultado_hit["super_armor_ativa"] is True
+    assert calls[0] == ("armor", 0.5, "DEFENDER")
+    assert calls[1][0] == "hit"
+    assert len(sim.textos) == 1
+    assert len(sim.particulas) == 8
+
+
+def test_combat_helper_aplica_feedback_impacto_com_chain_label():
+    sim = _make_combat_harness()
+    arma = SimpleNamespace(r=10, g=20, b=30)
+    vetor = AttackImpactVector(
+        dx_px=90,
+        dy_px=60,
+        vx=1.0,
+        vy=0.0,
+        mag=1.0,
+        direcao_impacto=0.0,
+        posicao_mundo=(0.9, 0.6),
+    )
+
+    sim._aplicar_feedback_impacto_ataque(arma, "CRACK!", vetor)
+
+    assert len(sim.hit_sparks) == 1
+    assert len(sim.impact_flashes) == 1
+    assert len(sim.textos) == 1
+
+
+def test_combat_helper_calcula_knockback_com_multiplicadores(monkeypatch):
+    sim = _make_combat_harness()
+    atacante = SimpleNamespace()
+    defensor = SimpleNamespace()
+    vetor = AttackImpactVector(
+        dx_px=90,
+        dy_px=60,
+        vx=1.0,
+        vy=0.0,
+        mag=1.0,
+        direcao_impacto=0.0,
+        posicao_mundo=(0.9, 0.6),
+    )
+
+    monkeypatch.setattr("simulacao.sim_combat.calcular_knockback_com_forca", lambda *args, **kwargs: (10.0, 4.0))
+
+    resultado = sim._calcular_knockback_ataque(
+        atacante,
+        defensor,
+        20.0,
+        1.5,
+        {"sofreu_stagger": False},
+        vetor,
+    )
+
+    assert resultado.posicao_impacto == (0.9, 0.6)
+    assert resultado.kb_x == pytest.approx(3.0)
+    assert resultado.kb_y == pytest.approx(1.2)
+
+
+def test_combat_helper_processa_clashes_somente_para_pares_validos():
+    sim = _make_combat_harness()
+    clash_calls = []
+    effect_calls = []
+
+    a = SimpleNamespace(nome="A", morto=False, dados=SimpleNamespace(arma_obj=object()))
+    b = SimpleNamespace(nome="B", morto=False, dados=SimpleNamespace(arma_obj=object()))
+    c = SimpleNamespace(nome="C", morto=True, dados=SimpleNamespace(arma_obj=object()))
+    d = SimpleNamespace(nome="D", morto=False, dados=SimpleNamespace(arma_obj=None))
+
+    sim.checar_clash_geral = lambda p1, p2: clash_calls.append((p1.nome, p2.nome)) or ((p1.nome, p2.nome) == ("A", "B"))
+    sim.efeito_clash = lambda p1, p2: effect_calls.append((p1.nome, p2.nome))
+
+    sim._processar_clashes_combate([a, b, c, d])
+
+    assert clash_calls == [("A", "B")]
+    assert effect_calls == [("A", "B")]
+
+
+def test_combat_helper_processa_ataques_validos_e_finaliza_morte():
+    sim = _make_combat_harness()
+    attack_calls = []
+    death_calls = []
+
+    atacante = SimpleNamespace(nome="A", morto=False, atacando=True)
+    defensor = SimpleNamespace(nome="B", morto=False, atacando=False)
+    espectador = SimpleNamespace(nome="C", morto=False, atacando=False)
+    morto = SimpleNamespace(nome="D", morto=True, atacando=False)
+
+    sim.checar_ataque = lambda a, d: attack_calls.append((a.nome, d.nome)) or ((a.nome, d.nome) == ("A", "B"))
+    sim._finalizar_morte_em_colisoes = lambda a, d: death_calls.append((a.nome, d.nome))
+
+    sim._processar_ataques_combate([atacante, defensor, espectador, morto])
+
+    assert attack_calls == [("A", "B"), ("A", "C")]
+    assert death_calls == [("A", "B")]
+
+
+def test_combat_helper_verificar_colisoes_orquestra_fases_em_ordem():
+    sim = _make_combat_harness()
+    fighters = [SimpleNamespace(nome="A"), SimpleNamespace(nome="B")]
+    calls = []
+
+    sim.fighters = fighters
+    sim._processar_clashes_combate = lambda current: calls.append(("clashes", current))
+    sim._processar_ataques_combate = lambda current: calls.append(("ataques", current))
+
+    sim.verificar_colisoes_combate()
+
+    assert calls == [("clashes", fighters), ("ataques", fighters)]
+
+
+def test_combat_helper_finaliza_morte_em_colisoes_resolve_vencedor():
+    sim = _make_combat_harness()
+    slow_motion_calls = []
+    sim.ativar_slow_motion = lambda: slow_motion_calls.append(True)
+    sim._determinar_vencedor_por_morte = lambda morto: f"time-{morto.nome}"
+
+    atacante = SimpleNamespace(dados=SimpleNamespace(nome="Atacante"))
+    defensor = SimpleNamespace(nome="Defensor")
+
+    sim._finalizar_morte_em_colisoes(atacante, defensor)
+
+    assert slow_motion_calls == [True]
+    assert sim.vencedor == "time-Defensor"
+
+
+def test_combat_helper_checa_clash_geral_reta_reta_com_helper(monkeypatch):
+    sim = _make_combat_harness()
+    p1 = SimpleNamespace(dados=SimpleNamespace(arma_obj=SimpleNamespace(tipo="Espada Reta")))
+    p2 = SimpleNamespace(dados=SimpleNamespace(arma_obj=SimpleNamespace(tipo="Katana Reta")))
+    calls = []
+
+    sim._checar_clash_duas_retas = lambda a, b: calls.append((a, b)) or True
+
+    assert sim.checar_clash_geral(p1, p2) is True
+    assert calls == [(p1, p2)]
+
+
+def test_combat_helper_checa_clash_geral_reta_orbital_delega_espada_escudo():
+    sim = _make_combat_harness()
+    reta = SimpleNamespace(dados=SimpleNamespace(arma_obj=SimpleNamespace(tipo="Espada Reta")))
+    orbital = SimpleNamespace(dados=SimpleNamespace(arma_obj=SimpleNamespace(tipo="Escudo Orbital")))
+    calls = []
+
+    sim.checar_clash_espada_escudo = lambda atacante, escudeiro: calls.append((atacante, escudeiro)) or True
+
+    assert sim.checar_clash_geral(reta, orbital) is True
+    assert calls == [(reta, orbital)]
+
+
+def test_combat_helper_cria_contexto_visual_clash_com_cores_e_vetor():
+    sim = _make_combat_harness()
+    p1 = SimpleNamespace(
+        pos=[1.0, 1.0],
+        dados=SimpleNamespace(arma_obj=SimpleNamespace(r=10, g=20, b=30)),
+    )
+    p2 = SimpleNamespace(
+        pos=[3.0, 2.0],
+        dados=SimpleNamespace(arma_obj=SimpleNamespace()),
+    )
+
+    contexto = sim._criar_contexto_visual_clash(p1, p2)
+
+    assert contexto.mx == pytest.approx(2.0 * PPM)
+    assert contexto.my == pytest.approx(1.5 * PPM)
+    assert contexto.cor1 == (10, 20, 30)
+    assert contexto.cor2 == (255, 255, 255)
+    assert contexto.mag > 0
+
+
+def test_combat_helper_efeito_clash_orquestra_subetapas_em_ordem():
+    sim = _make_combat_harness()
+    calls = []
+    contexto = SimpleNamespace(mx=0.0, my=0.0)
+    p1 = SimpleNamespace()
+    p2 = SimpleNamespace()
+
+    sim._criar_contexto_visual_clash = lambda a, b: calls.append(("contexto", a, b)) or contexto
+    sim._emitir_particulas_clash = lambda current: calls.append(("particulas", current))
+    sim._aplicar_vfx_clash = lambda current: calls.append(("vfx", current))
+    sim._aplicar_empurrao_clash = lambda a, b, current: calls.append(("empurrao", a, b, current))
+    sim._aplicar_feedback_camera_audio_clash = lambda current: calls.append(("camera_audio", current))
+
+    sim.efeito_clash(p1, p2)
+
+    assert calls == [
+        ("contexto", p1, p2),
+        ("particulas", contexto),
+        ("vfx", contexto),
+        ("empurrao", p1, p2, contexto),
+        ("camera_audio", contexto),
+    ]
+
+
+def test_combat_helper_cria_contexto_colisao_corpos_quando_ha_overlap():
+    sim = _make_combat_harness()
+    p1 = SimpleNamespace(pos=[0.0, 0.0], raio_fisico=1.0, z=0.0)
+    p2 = SimpleNamespace(pos=[1.0, 0.0], raio_fisico=1.0, z=0.0)
+
+    contexto = sim._criar_contexto_colisao_corpos(p1, p2)
+
+    assert contexto is not None
+    assert contexto.p1 is p1
+    assert contexto.p2 is p2
+    assert contexto.dist == pytest.approx(1.0)
+    assert contexto.nx == pytest.approx(1.0)
+    assert contexto.ny == pytest.approx(0.0)
+    assert contexto.soma_raios == pytest.approx(2.0)
+
+
+def test_combat_helper_cria_contexto_colisao_corpos_rejeita_par_separado():
+    sim = _make_combat_harness()
+    p1 = SimpleNamespace(pos=[0.0, 0.0], raio_fisico=1.0, z=0.0)
+    p2 = SimpleNamespace(pos=[3.0, 0.0], raio_fisico=1.0, z=0.0)
+
+    contexto = sim._criar_contexto_colisao_corpos(p1, p2)
+
+    assert contexto is None
+
+
+def test_combat_helper_resolve_iteracao_fisica_aplica_separacao_e_repulsao():
+    sim = _make_combat_harness()
+    p1 = SimpleNamespace(pos=[0.0, 0.0], vel=[0.0, 0.0], raio_fisico=1.0, z=0.0)
+    p2 = SimpleNamespace(pos=[1.0, 0.0], vel=[0.0, 0.0], raio_fisico=1.0, z=0.0)
+
+    houve_colisao = sim._resolver_iteracao_fisica_corpos([p1, p2], 6.0)
+
+    assert houve_colisao is True
+    assert p1.pos[0] < 0.0
+    assert p2.pos[0] > 1.0
+    assert p1.vel[0] == pytest.approx(-6.0)
+    assert p2.vel[0] == pytest.approx(6.0)
+
+
+def test_combat_helper_resolver_fisica_corpos_para_no_primeiro_early_exit():
+    sim = _make_combat_harness()
+    sim.fighters = [
+        SimpleNamespace(morto=False),
+        SimpleNamespace(morto=False),
+    ]
+    calls = []
+
+    sim._resolver_iteracao_fisica_corpos = lambda vivos, fator: calls.append((vivos, fator)) or False
+
+    sim.resolver_fisica_corpos(0.016)
+
+    assert len(calls) == 1
+    assert calls[0][1] == pytest.approx(6.0)
 
 
 def test_lutador_ai_alias_points_to_brain():
